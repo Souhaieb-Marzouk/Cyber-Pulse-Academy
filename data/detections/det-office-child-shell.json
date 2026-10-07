@@ -1,0 +1,96 @@
+{
+  "id": "det-office-child-shell",
+  "type": "detection",
+  "title": "Office Spawning Child Shell",
+  "shortTitle": "Office Child Shell",
+  "theme": "Detection Strategy",
+  "summary": "Office spawning child shell detection identifies productivity suite processes creating a command interpreter, scripting host or living-off-the-land binary as a direct child, which is the classic post-exploitation pattern following malicious document execution, macro abuse or an exploited document renderer. The behaviour matters because document-borne intrusion remains one of the most common initial access routes, and the transition from a document handler to a system shell is the moment when a contained file becomes an interactive foothold with the user's rights and network position. The telemetry required is process creation with parent process identification and full command lines, including parent integrity level, the document or template path where available, the signed status of the child binary, and file and network telemetry to establish what the child then did. The signal survives common evasion because the operating system records the parent-child relationship at process creation regardless of how the shell was invoked; an operator may use a scripting host, a signed system binary that loads script content, a component object model invocation, or a template injection that reaches the same result, but the parent remains the document handling process. The detection breaks down in practice because legitimate documents and add-ins do spawn processes: template management, document comparison, mail merge, citation managers, digital signature workflows, and vendor add-ins for accounting, legal and engineering tools all create child processes from the office application. Environments with heavy add-in use therefore require an allow-list keyed on the specific child binary, its signer and the parent's loaded modules. Coverage also depends on whether process telemetry includes suppressed or short-lived processes, since many malicious children exit within seconds, and on whether the parent process identifier is preserved rather than reused, which some collection pipelines do not guarantee.",
+  "objectives": [
+    "Explain why the parent-child process relationship is a durable signal even when the child is a signed system binary.",
+    "Query process telemetry for office parents creating shells, script hosts or signed system binaries and enrich with signer data.",
+    "Build an allow-list of legitimate document add-in child processes and describe the risks of over-excluding.",
+    "Correlate the child process command line with follow-on network, file or credential activity to establish intent.",
+    "Handle short-lived child processes and process identifier reuse in collection pipelines.",
+    "Describe immediate containment steps and the evidence to preserve when a document-driven shell is confirmed."
+  ],
+  "tags": [
+    "macro-malware",
+    "edr",
+    "lolbin",
+    "process-injection",
+    "triage",
+    "detection-as-code",
+    "xdr"
+  ],
+  "difficulty": "very-hard",
+  "batches": [
+    {
+      "batch": 1,
+      "path": "exercises/det-office-child-shell/batch-1.html",
+      "title": "Triaging Office Child Process Alerts and Command Line Review",
+      "focus": "Detection & Triage: log and alert analysis, SIEM-style queries, prioritisation, blue-team lens.",
+      "status": "missing"
+    },
+    {
+      "batch": 2,
+      "path": "exercises/det-office-child-shell/batch-2.html",
+      "title": "Building the Allow-list and Containing a Document-Borne Incident",
+      "focus": "Response & Hands-on: terminal emulator, configuration and policy completion, decision trees, spot-the-mistake, incident timeline ordering.",
+      "status": "missing"
+    },
+    {
+      "batch": 3,
+      "path": "exercises/det-office-child-shell/batch-3.html",
+      "title": "Adversary Perspective: Template Injection, Add-in Abuse and ATT&CK Mapping",
+      "focus": "Adversarial & Cross-domain: red-team perspective, evasion, dual-perspective pairs, ATT&CK mapping, risk ranking, report drafting.",
+      "status": "missing"
+    }
+  ],
+  "techniqueId": "t1204",
+  "detectsTechniques": [
+    "t1204",
+    "t1059",
+    "t1566-001",
+    "t1059-003"
+  ],
+  "dataSources": [
+    "Endpoint detection agent process creation telemetry with parent image, command line and integrity level",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Authenticode signature and file path metadata for both the document handler and the spawned child binary",
+    "Endpoint network telemetry recording outbound connections initiated by the child process",
+    "Mail gateway and file share metadata identifying the document source, sender and delivery time"
+  ],
+  "logic": "Alert whenever a document handling process appears as the parent of a command interpreter, scripting host or signed system binary commonly abused to launch code, and attach the child's full command line, its signature status and its immediate network activity to the alert. Score higher when the child command line references temporary directories, encoded content, remote addresses, or archive and download utilities, and when the parent document originated from an external sender or an untrusted share. Score lower only for child binaries and signers that appear in the reviewed add-in allow-list, and keep those events at low severity for periodic review rather than discarding them outright.",
+  "pseudoQuery": "title: Document Handler Spawning A Shell Or Script Host\nid: det-office-child-shell\nstatus: training\nlogsource:\n  product: windows\n  category: process_creation\ndetection:\n  office_parent:\n    ParentImage|endswith:\n      - '\\\\winword.exe'\n      - '\\\\excel.exe'\n      - '\\\\powerpnt.exe'\n      - '\\\\outlook.exe'\n  suspicious_child:\n    Image|endswith:\n      - '\\\\cmd.exe'\n      - '\\\\powershell.exe'\n      - '\\\\wscript.exe'\n      - '\\\\mshta.exe'\n      - '\\\\rundll32.exe'\n      - '\\\\regsvr32.exe'\n      - '\\\\certutil.exe'\n  suspicious_arguments:\n    CommandLine|contains:\n      - 'http'\n      - '\\\\AppData\\\\'\n      - '\\\\Temp\\\\'\n      - 'frombase64string'\n  known_addin:\n    condition: child_matches_approved_addin_list\n  condition: office_parent and suspicious_child and not known_addin\nfields:\n  - ParentImage\n  - Image\n  - CommandLine\n  - User\nlevel: high",
+  "falsePositives": [
+    "Document management, citation and template add-ins that launch helper or updater processes",
+    "Mail merge, mailto and hyperlink handling that opens a command or protocol handler from a document",
+    "Enterprise add-ins for finance, legal and engineering tools that spawn signed companion binaries",
+    "Digital signature and document comparison workflows that invoke local utilities",
+    "User-initiated macros in internally authored spreadsheets that call out to approved internal tools"
+  ],
+  "tuningNotes": "Allow-list on the exact combination of parent image, child image and child signer, and require that the approved entries be reviewed and owned by a named team, because a broad parent-only exclusion removes the detection entirely in add-in heavy environments. Keep the excluded events flowing at low severity so that a change in the allowed child's arguments or its network behaviour still generates a visible anomaly. Weight severities using the document origin, since alerts from documents delivered by external mail or downloaded from the web carry materially higher risk than those from internal shares, and block macros from internet-origin documents as a preventive control that reduces alert volume at the same time. Finally, verify that process telemetry captures short-lived children, and where process identifier reuse is possible in the pipeline, join on process start time in addition to identifier to avoid misattributing activity.",
+  "severity": "high",
+  "relatedTopics": [
+    "det-powershell-encodedcommand",
+    "det-scheduled-task-non-admin",
+    "det-new-service-installation",
+    "det-dns-txt-beaconing"
+  ],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: User Execution (T1204)",
+      "url": "https://attack.mitre.org/techniques/T1204/"
+    },
+    {
+      "label": "MITRE ATT&CK: Phishing: Spearphishing Attachment (T1566.001)",
+      "url": "https://attack.mitre.org/techniques/T1566/001/"
+    },
+    {
+      "label": "Microsoft Learn: Block macros from the internet in Microsoft 365 Apps",
+      "url": "https://learn.microsoft.com/en-us/deployoffice/security/internet-macros-blocked"
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "lastReviewed": "2025-06-01"
+}

@@ -1,0 +1,96 @@
+{
+  "id": "det-new-service-installation",
+  "type": "detection",
+  "title": "New Service Installation",
+  "shortTitle": "New Service Installation",
+  "theme": "Detection Strategy",
+  "summary": "New service installation detection identifies the creation of a Windows service or the modification of an existing service's binary path where the referenced executable is not part of an approved software baseline, which is a common and durable route to both persistence and privileged code execution. The behaviour matters because a service installation requires administrative rights to complete, so it evidences either privileged access already obtained or an elevation technique that has just succeeded, and the resulting service starts automatically or at boot, granting the payload execution in a system context that survives logoff and often survives reboots. The telemetry required is service installation auditing events with the service name, image path, start type and account, process creation records for the binaries that install services including their full command line and parent, file creation or write telemetry for the referenced executable so its origin can be established, and signature and reputation enrichment for that file. The signal survives common evasion because the operating system must still record the service in its configuration store for the service to run; an operator may install it through a signed management binary, through a remote procedure call from another host, through a scripting interface, or by modifying an existing service's path rather than creating a new one, and all of these leave configuration and process evidence. The detection breaks down in practice because legitimate software installs and upgrades services constantly, and software deployment systems, monitoring agents, database engines and security products all create services as part of normal operation. Service names are attacker-chosen and often imitate vendor conventions, so name matching alone is weak, and remote installation through management interfaces can attribute the change to a system account rather than the initiating user, blurring accountability. Durable tuning therefore depends on matching the service image path to a signed binary in an approved directory, on noticing services that point into user-writable locations, temporary directories or script interpreters, and on treating modification of an existing service path as equivalent in severity to creating a new one.",
+  "objectives": [
+    "Describe the event sources that record service creation and modification and the fields needed to assess risk.",
+    "Evaluate a new service by image path, signer, parent process and the account the service will run as.",
+    "Detect modification of an existing service binary path as a persistence technique distinct from creation.",
+    "Recognise service installations that reference scripting interpreters, temporary directories or remote paths.",
+    "Correlate service creation with the process that installed it and reconstruct the execution chain afterwards.",
+    "Recommend least privilege controls that constrain who may install services and from where."
+  ],
+  "tags": [
+    "persistence",
+    "edr",
+    "siem",
+    "privilege-escalation",
+    "rbac",
+    "triage",
+    "detection-as-code"
+  ],
+  "difficulty": "very-hard",
+  "batches": [
+    {
+      "batch": 1,
+      "path": "exercises/det-new-service-installation/batch-1.html",
+      "title": "Triaging Service Installation Events and Assessing Image Paths",
+      "focus": "Detection & Triage: log and alert analysis, SIEM-style queries, prioritisation, blue-team lens.",
+      "status": "missing"
+    },
+    {
+      "batch": 2,
+      "path": "exercises/det-new-service-installation/batch-2.html",
+      "title": "Writing the Baseline Logic and Responding to a Suspicious Service",
+      "focus": "Response & Hands-on: terminal emulator, configuration and policy completion, decision trees, spot-the-mistake, incident timeline ordering.",
+      "status": "missing"
+    },
+    {
+      "batch": 3,
+      "path": "exercises/det-new-service-installation/batch-3.html",
+      "title": "Adversary Perspective: Signed Binary Proxies and ATT&CK Mapping",
+      "focus": "Adversarial & Cross-domain: red-team perspective, evasion, dual-perspective pairs, ATT&CK mapping, risk ranking, report drafting.",
+      "status": "missing"
+    }
+  ],
+  "techniqueId": "t1547",
+  "detectsTechniques": [
+    "t1547",
+    "t1059",
+    "t1055",
+    "t1078"
+  ],
+  "dataSources": [
+    "Windows Security event 4697 service installation with service name, image path and service account",
+    "Windows System log service control manager events recording service creation and configuration change",
+    "Windows Security event 4688 process creation with command line auditing to identify the installing process",
+    "File creation telemetry and Authenticode signature metadata for the executable referenced by the service",
+    "Software deployment and change management records used to distinguish approved installations from unapproved ones"
+  ],
+  "logic": "Alert on any service installation or service configuration change and immediately resolve the referenced image path to a file, checking whether it is signed, whether it resides in a protected program directory, and whether the installing process is a known deployment agent. Raise severity when the image path points into a user profile, temporary directory or network share, when the binary is unsigned or newly created, when the service account is a privileged local or domain account, or when the installation happened on a host and at a time outside the change calendar. Lower severity to an informational record for installations that match an approved deployment signature and path pair, and always query the process tree around the installation time so that any subsequent execution of the service binary can be tied back to a specific origin.",
+  "pseudoQuery": "title: Unapproved Service Installation With Untrusted Image Path\nid: det-new-service-installation\nstatus: training\nlogsource:\n  product: windows\n  service: security\ndetection:\n  service_installed:\n    EventID: 4697\n  untrusted_path:\n    ServiceFileName|contains:\n      - '\\\\Users\\\\'\n      - '\\\\AppData\\\\'\n      - '\\\\Temp\\\\'\n      - '\\\\ProgramData\\\\'\n      - '\\\\Windows\\\\Temp\\\\'\n      - '\\\\\\\\'\n  interpreter_path:\n    ServiceFileName|contains:\n      - 'cmd.exe'\n      - 'powershell'\n      - 'rundll32'\n      - 'mshta'\n  approved_installer:\n    # installer binary corresponds to a signed deployment agent path\n    condition: installer_is_known_deployment_agent\n  condition: service_installed and (untrusted_path or interpreter_path) and not approved_installer\nfields:\n  - ServiceName\n  - ServiceFileName\n  - ServiceAccount\n  - SubjectUserName\n  - Computer\nlevel: high",
+  "falsePositives": [
+    "Software deployment and patch management agents installing or updating services across the estate",
+    "Endpoint protection, backup and monitoring products that register services during installation and upgrade",
+    "Database and application servers configured manually by administrators during approved builds",
+    "Driver and hardware support packages that add helper services from vendor installation directories",
+    "Development and test systems where engineers iterate on service-based components frequently"
+  ],
+  "tuningNotes": "Key exclusions on the pair of installer binary and service image path, both resolved to signed files in approved directories, rather than on the service name, because names are easily imitated and change between product versions. Treat any service whose image path resolves to an unsigned file or a user-writable directory as a separate high severity rule that is not subject to the deployment agent allow-list, since signed deployment tooling should never produce that combination. Where remote installation is possible, ensure that the service events are collected with subject account information and that the originating host is correlated through logon events, otherwise the change will appear attributable only to a machine account. Finally, review the rule whenever the endpoint agent or management platform changes its own service configuration, because those upgrades generate predictable bursts of alerts that erode analyst trust if they are not handled.",
+  "severity": "high",
+  "relatedTopics": [
+    "det-scheduled-task-non-admin",
+    "det-shadow-copy-deletion",
+    "det-lsass-handle-access",
+    "det-powershell-encodedcommand"
+  ],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Boot or Logon Autostart Execution (T1547)",
+      "url": "https://attack.mitre.org/techniques/T1547/"
+    },
+    {
+      "label": "Microsoft Learn: Security auditing event 4697",
+      "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4697"
+    },
+    {
+      "label": "Microsoft Learn: Audit policy recommendations for Windows",
+      "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/audit-policy-recommendations"
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "lastReviewed": "2025-06-01"
+}

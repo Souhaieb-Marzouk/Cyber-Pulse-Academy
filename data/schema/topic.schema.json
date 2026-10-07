@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cybermastery.local/schema/topic.schema.json",
+  "title": "Topic",
+  "description": "A single catalog entry. One JSON file per topic lives in data/<type>/<id>.json and is the single source of truth for that entry. catalogue.json is generated from these files, never hand-edited.",
+  "type": "object",
+  "required": ["id", "type", "title", "shortTitle", "theme", "summary", "tags", "batches", "sources", "lastReviewed"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,63}$", "description": "URL-safe unique id. Becomes topics/<id>.html and exercises/<id>/." },
+    "type": { "enum": ["keyword", "certification", "tactic", "technique", "mitigation", "detection", "group"] },
+    "title": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "shortTitle": { "type": "string", "minLength": 2, "maxLength": 60 },
+    "externalId": { "type": "string", "maxLength": 40, "description": "e.g. T1059, TA0002, G0007, SY0-701, M1032." },
+    "theme": { "type": "string", "minLength": 2, "description": "Grouping used on listing pages, e.g. 'Network Security', 'CompTIA', 'Enterprise'." },
+    "summary": { "type": "string", "minLength": 200, "description": "Human intro paragraph, 200+ characters, SEO-friendly, no keyword stuffing." },
+    "objectives": { "type": "array", "items": { "type": "string", "minLength": 4 }, "description": "Cert exam objectives summary OR topic learning goals." },
+    "tags": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9 +./-]{0,40}$" } },
+    "difficulty": { "enum": ["hard", "very-hard", "extreme"], "default": "extreme" },
+    "batches": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["batch", "path", "focus", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "batch": { "type": "integer", "minimum": 1, "maximum": 3 },
+          "path": { "type": "string", "pattern": "^exercises/" },
+          "title": { "type": "string", "minLength": 4 },
+          "focus": { "type": "string", "minLength": 10, "description": "What makes this batch different from the other two." },
+          "status": { "enum": ["missing", "draft", "published"], "default": "published" }
+        }
+      }
+    },
+    "relatedTopics": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" } },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["label", "url"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string", "minLength": 3 },
+          "url": { "type": "string", "pattern": "^https://" }
+        }
+      }
+    },
+    "attributionNote": { "type": "string", "description": "Required for certification, tactic, technique, mitigation, detection and group topics." },
+    "lastReviewed": { "type": "string", "format": "date" },
+
+    "parentTactic": { "type": "string", "pattern": "^ta[0-9]{4}$", "description": "technique only: tactics/<id> it belongs to." },
+    "isSubTechnique": { "type": "boolean", "description": "technique only." },
+    "parentTechnique": { "type": "string", "description": "technique only: parent technique id for sub-techniques." },
+    "mitigatesTechniques": { "type": "array", "items": { "type": "string" }, "description": "mitigation only: technique ids this mitigation addresses." },
+    "detectsTechniques": { "type": "array", "items": { "type": "string" }, "description": "detection only: technique ids this strategy observes." },
+    "techniqueId": { "type": "string", "description": "detection only: primary technique observed." },
+    "dataSources": { "type": "array", "items": { "type": "string" }, "description": "detection only." },
+    "logic": { "type": "string", "description": "detection only: plain-language detection logic." },
+    "pseudoQuery": { "type": "string", "description": "detection only: Sigma-like or KQL-like pseudo-rule. Never a working exploit." },
+    "falsePositives": { "type": "array", "items": { "type": "string" }, "description": "detection only." },
+    "tuningNotes": { "type": "string", "description": "detection only." },
+    "severity": { "enum": ["low", "medium", "high", "critical"], "description": "detection only." },
+    "linkedTechniques": { "type": "array", "items": { "type": "string" }, "description": "group only." },
+    "linkedSoftware": { "type": "array", "items": { "type": "string" }, "description": "group only." },
+    "aliases": { "type": "array", "items": { "type": "string" }, "description": "group only." },
+    "vendor": { "type": "string", "description": "certification only." },
+    "examCode": { "type": "string", "description": "certification only." },
+    "contributors": { "type": "array", "items": { "type": "string" }, "description": "Optional credit list of GitHub handles." }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "enum": ["certification", "tactic", "technique", "mitigation", "detection", "group"] } }, "required": ["type"] },
+      "then": { "required": ["attributionNote"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "technique" } }, "required": ["type"] },
+      "then": { "required": ["parentTactic"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "mitigation" } }, "required": ["type"] },
+      "then": { "required": ["mitigatesTechniques"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "detection" } }, "required": ["type"] },
+      "then": { "required": ["techniqueId", "dataSources", "logic", "pseudoQuery", "falsePositives", "tuningNotes", "severity", "attributionNote"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "group" } }, "required": ["type"] },
+      "then": { "required": ["externalId", "linkedTechniques", "linkedSoftware", "attributionNote"] }
+    }
+  ]
+}

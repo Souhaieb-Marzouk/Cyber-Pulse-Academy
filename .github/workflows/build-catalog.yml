@@ -1,0 +1,147 @@
+# CyberPulseAcademy - rebuild the generated artifacts and commit them.
+#
+# Everything this workflow needs is in the Python standard library, which is
+# why there is no dependency install step. See .github/workflows/validate.yml
+# for the longer explanation.
+#
+# Permissions note for whoever owns this repository. This workflow needs
+# Settings > Actions > General > Workflow permissions set to
+# "Read and write permissions" so the GITHUB_TOKEN can push the regenerated
+# artifacts back to the branch. It does NOT need
+# "Allow GitHub Actions to create and approve pull requests": that setting
+# should stay OFF, because this workflow only ever pushes a commit, and it is
+# the repository owner who should merge it. If the push step fails with
+# "remote: Permission to ... denied", the workflow permission setting is the
+# cause, and it is a repository setting rather than anything in this file.
+
+name: Build catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/**'
+      - 'scripts/**'
+      - 'assets/js/config.js'
+      - 'pages/**.html'
+      - 'index.html'
+  workflow_dispatch:
+  schedule:
+    # Mondays at 04:17 UTC. Off the hour on purpose: scheduled runs queued at
+    # :00 are the ones GitHub is most likely to delay or drop under load.
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: write
+
+# Two builds must never race each other. Unlike the validation gate this group
+# does NOT cancel a run in progress: the job writes git commits, and killing it
+# halfway through `git push` is how a generated artifact gets corrupted. A
+# second run waits instead.
+concurrency:
+  group: build-catalog
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Regenerate and commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          # Full history is not needed, but the bot's commits must be able to
+          # fast-forward onto the remote branch, so the checkout must not be
+          # shallow in a way that breaks `git push`.
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The site URL is derived from the repository rather than hard-coded,
+      # because the same workflow has to be correct in a fork.
+      #
+      # Special case: if the repository is itself named "<owner>.github.io",
+      # GitHub Pages serves it from the domain root, so the base URL is
+      # "https://<owner>.github.io" with no path segment. Otherwise it is
+      # "https://<owner>.github.io/<repo>".
+      - name: Derive the site base URL
+        id: base-url
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          owner="$(awk -F/ '{print $1}' <<< "${GITHUB_REPOSITORY}")"
+          repo="$REPO_NAME"
+          if [ -z "$repo" ]; then
+            repo="$(awk -F/ '{print $2}' <<< "${GITHUB_REPOSITORY}")"
+          fi
+          if [ "$repo" = "${owner}.github.io" ]; then
+            base_url="https://${owner}.github.io"
+          else
+            base_url="https://${owner}.github.io/${repo}"
+          fi
+          echo "base_url=${base_url}" >> "$GITHUB_OUTPUT"
+          echo "Site base URL: ${base_url}"
+
+      - name: Build the catalog, sitemap and robots.txt
+        run: python scripts/build_catalog.py --base-url "${{ steps.base-url.outputs.base_url }}"
+
+      - name: Regenerate the topic pages and refresh the count and version stamps
+        run: python scripts/generate_pages.py
+
+      - name: Regenerate the Open Graph SVG cards
+        run: python scripts/generate_og.py
+
+      # Pillow is an optional extra, not a build requirement. It is installed
+      # nowhere in CI on purpose. Raster previews are a nice-to-have for
+      # Facebook, LinkedIn and X, which do not render SVG; a missing font or a
+      # Pillow version bump must never block a deploy, so this step is allowed
+      # to fail and the SVG cards above are the artifacts that actually matter.
+      - name: Regenerate the Open Graph PNG previews (optional, needs Pillow)
+        continue-on-error: true
+        run: python scripts/generate_og.py --png
+
+      - name: Record the catalog content hash
+        id: hash
+        run: |
+          hash="$(python -c "import json;print(json.load(open('data/catalog.json', encoding='utf-8'))['contentHash'])")"
+          echo "content_hash=${hash}" >> "$GITHUB_OUTPUT"
+          echo "Catalog content hash: ${hash}"
+
+      - name: Commit the regenerated artifacts
+        env:
+          CONTENT_HASH: ${{ steps.hash.outputs.content_hash }}
+          BASE_URL: ${{ steps.base-url.outputs.base_url }}
+        run: |
+          # Bot identity. The noreply address is the one GitHub documents for
+          # Actions commits, and it keeps the bot from being counted as a
+          # contributor on the repository.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- data/catalog.json sitemap.xml robots.txt assets/img/og/ \
+            topics/ pages/ index.html 404.html
+
+          # A run that changed nothing is a no-op. This is the expected case:
+          # data/catalog.json carries a generatedAt timestamp, so it is always a
+          # diff, but on a scheduled run that touches no content the regenerated
+          # values are identical to what was already committed. The hashes are
+          # named explicitly because a missing hash must fail the job rather
+          # than print an empty name.
+          if git diff --cached --quiet -- data/catalog.json sitemap.xml robots.txt \
+               assets/img/og/ topics/ pages/ index.html 404.html; then
+            echo "Nothing to commit: every generated artifact already matches the sources."
+            exit 0
+          fi
+
+          echo "Staged changes:"
+          git --no-pager diff --cached --stat
+
+          git commit -m "chore(build): regenerate catalog and pages (catalog ${CONTENT_HASH})" \
+                     -m "Generated by .github/workflows/build-catalog.yml from the committed topic files." \
+                     -m "Catalog content hash: ${CONTENT_HASH}" \
+                     -m "Site base URL: ${BASE_URL}"
+
+          git push

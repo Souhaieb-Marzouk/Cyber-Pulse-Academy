@@ -1,0 +1,170 @@
+# CyberPulseAcademy - the validation gate.
+#
+# This entire workflow is Python standard library only. That is why there is no
+# "pip install" step anywhere below, and it is deliberate rather than an
+# oversight: a contributor can reproduce every check CI runs on their own
+# machine with nothing installed but Python itself, and no network access:
+#
+#     python scripts/validate.py
+#     python scripts/build_catalog.py --check
+#     python scripts/generate_pages.py
+#     python scripts/generate_og.py
+#
+# The single optional dependency in this project (Pillow, see
+# scripts/requirements.txt) is used only by `generate_og.py --png`, which this
+# workflow never runs. CI must not require an optional extra to be installed,
+# so the OG step here is the SVG-only default.
+#
+# Adding a dependency to this gate would break that promise for every future
+# contributor, so a new third-party import in scripts/ should be treated as a
+# defect rather than an inconvenience to paper over here.
+
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only by default. Nothing in this workflow writes to the repository, and
+# saying so explicitly means a compromised step cannot push.
+permissions:
+  contents: read
+
+# Superseded runs on the same ref are cancelled: an older push's result is
+# worthless once a newer one exists.
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Schema, size, links and generated output
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run the validation gate
+        run: python scripts/validate.py
+
+      - name: Prove data/catalog.json is not stale
+        run: python scripts/build_catalog.py --check
+
+      - name: Regenerate pages and fail on uncommitted drift
+        run: |
+          python scripts/generate_pages.py
+          if ! git diff --quiet -- topics/ pages/ index.html 404.html; then
+            echo "::error title=Generated files are stale::Generated output differs from what is committed. Run these three commands locally, then commit the result:"
+            echo "    python scripts/build_catalog.py"
+            echo "    python scripts/generate_pages.py"
+            echo "    python scripts/generate_og.py"
+            echo
+            echo "Files that changed when the generator was re-run:"
+            git --no-pager diff --stat -- topics/ pages/ index.html 404.html
+            echo
+            echo "The ?v= cache-bust stamps and the data-cm-count spans are both written"
+            echo "by the generator, so a siteVersion bump in assets/js/config.js changes"
+            echo "many files at once. Commit all of them, not just the topic pages."
+            exit 1
+          fi
+          echo "Generated topic pages, count stamps and ?v= stamps are all current."
+
+      - name: Enforce the 250 KB per-file budget on HTML
+        run: |
+          python - <<'PY'
+          import pathlib
+          import sys
+
+          CAP = 250 * 1024
+          root = pathlib.Path(".")
+          over = []
+          for path in sorted(root.rglob("*.html")):
+              parts = path.relative_to(root).parts
+              if any(part in {".git", "node_modules", "assets"} for part in parts):
+                  continue
+              size = path.stat().st_size
+              if size > CAP:
+                  over.append((size, path.as_posix()))
+
+          if over:
+              print("These HTML files break the 250 KB per-file budget:")
+              for size, name in sorted(over, reverse=True):
+                  print(f"  {size / 1024:8.1f} KB  {name}")
+              print()
+              print("The budget exists so a single page cannot become a slow download")
+              print("on a phone. Split the page, or move repeated markup into the")
+              print("shared scripts, then run python scripts/validate.py locally.")
+              sys.exit(1)
+
+          print("Every HTML file is within the 250 KB per-file budget.")
+          PY
+
+      - name: Summarise the external URL allow-list decision
+        run: |
+          python scripts/validate.py --verbose 2>&1 | tee /tmp/cm-validate-verbose.txt
+          echo
+          echo "External URL policy from scripts/validate.py:"
+          grep -E "external|allow-list" /tmp/cm-validate-verbose.txt || true
+          echo
+          echo "A host that is not in ALLOWED_HOSTS or NAMESPACE_HOSTS fails the job"
+          echo "above, with the offending host and the files that reference it. Hosts"
+          echo "are added to that set only as a deliberate, reviewed decision, because"
+          echo "each one is a third-party dependency the site then loads or links to."
+
+      - name: Assert every topic has exactly three batch entries
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          TYPE_DIRS = (
+              "keywords",
+              "certifications",
+              "tactics",
+              "techniques",
+              "mitigations",
+              "detections",
+              "groups",
+          )
+
+          bad = []
+          total = 0
+          for dirname in TYPE_DIRS:
+              for path in sorted((pathlib.Path("data") / dirname).glob("*.json")):
+                  total += 1
+                  topic = json.loads(path.read_text(encoding="utf-8"))
+                  batches = topic.get("batches") or []
+                  paths_ok = all(
+                      batches[index].get("path") == f"exercises/{topic.get('id')}/batch-{index + 1}.html"
+                      for index in range(min(len(batches), 3))
+                  )
+                  if len(batches) != 3 or not paths_ok:
+                      bad.append((path.as_posix(), len(batches), paths_ok))
+
+          if bad:
+              print("Topics that do not reserve exactly three canonical batches:")
+              for name, count, paths_ok in bad:
+                  detail = "paths are correct" if paths_ok else "batch paths are not the canonical ones"
+                  print(f"  {name}: {count} batch entr(y|ies), {detail}")
+              print()
+              print("Every topic reserves exercises/<id>/batch-1.html, batch-2.html and")
+              print("batch-3.html in that order. Batch status is 'published', 'draft' or")
+              print("'missing'; the count itself is always three. See data/schema/topic.schema.json.")
+              sys.exit(1)
+
+          print(f"All {total} topics reserve exactly three batches on canonical paths.")
+          PY
+
+      - name: Prove the OG generator works without Pillow
+        run: |
+          python scripts/generate_og.py
+          python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('PIL') is None else 1)" \
+            && echo "Confirmed: Pillow is not installed, and the SVG-only OG pass still succeeded."

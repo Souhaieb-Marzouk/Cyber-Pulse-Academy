@@ -1,0 +1,96 @@
+{
+  "id": "det-impossible-travel",
+  "type": "detection",
+  "title": "Impossible Travel Sign-In",
+  "shortTitle": "Impossible Travel Sign-In",
+  "theme": "Detection Strategy",
+  "summary": "Impossible travel sign-in detection identifies authentication events for the same account from two geographically distant locations within a time window that makes physical travel between them infeasible, which is a long standing indicator that credentials are being used by more than one party. The behaviour matters because it applies after the credential theft has already happened and does not depend on the attacker using tools on an endpoint: a valid account used from an unexpected place will authenticate successfully, satisfy most policy checks, and appear in logs as a normal user unless the spatial and temporal relationship between consecutive sign-ins is evaluated. The telemetry required is identity provider or directory sign-in logs containing the account, timestamp, source address, resolved location, client application, authentication method and outcome, plus an address geolocation source with accuracy metadata and a device or session identifier where the platform provides one so that concurrent sessions can be distinguished from sequential ones. The signal survives common evasion because credentialed access from a remote network must traverse the internet and will be geolocated to that network's registered location; virtual private network and proxy use changes the apparent origin but does not remove the discrepancy when the legitimate user is simultaneously active, and the discrepancy often becomes larger, not smaller, when commercial hosting ranges are used. The detection breaks down in practice for well documented reasons: mobile carrier routing, corporate virtual private network egress points that concentrate users in one datacentre, satellite links, and inaccurate geolocation databases all produce apparent travel that never happened. Authentication through a shared egress also means many accounts can appear to move simultaneously, which is a strong signal that the location source, not the user, moved. Ineffective handling of these cases causes rapid alert fatigue, so mature implementations combine distance and time thresholds with a check for whether the same address serves many accounts, treat virtual private network and known egress ranges as neutral rather than anomalous, and require a second signal such as an unfamiliar device, a failed multi-factor challenge, or a suspicious post-authentication action before escalating to an incident.",
+  "objectives": [
+    "Compute travel velocity between consecutive sign-ins and choose thresholds that reflect realistic commercial travel.",
+    "Identify systemic geolocation artefacts such as corporate egress concentrators and carrier routing that cause mass false positives.",
+    "Interpret simultaneous or overlapping sessions for one account as stronger evidence than sequential location change.",
+    "Combine travel anomalies with device familiarity, authentication method and post-authentication activity to set severity.",
+    "Describe the containment and verification steps for a confirmed stolen credential, including session revocation and token invalidation.",
+    "Assess the effect of virtual private network, proxy and hosting network usage on the reliability of geolocation indicators."
+  ],
+  "tags": [
+    "sso",
+    "conditional-access",
+    "mfa",
+    "siem",
+    "triage",
+    "zero-trust",
+    "alert-fatigue"
+  ],
+  "difficulty": "very-hard",
+  "batches": [
+    {
+      "batch": 1,
+      "path": "exercises/det-impossible-travel/batch-1.html",
+      "title": "Reviewing Impossible Travel Alerts and Separating Artefacts From Intrusions",
+      "focus": "Detection & Triage: log and alert analysis, SIEM-style queries, prioritisation, blue-team lens.",
+      "status": "missing"
+    },
+    {
+      "batch": 2,
+      "path": "exercises/det-impossible-travel/batch-2.html",
+      "title": "Tuning the Velocity Logic and Revoking Sessions After Credential Theft",
+      "focus": "Response & Hands-on: terminal emulator, configuration and policy completion, decision trees, spot-the-mistake, incident timeline ordering.",
+      "status": "missing"
+    },
+    {
+      "batch": 3,
+      "path": "exercises/det-impossible-travel/batch-3.html",
+      "title": "Adversary Perspective: Proxy Networks, Token Theft and Risk Ranking",
+      "focus": "Adversarial & Cross-domain: red-team perspective, evasion, dual-perspective pairs, ATT&CK mapping, risk ranking, report drafting.",
+      "status": "missing"
+    }
+  ],
+  "techniqueId": "t1078",
+  "detectsTechniques": [
+    "t1078",
+    "t1110-004",
+    "t1110-003",
+    "t1021-001"
+  ],
+  "dataSources": [
+    "Identity provider sign-in logs containing account, timestamp, source address, application and outcome",
+    "Geolocation enrichment data providing country, region, city and accuracy radius for each source address",
+    "Device and session metadata including device identifier, join state, client application and token lifetime",
+    "Multi-factor authentication challenge logs recording method used and challenge result",
+    "Directory audit logs recording subsequent identity or mailbox configuration changes made by the account"
+  ],
+  "logic": "For each account, order successful sign-ins chronologically and compute the distance between consecutive source locations and the time elapsed, alerting when the implied travel speed exceeds a realistic maximum such as commercial aviation. Neutralise known corporate egress ranges and hosting providers before comparison, and detect the systemic case where many accounts appear to move at once by grouping events per source address rather than per user. Escalate when the anomaly coincides with an unfamiliar device, a weaker authentication method than the user normally uses, or administrative action taken shortly after the second sign-in.",
+  "pseudoQuery": "title: Impossible Travel Between Consecutive Successful Sign-Ins\nid: det-impossible-travel\nstatus: training\nlogsource:\n  product: identity\n  service: signin\ndetection:\n  successful_signin:\n    ResultType: Success\n  geo_enriched:\n    GeoLatitude|exists: true\n    GeoLongitude|exists: true\n  velocity_anomaly:\n    condition: distance_between_consecutive_signins(AccountName) > 800km and elapsed_time < 60m\n  neutral_sources:\n    SourceNetworkCategory:\n      - corporate_egress\n      - known_vpn\n  condition: successful_signin and velocity_anomaly and not neutral_sources\nfields:\n  - AccountName\n  - SignInTime\n  - SourceIpAddress\n  - GeoCity\n  - AppDisplayName\n  - DeviceId\nlevel: medium",
+  "falsePositives": [
+    "Corporate virtual private network and secure web gateway egress that concentrates users at a small number of datacentre locations",
+    "Mobile carrier networks that route subscriber traffic through a distant regional gateway",
+    "Satellite and in-flight connectivity that reports registration points unrelated to the user's actual position",
+    "Inaccurate geolocation database entries for recently allocated or reassigned address ranges",
+    "Users operating concurrent sessions from a workstation and a remote desktop or virtual desktop environment"
+  ],
+  "tuningNotes": "Start by identifying which addresses routinely serve large numbers of accounts and classify them as neutral egress rather than excluding the accounts that use them, since a user on corporate virtual private network may still generate a genuine anomaly from a different address. Avoid pure distance thresholds; require both a high implied velocity and one supporting signal such as an unknown device, a change in authentication method, a first-seen country for that user, or an administrative action immediately afterwards, which removes most of the noise while retaining the cases that warrant investigation. Suppress repeat alerts for the same account and location pair within a shift so that one travelling user does not consume the queue, and record known travel in the identity platform where the tooling supports it rather than maintaining exclusions in the query. Finally, confirm that geolocation accuracy radius is respected, because events resolved only to a country level should not be used to calculate distance.",
+  "severity": "medium",
+  "relatedTopics": [
+    "det-rdp-new-asn",
+    "det-cloud-iam-policy-attached",
+    "det-kerberoasting-spn-spike",
+    "det-dns-txt-beaconing"
+  ],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Valid Accounts (T1078)",
+      "url": "https://attack.mitre.org/techniques/T1078/"
+    },
+    {
+      "label": "Microsoft Learn: Entra ID protection risk detections",
+      "url": "https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-risks"
+    },
+    {
+      "label": "Microsoft Learn: Conditional Access overview",
+      "url": "https://learn.microsoft.com/en-us/entra/identity/conditional-access/overview"
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "lastReviewed": "2025-06-01"
+}

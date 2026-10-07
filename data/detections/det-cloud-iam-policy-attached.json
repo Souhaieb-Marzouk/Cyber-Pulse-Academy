@@ -1,0 +1,96 @@
+{
+  "id": "det-cloud-iam-policy-attached",
+  "type": "detection",
+  "title": "Cloud IAM Policy Attached to New Principal",
+  "shortTitle": "IAM Policy to New Principal",
+  "theme": "Detection Strategy",
+  "summary": "Cloud IAM policy attached to new principal detection identifies the first successful attachment of a permission policy or role to a principal that has never held that grant before in the account, which is the primary mechanism by which an intruder converts stolen cloud credentials into durable, higher-privileged access. The behaviour matters because cloud identity changes are effectively permanent until someone reverses them: a newly attached administrative policy, a trust relationship modified to allow an unfamiliar identity provider, or a role assumption path added for an external account all survive credential rotation and are frequently used to create a hidden maintenance path back into the environment. The telemetry required is cloud control plane audit logging for policy attachment, role creation, trust policy modification and identity provider changes, capturing the acting principal, its address and user agent, the target principal and the policy or role document, together with identity inventory that establishes which principals are human, service or federated, and change management records showing whether the action was requested. The signal survives common evasion because the control plane must record the state change for the platform to function; whether the operator uses the console, a command line interface, an infrastructure as code pipeline, a software development kit call or a serverless function, the resulting audit event identifies the acting identity. Persistent access created through a separate account, a token issued outside the audited organisation, or a session obtained by assuming an existing role may not be visible at the point of creation but the assumption itself produces its own audit record. The detection breaks down in practice because platform and application teams attach policies routinely and legitimately, infrastructure as code re-applies the same attachments repeatedly, and break-glass administration generates single occurrences that look identical to abuse. Baselines must therefore be per target principal and per acting principal, change pipelines must be attributed rather than excluded, and severity should depend on whether the attached permissions are administrative, whether the acting principal normally performs identity work, and whether the action happened outside a pipeline context, from an unusual address, or was followed by immediate use of the new permissions.",
+  "objectives": [
+    "Explain why identity control plane changes outlive credential rotation and deserve durable detection rather than one-off review.",
+    "Query cloud audit logs for policy attachment, role creation and trust policy modification with actor attribution.",
+    "Establish per-account baselines of normal identity change authorship, including infrastructure as code service identities.",
+    "Identify high risk grant shapes such as broad administrative policies, cross-account trust, and external identity providers.",
+    "Correlate a new grant with subsequent use of the permissions it enables to distinguish planned change from abuse.",
+    "Draft the response steps that remove unauthorised access without disrupting legitimate deployment automation."
+  ],
+  "tags": [
+    "iam-policy",
+    "shared-responsibility-model",
+    "cspm",
+    "siem",
+    "zero-trust",
+    "secrets-manager",
+    "triage"
+  ],
+  "difficulty": "extreme",
+  "batches": [
+    {
+      "batch": 1,
+      "path": "exercises/det-cloud-iam-policy-attached/batch-1.html",
+      "title": "Triaging Cloud Identity Change Events and Assessing Grant Risk",
+      "focus": "Detection & Triage: log and alert analysis, SIEM-style queries, prioritisation, blue-team lens.",
+      "status": "missing"
+    },
+    {
+      "batch": 2,
+      "path": "exercises/det-cloud-iam-policy-attached/batch-2.html",
+      "title": "Baseline Scripting, Pipeline Attribution and Access Removal Response",
+      "focus": "Response & Hands-on: terminal emulator, configuration and policy completion, decision trees, spot-the-mistake, incident timeline ordering.",
+      "status": "missing"
+    },
+    {
+      "batch": 3,
+      "path": "exercises/det-cloud-iam-policy-attached/batch-3.html",
+      "title": "Adversary Perspective: Trust Abuse, Persistence and Cloud Risk Ranking",
+      "focus": "Adversarial & Cross-domain: red-team perspective, evasion, dual-perspective pairs, ATT&CK mapping, risk ranking, report drafting.",
+      "status": "missing"
+    }
+  ],
+  "techniqueId": "t1078",
+  "detectsTechniques": [
+    "t1078",
+    "t1136",
+    "t1133",
+    "t1562"
+  ],
+  "dataSources": [
+    "Cloud provider audit log entries for policy attachment and detach operations with acting principal and source address",
+    "Cloud provider audit log entries for role creation, trust policy update and identity provider configuration change",
+    "Infrastructure as code pipeline execution records linking a commit, pipeline identity and applied identity changes",
+    "Cloud identity inventory classifying principals as human, service, federated or external and recording group membership",
+    "Cloud provider audit log entries for subsequent use of the newly granted permissions by the target principal"
+  ],
+  "logic": "Watch for identity control plane changes that attach a policy to a principal, create a role or trust relationship, or alter an identity provider, then compare the acting principal and target principal pair against the last ninety days of similar changes. Alert when the pair is new, and raise severity when the attached permissions are administrative or allow creating further identities, when the acting identity is not a known pipeline or identity team principal, when the source address or user agent is unfamiliar for that identity, or when the action occurred outside a pipeline run. Immediately search for use of the new permissions in the following hours and append that activity to the alert so the analyst can see whether the grant was exercised.",
+  "pseudoQuery": "title: Cloud IAM Policy Attached To Previously Unseen Principal\nid: det-cloud-iam-policy-attached\nstatus: training\nlogsource:\n  product: cloud\n  service: audit\ndetection:\n  identity_change:\n    EventName:\n      - AttachUserPolicy\n      - AttachRolePolicy\n      - AttachGroupPolicy\n      - CreatePolicyVersion\n      - PutRolePolicy\n      - UpdateAssumeRolePolicy\n      - CreateRole\n  broad_permissions:\n    PolicyDocument|contains:\n      - '\"Action\": \"*\"'\n      - 'iam:*'\n      - 'sts:AssumeRole'\n  pipeline_actor:\n    # acting principal matches a registered pipeline or deployment identity\n    condition: actor_in_approved_pipeline_identities\n  condition: identity_change and not pipeline_actor and first_seen(actor, target_principal, 90d)\nfields:\n  - EventName\n  - ActorPrincipal\n  - TargetPrincipal\n  - SourceIpAddress\n  - UserAgent\n  - PolicyDocument\nlevel: high",
+  "falsePositives": [
+    "Infrastructure as code pipelines applying identity changes under their deployment service identity",
+    "Platform and application teams granting role based access as part of an approved onboarding or project change",
+    "Break-glass and emergency administrative activity performed outside the normal change calendar",
+    "Automated remediation tooling that attaches policies to correct drift or enforce a security baseline",
+    "Vendor and managed service provisioning that creates roles with cross-account trust during onboarding"
+  ],
+  "tuningNotes": "Do not exclude infrastructure as code identities from the rule; instead tag them as pipeline actors so that events they generate remain recorded while a pipeline identity used outside a pipeline run, from an unexpected address, or against an unusual target principal still raises severity. Maintain the baseline over a long window per account, since identity changes are infrequent and seasonal patterns are weak, and require a change reference such as a ticket or commit for high severity grants so the review has a concrete artefact. Alert separately and at critical severity on trust policy modifications that introduce an external account or identity provider, because those grants are rarely part of routine operations and are difficult to detect after the fact. Finally, ensure log integrity by shipping identity audit logs to a separate account with restricted write access, since an actor with sufficient privilege could otherwise attempt to disable or alter the very records this detection depends on.",
+  "severity": "high",
+  "relatedTopics": [
+    "det-impossible-travel",
+    "det-rdp-new-asn",
+    "det-office-child-shell",
+    "det-new-service-installation"
+  ],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Valid Accounts (T1078)",
+      "url": "https://attack.mitre.org/techniques/T1078/"
+    },
+    {
+      "label": "AWS documentation: CloudTrail log file and event reference",
+      "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference.html"
+    },
+    {
+      "label": "Microsoft Learn: Azure activity log and identity audit documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log"
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "lastReviewed": "2025-06-01"
+}

@@ -1,0 +1,92 @@
+{
+  "id": "det-lsass-handle-access",
+  "type": "detection",
+  "title": "LSASS Handle Access",
+  "shortTitle": "LSASS Handle Access",
+  "theme": "Detection Strategy",
+  "summary": "LSASS handle access detection identifies non-standard processes opening a handle to the Local Security Authority Subsystem Service with access rights that permit reading its memory, which is the prerequisite step for extracting cached credential material on a Windows host. The behaviour is high value to an attacker because a successful read yields password hashes, Kerberos tickets or plaintext secrets that can be reused elsewhere in the estate, so it typically appears in the credential access phase shortly after a foothold and before lateral movement. The telemetry required is kernel-level process access auditing, delivered either through a native audit policy that emits object access events for the target process or through an endpoint detection sensor that records source process, target process, requested access mask and granted access, alongside process creation records so the requesting binary can be resolved to a file path, signer and parent. The signal survives common evasion because the access itself is the operation the attacker needs; even fully fileless tooling that never writes a payload to disk must still open the handle and request read permissions from the kernel. Tools that duplicate an existing handle from a privileged process or that inject into a trusted signed binary create a different anomaly in the same telemetry family, where the request originates from an unexpected source image. The detection breaks down in practice because legitimate security products, backup agents, monitoring tools and administrative utilities all read process memory, so the access mask alone is not sufficient and must be combined with source process reputation, signer validity, and whether the source executable lives in a user-writable directory. Sensor coverage is also uneven: without kernel driver telemetry or configured audit policy the event may simply not exist, and access mask values reported by third-party tools vary, so tuning must be done against the actual field semantics of the deployed pipeline rather than against a generic specification.",
+  "objectives": [
+    "Explain which Windows access rights indicate an attempt to read process memory versus normal handle usage, and why the distinction drives severity.",
+    "Build a query that returns source process, requested access mask and signer status for handle opens against the credential process.",
+    "Establish a benign baseline of security products, backup agents and management tooling that legitimately read process memory in your estate.",
+    "Detect handle duplication and injection-into-trusted-process variants that do not originate from an obvious credential dumping binary.",
+    "Decide when to escalate to host isolation based on concurrent signals such as new service creation or outbound authentication from the same host.",
+    "Describe which audit policies and sensor capabilities must be deployed before this detection has any chance of firing."
+  ],
+  "tags": [
+    "edr",
+    "credential-access",
+    "process-injection",
+    "siem",
+    "triage",
+    "detection-as-code",
+    "xdr"
+  ],
+  "difficulty": "extreme",
+  "batches": [
+    {
+      "batch": 1,
+      "path": "exercises/det-lsass-handle-access/batch-1.html",
+      "title": "Reading Kernel Process Access Telemetry and Ranking Handle Alerts",
+      "focus": "Detection & Triage: log and alert analysis, SIEM-style queries, prioritisation, blue-team lens.",
+      "status": "missing"
+    },
+    {
+      "batch": 2,
+      "path": "exercises/det-lsass-handle-access/batch-2.html",
+      "title": "Configuring Audit Policy and Writing the Baseline Exclusion Set",
+      "focus": "Response & Hands-on: terminal emulator, configuration and policy completion, decision trees, spot-the-mistake, incident timeline ordering.",
+      "status": "missing"
+    },
+    {
+      "batch": 3,
+      "path": "exercises/det-lsass-handle-access/batch-3.html",
+      "title": "Adversary Tradecraft: Handle Duplication, Injection and ATT&CK Mapping",
+      "focus": "Adversarial & Cross-domain: red-team perspective, evasion, dual-perspective pairs, ATT&CK mapping, risk ranking, report drafting.",
+      "status": "missing"
+    }
+  ],
+  "techniqueId": "t1055",
+  "detectsTechniques": [
+    "t1055",
+    "t1078",
+    "t1059-001",
+    "t1562"
+  ],
+  "dataSources": [
+    "Kernel process access telemetry from an endpoint sensor recording source image, target image and granted access mask",
+    "Windows Security event 4656 and 4663 handle requests for the credential process object when object access auditing is enabled",
+    "Windows Security event 4688 process creation with command line auditing to resolve the requesting binary and its parent",
+    "Authenticode signature and file path metadata for the requesting executable",
+    "Windows Security event 4624 logon records on the same host used to correlate access with subsequent authentication activity"
+  ],
+  "logic": "Alert when a process opens a handle to the credential subsystem image requesting memory-read or full-access rights, then immediately enrich the event with the requesting process path, its signature status and its parent. Exclude the signed security and management binaries that appear in the local baseline, and rank everything else by whether the source image sits in a user-writable directory, whether the signature is absent or invalid, and whether the account is an interactive user rather than a system service. Escalate the finding when the same host shows new service creation, scheduled task registration, or outbound authentication to other hosts within a short window, because those indicate the extracted material is being used rather than merely collected.",
+  "pseudoQuery": "title: Suspicious Handle Access To Credential Process\nid: det-lsass-handle-access\nstatus: training\nlogsource:\n  product: windows\n  category: process_access\ndetection:\n  target_process:\n    TargetImage|endswith: '\\\\lsass.exe'\n  memory_read_rights:\n    GrantedAccess|contains:\n      - '0x1010'\n      - '0x1410'\n      - '0x1438'\n      - '0x143a'\n      - '0x1fffff'\n  known_good_source:\n    SourceImage|endswith:\n      - '\\\\MsMpEng.exe'\n      - '\\\\csrss.exe'\n      - '\\\\svchost.exe'\n      - '\\\\wininit.exe'\n  condition: target_process and memory_read_rights and not known_good_source\nfields:\n  - SourceImage\n  - TargetImage\n  - GrantedAccess\n  - CallTrace\n  - User\nlevel: critical",
+  "falsePositives": [
+    "Endpoint protection and antivirus engines that inspect process memory as part of their normal scanning loop",
+    "Backup, disaster recovery and virtualisation agents that snapshot process state including the credential subsystem",
+    "Enterprise monitoring and performance agents that enumerate process memory counters across all running processes",
+    "Administrative troubleshooting tools and debuggers legitimately attached to the process during support sessions",
+    "Remote management platforms that perform credential hygiene or local password rotation routines"
+  ],
+  "tuningNotes": "Do not tune by removing the access mask condition; instead maintain an explicit allow-list keyed on the requesting binary path, its valid signature and, where the sensor supports it, the specific account and host role that performs the access. Suppress by repeated behaviour, for example treating a source image that requests the same access on hundreds of hosts per day as tooling while still alerting on its first appearance on a server class host. Add a complementary rule for unsigned or user-directory source images that does not depend on the allow-list at all, and keep it at critical severity because that combination has almost no benign explanation. Track call trace availability, since sensors that expose the module responsible for the access substantially reduce false positives from injected threads and should be preferred when choosing tooling.",
+  "severity": "critical",
+  "relatedTopics": [
+    "det-powershell-encodedcommand",
+    "det-kerberoasting-spn-spike",
+    "det-impossible-travel",
+    "det-new-service-installation"
+  ],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Process Injection (T1055)",
+      "url": "https://attack.mitre.org/techniques/T1055/"
+    },
+    {
+      "label": "Microsoft Learn: Security auditing event 4656",
+      "url": "https://learn.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4656"
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "lastReviewed": "2025-06-01"
+}
