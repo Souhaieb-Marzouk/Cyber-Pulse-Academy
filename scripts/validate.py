@@ -35,6 +35,7 @@ import argparse
 import gzip
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -334,6 +335,50 @@ def check_external_urls(report: Report):
             )
     else:
         report.ok("every external URL points at an allow-listed host")
+
+
+def check_not_ignored(report: Report):
+    """No shipped file may be excluded by .gitignore.
+
+    This is a real failure mode, not a hypothetical one. A rule such as
+    `service-account*.json` is a secrets backstop and must stay: it is what stops
+    a cloud key file from ever being committed. But a CONTENT file whose name
+    happens to match the same pattern is silently left out of every commit. The
+    page still gets generated and published, so the site looks right, and this
+    validator still passed because it reads the working tree rather than the
+    repository. Only CI, which checks out what was actually pushed, noticed.
+
+    Git knows the answer exactly, so ask git rather than reimplementing its
+    matching rules. Where git is unavailable the check reports that it was
+    skipped instead of pretending to have passed.
+    """
+    scanned = ("data", "topics", "pages", "assets", "exercises")
+    present = [d for d in scanned if (ROOT / d).exists()]
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--others", "--ignored", "--exclude-standard", "--", *present],
+            cwd=ROOT, capture_output=True, text=True, timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        report.ok(f"gitignore check skipped: git is not usable here ({type(exc).__name__})")
+        return
+
+    if result.returncode != 0:
+        report.ok("gitignore check skipped: this is not a git working tree")
+        return
+
+    ignored = [line for line in result.stdout.splitlines() if line.strip()]
+    if ignored:
+        for rel in ignored[:10]:
+            report.fail(
+                f"gitignore: {rel} is a shipped file that .gitignore excludes, so it will "
+                f"never be committed while its generated page is. Rename the file, or add a "
+                f"narrow negation for this exact path, rather than weakening the rule."
+            )
+        if len(ignored) > 10:
+            report.fail(f"gitignore: and {len(ignored) - 10} more ignored shipped file(s)")
+    else:
+        report.ok("no shipped file is excluded by .gitignore")
 
 
 def check_iocs(report: Report):
@@ -704,6 +749,7 @@ def main():
 
     topics = check_data(report)
     check_size(report)
+    check_not_ignored(report)
     check_external_urls(report)
     check_iocs(report)
     if not args.no_link_check:
