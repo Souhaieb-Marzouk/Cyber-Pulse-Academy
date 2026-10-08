@@ -1,0 +1,108 @@
+{
+  "id": "det0233",
+  "type": "detection",
+  "title": "Detection Strategy for Network Device Configuration Dump via Config Repositories",
+  "shortTitle": "Detection Strategy for Network Device Configuration Dump ...",
+  "externalId": "DET0233",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects collection of network device configuration data, tracked as ATT&CK T1602.002, where an adversary retrieves running or saved configurations from routers, switches, firewalls, and their management repositories. It matters because a single device configuration exposes interface addressing, routing topology, access control lists, virtual local network layout, and often reusable authentication material such as encrypted passwords or community strings, which together give an attacker a map and a set of credentials for the whole network. The telemetry that makes it detectable is command accounting from the authentication and authorisation servers, device syslog records of copy and show commands, configuration backup tool logs, and file access records on the repository that stores those backups. The main failure mode is that automated configuration backup runs on a schedule and looks identical to bulk collection, so the rule must separate the backup service account from interactive human sessions and from devices that are not in the backup inventory.",
+  "tags": [
+    "network",
+    "collection",
+    "configuration",
+    "syslog",
+    "aaa accounting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Network Device Configuration Dump via Config Repositories",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0233/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Network Device Configuration Dump via Config Repositories - EASY",
+      "path": "exercises/det0233/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Network Device Configuration Dump via Config Repositories - MEDIUM",
+      "path": "exercises/det0233/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Network Device Configuration Dump via Config Repositories - HARD",
+      "path": "exercises/det0233/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Network Device Configuration Dump via Config Repositories - EXTREMELY HARD",
+      "path": "exercises/det0233/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone copying the settings out of network equipment. Network equipment such as switches and firewalls stores its full configuration in a file on the device. That file shows how the network is built and how it is protected. Attackers copy it to plan their next steps. This detection watches who copies those settings and where the copy is kept.",
+    "whyItMatters": "A device configuration is a map of your network, including which routes exist and which rules allow traffic. It often contains passwords in a scrambled form that can be attacked offline. Once an attacker holds it, they need far less guessing. Backup systems copy the same data, so the challenge is telling them apart.",
+    "howItWorks": [
+      "Network devices send their log messages to a central collector, including commands run on them.",
+      "The login servers record which user ran which command and from which address.",
+      "The rule lists the commands that display or copy the whole configuration.",
+      "It checks whether the request came from your backup tool or from a person.",
+      "It also watches the storage folder that holds configuration backups for unusual reads.",
+      "An alert fires when a device outside the backup list is copied, or a person copies many devices quickly."
+    ],
+    "example": "Think of a building's master wiring diagram and key plan. The caretaker reads it every week to do maintenance, which is normal. If a stranger asks for the plan for every building at once, the request itself is the warning sign.",
+    "takeaways": [
+      "Network configurations reveal topology and often reusable credentials.",
+      "Backup jobs do the same thing as attackers, so identity and timing decide the verdict.",
+      "Devices outside your inventory that still answer to backups are worth investigating."
+    ]
+  },
+  "objectives": [
+    "Explain what a network device configuration contains and why it is valuable to an attacker",
+    "Enable command accounting on network devices so privileged commands are logged centrally",
+    "Identify syslog and authentication records for configuration display and copy commands",
+    "Distinguish scheduled configuration backup jobs from interactive collection",
+    "Monitor the configuration repository for reads and exports outside normal tooling",
+    "Escalate suspected collection to network operations for credential rotation planning"
+  ],
+  "techniqueId": "t1602-002",
+  "detectsTechniques": [
+    "t1602-002"
+  ],
+  "dataSources": [
+    "Network device syslog records of privileged exec commands such as show running-config and copy running-config",
+    "TACACS+ or RADIUS command accounting records with username, source address and command string",
+    "Configuration management platform audit logs for backup job runs and manual configuration retrieval",
+    "File access audit records on the network configuration repository showing reads and downloads per account",
+    "SNMP or asset inventory export listing all managed network devices and their assigned management owners"
+  ],
+  "logic": "The detection looks for configuration display or copy activity on network devices that is not attributable to the scheduled backup service or an approved change ticket: a human account running these commands across many devices in a short period, a source address that is not a management jump host, a device that is absent from the backup inventory but still serves its configuration, or a burst of reads from the repository outside the backup job window. The fields that must be correlated are the device identifier, the authenticated username, the source address, the exact command string, the timestamp, and the repository file path or job identifier. Benign activity shows the same service account every night from the backup server against the same device list with predictable sequencing, while suspicious collection shows one interactive session touching dozens of devices, unusual off hours access, configuration copies written to a temporary or user directory, or repository reads by an account that does not run backups.",
+  "pseudoQuery": "# title: Network Device Configuration Copied Outside the Backup Window\n# logsource:\n#   product: network\n# detection:\n#   selection_cmd:\n#     message|contains:\n#       - 'show running-config'\n#       - 'show startup-config'\n#       - 'copy running-config'\n#       - 'more system:running-config'\n#   filter_backup:\n#     user|contains: 'svc-netbackup'\n#     src_ip|startswith:\n#       - '10[.]10[.]'\n#   selection_repo:\n#     action: 'read'\n#     file_path|contains: '/configs/'\n#   condition: (selection_cmd and not filter_backup) or selection_repo\n# level: high",
+  "falsePositives": [
+    "Nightly configuration backup jobs that run from the management server with a dedicated service account",
+    "Automated compliance scanning that reads configurations to compare them with hardening standards",
+    "Network engineers troubleshooting an outage by displaying the running configuration during an incident call",
+    "Configuration drift tools that pull a baseline from every device after a firmware upgrade project",
+    "Disaster recovery exercises that export device configurations to a temporary staging area for validation"
+  ],
+  "tuningNotes": "Identify the backup and compliance accounts first and allowlist them by account plus source address, not by command alone, because the command is the same for legitimate and malicious collection. Scope the interactive branch so that any single human account pulling more than a handful of devices within a short window alerts, since a real engineer works on one or two devices at a time, and keep devices that are missing from the backup inventory in a separate report that the network team reviews weekly. Alert on repository reads by accounts that are not the backup service, and record the export destination for every manual retrieval. The coverage you lose by allowlisting the backup service account is an attacker who has stolen that account, so also alert on changes to the backup job schedule, on the backup account authenticating from a new address, and on configuration retrievals that occur outside the job window.",
+  "severity": "medium"
+}

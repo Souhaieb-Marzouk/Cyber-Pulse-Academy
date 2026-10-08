@@ -1,0 +1,108 @@
+{
+  "id": "det0182",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1135 Network Share Discovery across Windows, Linux, and macOS",
+  "shortTitle": "Behavior-chain detection for T1135 Network Share Discover...",
+  "externalId": "DET0182",
+  "theme": "Detection Strategy",
+  "summary": "This is a behavior chain strategy for network share discovery, the reconnaissance step in which an adversary enumerates shared folders, drives and access permissions to find data worth taking and hosts worth entering. It matters because share enumeration turns a single foothold into a map of file servers, backup repositories and departmental data, and it is read only, so nothing breaks. Detection works across Windows, Linux and macOS by correlating share listing commands in process and shell history telemetry, remote procedure call or server message block access to the share enumeration interface, file server access auditing, and cloud or network attached storage audit logs. The main failure is that legitimate users, backup agents and inventory tools browse shares constantly, so the signal is the breadth of enumeration by an account that has no business doing it.",
+  "tags": [
+    "discovery",
+    "network shares",
+    "smb",
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1135 Network Share Discovery across Windows, Linux, and macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0182/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1135 Network Share Discovery across Windows, Linux, and macOS - EASY",
+      "path": "exercises/det0182/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1135 Network Share Discovery across Windows, Linux, and macOS - MEDIUM",
+      "path": "exercises/det0182/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1135 Network Share Discovery across Windows, Linux, and macOS - HARD",
+      "path": "exercises/det0182/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1135 Network Share Discovery across Windows, Linux, and macOS - EXTREMELY HARD",
+      "path": "exercises/det0182/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A share is a folder on a server that other computers can open, such as a finance drive. This detection looks for someone listing many shares and their permissions. It catches the map making step before data is copied out.",
+    "whyItMatters": "Knowing which shares exist tells an attacker where the valuable data lives. One command can reveal every share on a server and who may open it. The activity is read only, so data stays intact and no alarm sounds. Finding the listing early lets you cut off the account before anything is taken.",
+    "howItWorks": [
+      "On Windows, tools such as the network view and share commands list shares, and their names appear in the process record and command line.",
+      "On Linux and macOS, similar listing tools appear in shell history and process monitoring records.",
+      "Servers also write a record when a client asks for the list of shares through the file sharing service.",
+      "The detection counts how many servers or shares one account queried in a short period.",
+      "It compares the result with the normal habit of that account and with the tools normally used on that host.",
+      "A wide sweep from a workstation, followed by opens of many folders, is raised for review."
+    ],
+    "example": "Think of a museum where visitors may look into any room. One visitor who walks every corridor and notes which doors are unlocked is not stealing anything yet. But the notes are exactly what a thief would want, so the guards write the visitor's name down.",
+    "takeaways": [
+      "Share discovery is read only, so only logging and baselines reveal it.",
+      "The strongest sign is breadth: many servers or shares queried by one account.",
+      "Watch the file sharing service records, not just the command names."
+    ]
+  },
+  "objectives": [
+    "Explain how share enumeration supports later collection and lateral movement decisions",
+    "Identify process, shell history and file sharing service telemetry that records share listing",
+    "Measure enumeration breadth across servers and shares per account over a window",
+    "Separate backup, inventory and helpdesk behaviour from unusual enumeration",
+    "Build cross platform coverage for Windows, Linux and macOS hosts without duplicating effort"
+  ],
+  "techniqueId": "t1135",
+  "detectsTechniques": [
+    "t1135"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with command lines for share listing utilities and their parent processes",
+    "File server share access auditing recording requests to enumerate shares and list their permissions",
+    "Unix process accounting and shell command history recording share and mount enumeration commands",
+    "Network attached storage or cloud file service audit logs recording directory and share listing operations",
+    "Windows Security event 4688 process creation showing the account context of enumeration commands"
+  ],
+  "logic": "The detection measures how wide the enumeration goes and who is doing it. The fields that must be correlated are the account, the source host, the number of distinct target servers or shares touched within a short window, the tool or command used, and any subsequent file open activity on the shares discovered. A benign case is a backup or inventory agent running as a service account that lists shares on a fixed schedule from dedicated servers, or a user opening a mapped drive they already own. The malicious case is an ordinary workstation account enumerating shares across many servers in minutes, often with a command line enumeration tool rather than through the file explorer, frequently followed by authenticated file access to a subset of the discovered shares that the account had never touched before.",
+  "pseudoQuery": "# title: Broad Network Share Enumeration By Non Service Account\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_cli:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'net view'\n#       - 'net share'\n#       - 'Get-SmbShare'\n#       - 'showmount'\n#       - 'smbclient -L'\n#   filter:\n#     User|endswith: '$'\n#     ParentImage|endswith:\n#       - \\backupagent.exe\n#       - \\inventorysvc.exe\n#   condition: selection_cli and not filter | count() by User > 15\n# level: medium",
+  "falsePositives": [
+    "Helpdesk staff listing shares on a file server while troubleshooting a user's access problem",
+    "A backup or archiving agent enumerating shares and permissions before each scheduled backup run",
+    "A migration project that inventories shares and access control lists across many servers before a consolidation",
+    "A developer or analyst mounting a network share on a laptop or Mac to reach project data",
+    "A data discovery or data loss prevention scanner that crawls shares to classify sensitive content"
+  ],
+  "tuningNotes": "Baseline share enumeration per account and per host for at least thirty days, and filter the service accounts and dedicated hosts used by backup, migration and data discovery tooling rather than the tools themselves. Set the breadth threshold from the observed normal maximum, then scope real time alerts to accounts that rarely touch the file servers, treating accounts with existing wide file access as review only. The cost of that narrowing is reduced visibility into enumeration by privileged accounts, which is exactly the case an attacker would use after stealing those credentials, so retain the raw events for hunting and pair this rule with alerts on first time file access to sensitive shares.",
+  "severity": "medium"
+}

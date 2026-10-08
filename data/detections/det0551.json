@@ -1,0 +1,108 @@
+{
+  "id": "det0551",
+  "type": "detection",
+  "title": "Password Guessing via Multi-Source Authentication Failure Correlation",
+  "shortTitle": "Password Guessing via Multi-Source Authentication Failure...",
+  "externalId": "DET0551",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses Brute Force: Password Guessing, the slow and distributed guessing of passwords that stays under the lockout threshold by using many source addresses and a small number of attempts each. It matters because password guessing remains a common entry point for remote services, and the volume per source is deliberately kept low enough to look like ordinary user error. The telemetry that enables it is authentication failure and success events from several independent sources, including domain controllers, Linux secure logs, VPN gateways, cloud identity providers and internet facing applications, correlated by target account and by time window. The main way it fails is that each source sees only its own slice, a handful of failures that any single system treats as harmless, so the detection only works when all sources are centralised and the same account can be joined across them.",
+  "tags": [
+    "credential-access",
+    "brute-force",
+    "authentication",
+    "correlation",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Password Guessing via Multi-Source Authentication Failure Correlation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0551/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Password Guessing via Multi-Source Authentication Failure Correlation - EASY",
+      "path": "exercises/det0551/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Password Guessing via Multi-Source Authentication Failure Correlation - MEDIUM",
+      "path": "exercises/det0551/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Password Guessing via Multi-Source Authentication Failure Correlation - HARD",
+      "path": "exercises/det0551/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Password Guessing via Multi-Source Authentication Failure Correlation - EXTREMELY HARD",
+      "path": "exercises/det0551/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Password guessing means trying many passwords for an account until one works. Attackers spread the attempts across many computers so no single system sees a large number. This detection joins the failed logins from all sources and looks at the pattern for one account.",
+    "whyItMatters": "Guessing leaves weak passwords exposed to anyone who is patient. One successful guess can give an attacker a real account with real permissions. Single system lockout rules often do not fire, because each source sends only a few tries. Only a central view shows the whole campaign.",
+    "howItWorks": [
+      "Domain controllers, servers, virtual private network gateways and cloud identity providers all write a failed login event.",
+      "A SIEM, which is a central system that collects and searches log events, sends all of those events into one index.",
+      "The rule groups failures by the account name and counts them inside a short window, such as ten minutes.",
+      "It also counts how many different source addresses tried the same account, because spread out attempts look different from one noisy host.",
+      "It then checks whether a successful login for that account follows the failures, which is the strongest sign that a guess worked.",
+      "If the failure count, the source spread and a following success line up, the alert goes to the identity team."
+    ],
+    "example": "Picture a bank where each branch only records the withdrawals it handles. A thief who takes a small amount at twenty branches looks harmless in every single ledger. Only the head office, which reads all the ledgers together, sees the pattern. Authentication failure correlation is that head office view.",
+    "takeaways": [
+      "Distributed guessing beats per system lockout rules, so the detection must be central.",
+      "A success that follows a burst of failures for the same account is the most urgent version of this alert.",
+      "Count both the failures and the number of distinct source addresses, because the shape of the attack matters."
+    ]
+  },
+  "objectives": [
+    "Explain why distributed password guessing evades lockout policy on individual systems.",
+    "Identify the authentication log sources that must be centralised for correlation to work.",
+    "Write a threshold based rule that groups failures by target account inside a rolling window.",
+    "Correlate a failure burst with a later successful authentication for the same account and source range.",
+    "Separate a password guessing campaign from normal mistyped passwords and from service accounts with stale credentials.",
+    "Describe the response steps that follow a confirmed successful guess, such as session revocation and password reset."
+  ],
+  "techniqueId": "t1110-001",
+  "detectsTechniques": [
+    "t1110-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4625 failed logon with account name, logon type, source workstation and source address",
+    "Windows Security event 4624 successful logon used to confirm that guessing succeeded for the same account",
+    "Linux secure log or auditd authentication failure messages from the ssh service, recording the username and source address",
+    "Virtual private network gateway authentication logs recording the username, source address and failure reason",
+    "Cloud identity provider sign in logs recording failed and successful sign ins with the application, device and source address"
+  ],
+  "logic": "The pattern is many failed authentications for one account inside a short window, spread across multiple source addresses or originating from a small set of addresses that normally never authenticate, optionally followed by a success for that same account. You correlate the failure events across sources on the normalised account name, then join to the success event on account and rough time, and cross check the source address against the account's usual locations and devices. The benign case is a user who mistypes a password a few times from their normal workstation and then succeeds, or a scanning appliance with a stale stored credential failing on a schedule. The malicious case shows a wide fan out of source addresses, a sharp change in attempt rate, and often a success from an address that has never appeared before for that account.",
+  "pseudoQuery": "# title: Distributed Password Guessing Against One Account\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4625\n#   filter_service:\n#     LogonType: 5\n#   condition: selection and not filter_service\n#   threshold:\n#     field: TargetUserName\n#     count: 20\n#     timeframe: 10m\n# level: high",
+  "falsePositives": [
+    "A user who recently changed their password and keeps typing the old one from several devices in the same morning",
+    "A scheduled service or backup job holding an expired stored credential that fails every few minutes against the same account",
+    "A mobile mail client that retries a saved password after a password reset, producing repeated failures from a phone network address range",
+    "Penetration testing or an internal password audit that deliberately attempts weak passwords against in scope accounts",
+    "A shared kiosk or meeting room account used by many people, where several mistypes accumulate in a short period"
+  ],
+  "tuningNotes": "Baseline the account name normalisation first, because domain prefixes, user principal name format and case differences will split one account into three groups and hide the campaign. Filter logon type 5 service failures and other machine account noise out of the counting selection, and exclude source addresses that belong to your own vulnerability scanner or password audit tool. Set the threshold from observed data for the environment rather than a generic number, and keep a separate lower threshold for privileged accounts, because a domain administrator account should never accumulate repeated failures. The coverage you lose by filtering service accounts is a genuinely compromised service credential, so keep a distinct rule that alerts on any successful authentication for a normally failing service account.",
+  "severity": "high"
+}

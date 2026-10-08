@@ -1,0 +1,106 @@
+{
+  "id": "det0578",
+  "type": "detection",
+  "title": "Detection Strategy for Cloud Storage Object Discovery",
+  "shortTitle": "Detection Strategy for Cloud Storage Object Discovery",
+  "externalId": "DET0578",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects T1619, Cloud Storage Object Discovery, where an adversary with cloud credentials lists buckets, containers, or blobs to map what data exists before stealing or encrypting it. Enumeration is quiet and uses the same application programming interfaces (APIs) that normal tooling calls, so the signal comes from volume, breadth, and identity rather than from a malicious payload. Useful telemetry includes cloud audit logs for list and describe operations, console sign-in records, and API activity from command line tools. The common failure is that routine backup and analytics jobs produce identical call patterns, so the rule needs a per identity baseline before it can alert usefully.",
+  "tags": [
+    "cloud",
+    "discovery",
+    "aws",
+    "azure",
+    "storage"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Cloud Storage Object Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0578/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Cloud Storage Object Discovery - EASY",
+      "path": "exercises/det0578/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Cloud Storage Object Discovery - MEDIUM",
+      "path": "exercises/det0578/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Cloud Storage Object Discovery - HARD",
+      "path": "exercises/det0578/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Cloud Storage Object Discovery - EXTREMELY HARD",
+      "path": "exercises/det0578/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud storage holds files in containers such as buckets or blobs. This detection watches for someone listing those containers over and over to learn what is inside. It catches the survey step that usually comes before a cloud data theft.",
+    "whyItMatters": "Listing files looks harmless, because nothing is downloaded or changed. But it tells an intruder exactly where the valuable data sits. Catching this step gives you time to respond before any data leaves. It is much cheaper than cleaning up after a full breach.",
+    "howItWorks": [
+      "Your cloud provider writes an audit record each time someone calls a storage list or describe function.",
+      "Those records are forwarded to your security information and event management (SIEM) platform.",
+      "The rule counts how many different containers one identity listed in a short window.",
+      "It compares that count against what the same identity normally does.",
+      "If the count is far above the baseline, the rule raises an alert for review.",
+      "The analyst checks whether the identity is a human, a service account, or a stolen key."
+    ],
+    "example": "Imagine a warehouse with many locked rooms. A visitor with a valid pass is allowed in. Instead of going to one room, they walk the whole corridor and read every room number on every door. They take nothing, so the guards see no theft. Yet the walk itself is the warning sign, because no ordinary delivery driver needs to read every door in the building.",
+    "takeaways": [
+      "The discovery step is quiet, so volume and breadth are the signals, not the payload.",
+      "Always compare an identity against its own normal behaviour before alerting.",
+      "A stolen access key looks exactly like a legitimate service account until you check history."
+    ]
+  },
+  "objectives": [
+    "Identify which cloud audit log fields record storage list and describe calls",
+    "Explain why discovery activity rarely triggers data-loss prevention tools",
+    "Interpret enumeration volume and breadth for a single cloud identity",
+    "Recognise when a service account or key may have been used by an outsider",
+    "Write a baseline-driven alert that separates jobs from human exploration"
+  ],
+  "techniqueId": "t1619",
+  "detectsTechniques": [
+    "t1619"
+  ],
+  "dataSources": [
+    "AWS CloudTrail data events for S3 ListBuckets, ListObjects, and ListObjectsV2 calls",
+    "AWS CloudTrail management events recording the assumed role and source IP for each API call",
+    "Azure activity log entries for storage account list and container enumeration operations",
+    "Microsoft Entra ID sign-in logs showing the identity, client application, and source address",
+    "Google Cloud audit logs for storage bucket list and object list requests"
+  ],
+  "logic": "The pattern is abnormal enumeration breadth by a single cloud identity. Each audit record names the caller, the API operation, the target storage resource, the source address, and the user agent. The rule selects storage list and describe operations, groups them by caller identity over a rolling window, and counts distinct containers or prefixes touched as well as total calls. The malicious case shows one identity fanning out across many unrelated containers it has never touched before, often from a new address or a scripted user agent. The benign case shows the same identity repeating a narrow, previously seen pattern against a small fixed set of resources.",
+  "pseudoQuery": "# title: Broad Cloud Storage Enumeration by Single Identity\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     eventName:\n#       - ListBuckets\n#       - ListObjects\n#       - ListObjectsV2\n#   filter_baseline:\n#     userIdentity.arn: 'arn:aws:iam::*:role/PipelineBackupRole'\n#   condition: selection and not filter_baseline | count() by userIdentity.arn > 50\n# level: medium",
+  "falsePositives": [
+    "Backup and disaster recovery jobs that walk every bucket in the account on a nightly schedule",
+    "Cloud cost or security posture tools that inventory storage accounts using a read-only service role",
+    "A new data engineer exploring the storage layout during onboarding with legitimate credentials",
+    "Migration projects that enumerate source containers before copying them to a new region"
+  ],
+  "tuningNotes": "Build a thirty day baseline of list operations per identity, then suppress identities whose pattern is stable and scheduled, such as named backup roles, rather than suppressing whole accounts. Add a condition that requires either a first seen source address, a first seen user agent, or a burst rate well above the identity baseline before alerting. Scope the rule initially to production data accounts, and accept that you give up early warning on development and sandbox buckets where cheap experiments are normal. Revisit the baseline monthly because inventory tooling changes quietly.",
+  "severity": "medium"
+}

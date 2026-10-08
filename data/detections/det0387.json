@@ -1,0 +1,107 @@
+{
+  "id": "det0387",
+  "type": "detection",
+  "title": "Detect ARP Cache Poisoning Across Linux, Windows, and macOS",
+  "shortTitle": "Detect ARP Cache Poisoning Across Linux, Windows, and macOS",
+  "externalId": "DET0387",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses address resolution protocol cache poisoning, where an adversary on the local network sends forged replies so that traffic for one address is delivered to the attacker instead of the real host. The technique enables interception and modification of traffic inside a subnet and is used to reach credentials and sessions that encryption alone does not always protect. Reliable detection comes from comparing observed address to hardware address bindings against a baseline, from host operating system logs about duplicate addresses or changed bindings, and from switch features that record address resolution messages. The approach fails most often because the required mapping telemetry is short lived: the host cache changes and is overwritten within minutes, so a rule that reads state rather than watching for the change event misses the activity entirely.",
+  "tags": [
+    "credential access",
+    "collection",
+    "network",
+    "linux",
+    "windows",
+    "macos"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect ARP Cache Poisoning Across Linux, Windows, and macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0387/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect ARP Cache Poisoning Across Linux, Windows, and macOS - EASY",
+      "path": "exercises/det0387/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect ARP Cache Poisoning Across Linux, Windows, and macOS - MEDIUM",
+      "path": "exercises/det0387/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect ARP Cache Poisoning Across Linux, Windows, and macOS - HARD",
+      "path": "exercises/det0387/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect ARP Cache Poisoning Across Linux, Windows, and macOS - EXTREMELY HARD",
+      "path": "exercises/det0387/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "On a local network, computers ask who owns an address and learn the hardware address of the answer. An attacker can send a false answer so that other computers send their traffic to the attacker. This detection watches for changes in those address pairings.",
+    "whyItMatters": "Once traffic passes through the attacker, they can read it and change it. This is dangerous on a network where people log in to internal systems. Detection is difficult after the fact because the false answer is not stored for long, so the alert must come from the moment of the change.",
+    "howItWorks": [
+      "Hosts and switches record the pairing between a network address and a hardware address.",
+      "The rule stores the first pairing seen for each pair and treats it as the baseline.",
+      "When a second hardware address claims the same network address, the rule sees a conflict.",
+      "Operating system log messages about a duplicate address, or a changed gateway binding, add confidence.",
+      "An alert names both hardware addresses, the shared network address, and the switch port involved."
+    ],
+    "example": "Think of a mail room where each desk has a slot with a name card. A thief replaces another person's name card with their own and collects that person's letters. The names still look right on the envelopes, but the card behind the slot was swapped.",
+    "takeaways": [
+      "The giveaway is one network address claimed by two different hardware addresses.",
+      "Watch the change event as it happens, because the pairing is overwritten quickly.",
+      "Record the switch port in the alert so the team can find the physical location fast."
+    ]
+  },
+  "objectives": [
+    "Describe how a forged address resolution reply redirects traffic inside one subnet",
+    "Identify the host and switch telemetry that records address to hardware address bindings",
+    "Build a baseline of legitimate bindings and detect a conflicting claim",
+    "Interpret duplicate address and gateway change messages in host operating system logs",
+    "Use switch level inspection features as an independent confirmation source",
+    "Plan a response that isolates a switch port without breaking the whole subnet"
+  ],
+  "techniqueId": "t1557-002",
+  "detectsTechniques": [
+    "t1557-002"
+  ],
+  "dataSources": [
+    "Linux kernel network log messages about duplicate address detection and changed address resolution entries",
+    "Windows event log records from the network stack about address conflicts and gateway hardware address changes",
+    "macOS system log messages that report a changed binding for a gateway or a duplicate network address",
+    "Managed switch logs from dynamic address resolution inspection or an equivalent address binding feature",
+    "Network sensor or flow telemetry that records address resolution replies with the sending port and time"
+  ],
+  "logic": "The pattern is one network address becoming bound to more than one hardware address. The rule reads binding change events and address resolution messages from host and switch collectors, keeps the first observed hardware address for each network address as the baseline, and fires when a different hardware address claims an address that is already bound, especially when the address is a gateway, a domain controller, or a server that many hosts talk to. It also treats a burst of binding changes on one switch port as suspicious, because a poisoning tool usually rewrites the mapping for several targets in a short window. The benign case is a genuine hardware replacement, a virtual machine restart with a new virtual network adapter on the same address, or a documented failover of a redundant gateway. The malicious case is an address that was stable for weeks suddenly claimed by an unknown hardware address on a different switch port, followed by traffic from several hosts to that address.",
+  "pseudoQuery": "# title: Address Resolution Binding Changed To New Hardware Address\n# logsource:\n#   product: network\n#   service: switch\n# detection:\n#   selection:\n#     Message|contains:\n#       - 'duplicate address'\n#       - 'binding changed'\n#       - 'gratuitous reply'\n#   filter_known:\n#     HardwareAddress|contains:\n#       - '00:16:3e'\n#   condition: selection and not filter_known\n# level: high",
+  "falsePositives": [
+    "Virtual machine migration or restart that presents a new virtual network adapter on an address that is still in use",
+    "Documented gateway failover to a standby firewall or router that takes over the shared virtual address",
+    "Network card replacement or laptop docking station change during a maintenance visit",
+    "Wireless clients that roam between access points and briefly appear under a different hardware address"
+  ],
+  "tuningNotes": "Baseline the gateway, server, and printer bindings for each subnet and treat a change to those addresses as high severity, while a change on a workstation is lower severity unless the same hardware address claims several addresses. Exclude virtual machine hypervisor address ranges only if you have confirmed which ranges your platform uses, since a blanket exclusion will hide a real poisoning from a compromised virtual machine. Keep duplicate address conflict messages as the low cost confirming signal because they need no extra collection, but remember that a careful attacker can stay quiet there. Narrowing to static addresses loses coverage of a poisoning attempt that targets a workstation, so keep a weekly review of all binding changes per subnet.",
+  "severity": "high"
+}

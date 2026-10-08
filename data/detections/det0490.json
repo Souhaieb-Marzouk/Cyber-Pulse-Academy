@@ -1,0 +1,106 @@
+{
+  "id": "det0490",
+  "type": "detection",
+  "title": "Detection Strategy for Container and Resource Discovery",
+  "shortTitle": "Detection Strategy for Container and Resource Discovery",
+  "externalId": "DET0490",
+  "theme": "Detection Strategy",
+  "summary": "Container and resource discovery covers the enumeration of clusters, nodes, pods, images, virtual machines and other cloud resources so that an operator can choose targets and understand the layout of an environment. The detection strategy joins control plane audit records with the process telemetry of the tools that act as clients, because an interface call recorded in a cloud or cluster audit log shows what was enumerated while the process event shows which identity and host performed it, and neither side alone distinguishes an administrator from an intruder. It works poorly when cluster audit logging is disabled, when the discovery happens through a long lived session instead of separate calls, or when the same automation runs on a schedule that has never been baselined.",
+  "tags": [
+    "containers",
+    "cloud",
+    "kubernetes",
+    "discovery",
+    "cloud audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Container and Resource Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0490/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Container and Resource Discovery - EASY",
+      "path": "exercises/det0490/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Container and Resource Discovery - MEDIUM",
+      "path": "exercises/det0490/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Container and Resource Discovery - HARD",
+      "path": "exercises/det0490/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Container and Resource Discovery - EXTREMELY HARD",
+      "path": "exercises/det0490/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Containers are small packaged programs that run on a shared host. A cluster is a group of hosts that run those containers. This plan watches for tools that list what is running in the cluster or in the cloud. Listing is normal for engineers, so the plan also checks who asked and from where.",
+    "whyItMatters": "Attackers who reach a container want to know how far they can go. Listing pods and nodes shows them the size of the estate and the weakest point. These calls are allowed for many accounts, so a simple permission block is not an option. The audit record is often the only trace they leave. Comparing the caller with its normal behaviour tells you whether the listing is routine or hostile.",
+    "howItWorks": [
+      "The cluster control plane writes an audit record for each request, including the verb and the resource.",
+      "Cloud providers record similar interface calls in their audit service, with the caller identity and address.",
+      "The detection collects list and get requests for nodes, pods, images and compute resources.",
+      "It builds a baseline for each identity, including how often and from which address it enumerates.",
+      "Requests that come from a container, a new address, or an account that has never listed before stand out.",
+      "Those cases are enriched with the process that made the call, then raised for review."
+    ],
+    "example": "Think of a warehouse visitor who is allowed to walk the aisles. Walking one aisle to fetch an item is normal. Photographing every shelf, counting the locks, and noting where the cameras point is a survey. The visitor pass looked valid at the door. Staff notice the behaviour only by comparing it with a normal picker's day. In the same way, cluster listing calls are permitted until you look at the pattern behind them.",
+    "takeaways": [
+      "Discovery calls are usually permitted, so behaviour and baseline matter more than the call itself.",
+      "Control plane audit logs are the primary evidence for container discovery.",
+      "Calls made from inside a running container deserve a close look."
+    ]
+  },
+  "objectives": [
+    "Explain what container and cloud resource discovery is used for by an operator.",
+    "Identify the audit verb and resource fields that record enumeration.",
+    "Build an identity baseline for legitimate listing activity.",
+    "Recognise enumeration that originates from inside a running workload.",
+    "Describe the coverage gap when cluster audit logging is switched off."
+  ],
+  "techniqueId": "t1613",
+  "detectsTechniques": [
+    "t1613"
+  ],
+  "dataSources": [
+    "Kubernetes audit logs recording list and get verbs for pods, nodes, services and secrets with the requesting user",
+    "AWS CloudTrail DescribeInstances, ListClusters and ListBuckets calls with the caller identity and source IP",
+    "Azure activity logs for resource group and virtual machine list operations with the calling principal",
+    "GCP Cloud Audit Logs for compute.instances.list and container.clusters.get with the principal and user agent",
+    "Linux auditd execve records for the container command line tools executed inside a workload"
+  ],
+  "logic": "The rule aggregates control plane requests that enumerate infrastructure by caller, verb and window, then compares the result with what that caller normally does. Legitimate platform engineers and continuous delivery pipelines list pods, nodes and clusters constantly, from stable addresses, with the same client user agent, and at predictable times. The malicious pattern is a sharp burst of listing calls across several resource types by an identity that has never enumerated before, requests arriving from a source address inside a running workload or a pod network rather than a management range, a user agent that names a command line tool rather than the platform client, and enumeration of sensitive resource types such as secrets or node configuration immediately after the identity was granted new permissions. Joining the audit record's caller, verb, resource and source address with the host or pod that issued the request is what separates routine platform work from reconnaissance.",
+  "pseudoQuery": "# title: Burst Of Container And Node Enumeration From A Workload Address\n# logsource:\n#   product: kubernetes\n# detection:\n#   selection:\n#     verb:\n#       - 'list'\n#       - 'get'\n#     resource|contains:\n#       - 'pods'\n#       - 'nodes'\n#       - 'secrets'\n#   filter:\n#     user.username|endswith: ':platform-controller'\n#     sourceIPs|in: 'management_cidr_ranges'\n#   condition: selection and not filter\n# level: low",
+  "falsePositives": [
+    "Continuous delivery controllers that list pods and nodes on every deployment pipeline run",
+    "Monitoring and service mesh agents that watch cluster resources continuously as part of their design",
+    "Autoscaling components that enumerate nodes and workloads when demand changes",
+    "Cloud inventory and cost reporting tools that describe compute resources on a fixed schedule"
+  ],
+  "tuningNotes": "Baseline each service account and controller identity for the verbs and resources it uses daily, then exclude those fixed patterns and the management address ranges. Keep the rule sensitive to requests originating from pod networks, because that is where an intruder usually sits. Excluding controllers heavily reduces noise but also hides a compromised controller, so watch for that identity using new verbs, new resources, or working from an address outside its usual range.",
+  "severity": "low"
+}

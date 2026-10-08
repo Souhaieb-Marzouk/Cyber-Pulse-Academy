@@ -1,0 +1,107 @@
+{
+  "id": "det0576",
+  "type": "detection",
+  "title": "Email Forwarding Rule Abuse Detection Across Platforms",
+  "shortTitle": "Email Forwarding Rule Abuse Detection Across Platforms",
+  "externalId": "DET0576",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers email forwarding rule abuse, tracked as T1114.003, where an adversary with access to a mailbox creates an inbox rule that quietly copies or forwards messages to an address under their control. It matters because the rule runs server side, needs no malware on the endpoint, and continues to deliver content long after the initial access is gone, which makes it a durable collection and exfiltration channel for business email compromise. Detection uses mailbox audit records for rule creation and modification, message trace data showing automatic forwarding to an external domain, identity logs for the session that created the rule, and sign in records that show whether the change happened interactively or through a scripting interface. The usual failure is that staff create forwarding rules for legitimate reasons such as working from a personal device, so the rule must weigh the destination domain and the account history rather than the rule creation alone.",
+  "tags": [
+    "collection",
+    "email",
+    "business-email-compromise",
+    "saas",
+    "mail-rules",
+    "t1114.003"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Email Forwarding Rule Abuse Detection Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0576/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Email Forwarding Rule Abuse Detection Across Platforms - EASY",
+      "path": "exercises/det0576/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Email Forwarding Rule Abuse Detection Across Platforms - MEDIUM",
+      "path": "exercises/det0576/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Email Forwarding Rule Abuse Detection Across Platforms - HARD",
+      "path": "exercises/det0576/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Email Forwarding Rule Abuse Detection Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0576/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for mailbox rules that forward or copy email to another address. A mailbox rule is an automatic instruction that the mail system follows for you. The technique is abuse because an attacker uses that feature to read your mail.",
+    "whyItMatters": "A forwarding rule keeps sending mail even after the attacker loses access. It is created in a few seconds and leaves no program on your computer. Only the mail system records it, so endpoint tools see nothing. Finding the rule early limits how much mail has already leaked.",
+    "howItWorks": [
+      "The platform collects mailbox audit records, which note each rule that is created or changed.",
+      "A filter keeps rules whose action forwards or redirects mail to a destination outside your organisation.",
+      "The platform checks the session that made the change, including the address and the client program used.",
+      "It compares the destination domain with the domains your staff normally use.",
+      "It also checks whether the same account signed in from a new location shortly before.",
+      "An alert fires when a new external destination appears, or when the rule also deletes or hides messages."
+    ],
+    "example": "Think of a postal redirect form at a shared house. A resident may ask for mail to be sent to a second address, and the post office allows it. Now imagine a form that sends every letter to a stranger. The redirect itself is the evidence. The letters keep flowing until someone reads the form.",
+    "takeaways": [
+      "Forwarding rules survive password changes, so they must be found and removed.",
+      "External destinations and hidden or deleted copies are the strongest signals.",
+      "The sign in that created the rule adds vital context to the alert."
+    ]
+  },
+  "objectives": [
+    "Explain what a mailbox forwarding rule does and why it persists.",
+    "Identify the audit records that capture rule creation and modification.",
+    "Describe how to classify a destination as internal or external.",
+    "Correlate a new forwarding rule with an unusual sign in for the same account.",
+    "Explain why recording rules without alerting can still close coverage gaps."
+  ],
+  "techniqueId": "t1114-003",
+  "detectsTechniques": [
+    "t1114-003"
+  ],
+  "dataSources": [
+    "Cloud mailbox audit logs recording inbox rule creation and modification with rule parameters and actions",
+    "Message trace records showing messages automatically forwarded or redirected to an external recipient",
+    "Cloud identity sign in logs with source address, device and client application for the account that changed the rule",
+    "Exchange PowerShell or administrative cmdlet execution records for remote mailbox rule changes",
+    "Mail gateway logs showing inbound mail from external senders with automatic outbound forwarding to the same destination"
+  ],
+  "logic": "The pattern is a new inbox rule whose action forwards, redirects or moves messages to a destination outside the organisation, created by an account that has no history of external forwarding, often from a source address or client application that differs from the user's normal pattern. You must correlate the mailbox owner, the rule action, the destination address and domain, the session that created the rule, the client used and the sign in location, because a user forwarding mail to a corporate partner address is expected while a rule that copies every message to a free webmail address and then deletes the original is not. The malicious case is distinguished by the combination of an unseen destination domain, a rule that hides the copied messages from the mailbox, and a creation event within hours of a suspicious sign in.",
+  "pseudoQuery": "# title: Inbox Rule Forwarding Mail to External Domain\n# logsource:\n#   product: azure\n#   service: exchange\n# detection:\n#   selection:\n#     operation:\n#       - New-InboxRule\n#       - Set-InboxRule\n#     parameters.forwardTo|contains: '@'\n#   filter_internal:\n#     parameters.forwardTo|endswith: '@example[.]com'\n#   condition: selection and not filter_internal\n# level: high",
+  "falsePositives": [
+    "Staff who forward work mail to a personal address so they can read it while travelling",
+    "A shared team mailbox configured to copy messages to a partner organisation during a joint project",
+    "An assistant who sets a redirect rule for a manager during planned leave",
+    "An email gateway or journaling rule applied by the mail team for retention purposes"
+  ],
+  "tuningNotes": "Begin by collecting rule changes for a month without alerting, so you learn which domains your staff legitimately forward to, then allow list internal domains and known business partner domains and alert on everything else. Weight the severity by whether the rule also deletes or moves messages, and require a recent sign in from a new address or client for the highest severity. Allow listing partner domains removes noise but means a rule pointing at a compromised partner domain would be missed, so keep the raw rule change log searchable and review it in bulk, and make sure the rule set is also checked before every mailbox restore.",
+  "severity": "high"
+}

@@ -1,0 +1,104 @@
+{
+  "id": "det0879",
+  "type": "detection",
+  "title": "Detection of Cloud Accounts",
+  "shortTitle": "Detection of Cloud Accounts",
+  "externalId": "DET0879",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the compromise of cloud accounts, where an adversary obtains usable credentials for a cloud or hosting account and then uses the provider API to build infrastructure, move data or hide activity. It matters because cloud accounts are managed over an application programming interface, called an API, which means any stolen key produces immediate, high value access without a login screen a user would notice. The telemetry that makes it possible includes provider audit logs recording the principal, source address and API call, identity provider sign in logs, and access key or service principal creation events. It fails in practice because cloud audit logs record the result of an action rather than the intent, so a legitimate automation role and an attacker using a stolen key look identical until you compare behaviour against a baseline.",
+  "tags": [
+    "mitre t1586.003",
+    "resource development",
+    "cloud",
+    "iam",
+    "credential access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Cloud Accounts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0879/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Cloud Accounts - EASY",
+      "path": "exercises/det0879/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Cloud Accounts - MEDIUM",
+      "path": "exercises/det0879/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Cloud Accounts - HARD",
+      "path": "exercises/det0879/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Cloud Accounts - EXTREMELY HARD",
+      "path": "exercises/det0879/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud account compromise means an attacker gains access to a cloud account, such as a hosting or storage account. They can then create servers, read data or change settings. This detection looks for the API calls that show a stolen identity is being used.",
+    "whyItMatters": "Cloud accounts control large amounts of data and computing power. Access can be gained with a key alone, with no login page. A stolen key can be used from anywhere in the world. The provider records every call, so the evidence is there. You need to know which patterns are normal and which are not.",
+    "howItWorks": [
+      "The cloud provider writes an audit record for each API call, showing who made it, from where, and whether it succeeded.",
+      "Those records are sent to your SIEM, along with sign in logs from the identity provider.",
+      "The rule looks at the principal and the address, and compares them with the history for that principal.",
+      "It flags new keys, new service accounts, permission changes and data access from addresses that never appear before.",
+      "Correlated over a short window, those events tell the analyst whether a genuine identity has been stolen."
+    ],
+    "example": "Think of a warehouse key card system. The night manager uses a card to open the loading bay at set times. If a card opens the loading bay, the records room and the safe in ten minutes, from a door that has never been used, the pattern of openings matters more than any single door.",
+    "takeaways": [
+      "A stolen key leaves no login event on an endpoint, so cloud audit logs are your main evidence.",
+      "Compare each principal and source address with its own history rather than with a global rule.",
+      "New credentials and permission changes are the steps an attacker needs to keep access."
+    ]
+  },
+  "objectives": [
+    "Explain how cloud API access differs from interactive user sign in",
+    "List the provider audit events that show credential creation and permission change",
+    "Build per principal baselines of source address, region and API action",
+    "Write a rule that flags an established principal calling from a first seen address",
+    "Respond to a suspected cloud key compromise by rotating credentials and revoking sessions"
+  ],
+  "techniqueId": "t1586-003",
+  "detectsTechniques": [
+    "t1586-003"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events recording principal ARN, source IP address, event name and error code",
+    "Cloud identity provider sign in logs with conditional access result and multi factor outcome",
+    "Provider audit events for access key creation, service principal registration and role assignment changes",
+    "Cloud storage access logs recording object reads and bulk download operations"
+  ],
+  "logic": "The pattern is a principal that calls the provider API from a source address or region it has never used, immediately followed by credential creation, role assignment or bulk object reads, often with the error rate of an unfamiliar user exploring permissions. The fields to correlate are the principal identifier, the source address, the region, the event name, the error code and the time between the first new address call and the follow-on change. The benign case is a scheduled automation role that always runs from a fixed address with a stable action set, while the malicious case shows a human identity behaving like automation, a first seen address and rapid privilege changes.",
+  "pseudoQuery": "# title: Established cloud principal calls from first seen address then creates keys\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     eventName:\n#       - CreateAccessKey\n#       - CreateLoginProfile\n#       - AttachUserPolicy\n#       - PutRolePolicy\n#       - AssumeRole\n#   filter:\n#     userIdentity.arn|in: approved_automation_roles\n#     sourceIPAddress|in: corporate_egress_ranges\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "A cloud engineer working from home for the first time whose home address has never been seen",
+    "A continuous integration pipeline that is migrated to a new runner network and calls the API from a new range",
+    "A disaster recovery test that assumes roles and creates temporary keys in a secondary region",
+    "A managed service provider that performs scheduled maintenance under its own account from a shared address"
+  ],
+  "tuningNotes": "Baseline principal, address and action combinations for at least thirty days before enabling the rule, then allow list automation roles by name and corporate egress ranges by address. Scope the highest severity tier to identities with administrative or data access permissions. You lose coverage for a compromised non administrative account used only to read data, so add a separate rule for first time source addresses on storage read operations even though that rule is noisier.",
+  "severity": "high"
+}

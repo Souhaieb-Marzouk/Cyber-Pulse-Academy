@@ -1,0 +1,105 @@
+{
+  "id": "det0545",
+  "type": "detection",
+  "title": "Detection Strategy for Cloud Administration Command",
+  "shortTitle": "Detection Strategy for Cloud Administration Command",
+  "externalId": "DET0545",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the use of cloud provider administration services to run commands on managed instances without any inbound network access, matching technique T1651. It matters because the same agent channel that performs patching and inventory can execute arbitrary commands as the local system account, and the resulting activity appears in provider audit logs while barely touching the endpoint. The telemetry that makes it possible is cloud audit records for command or patch operations, instance management agent logs on the target, and endpoint process creation records showing commands spawned by the agent service. It fails in practice because operations teams use these services constantly for legitimate administration, so the detection must profile who normally runs commands, against which instance tags, and at what times.",
+  "tags": [
+    "cloud",
+    "remote execution",
+    "instance management",
+    "t1651",
+    "audit log"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Cloud Administration Command",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0545/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Cloud Administration Command - EASY",
+      "path": "exercises/det0545/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Cloud Administration Command - MEDIUM",
+      "path": "exercises/det0545/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Cloud Administration Command - HARD",
+      "path": "exercises/det0545/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Cloud Administration Command - EXTREMELY HARD",
+      "path": "exercises/det0545/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the cloud tools that run commands on servers for you. A cloud provider offers a service that sends a command to a machine through its agent. Amazon Web Services and Microsoft Azure both offer this. The detection looks for commands run by the wrong person or on the wrong machine.",
+    "whyItMatters": "These commands need no open port and no password on the server. An attacker with cloud keys can use the same path as your own team. The cloud audit record shows the command. It is often the only place where the command appears. On the machine itself, the endpoint may name only the agent as the parent process.",
+    "howItWorks": [
+      "The cloud provider writes an audit record each time a command or document is sent to an instance.",
+      "The record lists the identity that sent it, the target instances and the command parameters.",
+      "The agent on the instance records the command it received and when it started.",
+      "The endpoint records the process that the agent started, including its parent and command line.",
+      "The platform compares the identity and the target tags with the normal administration pattern.",
+      "Commands from unexpected identities or to sensitive instances become alerts."
+    ],
+    "example": "Think of a building management system that lets a manager unlock any office door from a laptop. The door log shows the manager name and the time. If a cleaner account unlocks the finance office at midnight, the log answers the question before anyone walks the floor.",
+    "takeaways": [
+      "Cloud administration channels bypass network controls, so identity is the main control.",
+      "The provider audit log is often the only complete record of what ran.",
+      "Sensitive instances and unusual sending identities deserve the highest attention."
+    ]
+  },
+  "objectives": [
+    "Explain how cloud administration services execute commands on instances without inbound access",
+    "Identify the cloud audit records and endpoint records that capture a remote administration command",
+    "Correlate the sending identity with the target instance tags and the normal administration pattern",
+    "Explain why command line content in the audit record is valuable evidence during triage",
+    "Write a detection rule for remote administration commands and scope it to sensitive assets"
+  ],
+  "techniqueId": "t1651",
+  "detectsTechniques": [
+    "t1651"
+  ],
+  "dataSources": [
+    "Cloud provider audit logs for remote command, patch and configuration document operations including the caller identity and target instance identifiers",
+    "Instance management agent logs on the target host recording the received command identifier, start and completion status",
+    "Windows or Linux process creation records on the instance showing the agent service as the parent process and the spawned command line",
+    "Cloud asset inventory mapping instance identifiers to environment tags, owners and data classification"
+  ],
+  "logic": "The pattern is a cloud administration command sent by an identity that does not normally use that service, or sent to instances outside that identity usual environment, especially when the command content downloads a remote file, disables a security agent or reads credential material. The fields that must be correlated are the caller identity and its normal working hours and source address, the target instance identifier and its tags, the command document or script content, and the process tree that the agent started on the instance. The benign case is a documented runbook executed by an administration role against tagged managed instances; the malicious case shows a user identity or a newly created access key sending commands to production instances with no change record.",
+  "pseudoQuery": "# title: Cloud administration command from unexpected identity or to sensitive instance\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     eventName: [SendCommand, CreateAssociation, StartSession]\n#   filter_approved_operators:\n#     userIdentity.arn|contains: [role/ops-runbook, role/patch-automation]\n#   filter_managed_tags:\n#     requestParameters.instanceIds|contains: managed-standard\n#   condition: selection and not filter_approved_operators and not filter_managed_tags\n# level: medium",
+  "falsePositives": [
+    "Break glass administration during an incident where an engineer uses a personal identity instead of the runbook role",
+    "Automation pipelines that run commands through the provider service and use a service account that is not in the approved operator list",
+    "Managed service providers that administer instances on your behalf from their own cloud identity",
+    "Patching and inventory operations that are scheduled correctly but target instances whose tags were recently changed"
+  ],
+  "tuningNotes": "Build a baseline of which identities use remote administration services, which instance tags they touch and during which hours, then allow list the runbook roles and the managed instance tag groups. Add a second selection that raises severity when the command content contains download, credential or security agent keywords, because that narrows triage without hiding the activity. Scope the rule to production accounts and business critical tags first, and leave sandbox accounts in a weekly review report. Restricting to known operators means a compromised legitimate role will pass, so alert on every new access key created for those roles in a companion rule.",
+  "severity": "high"
+}

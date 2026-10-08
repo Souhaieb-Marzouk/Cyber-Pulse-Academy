@@ -1,0 +1,106 @@
+{
+  "id": "det0257",
+  "type": "detection",
+  "title": "Detect Mark-of-the-Web (MOTW) Bypass via Container and Disk Image Files",
+  "shortTitle": "Detect Mark-of-the-Web (MOTW) Bypass via Container and Di...",
+  "externalId": "DET0257",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets defense evasion using container and disk image files, tracked as T1553.005. Files that arrive inside an ISO, IMG, VHD, or similar container are often extracted or mounted without inheriting the Mark-of-the-Web zone marker, so the usual protected view prompt never appears. Detection is built from file creation of the container plus process execution from the mounted volume, joined by a short time window and the drive letter. It fails on hosts without file creation telemetry, when the container is mounted by a legitimate virtualization product, or when the payload runs through a signed binary that already sits on the mounted disk.",
+  "tags": [
+    "motw bypass",
+    "t1553.005",
+    "disk image",
+    "defense evasion",
+    "sysmon",
+    "initial access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Mark-of-the-Web (MOTW) Bypass via Container and Disk Image Files",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0257/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Mark-of-the-Web (MOTW) Bypass via Container and Disk Image Files - EASY",
+      "path": "exercises/det0257/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Mark-of-the-Web (MOTW) Bypass via Container and Disk Image Files - MEDIUM",
+      "path": "exercises/det0257/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Mark-of-the-Web (MOTW) Bypass via Container and Disk Image Files - HARD",
+      "path": "exercises/det0257/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Mark-of-the-Web (MOTW) Bypass via Container and Disk Image Files - EXTREMELY HARD",
+      "path": "exercises/det0257/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Mark of the Web is a small note that Windows adds to files downloaded from the internet. The note tells Windows to open the file in a safer, restricted way. Some file types, such as disk images and container archives, do not pass that note to the files inside them. This detection looks for programs that run from such a container soon after it is opened.",
+    "whyItMatters": "The warning that appears before you open a downloaded program stops many real attacks. If an attacker can hide a payload inside a container, that warning never shows. The user sees a normal-looking folder and double-clicks a file that really came from the internet. Detection at this point catches the attack before the payload runs freely. It also gives you a chance to warn users before they click.",
+    "howItWorks": [
+      "A file event records that a container file, such as a disk image, was created in a user download folder.",
+      "A second event records that a program started from a drive letter that did not exist on the host before.",
+      "The rule joins the two events on the host name and a short time window of a few minutes.",
+      "It adds a check on the signature status of the program, where that detail is collected.",
+      "If both events fit, the rule raises an alert naming the container, the drive, and the program."
+    ],
+    "example": "Think of a sealed shipping box. Everything sent by post gets a customs stamp on the outside, so the receiver knows it came from abroad. A disk image is like a box that the post office cannot stamp inside. When the receiver opens the box, the items look local and unstamped. A guard who only checks stamps on packages will wave those items through. This detection watches the moment the box is opened, not the stamp.",
+    "takeaways": [
+      "Container and disk image files can carry content that carries no download warning.",
+      "The strongest signal is a program running from a freshly mounted volume.",
+      "Time matters, so keep the window short and tie both events to the same host."
+    ]
+  },
+  "objectives": [
+    "Describe how Mark of the Web is lost when a payload travels inside a container",
+    "Detect container file creation in user download directories",
+    "Correlate a mounted volume with process execution from that volume",
+    "Use signature status to separate legitimate software images from payloads",
+    "Explain why a disk image mounted by virtualization software is a normal event"
+  ],
+  "techniqueId": "t1553-005",
+  "detectsTechniques": [
+    "t1553-005"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation for image files with iso, img, vhd, or vhdx extensions in user download directories",
+    "Sysmon event 1 process creation showing an executable path on a mounted volume such as a new drive letter",
+    "Sysmon event 7 image load recording newly extracted libraries from a mounted volume path",
+    "PowerShell script block logging capturing virtual disk attachment commands such as Mount-DiskImage",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is a container file arriving in a user-writable location followed closely by execution of a program from a volume that did not previously exist on the host. The rule correlates file creation events for the container extensions with process creation events whose image path begins with a drive letter assigned to a mounted image, using host name and a window of a few minutes as the join key. The distinguishing detail is the volume origin, because benign software installers usually run from the download directory itself or from a signed vendor image, while the malicious case executes an unsigned binary from the mounted volume. Legitimate virtual disk use by administrators and backup products produces the same shape and must be filtered by the parent process and the mounting tool.",
+  "pseudoQuery": "# title: Execution from a freshly mounted disk image container\n# logsource:\n#   product: windows\n# detection:\n#   selection_image:\n#     event_id: 11\n#     target_filename|endswith:\n#       - '.iso'\n#       - '.img'\n#       - '.vhd'\n#       - '.vhdx'\n#   selection_exec:\n#     event_id: 1\n#     image|re: '^[D-Z]:\\\\'\n#     signed: 'false'\n#   condition: selection_image and selection_exec\n# level: high",
+  "falsePositives": [
+    "Software vendors that ship installers as ISO images and instruct users to mount them",
+    "Development teams that attach virtual hard disks containing test data during normal work",
+    "Backup and recovery tools that mount a disk image to restore files and then run a helper program from it",
+    "Training environments where users are told to mount an image and launch the exercise program"
+  ],
+  "tuningNotes": "Allowlist the mounting parent processes you trust, such as the built-in virtual disk service and your approved virtualization agents, and exclude the drive letters reserved for those tools by policy. Require the executable from the mounted volume to be unsigned before alerting, since signed vendor installers from images are common. Scope the rule to user workstations first, where the payload is usually delivered, and baseline which departments legitimately receive image files. The narrowing loses coverage for signed payloads and for attacks that mount the image on a server, so keep a lower severity informational version on servers.",
+  "severity": "high"
+}

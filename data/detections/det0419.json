@@ -1,0 +1,108 @@
+{
+  "id": "det0419",
+  "type": "detection",
+  "title": "Detection Strategy for Dynamic Resolution using Domain Generation Algorithms.",
+  "shortTitle": "Detection Strategy for Dynamic Resolution using Domain Ge...",
+  "externalId": "DET0419",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers the use of domain generation algorithms for dynamic resolution, tracked as T1568.002, where malware computes a large set of candidate domain names from a seed so that the operator only has to register one of them to regain contact. It matters because the victim needs no hardcoded address, so blocking a single name or address does not remove the channel and takedown attempts are defeated by design. The telemetry that makes detection possible is name resolution telemetry at scale: Domain Name System query logs with query name, record type, response code and client, passive resolution data from a recursive resolver, and endpoint network events that tie the querying process to the resolver traffic. The main way it fails is that a good algorithm produces names that look plausible, so character based statistics alone generate false positives on content delivery and advertising domains, and the reliable signals are a high volume of failed resolutions, a shared parent domain that is newly seen, and a client that queries far more unique names than its peers.",
+  "tags": [
+    "network",
+    "command and control",
+    "dns",
+    "domain generation",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Dynamic Resolution using Domain Generation Algorithms.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0419/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Dynamic Resolution using Domain Generation Algorithms. - EASY",
+      "path": "exercises/det0419/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution using Domain Generation Algorithms. - MEDIUM",
+      "path": "exercises/det0419/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution using Domain Generation Algorithms. - HARD",
+      "path": "exercises/det0419/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution using Domain Generation Algorithms. - EXTREMELY HARD",
+      "path": "exercises/det0419/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A domain generation algorithm is a small program that makes many random looking domain names. It builds them from a starting value, and the attacker registers only one of them. The infected computer tries the names one by one until it finds the right one. This detection looks for a computer asking for many names that do not exist.",
+    "whyItMatters": "If the control address is fixed, defenders block it and the attack stops. A generated list changes every day, so blocking is only a short delay. The names look odd but not clearly wrong, so reputation lists often know nothing about them. Most of the lookups fail, which is unusual for normal software. That failure pattern is what a defender can actually see.",
+    "howItWorks": [
+      "A resolver keeps a record of each name lookup. It stores the name asked for, the answer and whether the name existed.",
+      "The rule groups those records by the computer that made the request within a short time window.",
+      "It counts how many different names each computer asked for and how many of those lookups failed.",
+      "Normal software asks a small number of well known names, so a large count of failed lookups stands out.",
+      "The rule also checks the shape of the names, such as their length, their character mix and their shared ending.",
+      "When one computer shows many failed lookups and similar name shapes, the analyst gets an alert with sample names."
+    ],
+    "example": "Think of someone ringing doorbells along a long street at night. Most houses are dark and nobody answers. A single unanswered bell means nothing. One person walks the whole street and rings every bell in the same quick rhythm. That is worth a call to the watchman. The pattern of many failures from one visitor is the clue.",
+    "takeaways": [
+      "Failed name lookups are the strongest visible sign of a generated domain list.",
+      "Count unique names per client, because total queries alone will not separate the pattern from normal traffic.",
+      "Character statistics must be tuned per environment or they will flag legitimate advertising and content domains."
+    ]
+  },
+  "objectives": [
+    "Explain what a domain generation algorithm is and why it defeats address blocking.",
+    "Read Domain Name System query logs and the fields that describe a failed lookup.",
+    "Measure unique query names and failure ratio per client over a fixed window.",
+    "Apply name shape features such as length, character distribution and shared parent domain.",
+    "Correlate a burst of failed lookups with the endpoint process that made them.",
+    "Explain why the domain list must be tuned to your own environment's legitimate traffic."
+  ],
+  "techniqueId": "t1568-002",
+  "detectsTechniques": [
+    "t1568-002"
+  ],
+  "dataSources": [
+    "Domain Name System recursive resolver query logs with query name, query type, response code and client address",
+    "Passive Domain Name System resolution data recording which names resolved and which did not over time",
+    "Endpoint network connection events from Sysmon with the process image and the resolver address contacted",
+    "Proxy or secure web gateway logs with requested host names and connection failures",
+    "Domain registration and reputation metadata for the parent domain and its first seen date"
+  ],
+  "logic": "The pattern is one client, or a small group of clients, generating a high number of unique query names in a short window where a large share of those queries return a not found response, and the names share structural features such as a common parent domain, similar length or a narrow character set. The fields to correlate are the client address, the query name, the response code, the query type and the process or resolver that made the request, together with the first seen date of the parent domain. Normal endpoints resolve a small set of stable names with very few failures and repeat the same names day after day, while a generated list produces mostly unique names that never appear again and mostly fail. The distinguishing factor is the ratio of unique to repeated names combined with the failure ratio and the structural similarity across the queried names.",
+  "pseudoQuery": "# title: Client with high volume of failed unique domain lookups\n# logsource:\n#   product: network\n#   service: dns\n# detection:\n#   selection:\n#     QueryType: ['A', 'AAAA']\n#     ResponseCode: 'NXDOMAIN'\n#   filter_known:\n#     QueryName|endswith: ['.local', '.internal.example', '.in-addr.arpa']\n#   condition: selection and not filter_known | count(QueryName) by ClientIp > 500 in 10m and count_distinct(QueryName) by ClientIp > 300\n# level: medium",
+  "falsePositives": [
+    "Web browsers and operating system update components that pre fetch many content delivery host names and receive failures for some",
+    "Security and network scanners that test name resolution for large address ranges during an assessment",
+    "Advertising and analytics libraries that contact many rotating tracking domains from a page load",
+    "Content filtering and proxy agents that resolve names for every link found on a page before the user clicks",
+    "Misconfigured internal clients that search a long list of candidate suffixes for a short host name and fail on most"
+  ],
+  "tuningNotes": "Tune the rule against your own resolver data before enabling it, because legitimate advertising, telemetry and update traffic produce bursts of unique names that look similar. Build a filter from the parent domains that your endpoints contact in high diversity volumes during normal operation, and review it monthly, as this list churns. Exclude reverse lookup and local search suffixes, which account for a large share of harmless failures. Scope the initial rule to server subnets and to workstations in sensitive departments, where the expected name diversity is low and a burst is meaningful. Add a requirement that the client also contacted the resolver directly rather than through a proxy if your environment allows that distinction. The coverage you lose by filtering known content parents is an adversary who generates names under a provider you already trust, so keep a slower statistical job that looks for a change in the shape of names inside those parents rather than only new parents.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0294",
+  "type": "detection",
+  "title": "User Execution – Malicious File via download/open → spawn chain (T1204.002)",
+  "shortTitle": "User Execution – Malicious File via download/open → spawn...",
+  "externalId": "DET0294",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the chain that follows a user opening a file they obtained from the internet, where a document, archive or shortcut handler launches a program the user never intended to run. This is where many intrusions begin, and detection cannot rely on the initial file, which usually looks harmless, so the strategy watches the transition instead: a download or attachment marker appearing on disk, a handler process starting, and a script interpreter or shell appearing as its child from a user writable path. The enabling telemetry is process creation with parent and child image plus command line, file creation records, and the zone marker that Windows attaches to files arriving from outside the organisation. It fails because signed installers and office add ins produce very similar chains, so the file origin and the child path are what keep the rule useful.",
+  "tags": [
+    "user execution",
+    "phishing",
+    "process creation",
+    "windows",
+    "initial access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: User Execution – Malicious File via download/open → spawn chain (T1204.002)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0294/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "User Execution – Malicious File via download/open → spawn chain (T1204.002) - EASY",
+      "path": "exercises/det0294/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "User Execution – Malicious File via download/open → spawn chain (T1204.002) - MEDIUM",
+      "path": "exercises/det0294/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "User Execution – Malicious File via download/open → spawn chain (T1204.002) - HARD",
+      "path": "exercises/det0294/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "User Execution – Malicious File via download/open → spawn chain (T1204.002) - EXTREMELY HARD",
+      "path": "exercises/det0294/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "User execution means a person opens a file, and that file makes the computer run something. The file may look like an invoice, a delivery note, or a job application. It could be a document, an archive, or a shortcut. This detection watches what starts immediately after the file is opened.",
+    "whyItMatters": "This is how many intrusions begin, and no password is needed when the user opens the file. Virus scanning may miss a file that no scanner has seen before today. The original file often looks completely harmless on its own. Watching what the file starts is far more reliable than trying to judge the file itself.",
+    "howItWorks": [
+      "The endpoint sensor records new files, including the folder and the marker that shows where the file came from.",
+      "It also records process creation, which shows one program starting another program.",
+      "The rule keeps the chains where a document or archive handler is the parent of a shell or script engine.",
+      "It checks the path of the child program, because a temporary or user folder is a strong warning sign.",
+      "The download marker on the file, or a matching mail attachment record, adds confidence to the alert.",
+      "The analyst isolates the computer and collects the file before anything else is cleaned up."
+    ],
+    "example": "Picture a parcel that arrives at your front door. Opening a parcel is completely normal, and people do it every day. But if the parcel bursts open and a stranger steps out, the story changes. You would not call that parcel harmless any more. Your rule watches what comes out of the parcel, not only the delivery itself.",
+    "takeaways": [
+      "The file itself is often harmless looking, so watch what it starts.",
+      "A document or archive handler starting a shell is the heart of this detection.",
+      "Isolate the host and keep the file, because the file is the evidence you need."
+    ]
+  },
+  "objectives": [
+    "Describe the chain from download, to file open, to process execution.",
+    "Identify the parent and child process pairs that indicate user execution of a file.",
+    "Use the download zone marker to show where a file came from.",
+    "Rank alerts using the path of the child process.",
+    "Follow the correct containment order once an alert is confirmed."
+  ],
+  "techniqueId": "t1204-002",
+  "detectsTechniques": [
+    "t1204-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing the parent image, child image and full command line",
+    "Sysmon event 11 file creation records for new files in download, temporary and attachment cache directories",
+    "Sysmon file stream creation records that attach the downloaded from zone marker to a new file",
+    "Windows Security event 4688 process creation with command line auditing and the creating account",
+    "Mail gateway or web proxy records identifying the message or the URL that delivered the file"
+  ],
+  "logic": "The pattern is a file that arrived from outside the organisation being opened and immediately producing a child process that its handler would not normally start. The fields to correlate are the parent image and child image in process creation telemetry, the command line and full path of the child, the zone marker or archive extraction record for the parent file, and the mail or web record that identifies how the file was delivered. The benign case is a signed installer or an office add in started from a network share, where the child process lives in a program directory, is signed, and the same chain repeats across many hosts. The malicious case is a first seen chain where the parent is a document or archive handler and the child is a script interpreter or shell running from a temporary, user profile or mounted image path, especially within seconds of a downloaded file being written.",
+  "pseudoQuery": "# title: Document Handler Spawns Script Interpreter From User Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\\\winword.exe'\n#       - '\\\\excel.exe'\n#       - '\\\\outlook.exe'\n#       - '\\\\explorer.exe'\n#     Image|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\powershell.exe'\n#       - '\\\\wscript.exe'\n#       - '\\\\mshta.exe'\n#     Image|contains:\n#       - '\\\\AppData\\\\Local\\\\Temp\\\\'\n#       - '\\\\Downloads\\\\'\n#   filter:\n#     Image|endswith: '\\\\signed-updater.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Users opening a self extracting archive from a trusted internal share, which starts a bundled installer.",
+    "Office documents with approved macros that call a command line tool to refresh data from an internal database.",
+    "Signed software updaters that launch a helper process from the user profile folder.",
+    "Administrators running a script they downloaded from a vendor portal while troubleshooting an issue."
+  ],
+  "tuningNotes": "Baseline the document and archive parent chains across the estate, then filter the signed updaters and internal share paths that produce them routinely. Keep the child path condition, because an interpreter running from a temporary or download directory carries most of the signal, and only relax it if your users run portable tools extensively. Scope the high severity rule to people who handle inbound mail and files, such as finance and support teams, and leave the rest of the estate at medium severity. Filtering by signed updater loses coverage of an attacker who abuses that updater to launch a payload, so alert separately when a signed updater starts a child from a user writable path outside its own installation directory.",
+  "severity": "high"
+}

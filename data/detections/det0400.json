@@ -1,0 +1,105 @@
+{
+  "id": "det0400",
+  "type": "detection",
+  "title": "Behavioral Detection of DNS Tunneling and Application Layer Abuse",
+  "shortTitle": "Behavioral Detection of DNS Tunneling and Application Lay...",
+  "externalId": "DET0400",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets command and control that hides inside the Domain Name System, matching the application layer protocol technique for DNS, where a compromised host encodes instructions and stolen data into name lookups instead of opening a suspicious connection. It matters because DNS is almost always allowed out of the network, so the channel survives egress filtering and rarely looks like a new port or service. The telemetry that exposes it is recursive resolver query and response logs, network sensor DNS records with query name, record type and response size, and volumetric baselines of lookups per host. Practical detection rests on behavioural features rather than blocklists: label length and randomness, unusual record types, extremely high query rates from one client, and repeated long answers with little cache reuse. It fails most often because shared resolvers, content delivery networks and antivirus lookup services generate noisy but legitimate patterns that inflate the baseline.",
+  "tags": [
+    "dns",
+    "command and control",
+    "mitre t1071.004",
+    "network monitoring",
+    "beaconing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of DNS Tunneling and Application Layer Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0400/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of DNS Tunneling and Application Layer Abuse - EASY",
+      "path": "exercises/det0400/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of DNS Tunneling and Application Layer Abuse - MEDIUM",
+      "path": "exercises/det0400/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of DNS Tunneling and Application Layer Abuse - HARD",
+      "path": "exercises/det0400/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of DNS Tunneling and Application Layer Abuse - EXTREMELY HARD",
+      "path": "exercises/det0400/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for hidden communication that travels inside Domain Name System lookups. Domain Name System, or DNS, is the service that turns a website name into a number address. Attackers can hide data inside those names. The alert means one computer is using DNS in a strange way that looks like a hidden channel.",
+    "whyItMatters": "Most networks must allow DNS so that websites and software updates work. Attackers know this and use it as a quiet tunnel. The traffic looks like ordinary name lookups to a firewall. Without behaviour checks, stolen data can leave your network for weeks unnoticed. This detection finds the shape of the abuse rather than a known bad name.",
+    "howItWorks": [
+      "Your resolver and network sensors record every DNS lookup with the client address, the queried name and the answer size.",
+      "These records are sent to the security monitoring platform, which also keeps a normal profile for each client.",
+      "The rule scores each queried name for length, randomness and unusual record type.",
+      "It also counts lookups per client per minute and compares the number with the client baseline.",
+      "Clients with very long or random names, or with far more lookups than normal, are flagged.",
+      "The alert shows the client, the example names, the record type and the count so you can confirm the tunnel."
+    ],
+    "example": "Think of a building where visitors must sign a book at the front desk. A visitor could pass a secret note by writing it inside the visitor name field, one letter per visit. The desk staff see normal visits and normal names. Only when someone reads many entries do the hidden letters appear. This detection reads many entries at once.",
+    "takeaways": [
+      "DNS must stay open for the business, so it is a favourite hiding place.",
+      "Judge the shape of queries, not just the domain reputation list.",
+      "Long random names and unusual record types together are much stronger than either alone."
+    ]
+  },
+  "objectives": [
+    "Explain how data and commands can be carried inside DNS queries and responses.",
+    "List the DNS telemetry fields needed for behavioural detection, such as name, record type, size and client.",
+    "Measure query volume and label randomness per client against a baseline.",
+    "Describe why blocklists alone fail for tunnelling detection.",
+    "Differentiate tunnelling patterns from shared resolver and content delivery noise."
+  ],
+  "techniqueId": "t1071-004",
+  "detectsTechniques": [
+    "t1071-004"
+  ],
+  "dataSources": [
+    "Recursive DNS resolver query logs with client address, queried name, record type and response code",
+    "Network sensor DNS records capturing query name length, answer count and answer byte size per transaction",
+    "Domain Name System server performance and cache statistics showing lookup volume per client address",
+    "Endpoint process creation events for tools that issue high volumes of name lookups from a single host"
+  ],
+  "logic": "The pattern is one client issuing many more DNS lookups than its baseline, to names that are unusually long or made of random looking labels, often with record types that normal browsing seldom uses, and answers whose encoded content repeats at a fixed interval. The fields that must be correlated are the client address, the queried name and its label length or randomness score, the record type, the transaction count per minute, the answer size, and the destination authoritative name server. The benign case is a corporate application or security agent performing many short lookups to a stable domain, often from a shared gateway address, which produces volume without long random labels; the malicious case is volume plus randomness plus a narrow set of authoritative servers, frequently with a single host accounting for almost all of it.",
+  "pseudoQuery": "# title: High Volume DNS Lookups with Long Random Labels\n# logsource:\n#   product: network\n#   service: dns\n# detection:\n#   selection:\n#     query_type:\n#       - 'TXT'\n#       - 'NULL'\n#       - 'CNAME'\n#     query_length: '> 50'\n#   filter_cdn:\n#     query|endswith:\n#       - '.akamai.net'\n#       - '.cloudfront.net'\n#   condition: selection and not filter_cdn | count() by client_ip > 200 within 10m\n# level: high",
+  "falsePositives": [
+    "Security agents that resolve large numbers of reputation domains from a shared gateway address",
+    "Content delivery and advertising domains that use long, machine generated subdomain labels",
+    "Mail security services that perform many lookups for sender policy and domain key records",
+    "Developer tooling that resolves unique per build host names in a continuous integration pipeline"
+  ],
+  "tuningNotes": "Begin with the client baseline: record the ninety ninth percentile of lookups per minute and the typical label length for every host, then alert only above those values so shared resolvers and security agents drop out naturally. Add a filter for well known hosting and delivery domains, and exclude internal zones from the rule because internal naming can look random by design. Scope the high severity version to servers and to workstations in sensitive groups, keeping a lower threshold elsewhere. The coverage you lose is a slow tunnel that stays under the volume threshold, so complement this rule with a long horizon detector for consistent periodic lookups to one authoritative server.",
+  "severity": "high"
+}

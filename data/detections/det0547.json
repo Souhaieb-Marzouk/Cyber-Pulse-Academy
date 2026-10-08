@@ -1,0 +1,105 @@
+{
+  "id": "det0547",
+  "type": "detection",
+  "title": "Detection Strategy for T1505 - Server Software Component",
+  "shortTitle": "Detection Strategy for T1505 - Server Software Component",
+  "externalId": "DET0547",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the addition of malicious server side components such as web shells, database extensions and application server modules, matching technique T1505. It matters because these components run with the privileges of the service that hosts them, face the internet or internal users directly, and give an adversary a stable entry point that survives reboots and patch cycles. The telemetry that makes it possible is file integrity monitoring of web roots and module directories, process creation records showing a service account spawning a command interpreter, web access logs recording requests to newly created scripts, and database audit records for command execution features. It fails in practice because deployments, plug ins and content management updates write files into those same directories constantly, so the rule needs a deployment baseline and a parent process constraint to stay usable.",
+  "tags": [
+    "server software component",
+    "web shell",
+    "file integrity",
+    "t1505",
+    "persistence"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1505 - Server Software Component",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0547/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1505 - Server Software Component - EASY",
+      "path": "exercises/det0547/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1505 - Server Software Component - MEDIUM",
+      "path": "exercises/det0547/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1505 - Server Software Component - HARD",
+      "path": "exercises/det0547/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1505 - Server Software Component - EXTREMELY HARD",
+      "path": "exercises/det0547/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new files added to a server that serves web pages or databases. These files can be small programs that an attacker uses to keep access. It also watches for the web server starting a command shell, which is unusual.",
+    "whyItMatters": "A web server must accept requests from outside, so it is often the first way in. A small script left behind can run commands, read files and stay hidden among many normal pages. The server trusts the file, and the file works for the attacker.",
+    "howItWorks": [
+      "A file monitoring agent records every new file written into the web directories and module folders.",
+      "The endpoint records process starts and shows which parent process produced each one.",
+      "The web server writes a log line for every request, including the path requested and the result code.",
+      "Database auditing records when a built in command feature or a new function is used.",
+      "The platform keeps only the file writes and process starts that do not match a deployment record.",
+      "A new script that is later requested from the internet becomes one correlated alert."
+    ],
+    "example": "Think of the key cabinet in an office. Every key has a label and an owner. If somebody adds an unlabelled key that opens the server room, the cabinet still looks tidy. Searching the cabinet against the key register finds it. Comparing web files against the deployment record works the same way.",
+    "takeaways": [
+      "A service account starting a command interpreter is a strong warning sign.",
+      "Compare new files with the deployment record, not with your memory of the site.",
+      "The web access log tells you whether a new file was actually used."
+    ]
+  },
+  "objectives": [
+    "Explain how a server side component such as a web shell or a database extension provides persistence",
+    "Identify the file integrity, process creation, web access and database audit telemetry for this detection",
+    "Recognise the process lineage that shows a service account spawning a command interpreter",
+    "Correlate a new server side file with the request that later used it",
+    "Write a detection rule for server side component creation and tune it against deployment tooling"
+  ],
+  "techniqueId": "t1505",
+  "detectsTechniques": [
+    "t1505"
+  ],
+  "dataSources": [
+    "File integrity monitoring events for web root directories, application module and plug in folders, and database extension directories",
+    "Process creation records showing web server or database service accounts as the parent process with a command interpreter as the child",
+    "Web server access logs recording requested paths, status codes, user agent and response size per request",
+    "Database audit records for built in command execution features, new stored procedures and external library loading"
+  ],
+  "logic": "The pattern is a new script or module file appearing in a directory that the web or database service executes, closely followed by requests to that file or by a service account process spawning a command interpreter. The fields that must be correlated are the file path and its creation time and hash, the account that wrote it, the parent process of any resulting execution, the request path and status in the access log, and whether a deployment job ran in the same window. The benign case is a scheduled release or plug in update by the deployment service account with a matching change record; the malicious case shows a write by an unusual account or through an upload feature, an unusual file extension, and a request to the new file from an external address shortly afterwards.",
+  "pseudoQuery": "# title: New executable server side file in web or module directory\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|contains: [wwwroot, htdocs, modules]\n#     TargetFilename|endswith: [.aspx, .ashx, .jsp, .php]\n#   selection_process:\n#     EventID: 1\n#     ParentImage|endswith: [w3wp.exe, httpd, nginx, tomcat]\n#     Image|endswith: [cmd.exe, powershell.exe, cscript.exe]\n#   condition: selection_file or selection_process\n# level: high",
+  "falsePositives": [
+    "Content management system plug in and theme updates that add many script files inside the web root during a release",
+    "Application developers deploying builds directly to a staging web directory from their own account",
+    "Administrators running maintenance scripts from a web server console session that starts a shell as the service account",
+    "Backup or restoration tools that recreate web files with new timestamps after a recovery operation"
+  ],
+  "tuningNotes": "Baseline the file extensions, directory trees and writing accounts that your release process uses, then allow list the deployment service account and the release windows rather than allow listing file names. Keep the service account to command interpreter branch at high severity without an allow list, because that lineage is rare in normal operation and is the clearest sign of a web shell in use. Restrict file watching to directories that the server executes and exclude upload staging folders that hold user content, which removes most of the noise. You lose coverage for a web shell uploaded into a user content folder that is later included by another script, so review new files in those folders weekly instead of in real time.",
+  "severity": "high"
+}

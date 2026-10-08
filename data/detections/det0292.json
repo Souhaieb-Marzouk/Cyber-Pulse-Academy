@@ -1,0 +1,105 @@
+{
+  "id": "det0292",
+  "type": "detection",
+  "title": "Masquerading via Space After Filename - Behavioral Detection Strategy",
+  "shortTitle": "Masquerading via Space After Filename - Behavioral Detect...",
+  "externalId": "DET0292",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects files whose names carry a trailing space, or another invisible trailing character, so that a hostile file appears to share the name of a trusted document when a person reads a folder listing. The technique is a small masquerading trick with a real payoff: the operating system treats the padded name as a different file, while a human scanning the folder sees an ordinary document. Detection is almost entirely metadata driven, which makes it cheap: file creation records that preserve the full target name, file inventory that can be compared against known good names, and process execution records where a command line references a padded name. It fails when the logging pipeline trims whitespace before indexing, which silently removes the only evidence the rule needs.",
+  "tags": [
+    "masquerading",
+    "file name",
+    "defense evasion",
+    "windows",
+    "file monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Masquerading via Space After Filename - Behavioral Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0292/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Masquerading via Space After Filename - Behavioral Detection Strategy - EASY",
+      "path": "exercises/det0292/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Masquerading via Space After Filename - Behavioral Detection Strategy - MEDIUM",
+      "path": "exercises/det0292/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Masquerading via Space After Filename - Behavioral Detection Strategy - HARD",
+      "path": "exercises/det0292/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Masquerading via Space After Filename - Behavioral Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0292/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A file name can end with a space. To your eye the name looks normal, but the computer treats it as a completely different file. An attacker can use this so a harmful file sits next to a trusted one with almost the same name. This detection looks for file names that end with a space.",
+    "whyItMatters": "People open files based on the name they see, and a trailing space is invisible in most file lists. The trick costs the attacker nothing, and it can defeat a block list that matches exact names. It also hides the file from searches for the real document. Small details like this are often the only warning you get before a user opens the wrong file.",
+    "howItWorks": [
+      "The endpoint sensor records each new file, including the full target name and the folder it was written into.",
+      "The rule compares the stored name with the trimmed version of that same name.",
+      "If the two versions differ, the name holds a trailing space or another invisible character.",
+      "A file inventory of trusted documents shows whether a near duplicate already exists in the same folder.",
+      "Process and file access records show whether anyone or anything has opened the padded file.",
+      "The analyst confirms where the file came from before removing it and checking the host."
+    ],
+    "example": "Imagine a busy hospital sign in sheet at the front desk. One visitor writes a name and then adds a small blank space at the end. A tired receptionist will never notice that space. The computer, however, treats the two entries as different people. That tiny extra character is how a file hides right next to a trusted one.",
+    "takeaways": [
+      "A trailing space makes the name you see different from the name the computer uses.",
+      "Compare the stored name with its trimmed version, because that is where the signal lives.",
+      "Check whether the padded file was actually opened, and treat that case as the priority."
+    ]
+  },
+  "objectives": [
+    "Explain how a trailing space in a file name changes the way the system treats that file.",
+    "Identify the telemetry fields that preserve an exact file name without trimming.",
+    "Build a comparison between stored names and trimmed names inside a SIEM.",
+    "Correlate a padded file name with the process that created or opened it.",
+    "Verify that your log pipeline does not trim names before you trust this rule."
+  ],
+  "techniqueId": "t1036-006",
+  "detectsTechniques": [
+    "t1036-006"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation records with the full target file name and its directory",
+    "Endpoint detection file inventory records listing file names and paths for comparison against trusted names",
+    "Windows Security event 4688 process creation where the command line references a file name with a trailing character",
+    "Linux auditd file operation records showing the created path, the acting user and the parent process"
+  ],
+  "logic": "The pattern is a file name that differs from its trimmed form, or a near duplicate of a trusted file name in the same directory where the only difference is an invisible trailing character. The fields to correlate are the exact target file name and directory from file creation telemetry, the presence of a similarly named trusted file in that directory, the process image and user that wrote the padded file, and any later process execution or file access that references the padded name. The benign case is temporary or partial files written by backup and synchronisation clients, where a trailing character is a documented convention and the writing process is a signed product binary. The malicious case is a padded name that shadows a real document in a user folder, was written by an office or script interpreter or copied from a download directory, and was then opened by the same user.",
+  "pseudoQuery": "# title: File Created With Trailing Space In Name\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith: ' '\n#   filter:\n#     Image|endswith:\n#       - '\\\\backup-agent.exe'\n#       - '\\\\sync-client.exe'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Backup and synchronisation clients that write temporary files using a documented trailing character convention.",
+    "Users renaming a document with a space at the end so that their sort order puts it first in the folder.",
+    "An application exporting a report through a vendor naming template that ends in an unintended space.",
+    "Archive extraction tools that preserve an original file name which already contained a trailing space."
+  ],
+  "tuningNotes": "Test your log pipeline first, because many ingestion chains trim whitespace and either drop the padding or normalise it away, so the rule looks healthy while matching nothing at all. Confirm that the field your sensor writes arrives exactly as recorded, and prove it with a harmless padded file before you deploy. Then exclude the documented temporary name conventions used by your backup and synchronisation products, and scope the rule to user document folders and shared drives rather than every disk on the host. Narrowing to those locations costs coverage of padded files dropped into system directories, so keep a low severity rule that reports a padded executable name wherever it appears.",
+  "severity": "medium"
+}

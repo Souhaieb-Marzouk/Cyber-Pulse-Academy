@@ -1,0 +1,106 @@
+{
+  "id": "det0581",
+  "type": "detection",
+  "title": "Detect One-Way Web Service Command Channels",
+  "shortTitle": "Detect One-Way Web Service Command Channels",
+  "externalId": "DET0581",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1102.003, One-Way Web Service command channels, where malicious code reads instructions from a legitimate public service such as a paste site, code repository, or social feed instead of contacting attacker infrastructure. Because the destination is a well-known service on port 443, domain reputation and blocklist approaches rarely help. Detection depends on correlating Domain Name System (DNS) queries, Transport Layer Security (TLS) metadata, and the local process that originated the connection. The main way it fails is scale: many legitimate applications poll public services, so the rule must combine request timing, rarity across the estate, and the parent process before it is worth alerting on.",
+  "tags": [
+    "command and control",
+    "network",
+    "dns",
+    "proxy",
+    "web service"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect One-Way Web Service Command Channels",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0581/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect One-Way Web Service Command Channels - EASY",
+      "path": "exercises/det0581/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect One-Way Web Service Command Channels - MEDIUM",
+      "path": "exercises/det0581/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect One-Way Web Service Command Channels - HARD",
+      "path": "exercises/det0581/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect One-Way Web Service Command Channels - EXTREMELY HARD",
+      "path": "exercises/det0581/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Some malicious programs do not talk to a hidden server. Instead they read orders posted on a normal public website. This detection looks for a program that keeps fetching a page from a popular service and then acts. It catches the reading half of a command channel.",
+    "whyItMatters": "A famous website is rarely blocked, so traffic to it looks normal. The intruder writes new orders by editing a public page, which leaves almost no trace. Only the local device can reveal the unusual reader. Catching this breaks the link between the intruder and the software already running.",
+    "howItWorks": [
+      "The device makes a Domain Name System (DNS) lookup before it connects to the site.",
+      "A network sensor or local agent logs that lookup along with the process that caused it.",
+      "The rule compares the requested domain against a list of public services used for this purpose.",
+      "It also checks how often the same device repeats the request, such as every five minutes.",
+      "If the reader is an unexpected program, such as a scripting host, the event is scored higher.",
+      "Confirmed matches are sent to your security information and event management (SIEM) platform for review."
+    ],
+    "example": "Think of a spy who never meets a handler. Each morning they buy the same newspaper from the same shop and read the classified adverts on page nine. The shop is ordinary and the purchase is legal, so nobody stops them. Only a watcher who notices the same person buying the same paper at the same time every day can see the pattern.",
+    "takeaways": [
+      "The destination is legitimate, so reputation and blocklists will not catch this on their own.",
+      "Repetition and rarity across the estate are stronger signals than the domain itself.",
+      "Tie network events back to the local process, or you will drown in application noise."
+    ]
+  },
+  "objectives": [
+    "Explain how a command channel can use a legitimate public web service",
+    "Identify which network and endpoint telemetry can attribute a request to a process",
+    "Recognise regular polling intervals in DNS and TLS log timing",
+    "Interpret rarity scoring across a fleet rather than on one host alone",
+    "Draft a rule that survives a busy corporate proxy environment"
+  ],
+  "techniqueId": "t1102-003",
+  "detectsTechniques": [
+    "t1102-003"
+  ],
+  "dataSources": [
+    "Domain Name System (DNS) server query logs or Sysmon event 22 recording the requesting process image and query name",
+    "Proxy web gateway logs with full URL, user agent, byte count, and response code",
+    "Sysmon event 3 network connection events with destination address, port, and owning process",
+    "TLS metadata from a network detection sensor including server name indication and certificate subject",
+    "Endpoint detection and response child process events showing a scripting host making outbound requests"
+  ],
+  "logic": "The pattern is a small set of local processes repeatedly fetching content from public services that have no business relationship with the organisation. The rule correlates DNS query name, the process image that issued the query, the proxy or firewall record for the same destination, and the interval between requests. The malicious case shows a stable poll interval, a narrow response size, a scripted or default user agent, and a parent process such as an office document or a web server worker. The benign case shows a browser or a signed updater with a broad set of destinations and irregular timing.",
+  "pseudoQuery": "# title: Repeated Programmatic Fetch of Public Paste or Code Service\n# logsource:\n#   product: network\n#   service: proxy\n# detection:\n#   selection:\n#     url|contains:\n#       - 'pastebin'\n#       - 'ghostbin'\n#       - 'githubusercontent'\n#     method: 'GET'\n#   filter_browser:\n#     process: 'browser.exe'\n#   condition: selection and not filter_browser | count() by src_ip > 20\n# level: medium",
+  "falsePositives": [
+    "Developer workstations pulling source code or package metadata from code hosting services on a fixed schedule",
+    "Software update frameworks that check a vendor content delivery endpoint every hour",
+    "Security research and threat intelligence tools that retrieve public indicator feeds automatically",
+    "Monitors and dashboards that poll public status pages for availability information"
+  ],
+  "tuningNotes": "Begin by allowlisting the small number of approved updater binaries by full path and signature, then alert on everything else, which keeps the rule sharp without silencing legitimate patching. Add a requirement that the same destination be contacted at least five times with a regular interval, and score higher when the requesting process is a scripting host or runs from a temporary directory. Scope the rule to servers and to hosts in the finance and executive groups first. You lose coverage for an intruder who hides inside an approved updater process, so review that allowlist whenever a new application is deployed.",
+  "severity": "medium"
+}

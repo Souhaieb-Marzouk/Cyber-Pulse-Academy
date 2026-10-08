@@ -1,0 +1,107 @@
+{
+  "id": "det0381",
+  "type": "detection",
+  "title": "Detect Access and Decryption of Group Policy Preference (GPP) Credentials in SYSVOL",
+  "shortTitle": "Detect Access and Decryption of Group Policy Preference (...",
+  "externalId": "DET0381",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers credential access from Group Policy Preferences, a technique where an adversary reads policy files in the SYSVOL share of a domain controller and recovers the local account passwords stored inside them. The stored value uses a published encryption key, so any authenticated domain user who can read the share can turn it back into clear text with ordinary tooling. The detection therefore rests on three telemetry sources: directory access auditing on the policies folder, process creation records that show a script or command reading policy XML files, and script block logging where a decryption routine appears in the code. Coverage fails in practice because the read looks like routine policy processing, most environments do not audit file reads on the share, and the script based access leaves command lines that are easy to confuse with administrative housekeeping.",
+  "tags": [
+    "credential access",
+    "group policy",
+    "sysvol",
+    "windows",
+    "detection engineering",
+    "active directory"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Access and Decryption of Group Policy Preference (GPP) Credentials in SYSVOL",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0381/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Access and Decryption of Group Policy Preference (GPP) Credentials in SYSVOL - EASY",
+      "path": "exercises/det0381/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Access and Decryption of Group Policy Preference (GPP) Credentials in SYSVOL - MEDIUM",
+      "path": "exercises/det0381/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Access and Decryption of Group Policy Preference (GPP) Credentials in SYSVOL - HARD",
+      "path": "exercises/det0381/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Access and Decryption of Group Policy Preference (GPP) Credentials in SYSVOL - EXTREMELY HARD",
+      "path": "exercises/det0381/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Group Policy Preferences are settings that administrators push to computers in a Windows domain. Some of those settings can store a password, and the password is protected with a key that Microsoft published. This detection looks for someone reading those policy files and turning the stored password back into readable text.",
+    "whyItMatters": "A password stored in a policy file may be the same password used on many machines. One user with a normal domain account can read the files and unlock all of those machines. The activity looks like normal file reading, so a team that only watches for failed logons will miss it. Catching the read early gives you time to rotate the password before it is used.",
+    "howItWorks": [
+      "Directory auditing on the domain controller records who opens or copies files inside the policy folders of the SYSVOL share.",
+      "Process creation records show which program ran and the full command line, such as a script that reads a policy file.",
+      "The rule looks for command lines that name policy file types, such as xml files under a Policies path.",
+      "Script block logging adds the text of the script, so a routine that turns stored text into a password becomes visible.",
+      "A policy file read by an unusual account, especially one that does not manage the domain, raises an alert for review."
+    ],
+    "example": "Think of a shared kitchen cupboard with labelled jars. Anyone in the building can open the cupboard, and the labels say the jars are locked. But every jar uses the same simple key that came in the box. A stranger who walks in and reads a label is doing nothing odd. The useful clue is not the label, it is a person who normally eats elsewhere opening that cupboard and reading many jars at once.",
+    "takeaways": [
+      "The stored password is protected by a key that is public, so the real control is who can read the file.",
+      "Audit file reads on the policy folders, because a logon alert will not show this activity.",
+      "Rotate any password that appeared in a policy file as soon as you confirm a read."
+    ]
+  },
+  "objectives": [
+    "Explain why a Group Policy Preferences password is recoverable by any authenticated domain user",
+    "Identify the SYSVOL policy file types that may contain a stored credential",
+    "Enable and read directory access auditing for the policy folders of a domain share",
+    "Correlate a policy file read with later authentication from the same account",
+    "Write a detection rule that matches decryption tooling on process command lines",
+    "Describe what coverage is lost when file read auditing is not enabled"
+  ],
+  "techniqueId": "t1552-006",
+  "detectsTechniques": [
+    "t1552-006"
+  ],
+  "dataSources": [
+    "Windows Security event 4663 object access with the SYSVOL Policies folder audited for read and write",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "PowerShell script block logging event 4104 capturing scripts that read or decode policy files",
+    "Sysmon event 1 process creation showing PowerShell, command shell, or archive tools reading policy XML files",
+    "Sysmon event 11 file create or copy events on the domain controller for policy files copied out of the share"
+  ],
+  "logic": "The pattern is a credential read that never touches the local security database. The rule matches process creation and script block events whose command line or script text names policy file types under a Policies folder, or names a well known routine that turns the stored preference value into clear text, and it correlates that event with object access auditing showing the same account reading many policy files in a short window. The benign case is the Group Policy service itself or a domain administrator running a documented audit report, which reads broadly but does so from a small set of well known service accounts and management hosts. The malicious case is a workstation account, a service account, or an account that never administers policy reading policy files and then running a decoding step on the same host.",
+  "pseudoQuery": "# title: Group Policy Preference Password Read and Decryption\n# logsource:\n#   product: windows\n#   service: process_creation\n# detection:\n#   selection_read:\n#     CommandLine|contains:\n#       - 'Groups.xml'\n#       - 'Services.xml'\n#       - 'ScheduledTasks.xml'\n#       - '\\\\Policies\\\\'\n#   selection_tool:\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\pwsh.exe'\n#       - '\\\\cmd.exe'\n#   filter_admin:\n#     User|endswith:\n#       - 'svc_gpo_mgmt$'\n#       - 'gpo_reporter$'\n#   condition: selection_read and selection_tool and not filter_admin\n# level: high",
+  "falsePositives": [
+    "Domain administrators running a documented Group Policy Preferences audit report that reads many policy files in one pass",
+    "Backup or configuration management agents that read the whole SYSVOL share on a fixed schedule",
+    "Software deployment tooling that parses policy XML files to check which drive mappings should apply",
+    "Group Policy modeling or result set reporting tools launched from a management server"
+  ],
+  "tuningNotes": "Scope the rule to accounts that are not in the Group Policy administration group, and exclude the small set of service accounts used by backup and configuration management agents after you have baselined their normal read volume. Add a frequency condition so that a single policy file read by a helpdesk account does not alert, but a burst across many policy files does, because the malicious case almost always reads broadly before decoding. Auditing every read on SYSVOL is expensive on a busy domain controller, so tune the audit entry to the Policies folder only. Narrowing this way means you lose visibility of a patient attacker who reads one useful file and waits, so keep a slower scheduled report of all policy file reads by non administrative accounts as a compensating control.",
+  "severity": "high"
+}

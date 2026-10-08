@@ -1,0 +1,107 @@
+{
+  "id": "det0351",
+  "type": "detection",
+  "title": "Unix-like File Permission Manipulation Behavioral Chain Detection Strategy",
+  "shortTitle": "Unix-like File Permission Manipulation Behavioral Chain D...",
+  "externalId": "DET0351",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Unix Shell File and Directory Permissions Modification (T1222.002), where an adversary changes access modes or ownership on Unix like systems to gain access to files, keep a foothold or prevent cleanup. The technique matters because a single permission change can turn a protected configuration file into a writable one, add a set user id bit to a copy of a shell, or make a dropped script executable. Detection depends on process telemetry that records the command line of permission tools, file watch or integrity records that capture the resulting mode and owner, and privilege command logs that show which account made the change. It fails most often because installers, container entrypoints and configuration management run the same commands legitimately during every deployment.",
+  "tags": [
+    "unix",
+    "file permissions",
+    "privilege escalation",
+    "auditd",
+    "t1222.002"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Unix-like File Permission Manipulation Behavioral Chain Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0351/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Unix-like File Permission Manipulation Behavioral Chain Detection Strategy - EASY",
+      "path": "exercises/det0351/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Unix-like File Permission Manipulation Behavioral Chain Detection Strategy - MEDIUM",
+      "path": "exercises/det0351/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Unix-like File Permission Manipulation Behavioral Chain Detection Strategy - HARD",
+      "path": "exercises/det0351/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Unix-like File Permission Manipulation Behavioral Chain Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0351/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes to who may read, write or run a file on Linux or macOS. Attackers make a file easier to change or easier to run as a powerful user. The rule watches the commands that change these permissions.",
+    "whyItMatters": "A permission change can open a protected file in one step. It can also give a normal program the power of the root user. Such changes often survive a reboot and are easy to overlook. Administrators make similar changes when they install software, so context matters. Watching both the command and the result gives you a clear picture.",
+    "howItWorks": [
+      "The system logs each command that runs, including the full command line and its arguments.",
+      "The rule keeps the commands that change file modes, ownership or extended attributes.",
+      "It reads the arguments to see which path was changed and what result was requested.",
+      "A second data source records the mode and owner that the file now has.",
+      "The rule checks whether the changed path is a system location or a file that then runs.",
+      "An alert is raised when a broad permission is granted outside a known deployment window."
+    ],
+    "example": "Think of an office where each filing cabinet has a lock. Giving out a master key is a serious act. If someone copies a master key at two in the morning, the key log is the clue you need. Here, the command line is the key log and the file mode is the lock.",
+    "takeaways": [
+      "Read the arguments of the command, not only the command name.",
+      "Pair the change with the resulting file mode for the strongest signal.",
+      "Expect noise during deployments, so use time and change records as filters."
+    ]
+  },
+  "objectives": [
+    "Explain how permission changes enable access, persistence or privilege escalation on Unix like hosts",
+    "Identify process, file watch and privilege command telemetry that records permission changes",
+    "Recognise the modes that matter most, such as broad write access and set user id bits",
+    "Write a rule that joins the command, its arguments and the resulting mode on sensitive paths",
+    "Triage a match by checking the deployment schedule and the account that ran the command",
+    "Assess the coverage lost when the rule excludes deployment tools and configuration management"
+  ],
+  "techniqueId": "t1222-002",
+  "detectsTechniques": [
+    "t1222-002"
+  ],
+  "dataSources": [
+    "Linux auditd execve records for chmod, chown, chattr and setfacl with the full command line and arguments",
+    "Linux auditd file watch or file integrity monitoring events recording mode and owner changes on sensitive paths",
+    "Sysmon for Linux event 1 process creation showing the parent process and command line of permission changes",
+    "Privilege command authentication records showing which account ran the change and from which terminal",
+    "Container runtime and orchestration audit records that capture volume mount modes at start up"
+  ],
+  "logic": "The pattern is a permission change that grants broad write access or adds a set user id bit, aimed at a system path or at a file that is executed moments later, made outside a known deployment. The fields that must be correlated are the process image and full arguments, the target path, the resulting mode and owner, the account and terminal that ran it, and any execution of the changed path afterwards. The benign case is a signed package installation, a container entrypoint or a configuration management run that applies a documented mode inside a change window. The malicious case is a recursive broad permission change over a system directory, a set user id bit applied to a copied shell or script, or an immutable flag set on a dropped file, especially when followed by execution from a temporary path.",
+  "pseudoQuery": "# title: Broad Permission Or Setuid Bit Applied To System Path\n# logsource:\n#   product: linux\n# detection:\n#   selection_tool:\n#     exe|endswith:\n#       - '/chmod'\n#       - '/chown'\n#       - '/chattr'\n#   selection_change:\n#     command_line|contains:\n#       - '777'\n#       - '+s'\n#       - 'o+w'\n#   condition: selection_tool and selection_change\n# level: high",
+  "falsePositives": [
+    "Package installation scripts that set executable modes on files under system directories during upgrades",
+    "Container entrypoints that adjust ownership of application directories every time a container starts",
+    "Configuration management runs that enforce a documented mode on many files at once",
+    "Developers making a script in a shared project directory executable by a group of colleagues"
+  ],
+  "tuningNotes": "Baseline which accounts and parent processes run permission commands on each host role, and filter configuration management and package manager parents by image path. Restrict the rule to system paths and to modes that grant broad write or execute rights, and exclude user home directories where such changes are routine. Add a correlation that requires execution of the changed file within a short window to raise severity. The coverage you lose is a subtle mode change, such as removing the read bit from a log directory to hinder investigation, which no filter will catch unless you compare the resulting mode against a known good baseline.",
+  "severity": "high"
+}

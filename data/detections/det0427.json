@@ -1,0 +1,108 @@
+{
+  "id": "det0427",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow through Service Registry Premission Weakness.",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow through Serv...",
+  "externalId": "DET0427",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of weak permissions on service registry keys, where an adversary edits a service ImagePath, Performance subkey or FailureActions value so the service loads an attacker controlled binary on its next start. It matters because the modified service usually runs as a highly privileged account, so a single registry write can convert a low privileged foothold into system level execution that survives restarts. Detection depends on registry modification telemetry that records the key path and the new value data, service control manager events, and file creation in directories the service account can write to. The main way it fails in practice is that patch tools and vendor updaters rewrite service paths as part of normal maintenance, so the rule must weigh the writing account and the destination directory instead of alerting on every service key change.",
+  "tags": [
+    "service hijack",
+    "t1574-011",
+    "registry",
+    "privilege escalation",
+    "persistence"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow through Service Registry Premission Weakness.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0427/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Service Registry Premission Weakness. - EASY",
+      "path": "exercises/det0427/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Service Registry Premission Weakness. - MEDIUM",
+      "path": "exercises/det0427/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Service Registry Premission Weakness. - HARD",
+      "path": "exercises/det0427/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Service Registry Premission Weakness. - EXTREMELY HARD",
+      "path": "exercises/det0427/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes to the settings of an installed service. A service is a background program that starts with the computer. The rule reports when the path to the service program is changed by an account that should not change it.",
+    "whyItMatters": "Services often run with high permissions. If an attacker can change which program a service starts, their program gets those permissions too. The change is a single registry edit, so it is quick and quiet. Most service changes are made by patch tools, however, so the alert must focus on who made the change. That is what separates a routine update from a hijack.",
+    "howItWorks": [
+      "A service is installed and its settings are stored in the registry of the computer.",
+      "The settings include the full path of the program that the service starts.",
+      "An account changes that path to point at a different program.",
+      "Endpoint monitoring records the registry write, the value name and the new path.",
+      "The rule compares the writing account and the new program location against known good values.",
+      "A path change made by a non administrator account, or to a writable folder, raises an alert."
+    ],
+    "example": "Think of a building where the cleaning contract lists which office each cleaner opens. A manager can update that list, and the front desk records every change. If a cleaner edits the list so that their own key opens the server room, the record shows exactly that. The system was not broken. The permission to change the list was simply too wide, and the log caught the edit.",
+    "takeaways": [
+      "A service hijack is usually one registry write, not a new program install.",
+      "Check who wrote the value and where the new program lives.",
+      "Weak permissions on the key or the service folder are the root cause to fix."
+    ]
+  },
+  "objectives": [
+    "Explain how a service registry value controls which program a privileged service starts.",
+    "Identify the registry paths and value names that determine service execution.",
+    "Correlate a registry modification with file creation in a service writable directory.",
+    "Distinguish a patch or upgrade path change from a hijack attempt by an unexpected account.",
+    "Assess the privilege gained when a service running as a system account is redirected.",
+    "Describe how to verify the permissions that allowed the modification."
+  ],
+  "techniqueId": "t1574-011",
+  "detectsTechniques": [
+    "t1574-011"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set recording the target object, value name and new value data for service keys",
+    "Windows Security event 4657 registry value modification with the subject account and object name",
+    "Windows System event 7045 service installation recording the service name and image path",
+    "Windows System event 7036 service state change showing the affected service restarting",
+    "Sysmon event 11 file creation recording binaries written into service directories or user writable folders"
+  ],
+  "logic": "The pattern is a write to a service related registry value, most often ImagePath under the services key, where the new value points at a binary that is not in the expected program directory, combined with a file appearing in a directory the writing account can modify, followed by the service starting. The fields that must be correlated are the registry key path and value name, the old and new value data, the subject or writing account, the creation of the referenced binary, and the subsequent service state change for that service name. The malicious case is distinguished from the benign one by the writer and the destination: vendor updates are performed by system or installer accounts, reference versioned directories under the vendor program folder, and arrive with signed binaries, while a hijack is typically written by a non administrative or freshly created account and points at a path under a temporary folder, a user profile, or a directory whose access control list grants write permission to a wide group.",
+  "pseudoQuery": "# title: Service ImagePath Registry Value Modified to User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains: '\\\\SYSTEM\\\\CurrentControlSet\\\\Services\\\\'\n#     TargetObject|endswith: '\\\\ImagePath'\n#     Details|contains:\n#       - '\\\\Users\\\\'\n#       - '\\\\ProgramData\\\\'\n#       - '\\\\Temp\\\\'\n#   filter_updater:\n#     User|endswith: '$'\n#     Details|contains: '\\\\Program Files\\\\'\n#   condition: selection and not filter_updater\n# level: high",
+  "falsePositives": [
+    "Application patching tools that rewrite the service image path to a new versioned directory under the vendor program folder",
+    "Third party installers that recreate a service and briefly record a path in a staging directory before moving files",
+    "Administrators performing a documented service binary relocation during a migration project",
+    "Endpoint management agents that update their own service path during an in place upgrade",
+    "Backup software that reconfigures its service to reference a new plugin or database connector module"
+  ],
+  "tuningNotes": "Baseline service path changes for thirty days and record the writing account, the parent process and the destination directory for each one, then filter by that identity and directory pair rather than by the registry event itself. Add a directory risk list so paths that any authenticated user can write to, such as temporary folders and user profiles, always alert even when the writer looks routine. Scope the rule to services that run as local system or as a privileged service account, since those carry the greatest impact, and keep a lower severity rule for services running as ordinary accounts. You lose visibility into a hijack performed by a legitimate installer account or by a compromised management tool, and into hijacks that modify the key through a remote registry connection, so enable remote registry access auditing and alert on any service key write whose source is a network logon.",
+  "severity": "high"
+}

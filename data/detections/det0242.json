@@ -1,0 +1,108 @@
+{
+  "id": "det0242",
+  "type": "detection",
+  "title": "Suspicious Database Access and Dump Activity Across Environments (T1213.006)",
+  "shortTitle": "Suspicious Database Access and Dump Activity Across Envir...",
+  "externalId": "DET0242",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects bulk access to and dumping of data held in databases and cloud data platforms, covering the collection stage where an adversary with valid access turns a production data store into an archive. The technique matters because data repositories centralise the organisation's most valuable records, and an account that already holds read permissions needs no exploit to take them, only volume and timing that differ from normal work. Detection depends on database audit records, cloud data warehouse query history, database client process creation and outbound transfer volume. The main way it fails is that bulk reads are legitimate work: reporting jobs, replication, analytics notebooks and backups all match the same shape, so the discriminator has to be the account, the client application, the schedule and the destination.",
+  "tags": [
+    "data collection",
+    "database",
+    "cloud",
+    "exfiltration",
+    "insider threat",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Suspicious Database Access and Dump Activity Across Environments (T1213.006)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0242/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Suspicious Database Access and Dump Activity Across Environments (T1213.006) - EASY",
+      "path": "exercises/det0242/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Suspicious Database Access and Dump Activity Across Environments (T1213.006) - MEDIUM",
+      "path": "exercises/det0242/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Suspicious Database Access and Dump Activity Across Environments (T1213.006) - HARD",
+      "path": "exercises/det0242/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Suspicious Database Access and Dump Activity Across Environments (T1213.006) - EXTREMELY HARD",
+      "path": "exercises/det0242/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone copying a large amount of data out of a database. A database holds records such as customers, orders and payments. A dump means pulling the whole table or many rows at once, often into a file. The rule watches who ran large reads, when, and from which program.",
+    "whyItMatters": "Most large data theft does not need a software flaw. An attacker with a stolen but valid account can simply read the data. That looks a little like normal reporting, so it is easy to miss. Alerts on unusual volume and odd source programs give you a chance to stop the copy before it leaves.",
+    "howItWorks": [
+      "A program connects to the database and runs a query or a dump command.",
+      "The database writes an audit record with the account, the query and how many rows came back.",
+      "The rule sums the rows read per account and compares that with the usual amount.",
+      "It also checks the program name and the address the connection came from.",
+      "Cloud query history and endpoint process records are joined to the same account and time window.",
+      "A large read from an unexpected client, or a dump to a file, raises an alert."
+    ],
+    "example": "Think of a shop till that prints a receipt for every sale. One receipt for a big order is normal. A receipt that lists the entire stock room, printed at two in the morning by someone who is not a shop worker, is worth a phone call. The volume and the timing tell the story, not the act of reading.",
+    "takeaways": [
+      "Valid credentials can steal data with no exploit at all.",
+      "Compare volume, timing and client program instead of alerting on any large read.",
+      "Join database logs with host and cloud records to see where the data went."
+    ]
+  },
+  "objectives": [
+    "Explain why collection from a data repository often uses legitimate access.",
+    "Identify audit records that capture the account, query text and rows returned.",
+    "Describe how to baseline normal read volume per account and per job schedule.",
+    "Recognise database dump tooling and export utilities in process creation records.",
+    "Correlate a database session with the client host and any archive written to disk.",
+    "Distinguish a scheduled analytics job from an interactive bulk export."
+  ],
+  "techniqueId": "t1213-006",
+  "detectsTechniques": [
+    "t1213-006"
+  ],
+  "dataSources": [
+    "Cloud data warehouse query history recording the user, the query text, bytes scanned and rows returned per statement",
+    "Database server audit logs recording the connecting account, the source address, the client program name and executed statements",
+    "Sysmon event 1 process creation records for database client and dump utilities with command line arguments",
+    "Sysmon event 11 file creation records for large export files and archives written in user or temporary directories",
+    "Object storage or file share access logs for uploads from the host that ran the bulk read"
+  ],
+  "logic": "The pattern is a read that is far larger than the account's normal use, executed by a client program or from a source that the account has never used, and often followed by writing an archive and moving it off the host. The fields that must be correlated are the database account, the client program name, the source address, the statement or query identifier, the rows returned or bytes scanned, the session duration, and the file or upload activity on the same host inside the same window. The malicious case usually shows an interactive client such as a command line tool or an office document driver reading whole tables, activity outside the account's normal hours, a sudden jump in volume against the account's own baseline, and an archive file written then uploaded. The benign case is a scheduled extract transform load job, a nightly warehouse refresh, a reporting tool that runs the same query every morning, or a database administrator performing a documented migration.",
+  "pseudoQuery": "# title: Bulk Database Read and Local Export Archive From One Account\n# logsource:\n#   product: linux\n# detection:\n#   selection_query:\n#     event_type: 'query'\n#     rows_returned|gt: 100000\n#   selection_dump:\n#     Image|endswith:\n#       - '\\mysqldump.exe'\n#       - '/pg_dump'\n#       - '\\bcp.exe'\n#       - '/sqlplus'\n#   selection_archive:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.zip'\n#       - '.7z'\n#       - '.tar.gz'\n#   condition: selection_dump or (selection_query and selection_archive)\n# level: medium",
+  "falsePositives": [
+    "Nightly extract transform load jobs that run the same very large query under a service account on a fixed schedule",
+    "Database administrators performing an approved migration or storage upgrade that refreshes whole tables",
+    "Data science notebooks that scan large tables during analysis with a recorded ticket and a known workstation",
+    "Backup software reading table spaces directly as part of a documented backup window"
+  ],
+  "tuningNotes": "Baseline rows read and bytes scanned per account and per client program over at least thirty days, then set thresholds off that account's own percentile rather than a global number, because a warehouse service account and a human analyst differ by orders of magnitude. Maintain a filter for known extract transform load jobs by their job account, query fingerprint, client host and schedule, and exclude them fully, but require all four to match so an attacker cannot borrow the account alone. Scope the first version to repositories holding regulated data and to accounts that also hold interactive logon rights. The coverage you lose is quiet extraction that stays under the threshold, so complement this with transfer volume monitoring toward external destinations for the same host, which catches a small steady copy that never trips a row count rule.",
+  "severity": "high"
+}

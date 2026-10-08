@@ -1,0 +1,105 @@
+{
+  "id": "det0535",
+  "type": "detection",
+  "title": "Detect Abuse of vSphere Installation Bundles (VIBs) for Persistent Access",
+  "shortTitle": "Detect Abuse of vSphere Installation Bundles (VIBs) for P...",
+  "externalId": "DET0535",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets abuse of vSphere Installation Bundles, the small signed packages that add drivers or agents to an ESXi host, which an adversary can install to keep a foothold outside the guest operating system. It covers technique T1505.006 and matters because hypervisor level persistence survives virtual machine rebuilds and is invisible to endpoint agents running inside guests. The telemetry that makes it possible is vCenter task and event records, ESXi host daemon and shell logs, and file integrity data for the boot bank, correlated with the signing acceptance level of each installed bundle. The main way it fails in practice is that routine VMware update cycles install bundles constantly, so hosts without a documented patch baseline generate so much expected noise that analysts suppress the rule and lose the malicious case with it.",
+  "tags": [
+    "vmware",
+    "esxi",
+    "persistence",
+    "t1505.006",
+    "server software component"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Abuse of vSphere Installation Bundles (VIBs) for Persistent Access",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0535/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Abuse of vSphere Installation Bundles (VIBs) for Persistent Access - EASY",
+      "path": "exercises/det0535/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Abuse of vSphere Installation Bundles (VIBs) for Persistent Access - MEDIUM",
+      "path": "exercises/det0535/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Abuse of vSphere Installation Bundles (VIBs) for Persistent Access - HARD",
+      "path": "exercises/det0535/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Abuse of vSphere Installation Bundles (VIBs) for Persistent Access - EXTREMELY HARD",
+      "path": "exercises/det0535/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new software packages added to a VMware ESXi host. That host is the small operating system which runs virtual machines. It catches bundles that are unsigned or accepted only at a low trust level. An attacker would add that kind of bundle to keep access.",
+    "whyItMatters": "An attacker who adds a package at the host level sits below every virtual machine. Rebuilding a virtual machine does not remove it, and endpoint tools inside the guest cannot see it. Only the host logs and the vCenter records show the change. That makes this one of the few chances to spot and stop that kind of quiet, long lasting access.",
+    "howItWorks": [
+      "The ESXi host and the vCenter service record every bundle install, update and removal as a task or an event.",
+      "Each record shows the bundle name, its version, the host it touched, and the acceptance level used to sign it.",
+      "The collector forwards those records to the central log platform, called a security information and event management system, or SIEM.",
+      "The rule lists the hosts where unsigned or community level bundles were accepted.",
+      "It compares each install against the change calendar and the normal host build baseline.",
+      "Anything left over becomes an alert for a human to review."
+    ],
+    "example": "Think of a hospital sign-in sheet. Every visitor writes a name, and the desk staff expect a booked appointment. A visitor who signs in with no booking and no sponsor is the one worth a phone call. A bundle installed on a host with no change ticket is that visitor.",
+    "takeaways": [
+      "Host level changes sit below the virtual machines, so guest tools never see them.",
+      "The acceptance level of a bundle tells you how much trust it really has.",
+      "Compare every install with the change calendar before you call it malicious."
+    ]
+  },
+  "objectives": [
+    "Explain what a vSphere Installation Bundle is and why it creates persistence below the guest operating system",
+    "Identify the vCenter task records and ESXi host logs that record bundle installation",
+    "Interpret bundle acceptance levels and explain why unsigned or community level packages are higher risk",
+    "Correlate a bundle install event with change management records to separate routine patching from abuse",
+    "Write a detection rule that alerts on unexpected bundle installs and tune it against a host build baseline"
+  ],
+  "techniqueId": "t1505-006",
+  "detectsTechniques": [
+    "t1505-006"
+  ],
+  "dataSources": [
+    "vCenter Server task and event records for host software package install, update and remove operations",
+    "VMware ESXi host daemon and esxupdate logs recording bundle acceptance level and signature state",
+    "ESXi shell and SSH authentication logs showing interactive sessions opened before a package change",
+    "File integrity monitoring of the ESXi boot bank and package state database"
+  ],
+  "logic": "The pattern to look for is a bundle installation task on an ESXi host that appears outside a documented update window, especially when the acceptance level is unsigned or community, or when the installing session came from an unusual management address. The fields that must be correlated are the target host, the package name, the acceptance level, the acting user or session, and the source address of the management connection. The benign case is a scheduled update where the package name matches the vendor patch set and the task is started by the documented automation account during a change window; the malicious case shows a mismatched or unknown package, a low acceptance level, and no matching change record.",
+  "pseudoQuery": "# title: ESXi host acquired a low trust software bundle\n# logsource:\n#   product: linux\n#   service: esxi\n# detection:\n#   selection:\n#     event_type: host software package install\n#     acceptance_level: [unsigned, community]\n#   filter_maintenance:\n#     package_name: approved-patch-baseline\n#   condition: selection and not filter_maintenance\n# level: high",
+  "falsePositives": [
+    "Vendor approved driver or agent bundles that the hardware vendor requires and the change record lists under a different package name",
+    "Lab and test ESXi hosts where administrators deliberately lower the acceptance level to load community drivers",
+    "Third party backup or monitoring agents installed by an automation account whose name was never added to the approved installer list",
+    "A host rebuild that reinstalls standard bundles shortly after provisioning and looks like an out of hours change"
+  ],
+  "tuningNotes": "Start by baselining every bundle name that your patch automation installs on each host cluster in the last ninety days, then allow list those package names and the automation account that installs them, scoped only to the production clusters. Keep unsigned and community acceptance level installs in scope at all times, because that is the strongest signal and it almost never happens legitimately in production. You lose coverage for a compromised update account that installs a correctly named bundle with tampered contents, so pair this rule with signature verification of the installed package rather than relying on the name alone.",
+  "severity": "high"
+}

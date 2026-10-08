@@ -1,0 +1,109 @@
+{
+  "id": "det0008",
+  "type": "detection",
+  "title": "Behavioral Detection of Remote Cloud Logins via Valid Accounts",
+  "shortTitle": "Behavioral Detection of Remote Cloud Logins via Valid Acc...",
+  "externalId": "DET0008",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects interactive remote access to cloud resources using valid accounts (T1021.007, Remote Services: Cloud Services). The core difficulty is that the credentials are real, so authentication succeeds and the session looks legitimate; nothing is exploited and no malware is required. The signal therefore lives in context: a successful console login from a new country or hosting provider address, a session that skips the multifactor step, or a login from a workload that normally reaches cloud services through an automation role. The telemetry that enables this is cloud identity sign-in logging joined with the API activity that follows. It fails when the tenant has no baseline of normal source addresses, so every analyst judgement becomes inconsistent.",
+  "tags": [
+    "lateral movement",
+    "cloud identity",
+    "valid accounts",
+    "t1021.007",
+    "sign-in logs",
+    "multifactor"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Remote Cloud Logins via Valid Accounts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0008/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Remote Cloud Logins via Valid Accounts - EASY",
+      "path": "exercises/det0008/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Remote Cloud Logins via Valid Accounts - MEDIUM",
+      "path": "exercises/det0008/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Remote Cloud Logins via Valid Accounts - HARD",
+      "path": "exercises/det0008/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Remote Cloud Logins via Valid Accounts - EXTREMELY HARD",
+      "path": "exercises/det0008/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud services can be reached from any browser with a username and password. When an attacker steals working credentials, the login succeeds and the system sees a normal user. This detection looks at where the login came from and what happened next. It does not try to detect a broken password.",
+    "whyItMatters": "Stolen credentials are one of the most common ways into a cloud environment. There is no exploit to patch and no file to scan. The account may have broad rights, and the attacker often works during the victim's own working hours to blend in. Because the login is valid, only behaviour can separate the attacker from the real user. That makes context data, such as location and device, as important as the login event itself.",
+    "howItWorks": [
+      "The cloud identity service writes a sign-in record for every successful and failed authentication, including the source address and the device details.",
+      "Your log platform keeps a profile of each account, recording the addresses, countries and devices it normally uses.",
+      "The detection compares each new login with that profile and scores how unusual it is.",
+      "It also checks whether the multifactor step was satisfied, because a session that skips it is a strong clue.",
+      "It then joins the login with the API calls made in the following minutes by the same identity.",
+      "A login from a new location followed by unusual permission or storage activity raises the alert."
+    ],
+    "example": "Think of a staff canteen where you pay with a card. A stolen card still works at the till. The cashier does not see a thief. The fraud team notices instead that the card was used in another city an hour after it was used here. The pattern, not the payment, reveals the problem.",
+    "takeaways": [
+      "Successful authentication is not proof that the real user is present.",
+      "Source address, device and multifactor status give the context you need.",
+      "The strongest signal is an unusual login followed by unusual actions."
+    ]
+  },
+  "objectives": [
+    "Explain why valid cloud accounts are hard to detect and what replaces signature matching.",
+    "Identify the sign-in log fields that describe source address, device and multifactor outcome.",
+    "Describe how to build a normal usage baseline per account and per role.",
+    "Correlate a suspicious sign-in with the API activity that follows it in the same session.",
+    "Recognise hosting provider and anonymising service address ranges as elevated risk.",
+    "Choose a response path that verifies the user without locking out legitimate work."
+  ],
+  "techniqueId": "t1021-007",
+  "detectsTechniques": [
+    "t1021-007"
+  ],
+  "dataSources": [
+    "AWS CloudTrail ConsoleLogin and AssumeRole events with sourceIPAddress and userAgent",
+    "Cloud identity provider sign-in logs recording user, application, source address, country and multifactor result",
+    "Virtual private network or identity aware proxy logs showing the corporate address a user normally appears from",
+    "Cloud API audit logs showing the actions taken by the identity in the session after authentication",
+    "IP address reputation or threat intelligence enrichment recording hosting provider and proxy ranges"
+  ],
+  "logic": "The rule scores the combination of an unusual authentication and the actions that follow it for the same identity. The primary selection is a successful interactive sign-in, meaning a console or browser based session rather than a programmatic one. Fields that must be correlated are the identity, the application or service reached, the source address and country, the device or user agent, the multifactor result, and the sequence of API calls made in the following thirty minutes. The malicious case is a successful console login for an account that normally authenticates from a fixed corporate range, arriving from a hosting provider address, with no multifactor step recorded or a newly registered authentication method, followed by permission enumeration, credential creation or bulk storage access. The benign case is the same user travelling, using a new device after a documented reset, or working through an approved remote access service, which is why travel records and device registration history should be joined before alerting.",
+  "pseudoQuery": "# title: Cloud Console Login From New Source With Privilege Actions\n# logsource:\n#   product: aws\n# detection:\n#   selection_login:\n#     eventName: 'ConsoleLogin'\n#     responseElements.ConsoleLogin: 'Success'\n#     mfaUsed: 'No'\n#   selection_actions:\n#     eventName:\n#       - 'CreateAccessKey'\n#       - 'AttachUserPolicy'\n#       - 'CreateLoginProfile'\n#   filter_known:\n#     sourceIPAddress|cidr: '203.0.113.0/24'\n#   condition: selection_login and selection_actions and not filter_known\n# level: high",
+  "falsePositives": [
+    "Employees travelling abroad who sign in from hotel or mobile networks",
+    "Contractors and support engineers who work from home on unmanaged devices",
+    "Automation that uses a service account with console access for a legacy process",
+    "New starters signing in for the first time before their usual device profile exists",
+    "Administrators using a jump host or cloud shell from a hosting provider address during an incident"
+  ],
+  "tuningNotes": "Baseline for at least thirty days before enabling high severity: record the countries, address ranges and device identifiers each account uses, and treat the first login from a new combination as medium until the pattern is confirmed. Add filters for your corporate virtual private network ranges and for approved remote access services, and require multifactor success for interactive sessions in policy so that absence of multifactor becomes meaningful. Use impossible travel and new authentication method registration as supporting signals rather than alerting on either alone. Narrowing to new address ranges loses coverage of an attacker who steals a session token from the same network, so keep session token reuse and concurrent session detection alongside this rule.",
+  "severity": "high"
+}

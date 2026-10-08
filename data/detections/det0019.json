@@ -1,0 +1,106 @@
+{
+  "id": "det0019",
+  "type": "detection",
+  "title": "Detection Strategy for Stripped Payloads Across Platforms",
+  "shortTitle": "Detection Strategy for Stripped Payloads Across Platforms",
+  "externalId": "DET0019",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects stripped payloads, mapped to ATT&CK technique T1027.008, where an adversary removes symbols, debug sections and metadata from a compiled binary so that static analysis, hashing and detections based on strings or rich header data are less effective. The behaviour is not the payload itself but the processing step applied to it, so the detection leans on process creation telemetry that shows symbol stripping and section rewriting utilities working on a binary outside a build environment, combined with file metadata showing a freshly written executable whose size or section table changed. On Windows the equivalent action removes debug information from a compiled assembly; on Linux the classic tools strip symbols and copy or rewrite object sections. The reliable correlation is a strip style command whose input file was created moments earlier by a compiler, a download utility or a script interpreter, on a host that is not a build agent. The strategy fails in practice because packaging pipelines strip binaries as a normal last step, so the rule must either exclude build infrastructure or require the target to sit in a staging or temporary directory.",
+  "tags": [
+    "mitre t1027.008",
+    "stripped payloads",
+    "obfuscation",
+    "linux",
+    "windows",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Stripped Payloads Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0019/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Stripped Payloads Across Platforms - EASY",
+      "path": "exercises/det0019/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Stripped Payloads Across Platforms - MEDIUM",
+      "path": "exercises/det0019/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Stripped Payloads Across Platforms - HARD",
+      "path": "exercises/det0019/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Stripped Payloads Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0019/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A stripped payload is a program with the extra information taken out. Symbols and debug notes are removed, so the file is smaller and harder to read. This detection looks for the tools that remove that information. It catches an attacker cleaning a program before using it.",
+    "whyItMatters": "Analysts learn a lot from the names and notes left inside a program. Removing them makes the file harder to understand and can break simple checks. It is a small step with a large effect on how long an investigation takes. Catching the step gives you the original file, or at least the moment it changed. That timing fact is often more useful than the tool itself.",
+    "howItWorks": [
+      "The sensor records every process start with its full command line and the account that ran it.",
+      "The rule matches commands that remove symbols or rewrite sections of a compiled file.",
+      "It records which file each command touched, using the arguments in the command line.",
+      "It then checks file events to see when that target file was created and by which process.",
+      "If the target was created minutes earlier by a download tool or a script, the pair is treated as suspicious.",
+      "The alert shows the original writer, the stripping command and the file path so the analyst can recover evidence."
+    ],
+    "example": "Picture a parcel arriving with the sender label torn off. The contents may be ordinary, but now nobody can tell where it came from. The post room keeps a note of every parcel whose label was removed on site. Stripped payload detection is that note, kept because the missing label changes how you must handle the parcel.",
+    "takeaways": [
+      "The strip step is a signal about intent, not proof of harm.",
+      "Correlate the stripping command with the file creation that came just before it.",
+      "Build systems do this all day, so exclude them by identity rather than by tool name."
+    ]
+  },
+  "objectives": [
+    "Explain what symbol and metadata removal does to the difficulty of analysis",
+    "Identify process creation telemetry for stripping and section rewriting utilities",
+    "Correlate a strip command with the creation of its target file to infer intent",
+    "Separate build pipeline stripping from stripping on an ordinary endpoint",
+    "Describe how to preserve the untouched copy of a binary for later analysis"
+  ],
+  "techniqueId": "t1027-008",
+  "detectsTechniques": [
+    "t1027-008"
+  ],
+  "dataSources": [
+    "Linux auditd execve records with full argv showing symbol and section utilities invoked",
+    "Linux file system audit or file integrity monitoring events for executable files created in temporary directories",
+    "Sysmon event 1 process creation including parent image and command line for binary rewriting tools",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is a file creation followed closely by a rewriting command on the same path. Two facts must line up: the command line of the stripping or section rewriting tool with the target path as its argument, and a file creation or download event for that same path within a short window on the same host. The context that decides the verdict is the host role and the file location. Build agents, package builders and container image pipelines strip binaries from a known workspace, using a known service account, with the output landing in an artefact directory; the malicious case is a user writable or temporary directory, an account that is not a build identity, and often a preceding download or interpreter action. Stripping after a download on a workstation has essentially no benign explanation and should be treated as high severity.",
+  "pseudoQuery": "# title: Binary Stripped After Creation in Temporary Path\n# logsource:\n#   product: linux\n# detection:\n#   selection_strip:\n#     type: EXECVE\n#     a0|endswith:\n#       - 'strip'\n#       - 'objcopy'\n#   selection_path:\n#     a1|contains:\n#       - '/tmp/'\n#       - '/var/tmp/'\n#       - '/dev/shm/'\n#   filter_build:\n#     exe|startswith: '/usr/bin/'\n#     uid: 0\n#   condition: selection_strip and selection_path and not filter_build\n# level: medium",
+  "falsePositives": [
+    "Container image build steps that strip debug symbols from binaries inside the build workspace",
+    "Software packagers preparing a release and stripping binaries in a staging directory under a build account",
+    "Embedded developers cross compiling firmware and stripping the output before flashing a device",
+    "Package maintainers rebuilding a distribution package locally, which temporarily places artefacts in a build tree"
+  ],
+  "tuningNotes": "Scope the rule by host role first: exclude systems registered as build agents, continuous integration runners and packaging servers, which removes most of the volume. On remaining hosts, require the target to sit in a temporary path or to have been created by a download tool, script interpreter or office application within the prior ten minutes, which is the smallest high confidence slice. If you instead filter by the stripping utility path, you lose coverage of attackers who copy the tool into a staging directory, and if you keep zero exclusions you will spend most of your week closing build noise.",
+  "severity": "medium"
+}

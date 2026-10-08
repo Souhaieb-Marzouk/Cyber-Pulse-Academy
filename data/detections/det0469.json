@@ -1,0 +1,107 @@
+{
+  "id": "det0469",
+  "type": "detection",
+  "title": "Detection Strategy for Patch System Image on Network Devices",
+  "shortTitle": "Detection Strategy for Patch System Image on Network Devices",
+  "externalId": "DET0469",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects replacement or modification of the operating image on routers, switches and firewalls, which maps to the patch system image technique used to establish persistence on network devices. The evidence lives in device management and log channels rather than on endpoints: configuration change logs, image management or boot variable commands, file transfer records for image uploads, authentication logs for privileged administrative access, and periodic hash or version baselines of the running image. Detection depends on comparing the running and booted image version and hash against the vendor-published and internally approved baseline. It fails most often because many networks do not collect device logs at all, and where they do, scheduled firmware upgrades and recovery rebuilds look identical to an unauthorised image load.",
+  "tags": [
+    "mitre t1601.001",
+    "network device",
+    "firmware",
+    "persistence",
+    "integrity monitoring",
+    "syslog"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Patch System Image on Network Devices",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0469/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Patch System Image on Network Devices - EASY",
+      "path": "exercises/det0469/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Patch System Image on Network Devices - MEDIUM",
+      "path": "exercises/det0469/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Patch System Image on Network Devices - HARD",
+      "path": "exercises/det0469/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Patch System Image on Network Devices - EXTREMELY HARD",
+      "path": "exercises/det0469/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Network devices such as routers and switches run an operating image, which is the software that makes the device work. An attacker who can replace that image can keep access even after a restart. This detection looks for image changes that were not planned and approved.",
+    "whyItMatters": "An infected image can hide in the device and survive cleaning of other systems. Network devices often sit at trust boundaries, so access there is valuable. Many teams rarely inspect these devices, which gives an intruder time. Comparing images against a known good baseline is the main protection.",
+    "howItWorks": [
+      "Network devices send logs about logins, configuration changes and image operations to a central collector.",
+      "The detection watches for commands that copy, verify or select a new system image or boot file.",
+      "It records the version and file hash of the image that is running and the image set to boot next.",
+      "It compares those values with the approved baseline for that device model and role.",
+      "It raises an alert when the hash or version does not match, or when the change has no approved ticket.",
+      "An analyst verifies the change with the network team and captures the current image for review."
+    ],
+    "example": "Think of a shop that swaps its front door lock for a new one. Customers see the same shop and the same staff, but the shopkeeper no longer holds every key. Comparing the lock serial number with the order record would reveal the swap. This detection compares the device image with the order record.",
+    "takeaways": [
+      "Replacing a device image can give access that survives a restart.",
+      "You cannot detect it without collecting device logs and keeping an image baseline.",
+      "A hash mismatch on a trust boundary device is urgent, even before you know the cause."
+    ]
+  },
+  "objectives": [
+    "Explain what a system image is on a network device and why an attacker would change it.",
+    "List the log sources that record image operations, boot changes and privileged device access.",
+    "Describe how to build and maintain an approved image baseline with versions and hashes.",
+    "Differentiate a scheduled firmware upgrade from an unauthorised image load using change records.",
+    "Outline containment steps for a suspected compromised network device."
+  ],
+  "techniqueId": "t1601-001",
+  "detectsTechniques": [
+    "t1601-001"
+  ],
+  "dataSources": [
+    "Syslog or network device event logs recording image copy, image verify and boot variable change commands",
+    "Device authentication logs showing privileged administrative sign-in with source address and account name",
+    "Simple Network Management Protocol (SNMP) trap and polling records for device image version and boot configuration",
+    "Configuration management or file integrity records capturing the hashed image file and boot metadata per device",
+    "Change management records from the ticketing platform listing approved firmware versions and maintenance windows"
+  ],
+  "logic": "The pattern is a change to the booted system image or boot variable that cannot be matched to an approved change, or a running image whose hash differs from the stored baseline for that device. Correlate the device identity and model with the image operation event, the administrative account and source address that issued it, and the resulting version or hash reported after the next restart. In the benign case the operator is a known network engineer, the source is the management jump host, the version matches an approved ticket and the change happens inside the maintenance window. In the malicious case the operator account is unusual or shared, the source is a user subnet, the image is loaded from an external or temporary file service, and the boot variable is changed outside any window.",
+  "pseudoQuery": "# title: Network Device Image Change Outside Approved Window\n# logsource:\n#   product: network\n#   service: syslog\n# detection:\n#   selection:\n#     action|contains:\n#       - 'image install'\n#       - 'copy flash'\n#       - 'boot system'\n#   filter_approved:\n#     src_ip|startswith: '10[.]30[.]0[.]'\n#     status: 'success'\n#   condition: selection and not filter_approved\n# level: critical",
+  "falsePositives": [
+    "Scheduled firmware upgrades performed by the network team from the management jump host during a change window",
+    "Disaster recovery rebuilds that reload a stored image onto a replacement device after hardware failure",
+    "Vendor support engineers loading a recommended image under a support contract with a signed work order",
+    "Automated configuration management runs that standardise image versions across a device fleet"
+  ],
+  "tuningNotes": "Begin with coverage, not filtering: confirm that image operations, privileged logins and configuration changes are actually reaching the collector, because a rule over an empty channel is worthless. Then allowlist the management source addresses and the named engineer accounts, and join the rule to the change management system so that a matching approved ticket suppresses the alert rather than a broad filter. Baseline image versions across each device model so version drift is visible before a hash mismatch appears. Scope the strictest severity to edge routers, firewalls and devices that hold trust relationships, and accept that you lose earlier warning on access switches unless you keep periodic hash comparison running on all of them.",
+  "severity": "critical"
+}

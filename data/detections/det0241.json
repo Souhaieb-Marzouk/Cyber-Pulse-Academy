@@ -1,0 +1,108 @@
+{
+  "id": "det0241",
+  "type": "detection",
+  "title": "Detect Forged Kerberos Silver Tickets (T1558.002)",
+  "shortTitle": "Detect Forged Kerberos Silver Tickets (T1558.002)",
+  "externalId": "DET0241",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects forged Kerberos service tickets, often called silver tickets, which are service tickets built locally with a stolen service account key instead of being issued by the domain controller. The technique matters because a forged service ticket needs no authentication to the domain controller, leaves no ticket granting ticket request, and can grant access to a service host while looking like a normal single sign on event. Detection depends on Kerberos service ticket request records, logon records that show reuse of one account across many services, and comparison against the set of services that actually run on a host. The main way it fails is noise: healthy environments request service tickets constantly, so the rule only works once encryption types, source hosts and service names are baselined per account.",
+  "tags": [
+    "kerberos",
+    "credential access",
+    "lateral movement",
+    "active directory",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Forged Kerberos Silver Tickets (T1558.002)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0241/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Forged Kerberos Silver Tickets (T1558.002) - EASY",
+      "path": "exercises/det0241/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Forged Kerberos Silver Tickets (T1558.002) - MEDIUM",
+      "path": "exercises/det0241/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Forged Kerberos Silver Tickets (T1558.002) - HARD",
+      "path": "exercises/det0241/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Forged Kerberos Silver Tickets (T1558.002) - EXTREMELY HARD",
+      "path": "exercises/det0241/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for fake service tickets in the Kerberos login system. A service ticket is a short lived pass. One computer gives it to another so a user can use a service. A fake ticket is made with a stolen service key, not by the central login server. The rule looks for tickets that were never requested in the normal way.",
+    "whyItMatters": "A fake service ticket lets an attacker reach one service as if they were a real user. The central login server never sees the request, so the usual alarm does not ring. It is a common step after an attacker steals a service account key. Because the pass looks valid to the target service, only careful log review finds it.",
+    "howItWorks": [
+      "A user or service asks the domain controller for a ticket to reach another service.",
+      "The domain controller records that request, including the account and the service name.",
+      "The rule groups these records by account, source host and service name over a short window.",
+      "It compares the list of services to those that really run on the target host.",
+      "It also checks the encryption type and whether a matching ticket granting ticket request exists.",
+      "Accounts that touch many services from one host, or services that do not exist, raise an alert."
+    ],
+    "example": "Think of a concert hall where each room has its own stamp on your hand. A real stamp comes from the front desk, which writes your name in a book. Someone who stole the room stamp can mark their own hand and walk straight in. The door staff see a valid stamp, but the front desk book has no matching entry for that visit.",
+    "takeaways": [
+      "A forged service ticket avoids the domain controller, so normal ticket request logs look quiet.",
+      "Look for one account using many services from one host, or services that are not installed there.",
+      "Volume alone is weak, so compare against a baseline of normal service use per account."
+    ]
+  },
+  "objectives": [
+    "Describe the difference between a service ticket and a ticket granting ticket.",
+    "Explain why a forged service ticket produces no ticket granting ticket request record.",
+    "Identify the Kerberos service ticket request fields that name the account, service and source host.",
+    "Correlate service ticket requests with the services that should exist on a target host.",
+    "Recognise encryption type downgrades as a signal of locally created tickets.",
+    "Build a per account baseline of normal service access to reduce false alerts."
+  ],
+  "techniqueId": "t1558-002",
+  "detectsTechniques": [
+    "t1558-002"
+  ],
+  "dataSources": [
+    "Windows security event 4769 recording a Kerberos service ticket was requested, with account, service name and encryption type",
+    "Windows security event 4624 logon type 3 records showing network logons to a service host",
+    "Windows security event 4768 records used to confirm whether a matching ticket granting ticket request exists",
+    "Domain controller service principal name inventory listing which services are registered on each host",
+    "Active Directory account attribute change records for service accounts whose keys may be reset or rotated"
+  ],
+  "logic": "The pattern is service ticket activity that does not fit the account's normal access shape. The fields that must be correlated are the requesting account, the service name in the ticket request, the client address and port, the encryption type, the logon identifier, and the existence of a preceding ticket granting ticket request from the same logon session. The malicious case usually shows one account requesting tickets for many unrelated services from a single workstation in a short period, tickets for service names that are not registered on the target host, older or weak encryption types where the domain normally uses strong ones, and logon records with no matching ticket request. The benign case is a file server or backup service that legitimately reaches many hosts, a vulnerability scanner that enumerates services, or a service account with a wide but stable set of targets and a predictable source host.",
+  "pseudoQuery": "# title: Kerberos Silver Ticket Behaviour, Many Services From One Account\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4769\n#     Status: '0x0'\n#   filter_host_account:\n#     ServiceName|endswith: '$'\n#   filter_weak:\n#     TicketEncryptionType: '0x17'\n#   condition: selection and not filter_host_account\n# level: high",
+  "falsePositives": [
+    "A vulnerability scanner or asset inventory tool that requests service tickets across many hosts in one sweep",
+    "A backup or monitoring service account that legitimately reads from a wide, stable list of servers every night",
+    "A single sign on client that requests several service tickets at logon because a portal loads many back end services",
+    "Legacy applications that still negotiate weak Kerberos encryption types on old server builds"
+  ],
+  "tuningNotes": "Baseline the normal service name set, source host and encryption type for every account that requests a high number of service tickets, then allow that specific combination and alert on additions rather than on counts. Build a host inventory of registered service principal names so tickets for services that do not exist on a host can be filtered or escalated separately, since that is the strongest single indicator. Scope the first version to accounts with directory privileges and to service accounts that hold keys on multiple hosts. The coverage you give up is a forged ticket that stays inside the baseline of a genuinely broad account, such as a backup service, so keep a slower secondary rule for a new source host appearing in that account's ticket requests.",
+  "severity": "high"
+}

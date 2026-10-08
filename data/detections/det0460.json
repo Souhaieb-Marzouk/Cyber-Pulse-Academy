@@ -1,0 +1,106 @@
+{
+  "id": "det0460",
+  "type": "detection",
+  "title": "Credential Stuffing Detection via Reused Breached Credentials Across Services",
+  "shortTitle": "Credential Stuffing Detection via Reused Breached Credent...",
+  "externalId": "DET0460",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects credential stuffing, where an attacker replays username and password pairs taken from one breach against a different service in the hope that people reused them. It matters because the login traffic is low volume, distributed across many accounts, and uses valid passwords, so signature and rate based rules alone often miss it. Detection depends on authentication logs that record the username, source address, client fingerprint and outcome, on identity protection signals that flag leaked credential matches, and on network or proxy logs that group connections by source. It fails in practice because shared office addresses, corporate proxies and mobile networks make many different users look like one source, so the rule has to weigh failure ratios across many distinct accounts.",
+  "tags": [
+    "credential access",
+    "identity",
+    "authentication",
+    "cloud",
+    "brute force"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Credential Stuffing Detection via Reused Breached Credentials Across Services",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0460/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Credential Stuffing Detection via Reused Breached Credentials Across Services - EASY",
+      "path": "exercises/det0460/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Credential Stuffing Detection via Reused Breached Credentials Across Services - MEDIUM",
+      "path": "exercises/det0460/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Credential Stuffing Detection via Reused Breached Credentials Across Services - HARD",
+      "path": "exercises/det0460/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Credential Stuffing Detection via Reused Breached Credentials Across Services - EXTREMELY HARD",
+      "path": "exercises/det0460/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "When a website is breached, lists of stolen email addresses and passwords appear for sale. Credential stuffing means trying those pairs on other services, because many people reuse the same password. This detection looks for login attempts that follow that pattern.",
+    "whyItMatters": "The attacker already holds a valid password, so there is nothing to guess. Each account may be tried only once or twice, which keeps the traffic quiet. Because the logins come from many devices, the pattern hides inside normal traffic.",
+    "howItWorks": [
+      "Each service writes login records that list the account, the source and the result.",
+      "The rule groups attempts by source address, device detail and short time window.",
+      "It counts how many different accounts failed from that grouping.",
+      "It compares the failure count with the number of successes.",
+      "It also uses leaked credential alerts from the identity provider.",
+      "Many accounts failing from one source is raised for investigation."
+    ],
+    "example": "Think of a hotel where a thief carries a bag of keys collected from other hotels. He tries each key on one door and moves on. Most doors do not open, but one eventually does, and the night log shows only a few failed attempts per door.",
+    "takeaways": [
+      "A valid stolen password leaves no guessing step to detect.",
+      "Count distinct accounts per source, not total failures alone.",
+      "Leaked credential alerts are the strongest single signal."
+    ]
+  },
+  "objectives": [
+    "Explain how credential stuffing differs from password guessing",
+    "Identify authentication and identity telemetry that reveals the pattern",
+    "Count distinct accounts and failure ratios per source in a time window",
+    "Use leaked credential alerts to prioritise affected accounts",
+    "Drive a response that forces a password reset on the affected accounts"
+  ],
+  "techniqueId": "t1110-004",
+  "detectsTechniques": [
+    "t1110-004"
+  ],
+  "dataSources": [
+    "Cloud identity sign in logs recording user principal name, source address, client application and result",
+    "Windows Security event 4625 failed logon records with account name, logon type and source workstation",
+    "Web application or virtual private network authentication logs with username, source address and outcome",
+    "Identity protection alerts for leaked credentials matched against known breach data",
+    "Proxy or firewall logs that group outbound connections by source address and user agent"
+  ],
+  "logic": "The pattern is a small failure count spread across a large number of distinct accounts from a shared source or client fingerprint. Correlate the source address and its autonomous system, the client application or user agent, the count of distinct user names attempted, the ratio of failed to successful authentications, and any leaked credential alert for those accounts in the same window. The benign case is a corporate proxy or virtual private network concentrator, where many legitimate users share one external address but nearly all their logins succeed and the account list matches the staff population. The malicious case is a source with a high count of distinct accounts, a failure rate that is far above the tenant baseline, a small number of successes that do not match the usual device or country for those accounts, and automation indicators such as a single client fingerprint or an implausible request rate. The success after many failures is what turns a noisy login pattern into a confirmed compromise.",
+  "pseudoQuery": "# title: Many distinct accounts failing then succeeding from one source\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     operation: 'UserLoginFailed'\n#   filter_known_networks:\n#     ipAddress|cidr:\n#       - '10[.]0[.]0[.]0/8'\n#       - '192[.]168[.]0[.]0/16'\n#   success:\n#     operation: 'UserLoginSuccess'\n#   condition: (selection and not filter_known_networks) | count() by ipAddress, userPrincipalName > 20\n# level: high",
+  "falsePositives": [
+    "Corporate virtual private network gateways where many remote staff share a small pool of external addresses",
+    "Single sign on or federation rollouts where a client misconfiguration causes many users to fail once",
+    "Automated test suites that authenticate with disposable accounts against a staging environment",
+    "Shared kiosk and call centre accounts where many people log in from the same site and device"
+  ],
+  "tuningNotes": "Baseline the normal number of distinct accounts and the failure to success ratio per source for each tenant, then alert on multiples of that baseline rather than on a fixed count. Allow your own egress addresses and partner ranges, and require a success event after the failure burst before paging, which removes most misconfiguration noise. Add the leaked credential signal as a severity multiplier. Filtering by source address alone loses coverage of a distributed attack that uses one attempt per address, so keep a second rule that counts the same user name failing across many addresses, and monitor the authentication client fingerprint for automation patterns.",
+  "severity": "high"
+}

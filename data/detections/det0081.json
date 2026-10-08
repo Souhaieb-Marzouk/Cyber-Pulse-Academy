@@ -1,0 +1,108 @@
+{
+  "id": "det0081",
+  "type": "detection",
+  "title": "Detection of Proxy Execution via Trusted Signed Binaries Across Platforms",
+  "shortTitle": "Detection of Proxy Execution via Trusted Signed Binaries ...",
+  "externalId": "DET0081",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers execution that hides behind a legitimate, signed operating system binary, where an operator uses a trusted program to load or run their own code instead of launching a suspicious executable. It matters because these binaries are present everywhere, are trusted by application control policies and are frequently allowed to reach the network, so misuse brings an attacker very close to living off the land with almost no new artefacts. The telemetry that makes it visible is process creation with full command lines and parent lineage, module load or library load records that show which file was actually executed, and network connection records from the interpreter that reveal content pulled from a remote location. The pattern that carries real signal is a signed utility invoked with arguments that point at user writable paths, remote addresses or file types the utility was never designed to run, especially when its parent is a document reader, a mail client, a web server or a scripting host. It fails in practice because these same binaries are used by installers, updaters and management agents all day, so the rule must be built around arguments and parentage rather than around binary names.",
+  "tags": [
+    "defense evasion",
+    "proxy execution",
+    "signed binary",
+    "windows",
+    "linux",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Proxy Execution via Trusted Signed Binaries Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0081/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Proxy Execution via Trusted Signed Binaries Across Platforms - EASY",
+      "path": "exercises/det0081/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Proxy Execution via Trusted Signed Binaries Across Platforms - MEDIUM",
+      "path": "exercises/det0081/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Proxy Execution via Trusted Signed Binaries Across Platforms - HARD",
+      "path": "exercises/det0081/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Proxy Execution via Trusted Signed Binaries Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0081/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows and Linux both include signed programs that install, register or run other code. Signed means the system can verify who made them. Because they are trusted, security tools often allow them to run. This detection looks for those trusted programs doing something unusual.",
+    "whyItMatters": "An attacker who uses a trusted helper does not need to drop an obvious malware file. The activity may look like ordinary system work. Many allow lists accept these helpers by name, so a simple name check is not enough. That is why the arguments and the parent program matter so much in triage.",
+    "howItWorks": [
+      "A host sensor records each process start, the full command line and the parent process.",
+      "It also records which library files a process loads, including their full paths.",
+      "The detection matches the program against a list of trusted helper tools.",
+      "It then examines the arguments. It looks for temporary folders, user profile paths and web addresses.",
+      "Network records show whether the helper downloaded anything during or just before the run.",
+      "A parent such as a document reader or a web server raises the score."
+    ],
+    "example": "Think of a building where the maintenance staff carry a master key. Nobody stops them, because they fix things all day. One day a person in a maintenance uniform uses the master key on the finance office. That person then copies files to a van outside. The uniform was never the problem. The destination was.",
+    "takeaways": [
+      "Trusted helper programs are attractive because they are already allowed to run.",
+      "Judge the helper by its arguments and its parent, not by its name.",
+      "Filter known installations and update runs, or the rule will never stay quiet."
+    ]
+  },
+  "objectives": [
+    "Explain how proxy execution through a signed binary evades controls that focus on file reputation.",
+    "Identify the built in operating system utilities most often used to load or run other code.",
+    "Recognise command line arguments that indicate remote or user writable content.",
+    "Correlate module load records and network connections with the helper process start.",
+    "Build publisher and parent based filters that suppress legitimate installer activity."
+  ],
+  "techniqueId": "t1218",
+  "detectsTechniques": [
+    "t1218"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, command line, image path and signature status",
+    "Sysmon event 7 image load records showing which library file a signed host process loaded and from which path",
+    "Sysmon event 3 network connection records showing the helper process contacting a remote address",
+    "Linux auditd execve records with the full argument list for interpreters and loaders executed by script hosts",
+    "Application control or allow list policy logs recording which signed binaries are permitted and under which rules"
+  ],
+  "logic": "Alert when a signed operating system utility runs content from a user writable directory or a remote location, or when it loads a library from a path that is not part of the signed installation. The fields that must be correlated are the host process image, its signature and publisher, the full argument list, the parent image, the loaded module path and any outbound connection made by that process. Benign use is dominated by installations and updates: a parent that is an installer, a package manager or a management agent, a path under the program files tree, a vendor signed library and a documented deployment window. The hostile case usually shows a parent that is a document reader, mail client, browser or web server; a script or library located in a temporary, download or user profile directory; arguments containing a web address; and either an outbound fetch or a child process that is a shell. A signed helper that immediately spawns a shell is the single strongest indicator and should be treated as high confidence on its own.",
+  "pseudoQuery": "# title: Signed System Utility Loading Content From User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   proxy_binary:\n#     Image|endswith:\n#       - '\\\\rundll32.exe'\n#       - '\\\\regsvr32.exe'\n#       - '\\\\mshta.exe'\n#       - '\\\\installutil.exe'\n#   suspicious_argument:\n#     CommandLine|contains:\n#       - '\\\\AppData\\\\'\n#       - '\\\\Temp\\\\'\n#       - 'http://'\n#   condition: proxy_binary and suspicious_argument\n# level: medium",
+  "falsePositives": [
+    "Software installers and updaters that legitimately call a system registration utility to register vendor libraries",
+    "Management platforms that run signed utilities with arguments pointing at a management share or package cache",
+    "Developers who invoke build and registration tools against projects stored in their own profile directory",
+    "Operating system servicing tasks that trace or register components during a scheduled maintenance window",
+    "Driver and agent installations that load a helper library from a temporary extraction folder created by the installer"
+  ],
+  "tuningNotes": "Filter by parent process and by publisher signature first, since most noise comes from installers and management agents calling these utilities in a predictable way, and keep a short list of the exact argument shapes those tools use. Restrict the arguments you alert on to those that point at user writable or temporary directories and at remote addresses, and drop anything that resolves inside the program files tree. Where application control telemetry is available, raise severity when the binary matches a policy rule that is normally invoked by a different parent, which captures unusual chains without a new baseline. Baseline how often each helper runs per host per day so that a quiet server suddenly calling one stands out. The coverage you lose by filtering known installer parents is abuse of the same utilities from those parents, so pair the rule with monitoring for new services, scheduled tasks and autorun entries created soon after a helper run.",
+  "severity": "medium"
+}

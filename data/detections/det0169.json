@@ -1,0 +1,107 @@
+{
+  "id": "det0169",
+  "type": "detection",
+  "title": "Detection Strategy for Cloud Infrastructure Discovery",
+  "shortTitle": "Detection Strategy for Cloud Infrastructure Discovery",
+  "externalId": "DET0169",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects cloud infrastructure discovery, the reconnaissance step in which an adversary enumerates the compute, storage, network and identity objects inside a cloud account before acting on them. In AWS this appears as bursts of read-only control plane calls such as DescribeInstances, ListBuckets or DescribeSecurityGroups, and in Azure as repeated resource listing operations. The telemetry that makes it visible is the cloud provider audit log, which records who called which API, from which address, with which user agent. The main way it fails in practice is volume: infrastructure-as-code runners, inventory scanners, backup agents and cost tools make the same calls legitimately, so the rule only becomes useful once those principals and call patterns are baselined and filtered.",
+  "tags": [
+    "cloud",
+    "discovery",
+    "reconnaissance",
+    "aws",
+    "azure",
+    "audit logs"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Cloud Infrastructure Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0169/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Cloud Infrastructure Discovery - EASY",
+      "path": "exercises/det0169/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Cloud Infrastructure Discovery - MEDIUM",
+      "path": "exercises/det0169/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Cloud Infrastructure Discovery - HARD",
+      "path": "exercises/det0169/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Cloud Infrastructure Discovery - EXTREMELY HARD",
+      "path": "exercises/det0169/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud infrastructure discovery is when someone lists the resources inside a cloud account to learn what is there. This detection watches for a sudden wide sweep of read-only listing calls. It catches the reconnaissance that usually comes before an attacker steals data or changes systems.",
+    "whyItMatters": "Cloud accounts hold a lot of systems, and one stolen key can list all of them in minutes. A single discovery sweep can map every server, bucket and network rule you own. If you only watch for changes, you miss the quiet step before them. Catching the sweep early gives you time to disable the key and warn your team.",
+    "howItWorks": [
+      "Your cloud provider records every application programming interface call in an audit log. An application programming interface, or API, is the way software asks the cloud to do something.",
+      "Each log entry names the account or role that made the call, the service, the action name, the time and the source address.",
+      "The detection counts listing actions, such as Describe or List calls, per identity over a short window.",
+      "It compares that count with what the same identity normally does, and flags a result far above the baseline.",
+      "The alert shows which identities swept many services, so an analyst can review the activity and decide if it was allowed.",
+      "If the sweep comes from a new address or an unusual user agent, the alert is raised in priority."
+    ],
+    "example": "Think of a warehouse night watchman. A worker walking to one shelf is normal. Someone walking down every aisle, writing on a clipboard what each shelf holds, is worth a radio call. The watchman does not stop the walk. He reports it, because the person may be planning a theft.",
+    "takeaways": [
+      "Discovery is quiet reconnaissance, so it is easy to miss without API audit logs.",
+      "The useful signal is a wide sweep of listing calls by one identity in a short time.",
+      "You must baseline your own automation first, or the alert will drown you."
+    ]
+  },
+  "objectives": [
+    "Explain why cloud reconnaissance is worth detecting before any destructive action occurs",
+    "Identify the audit log fields that tie an API call to an identity, a source address and a user agent",
+    "Describe how a per-identity baseline of normal listing activity is built and maintained",
+    "Distinguish benign inventory or deployment automation from an unusual breadth of listing calls",
+    "Tune scope, thresholds and filters so the rule stays useful without losing coverage"
+  ],
+  "techniqueId": "t1580",
+  "detectsTechniques": [
+    "t1580"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events recording read-only API calls such as DescribeInstances, ListBuckets and DescribeSecurityGroups",
+    "Azure Activity Log administrative operations recording resource list and read actions",
+    "Google Cloud Audit Logs for admin activity read operations across compute and storage services",
+    "Identity provider sign-in logs linking the calling principal to a session, source address and user agent"
+  ],
+  "logic": "The pattern is breadth rather than any single call. One identity, often a role or an access key, issues many distinct listing actions across several services inside a short window, and the set of services touched is much wider than that identity's normal profile. The fields that must be correlated are the calling identity, the action name, the event time and the source address or user agent, because breadth alone is meaningless without knowing which principal produced it. Benign automation repeats the same narrow set of calls on a schedule from known infrastructure addresses with a stable user agent; malicious discovery fans out across services, often from a new address, and frequently pairs with later failed authorization attempts that show the attacker probing for more access.",
+  "pseudoQuery": "# title: Cloud Infrastructure Enumeration Sweep by Single Identity\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventSource: ec2.amazonaws.com\n#     eventName|startswith:\n#       - Describe\n#       - List\n#     errorCode: null\n#   filter:\n#     userIdentity.arn|contains: 'role/terraform'\n#     userAgent|contains:\n#       - terraform\n#       - cloudformation\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Infrastructure-as-code pipelines that refresh state by describing every resource in an account on each run",
+    "Cloud security posture management or inventory tools that enumerate resources on a fixed schedule",
+    "Backup and disaster recovery jobs that list volumes, snapshots and buckets before starting a copy",
+    "Cost optimisation or tagging audits that sweep many services once a month",
+    "A newly onboarded administrator or developer exploring an unfamiliar account with read-only access"
+  ],
+  "tuningNotes": "Start in count-only mode for two weeks and build a per-principal baseline of distinct listing actions and distinct services per ten minute window, including user agent and source address. Then filter the service principals and pipeline roles that match that baseline, keep the rule firing on human identities and on any role whose breadth doubles, and scope the alert to production accounts where discovery has the largest blast radius. Narrowing to production accounts and to unfiltered principals will hide reconnaissance that runs quietly inside development subscriptions, so review that gap periodically.",
+  "severity": "medium"
+}

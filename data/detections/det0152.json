@@ -1,0 +1,106 @@
+{
+  "id": "det0152",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow: Dylib Hijacking",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow: Dylib Hijac...",
+  "externalId": "DET0152",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1574.004, dynamic library hijacking on macOS, where an intruder places a library file in a location that a legitimate application searches before the real library, so the application loads attacker code with its own privileges and entitlements. Detection is built on file creation and modification events for dynamic library files, code signature validation results, library load telemetry from the endpoint agent, and the relationship between the writing process and the application folder. The key discriminator is signing: a library written into an application bundle by an unsigned process, or loaded by a signed application but not signed itself, is the pattern worth alerting on. The failure mode is that software updates and installers legitimately rewrite libraries inside bundles, so the rule must identify the writer and its signature rather than the file location alone.",
+  "tags": [
+    "t1574.004",
+    "macos",
+    "library-hijacking",
+    "persistence",
+    "code-signing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow: Dylib Hijacking",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0152/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow: Dylib Hijacking - EASY",
+      "path": "exercises/det0152/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow: Dylib Hijacking - MEDIUM",
+      "path": "exercises/det0152/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow: Dylib Hijacking - HARD",
+      "path": "exercises/det0152/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow: Dylib Hijacking - EXTREMELY HARD",
+      "path": "exercises/det0152/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "On a Mac, programs share blocks of ready made code called libraries, similar to spare parts. This detection watches for new or changed library files placed where an application will pick them up. It alerts when an application loads a library that is not properly signed.",
+    "whyItMatters": "A replaced library runs with all the trust the original application already has. It can read the user's files, use their permissions, and start at the same time as the app. Because the application itself is unchanged and still signed, ordinary checks may pass.",
+    "howItWorks": [
+      "The endpoint agent records every file written inside application folders.",
+      "It checks the code signature of each new or changed library file.",
+      "It also records which library files each running application loads.",
+      "The detection links a library file to the process that wrote it and to the process that loaded it.",
+      "A library written by an unsigned program and then loaded by a signed application raises an alert."
+    ],
+    "example": "Think of a coffee machine that accepts only branded pods. Someone swaps the pod tray for an unbranded one that fits perfectly. The machine still works and the brand label is untouched, so a glance shows nothing wrong. Checking whether the tray is an approved part is what reveals the swap.",
+    "takeaways": [
+      "Signed applications give attacker code borrowed trust.",
+      "Check the library file signature, not just the application.",
+      "Track which process wrote the library and which one loaded it."
+    ]
+  },
+  "objectives": [
+    "Describe how dynamic library search order enables code execution through a legitimate app",
+    "Identify the telemetry that records library file writes and library loads on macOS",
+    "Use code signature status to separate tampered libraries from real ones",
+    "Correlate the writing process with the application that later loads the library",
+    "Recognise installer and updater behaviour that legitimately rewrites libraries",
+    "Choose a severity based on the privileges the hijacked application holds"
+  ],
+  "techniqueId": "t1574-004",
+  "detectsTechniques": [
+    "t1574-004"
+  ],
+  "dataSources": [
+    "File creation and modification events for library files inside application bundle directories with the acting process",
+    "Code signature validation results for library files, including signing identifier, team identifier, and notarisation status",
+    "Endpoint sensor records of library load events naming the loading application, the library path, and the signing status",
+    "Process creation records showing installers, package managers, and their parent processes writing into application folders",
+    "Application folder permission and ownership change records for directories on the library search path"
+  ],
+  "logic": "The detection looks for a library file that appears or changes inside a location an application searches automatically, where the file is unsigned or signed by a different team than the application that loads it. The fields that must be correlated are the library path and hash, the code signing status and team identifier of both the library and the loading application, the process that wrote the file, whether that writer is signed by a trusted developer, and the timing between the write and the load. A benign change comes from a notarised installer or updater that rewrites libraries inside its own bundle with matching signatures, while the malicious case is a shell, download utility, or unsigned binary writing a library into an application folder, especially a location outside the user's own home directory applications.",
+  "pseudoQuery": "# title: Unsigned Library Written Into Application Folder\n# logsource:\n#   product: macos\n#   service: endpoint\n# detection:\n#   selection:\n#     FilePath|endswith: '.dylib'\n#     SignatureStatus: 'unsigned'\n#     FilePath|contains: '.app/Contents/'\n#   filter:\n#     WriterProcess|endswith:\n#       - '/usr/sbin/installer'\n#       - '/usr/bin/pkgutil'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Software updates that replace libraries inside an application bundle while the application is closed",
+    "Package managers used by developers that install libraries into tool folders under a home directory",
+    "Virtualisation or emulation tools that ship their own unsigned compatibility libraries by design",
+    "Third party plug in installations that legitimately add libraries to a host application"
+  ],
+  "tuningNotes": "Baseline which processes write library files inside application folders in your fleet, and allow list the signed installers and updaters that appear, including their team identifiers rather than only their names. Then require either an unsigned writer or a signature mismatch between the library and the loading application. Scope the highest severity branch to applications that hold sensitive entitlements, such as remote access and screen sharing tools. The coverage you lose by allow listing legitimate writers is tampered code that arrives inside a correctly signed update package, so keep library hashes and load history for comparison rather than discarding events after the allow list match.",
+  "severity": "high"
+}

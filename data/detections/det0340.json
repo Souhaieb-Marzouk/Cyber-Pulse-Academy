@@ -1,0 +1,107 @@
+{
+  "id": "det0340",
+  "type": "detection",
+  "title": "User Execution – Malicious Copy & Paste (browser/email → shell with obfuscated one-liner) – T1204.004",
+  "shortTitle": "User Execution – Malicious Copy & Paste (browser/email → ...",
+  "externalId": "DET0340",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers User Execution through Malicious Copy and Paste (T1204.004), where a user is tricked into pasting attacker supplied text into a command line or scripting console instead of running a file. The technique matters because it leaves no downloaded payload on disk and often begins with a single long or encoded command that the user pastes into a trusted interpreter. The telemetry that exposes it is process creation with command line auditing, parent process relationships that tie a shell back to a browser or mail client, and scripting engine logs that record the pasted text. The main failure mode is that short pasted commands look identical to normal administrator work, so the rule must key on the parent process and on command structure rather than on file names.",
+  "tags": [
+    "user execution",
+    "copy and paste",
+    "process creation",
+    "powershell",
+    "t1204.004"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: User Execution – Malicious Copy & Paste (browser/email → shell with obfuscated one-liner) – T1204.004",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0340/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "User Execution – Malicious Copy & Paste (browser/email → shell with obfuscated one-liner) – T1204.004 - EASY",
+      "path": "exercises/det0340/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "User Execution – Malicious Copy & Paste (browser/email → shell with obfuscated one-liner) – T1204.004 - MEDIUM",
+      "path": "exercises/det0340/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "User Execution – Malicious Copy & Paste (browser/email → shell with obfuscated one-liner) – T1204.004 - HARD",
+      "path": "exercises/det0340/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "User Execution – Malicious Copy & Paste (browser/email → shell with obfuscated one-liner) – T1204.004 - EXTREMELY HARD",
+      "path": "exercises/det0340/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a user who pastes text into a command window. The text comes from a web page or an email. The pasted text then runs as a command on the computer.",
+    "whyItMatters": "Attackers use this trick because no file is saved to the disk. Many security tools only check files, so they stay quiet. The command runs inside a trusted program such as PowerShell, which makes it look normal. Catching the moment a shell starts from a browser or mail client gives you an early warning. It also gives you the pasted text, which helps you understand the attack.",
+    "howItWorks": [
+      "Windows records the creation of every process, including the command line, when auditing is switched on.",
+      "The rule checks the parent process of each new shell, such as PowerShell or the command prompt.",
+      "A parent image of a browser, a mail client or a document reader is unusual for a shell.",
+      "The rule also checks the command line for pasted code, such as an encoded block.",
+      "Those signals are joined by user, host and time, so you see one story instead of many separate lines.",
+      "An analyst reviews the full command text and confirms whether the user really did paste it."
+    ],
+    "example": "Imagine a hospital sign in sheet. A stranger in a white coat can write a false name and walk on to the ward. The sheet alone does not stop them. But if you also record who let them in and which door they used, the false entry stands out. Here, the shell process is the stranger and the parent process is the door.",
+    "takeaways": [
+      "A shell that starts from a browser or a mail client deserves a close look.",
+      "Command line text is the evidence, so turn on auditing before you need it.",
+      "One long pasted command is normal for an admin and suspicious for everyone else."
+    ]
+  },
+  "objectives": [
+    "Describe how copy and paste execution avoids leaving a payload file on the endpoint",
+    "Explain the difference between parent process tampering, encoded commands and normal scripting",
+    "Name the fields that must be correlated to link a shell to the browser or mail client that started it",
+    "Write a detection that requires both an unusual parent process and pasted code characteristics",
+    "Triage the alert by reading the command text and confirming the user action with the help desk",
+    "Scope an administrative allowlist so that legitimate management sessions stay out of the alert queue"
+  ],
+  "techniqueId": "t1204-004",
+  "detectsTechniques": [
+    "t1204-004"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "PowerShell script block logging records that capture the pasted command text",
+    "Endpoint detection and response process telemetry that links the browser or mail client to the child shell",
+    "Web proxy logs showing the page the user was viewing before the shell started"
+  ],
+  "logic": "The pattern is a scripting or command interpreter started by a process that should never start one, combined with command line content that looks copied rather than typed. The fields that must be correlated are the parent image, the child image, the full command line, the user account, the host and the time gap between web browsing and process start. The benign case is an administrator who opens a console from a management tool, types short commands, and works inside a known maintenance window. The malicious case is a browser or mail client spawning a shell for a single long command that contains an encoded block, a remote fetch or a download call, especially when no such parent child pair exists in the endpoint baseline.",
+  "pseudoQuery": "# title: Shell Started From Browser With Pasted Encoded Command\n# logsource:\n#   product: windows\n# detection:\n#   selection_parent:\n#     ParentImage|endswith:\n#       - '\\\\chrome.exe'\n#       - '\\\\msedge.exe'\n#       - '\\\\firefox.exe'\n#       - '\\\\outlook.exe'\n#   selection_child:\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\cmd.exe'\n#   selection_content:\n#     CommandLine|contains:\n#       - '-enc'\n#       - 'FromBase64String'\n#       - 'DownloadString'\n#   condition: selection_parent and selection_child and selection_content\n# level: high",
+  "falsePositives": [
+    "Help desk staff pasting a documented network troubleshooting command into a console from a browser knowledge base article",
+    "Software deployment tooling that launches installers with encoded arguments from a management share",
+    "Support scripts that open a browser based admin console and hand a generated command to PowerShell",
+    "Developer workflows that copy a build or test command from a web based ticketing system into a terminal"
+  ],
+  "tuningNotes": "Start by restricting the rule to endpoints where a browser or mail client should never spawn a shell, which is almost every user workstation, and keep it in audit mode for two weeks to learn the baseline. Add a filter for approved management hosts, jump boxes and software deployment accounts, and require at least one content signal so that a short pasted command alone does not alert. Baseline the parent child pairs you actually see, then alert on new pairs. The tradeoff is that a careful adversary who uses a document reader or a chat client as the parent, or who instructs the user to paste into an already open console, will fall outside the narrowed rule, so keep a lower severity rule for shells with unexpected parents across the estate.",
+  "severity": "high"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0889",
+  "type": "detection",
+  "title": "Detection of Network Security Appliances",
+  "shortTitle": "Detection of Network Security Appliances",
+  "externalId": "DET0889",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects reconnaissance aimed at network security appliances, mapped to MITRE ATT&CK T1590.006 (Gather Victim Network Information: Network Security Appliances). Adversaries want to know which firewalls, virtual private network gateways, web proxies, and intrusion detection products guard your network, because those devices are both a map of your topology and a high value target themselves. Detection combines two angles. The first is external: probing of management and portal interfaces on your public address space, seen in firewall deny logs, web logs, and honeypot records. The second is internal: administrative logins, configuration exports, or policy changes on the appliances themselves, which are legitimate only for a small group of people at predictable times. The technique is hard because internet background noise resembles probing; the useful signal comes from grouping probes by source and from baselining which administrators touch which device and when.",
+  "tags": [
+    "mitre t1590.006",
+    "reconnaissance",
+    "network security",
+    "appliance audit",
+    "perimeter"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Network Security Appliances",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0889/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Network Security Appliances - EASY",
+      "path": "exercises/det0889/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Network Security Appliances - MEDIUM",
+      "path": "exercises/det0889/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Network Security Appliances - HARD",
+      "path": "exercises/det0889/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Network Security Appliances - EXTREMELY HARD",
+      "path": "exercises/det0889/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Network security appliances are the devices that guard your network, such as firewalls and remote access gateways. This detection looks for attackers studying those devices. It also watches the devices themselves for strange administrative activity.",
+    "whyItMatters": "These devices know your whole network map, and they stand between you and the internet. If an attacker learns the brand and version, they can pick a matching exploit. If they reach the management page, they may change the rules that protect you. Because these devices are supposed to be probed by the whole internet, real targeting hides inside ordinary noise.",
+    "howItWorks": [
+      "Firewalls and load balancers log inbound connection attempts, including the ones they block.",
+      "The detection groups those attempts by source address, port, and time to find focused probing.",
+      "Appliance audit logs record admin logins, configuration changes, and configuration backups.",
+      "A baseline describes which staff normally manage which appliance, from where, and at what times.",
+      "Activity outside that baseline, or probing of specific portal paths, raises the alert.",
+      "The analyst reviews the source, confirms whether the change was authorised, and hardens the device."
+    ],
+    "example": "Picture a bank vault with a guard on the door. Anyone may walk past and look at the lock. If the same person walks past ten times in an hour, shines a light on the keypad, and then someone opens the vault at 3 a.m., the manager wants to know who and why. Both halves matter: the looking and the opening.",
+    "takeaways": [
+      "Security appliances are valuable targets because they hold the network map and the rules.",
+      "Expect constant probing, so focus on grouped, repeated, or targeted patterns.",
+      "Baseline who administers each appliance, then treat anything outside it as a case to review."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries map and target firewalls, virtual private network gateways, and proxies",
+    "Identify appliance audit and perimeter telemetry that reveals both probing and administrative abuse",
+    "Baseline administrative access per appliance by user, source, and time of day",
+    "Write a detection that correlates external probing with later administrative changes",
+    "Recommend hardening steps such as restricting management access to a dedicated network"
+  ],
+  "techniqueId": "t1590-006",
+  "detectsTechniques": [
+    "t1590-006"
+  ],
+  "dataSources": [
+    "Firewall and virtual private network gateway logs of inbound connection attempts with source address, destination port, and action",
+    "Web portal access logs for remote access and management interfaces including requested path and response code",
+    "Appliance configuration audit logs recording administrative logins, policy changes, and configuration exports",
+    "Centralised authentication logs showing privileged sign-ins to network device management accounts",
+    "Cloud firewall and virtual network gateway activity logs for rule changes and route table modifications"
+  ],
+  "logic": "The detection has two correlated halves. The external half looks for repeated probing from one source toward remote access and management interfaces, especially portal paths that return redirects or authentication prompts, which tells the prober that a specific product is present. The internal half looks for administrative activity on the appliances that departs from the established baseline, such as a configuration export, a new local administrator account, a virtual private network policy that widens access, or a login from an unusual address or outside working hours. Fields that must be correlated are the source address, the target appliance, the account, the action performed, and the time relative to any earlier probing. The benign explanation is routine maintenance by the network team, a monitoring check from an approved range, or the ordinary background noise of internet scanning; the malicious case shows probing followed by an administrative change, or administration from an account or location that has never touched that device before.",
+  "pseudoQuery": "# title: Remote Access Portal Probing or Unapproved Appliance Config Change\n# logsource:\n#   product: network\n#   category: firewall\n# detection:\n#   selection_probe:\n#     destination.port|in: [443, 4443, 8443, 10443]\n#     http.request.path|contains: /remote/\n#   selection_config:\n#     event.action|in: [config export, policy change, admin account created]\n#   filter_admins:\n#     user.name|in: approved_network_admin_accounts\n#   condition: (selection_probe | count() by source.ip > 25 within 10m) or (selection_config and not filter_admins)\n# level: high",
+  "falsePositives": [
+    "Network engineers exporting a configuration before a planned change window or for a vendor support case",
+    "Automated configuration backup jobs that read device configuration nightly from a management server",
+    "Authorised penetration tests that probe the remote access portal before and during a test window",
+    "Vendor remote support sessions that log into the appliance from the vendor's own address range with approval",
+    "Failover and health checks from load balancers that repeatedly request the portal path and receive redirects"
+  ],
+  "tuningNotes": "Maintain an allowlist of management source ranges and named administrative accounts, and filter configuration backups performed by a dedicated service account rather than by people. Build the administrative baseline for at least thirty days before enabling the internal half of the rule, and require an approved change record or an out of hours justification before suppressing. For the external half, raise the count threshold above your normal deny volume and require the source to request an authentication path rather than just an open port. The coverage you lose by allowlisting management ranges is a stolen administrator credential used from inside that range, so add a separate rule for administrative logins outside working hours and for new local accounts on appliances, regardless of source.",
+  "severity": "high"
+}

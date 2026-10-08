@@ -1,0 +1,107 @@
+{
+  "id": "det0053",
+  "type": "detection",
+  "title": "Detect Obfuscated C2 via Network Traffic Analysis",
+  "shortTitle": "Detect Obfuscated C2 via Network Traffic Analysis",
+  "externalId": "DET0053",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1001, Data Obfuscation, in its command and control use, where an adversary hides instructions inside traffic that looks like ordinary web or name resolution activity so that content inspection cannot read the conversation. It matters because the channel can carry tasking and stolen data while every payload signature stays silent, and because the obfuscation often depends on the victim running a custom encoder embedded in a script. The telemetry that makes it visible is metadata rather than payload: domain name system query logs, web request logs with user agent and uniform resource identifier shape, transport layer security metadata including certificate details, and flow records with byte counts, packet sizes, and interval regularity. The main failure is that encryption and encoding are everywhere in legitimate software, so detection has to score timing regularity, consistent payload sizes, and unusual destination rarity together instead of matching content.",
+  "tags": [
+    "mitre t1001",
+    "command and control",
+    "network",
+    "metadata analysis",
+    "beaconing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Obfuscated C2 via Network Traffic Analysis",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0053/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Obfuscated C2 via Network Traffic Analysis - EASY",
+      "path": "exercises/det0053/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Obfuscated C2 via Network Traffic Analysis - MEDIUM",
+      "path": "exercises/det0053/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Obfuscated C2 via Network Traffic Analysis - HARD",
+      "path": "exercises/det0053/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Obfuscated C2 via Network Traffic Analysis - EXTREMELY HARD",
+      "path": "exercises/det0053/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for hidden messages inside normal looking network traffic. An attacker can wrap instructions so they look like ordinary web or lookup traffic. Nobody can read the meaning by looking at the data. This rule instead studies the shape and the timing of the traffic.",
+    "whyItMatters": "Encrypted traffic is normal, so a defender cannot read most conversations. Attackers therefore hide their orders inside traffic that already looks acceptable. Content matching will not find it. Timing, size, and destination patterns still give the channel away. That is why this detection studies metadata instead of content.",
+    "howItWorks": [
+      "Sensors record lookup queries, web requests, and flow details such as size and duration.",
+      "The rule measures how regular the timing is between repeated connections to the same destination.",
+      "It compares request and response sizes, because automated channels often keep them nearly constant.",
+      "It scores how rare the destination is across the whole estate.",
+      "It checks the client description and certificate details for signs of a script library rather than a browser.",
+      "A rare destination with regular timing and constant sizes raises the alert for network triage."
+    ],
+    "example": "Picture a prison where every letter is read before delivery. Two prisoners who want to send secret plans stop writing words. Instead they send birthday cards, and the number of candles on the cake spells out the message. The guard reads every card and finds nothing wrong. A network sensor is that guard. The obfuscated channel is the card, and the candle count is the metadata pattern.",
+    "takeaways": [
+      "When the payload cannot be read, timing, size, and destination rarity become the evidence.",
+      "Encrypted and encoded traffic is normal, so a single odd-looking request means very little on its own.",
+      "Score several weak signals together, and keep the raw flow records for retroactive hunting."
+    ]
+  },
+  "objectives": [
+    "Explain what data obfuscation is in a command and control channel and why it defeats content matching.",
+    "Identify the name resolution, web, transport security, and flow metadata used by this detection.",
+    "Describe the timing and size features that indicate an automated channel.",
+    "Write a pseudo rule that scores a rare destination with regular beacon timing.",
+    "Explain how transport security certificate details and client descriptions support triage.",
+    "Describe how to validate a suspected channel without disturbing the investigation."
+  ],
+  "techniqueId": "t1001",
+  "detectsTechniques": [
+    "t1001"
+  ],
+  "dataSources": [
+    "Domain name system query and response logs from a network sensor, including query name, type, and response size",
+    "Web proxy or sensor request logs with uniform resource identifier, user agent, and request and response byte counts",
+    "Transport layer security metadata records with server certificate subject, issuer, and validity period",
+    "Network flow records with connection start time, duration, client and server byte counts, and packet counts",
+    "Intrusion detection alerts for protocol anomalies on non standard ports or malformed session handshakes"
+  ],
+  "logic": "The rule scores a set of weak metadata signals rather than matching a payload. It groups outbound connections by destination, then measures the interval regularity between sessions, the stability of the uploaded and downloaded byte counts, the rarity of the destination across the estate, and the identity of the client from the request log or the transport security handshake. The malicious case is a host that contacts a low prevalence destination at near constant intervals with almost identical payload sizes, using a client description that does not match the installed browser, together with name resolution queries that precede each connection by a fixed short delay. The benign case is an update checker that polls on a schedule, a monitoring agent that sends fixed size heartbeats, or a content delivery endpoint with a stable request profile. The combination of regularity, size stability, rarity, and client authenticity is what separates the two.",
+  "pseudoQuery": "# title: Rare Destination With Regular Beacon Timing And Constant Payload Size\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: connection\n#     destination_prevalence: low\n#     interval_jitter_seconds: less_than_5\n#     bytes_out_variance: low\n#   filter:\n#     destination_category: software_update, monitoring_service\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Endpoint management and monitoring agents that send fixed size heartbeats to a vendor service on a fixed interval",
+    "Software update checkers on a scheduled timer that download content of a consistent size from a content network",
+    "Cloud storage sync clients that poll for changes with small, regular requests during an idle period",
+    "Network time and directory replication traffic between internal hosts that follows a strict schedule"
+  ],
+  "tuningNotes": "Build destination prevalence and interval statistics over at least thirty days before enabling alerts, then exclude only the specific destination and user agent pairs that the baseline proves are heartbeat services. Scope the rule to hosts that handle sensitive data and to accounts with unusual working hours, and keep a low severity version across the estate for coverage. Add a minimum session count so that a single rare connection does not alert, and require at least two hosts or a sustained duration before escalating. Narrowing reduces sensitivity to a slow channel that connects only a few times a day, so keep the raw flow data long enough for retroactive analysis.",
+  "severity": "high"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0244",
+  "type": "detection",
+  "title": "Detection Strategy for Login Hook Persistence on macOS",
+  "shortTitle": "Detection Strategy for Login Hook Persistence on macOS",
+  "externalId": "DET0244",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the installation of a login hook on macOS, a preference that makes the system run a chosen command or script every time a user signs in at the graphical login window. The technique matters because login hooks survive reboots, run as the signing in user, and are an old mechanism that few administrators still use, so a hook pointing at a script in a user writable directory is a strong persistence signal. Detection depends on unified log entries for the login window process, endpoint process and file events that record preference writes, and configuration management inventory of hooks applied by policy. The main way it fails is that managed fleets may apply hooks by policy for legitimate reasons and legacy images may carry old ones, so the rule must compare the hook value with what management declares and with where the target file lives.",
+  "tags": [
+    "macos",
+    "persistence",
+    "login hook",
+    "endpoint",
+    "detection engineering",
+    "configuration"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Login Hook Persistence on macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0244/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Login Hook Persistence on macOS - EASY",
+      "path": "exercises/det0244/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Login Hook Persistence on macOS - MEDIUM",
+      "path": "exercises/det0244/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Login Hook Persistence on macOS - HARD",
+      "path": "exercises/det0244/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Login Hook Persistence on macOS - EXTREMELY HARD",
+      "path": "exercises/det0244/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a setting on a Mac that runs a program each time someone logs in. That setting is called a login hook, and it is stored as a preference for the login window. Attackers use it so their code starts again after a restart. The rule watches who changed it and what program it points to.",
+    "whyItMatters": "Persistence means the attacker keeps coming back without breaking in again. A login hook runs with the rights of the person signing in, so it needs no special permission. It also runs early, before the user opens anything. Few modern Macs use this setting, which makes an unexpected change stand out.",
+    "howItWorks": [
+      "A program writes a preference that names a script or command for the login window.",
+      "The system stores that preference and notes the change in its system logs.",
+      "The rule watches for writes to that preference, by a shell command or by a file edit.",
+      "It records which account made the change and where the named script lives.",
+      "At the next sign in, the login window starts the named program.",
+      "The rule matches the change with the later start, and compares both with the managed baseline."
+    ],
+    "example": "Think of a night watchman who is told a friend will close the building tonight. The note is enough for the watchman to hand over the keys. The login hook is that note: the system trusts it, so whatever the note names is run at every sign in. The guard should ask who wrote the note and where the friend lives.",
+    "takeaways": [
+      "A login hook is a note the system trusts at every sign in.",
+      "Check where the named script sits, because user writable paths are a warning sign.",
+      "Compare with the managed policy, since some fleets set hooks on purpose."
+    ]
+  },
+  "objectives": [
+    "Describe what a macOS login hook is and when it executes.",
+    "Identify the log and event sources that record login window preference changes.",
+    "Explain why the location of the named script changes the risk.",
+    "Correlate the preference change with the process that later starts at sign in.",
+    "Separate managed hooks applied by policy from hooks written by hand.",
+    "Recognise related persistence locations that should be checked at the same time."
+  ],
+  "techniqueId": "t1037-002",
+  "detectsTechniques": [
+    "t1037-002"
+  ],
+  "dataSources": [
+    "macOS unified log entries from the login window process recording preference changes and executed login commands",
+    "Endpoint detection process creation events showing a shell or script interpreter started as a child of the login window process",
+    "Endpoint detection file events recording writes to login window preference files in system and per user preference directories",
+    "Mobile device management or configuration management inventory stating which login hooks are applied by policy",
+    "Endpoint file metadata records showing creation time, owner and permissions for the script named by the hook"
+  ],
+  "logic": "The pattern is a change to the login window preference that names an executable, followed by that executable running as a child of the login process at sign in, especially when the named file sits in a user writable directory or was created shortly before the preference change. The fields to correlate are the preference domain and key, the file path of the named command, the account and process that wrote the preference, the timestamp of the write, and the later process creation whose parent is the login window process. The malicious case usually shows the preference written by a shell spawned from an office document, a browser or a messaging client, a script path under a user home or temporary directory, and a login that starts a script interpreter that then contacts an external address. The benign case is a managed preference deployed by mobile device management, a legacy administrative image where a hook runs a vendor agent from a system path, or an inventory agent that reports the hook without changing it.",
+  "pseudoQuery": "# title: macOS Login Hook Preference Written Then Executed at Sign In\n# logsource:\n#   product: macos\n# detection:\n#   selection_change:\n#     EventType: 'file_write'\n#     TargetFilename|contains: 'com.apple.loginwindow'\n#   selection_exec:\n#     ParentImage|endswith: '/loginwindow'\n#     Image|endswith:\n#       - '/sh'\n#       - '/bash'\n#       - '/zsh'\n#       - '/python3'\n#   filter_managed:\n#     TargetFilename|startswith: '/Library/Managed Preferences/'\n#   condition: (selection_change or selection_exec) and not filter_managed\n# level: medium",
+  "falsePositives": [
+    "A mobile device management profile that deliberately deploys a login hook to run an inventory or compliance agent",
+    "A legacy managed image where a hook runs a vendor printing or file share agent from a system directory",
+    "A mac administrator testing a sign in script on a build machine during a documented deployment",
+    "A backup or endpoint agent that rewrites the login window preference during an upgrade to re-register itself"
+  ],
+  "tuningNotes": "Collect the managed policy inventory first and allow the exact hook values that management declares, including the script hash, rather than allowing every account that writes to the preference domain. Separate the two halves of the signal: a preference write without a matching policy is a low severity finding for review, while a write plus the named file executing from a user writable directory at the next sign in should alert immediately. Scope the first version to laptops used by staff who handle financial or administrative work. The coverage you lose by allowing declared hooks is a hook rewritten by a compromised management account, so keep a rule that alerts whenever a declared hook value changes outside a deployment window.",
+  "severity": "medium"
+}

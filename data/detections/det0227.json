@@ -1,0 +1,108 @@
+{
+  "id": "det0227",
+  "type": "detection",
+  "title": "Detection Strategy for Non-Standard Ports",
+  "shortTitle": "Detection Strategy for Non-Standard Ports",
+  "externalId": "DET0227",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects command and control or service activity moved onto non-standard ports, tracked as ATT&CK T1571, where an adversary deliberately communicates on a port number that does not match the protocol or service normally expected there. The technique matters because many networks permit almost any outbound port, and a listener on an unusual port number is often the only visible difference between a legitimate service and an implant, so treated alone it is weak evidence but treated as a pivot it narrows huge traffic volumes quickly. The telemetry required is flow or firewall records containing the destination port and byte counts, endpoint network connection events that name the owning process, and host based service or listener inventory showing what is bound locally. The main way this fails in practice is that the list of unusual ports is environment specific and full of legitimate business applications, so a rule that treats every rare port as suspicious produces so much noise that investigations stop.",
+  "tags": [
+    "network",
+    "command and control",
+    "ports",
+    "firewall",
+    "baselining"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Non-Standard Ports",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0227/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Non-Standard Ports - EASY",
+      "path": "exercises/det0227/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Non-Standard Ports - MEDIUM",
+      "path": "exercises/det0227/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Non-Standard Ports - HARD",
+      "path": "exercises/det0227/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Non-Standard Ports - EXTREMELY HARD",
+      "path": "exercises/det0227/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for network traffic that uses an odd port number. A port is a numbered door on a computer, and each common service normally uses a known door number. For example, web traffic usually leaves through door 443. Attackers often pick a door number nobody else uses, hoping the traffic looks unremarkable. This detection finds those unusual door numbers and the programs behind them.",
+    "whyItMatters": "Blocking one well known door is easy, so attackers simply use another one. Many networks allow outbound traffic on almost any port number. That means a hidden channel can exist without breaking a single rule. Finding it early can cut off remote control of a machine before an attacker moves further. The same check also finds a service that is bound to a port it should not use.",
+    "howItWorks": [
+      "Your firewall or flow collector records each connection, with source, destination, and port numbers.",
+      "The rule builds a list of the port numbers that are normal for each server in your network.",
+      "It then flags connections to port numbers that are rare or not on that list.",
+      "The endpoint agent adds the name of the program that made the connection.",
+      "The rule keeps alerts where the program is a script host or runs from a temporary folder.",
+      "You confirm by checking whether the destination is a known service or an unknown host."
+    ],
+    "example": "Think of a building where everyone uses the front door. A visitor parking at the loading bay and walking in through the kitchen is not breaking a lock. They are simply using a door that nobody watches. The unusual door is the clue, not the crime.",
+    "takeaways": [
+      "An unusual port number is a lead, not proof, so always identify the program behind it.",
+      "Baseline which ports are normal for each server before you turn the rule on.",
+      "Use the endpoint process name to separate business tools from implants."
+    ]
+  },
+  "objectives": [
+    "Explain what a network port is and why services are expected on specific port numbers",
+    "Collect flow, firewall, and endpoint connection telemetry with destination port and process",
+    "Build a per-host baseline of legitimate listening and outbound ports",
+    "Correlate an unusual port with the process that owns the connection",
+    "Prioritise alerts where the destination host is unknown or newly registered",
+    "Document the environment decisions that make the unusual port list meaningful"
+  ],
+  "techniqueId": "t1571",
+  "detectsTechniques": [
+    "t1571"
+  ],
+  "dataSources": [
+    "Sysmon event 3 network connection with destination port, destination IP and owning process",
+    "Firewall or next generation firewall session logs with source and destination ports and bytes transferred",
+    "NetFlow or IPFIX records showing destination port and flow duration and volume",
+    "Linux auditd or socket telemetry listing locally bound listening ports with the owning service",
+    "Vulnerability or asset inventory export mapping approved services to their expected ports"
+  ],
+  "logic": "The rule flags network sessions whose destination port falls outside the set of ports your environment expects for that asset class, and then joins those sessions to the process that opened them on the endpoint. The critical fields are the destination port, the destination address and its reputation or age, the count of distinct internal hosts reaching the same destination port, the owning process image and path, and the volume and duration of the session. Benign cases show a stable process with a known vendor signature, a destination that already appears in approved service records or ticket history, and consistent timing such as hourly backups, while the malicious case shows a process running from a user profile or temporary directory, a short lived or repeated beacon like session pattern, a destination with no service history, and one external address contacted by many internal hosts on the same unusual port.",
+  "pseudoQuery": "# title: Outbound Connection on a Rare Port by a Non-Service Process\n# logsource:\n#   product: windows\n# detection:\n#   selection_port:\n#     EventID: 3\n#     DestinationPort|not_in: [53, 80, 123, 389, 443, 445, 636, 3389]\n#     Initiated: 'true'\n#   selection_proc:\n#     Image|endswith:\n#       - '\\powershell.exe'\n#       - '\\wscript.exe'\n#       - '\\mshta.exe'\n#       - '\\rundll32.exe'\n#       - '\\curl.exe'\n#   filter_local:\n#     DestinationIp|startswith:\n#       - '10.'\n#       - '192.168.'\n#   condition: selection_port and selection_proc and not filter_local\n# level: medium",
+  "falsePositives": [
+    "Backup and replication products that connect to a management port on a storage appliance on a fixed schedule",
+    "Voice over IP and video conferencing clients that negotiate media on dynamic high ports with a known provider range",
+    "Development and test environments where a team intentionally publishes an application on a non standard port",
+    "Printing and label systems that talk to label printers on a vendor default management port inside a warehouse subnet",
+    "Security scanning appliances that probe non standard ports from a known scanner asset during an approved assessment"
+  ],
+  "tuningNotes": "Do not attempt this without a baseline: collect thirty days of connection data, group by destination port and process, and promote anything that appears on more than a small number of hosts to the known list, because a port used widely across the estate is almost always business traffic. Add filters for your scanner subnets, backup servers, and any vendor documented management ranges, and require that the owning process path be outside Program Files or be unsigned before alerting. Where possible, restrict the rule to sessions with a regular interval and small payload size, which is the shape of a beacon rather than a bulk transfer. The coverage you lose by allowlisting observed ports is a real implant that deliberately chooses a port already in use in your network, so combine this rule with detection of the process side, such as scripting engines making outbound connections, rather than relying on port numbers alone.",
+  "severity": "medium"
+}

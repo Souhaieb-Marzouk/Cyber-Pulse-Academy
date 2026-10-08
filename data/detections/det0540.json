@@ -1,0 +1,105 @@
+{
+  "id": "det0540",
+  "type": "detection",
+  "title": "Multi-Platform Behavioral Detection for Compute Hijacking",
+  "shortTitle": "Multi-Platform Behavioral Detection for Compute Hijacking",
+  "externalId": "DET0540",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the misuse of an organisation compute resources for resource hijacking, matching technique T1496.001, where an adversary runs cryptocurrency mining or similar workloads on your infrastructure. It matters because the impact is direct and financial: stolen central processing unit, or CPU, capacity, rising cloud bills, thermal stress on hardware and a common precursor to wider intrusion activity. The telemetry that makes it possible is process creation records with command lines, container resource metrics, network flow records showing mining pool connections, and cloud cost anomaly reports. It fails in practice because legitimate batch, rendering and analytics jobs also consume every available core, so utilisation alone cannot separate malicious mining from authorised heavy compute.",
+  "tags": [
+    "resource hijacking",
+    "cryptomining",
+    "cloud cost",
+    "t1496.001",
+    "container"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Platform Behavioral Detection for Compute Hijacking",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0540/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Platform Behavioral Detection for Compute Hijacking - EASY",
+      "path": "exercises/det0540/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Platform Behavioral Detection for Compute Hijacking - MEDIUM",
+      "path": "exercises/det0540/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Platform Behavioral Detection for Compute Hijacking - HARD",
+      "path": "exercises/det0540/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Platform Behavioral Detection for Compute Hijacking - EXTREMELY HARD",
+      "path": "exercises/det0540/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for computers doing work that earns money for someone else. Mining software uses your processors to create cryptocurrency. It slows your systems and it can raise your cloud bill.",
+    "whyItMatters": "Stolen compute is expensive and it is easy to miss, because the machine still works. A cloud account can spend thousands in a week. Mining also tells you an attacker already has a foothold and may return for other work. Finding it early limits both the bill and the risk.",
+    "howItWorks": [
+      "The endpoint records every new process with its command line and its parent process.",
+      "Container and host monitoring agents record processor usage and memory usage over time for each workload.",
+      "Firewalls and routers record outbound connections to pool addresses and the ports used.",
+      "Cloud billing tools report sudden increases in compute spend by account and by region.",
+      "The platform groups the records by host or workload and compares the pattern with the workload baseline.",
+      "A workload with high steady usage, a mining pool destination and an unapproved process becomes an alert."
+    ],
+    "example": "Think of a shared laundry room in a block of flats. The machines work all day and that is normal. But if one flat runs the dryers all night every night, the neighbour notices the pattern, not just the noise. Steady all night processor use on a laptop is that dryer.",
+    "takeaways": [
+      "Usage alone is not proof, the destination and the process matter just as much.",
+      "Cloud spend reports catch mining that endpoint tools never see.",
+      "Mining is often a sign of a wider compromise, so keep investigating after you stop it."
+    ]
+  },
+  "objectives": [
+    "Explain what compute hijacking is and why cryptocurrency mining is its most common form",
+    "Identify the process, resource metric, network flow and billing telemetry that together reveal mining activity",
+    "Recognise the command line features that distinguish mining software from legitimate heavy compute jobs",
+    "Correlate sustained resource usage with outbound connections to mining infrastructure",
+    "Write a detection rule for unauthorised mining workloads and tune it against approved batch processing"
+  ],
+  "techniqueId": "t1496-001",
+  "detectsTechniques": [
+    "t1496-001"
+  ],
+  "dataSources": [
+    "Process creation records with full command line, image hash and parent process for hosts and containers",
+    "Container and virtual machine resource metric series for sustained processor and memory usage above the workload baseline",
+    "Network flow records showing repeated outbound connections to mining pool addresses and their common ports",
+    "Cloud cost and usage reports broken down by account, region and instance type with anomaly flags"
+  ],
+  "logic": "The pattern is a workload that holds near maximum processor usage for hours while making periodic outbound connections to a small set of external addresses on non standard ports, usually with a process name and command line that reference pool configuration flags. The fields that must be correlated are the host or container identity, the process image and command line, the sustained usage percentage against the baseline for that workload, the remote address and port, and the account that pays for the resource. The benign case is a documented batch, rendering or analytics job whose schedule and owner are known and whose outbound traffic goes to internal services; the malicious case shows a new binary, a pool address, and usage that starts abruptly outside any approved job schedule.",
+  "pseudoQuery": "# title: Sustained compute usage with connection to mining pool\n# logsource:\n#   product: linux\n#   service: process\n# detection:\n#   selection_process:\n#     Image|endswith: [xmrig, minerd, cpuminer, ethminer]\n#   selection_network:\n#     destination_port: [3333, 4444, 5555, 7777]\n#   filter_approved_jobs:\n#     ParentImage|endswith: [/usr/sbin/cron, /lib/systemd/systemd]\n#   condition: selection_process or (selection_network and not filter_approved_jobs)\n# level: high",
+  "falsePositives": [
+    "Scheduled batch, simulation or rendering jobs that are designed to use every available processor core overnight",
+    "Internal security testing that deliberately runs a mining binary to validate this detection and the response playbook",
+    "Software builds and continuous integration runners that spawn many parallel compilation processes in a container",
+    "Developer projects that legitimately include blockchain libraries and connect to test networks on common pool ports"
+  ],
+  "tuningNotes": "Baseline processor usage per workload for two weeks and alert only above the ninety fifth percentile for that specific workload, which removes noisy but authorised heavy jobs. Allow list the parent processes of your approved schedulers and the internal build runners by name and by signing certificate rather than by image path. Keep the mining pool port and address rule at high severity and restrict the process name rule to servers and cloud accounts that should never run such software. To reduce noise you will filter out some genuine abuse that hides behind a renamed binary, so retain the network based branch and the billing anomaly report as independent evidence sources.",
+  "severity": "high"
+}

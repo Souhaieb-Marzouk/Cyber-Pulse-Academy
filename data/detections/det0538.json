@@ -1,0 +1,105 @@
+{
+  "id": "det0538",
+  "type": "detection",
+  "title": "Detection Strategy for Protocol Tunneling accross OS platforms.",
+  "shortTitle": "Detection Strategy for Protocol Tunneling accross OS plat...",
+  "externalId": "DET0538",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers tunnelling of one protocol inside another so that command and control traffic blends into permitted services, matching technique T1572. It matters because tunnelled traffic reuses ports and services that security teams rarely block, such as Domain Name System, or DNS, and Hypertext Transfer Protocol Secure, or HTTPS, so the only reliable clue is behavioural rather than port based. The telemetry that makes it possible is network flow records with byte and packet counts, proxy and web gateway logs, DNS resolver logs, and endpoint process creation records that link a process to the flows it produces. It fails in practice because long lived encrypted sessions are normal in a modern estate, so detections that rely only on connection duration or payload size produce a constant stream of false alerts.",
+  "tags": [
+    "protocol tunneling",
+    "network traffic",
+    "command and control",
+    "t1572",
+    "beaconing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Protocol Tunneling accross OS platforms.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0538/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Protocol Tunneling accross OS platforms. - EASY",
+      "path": "exercises/det0538/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Protocol Tunneling accross OS platforms. - MEDIUM",
+      "path": "exercises/det0538/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Protocol Tunneling accross OS platforms. - HARD",
+      "path": "exercises/det0538/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Protocol Tunneling accross OS platforms. - EXTREMELY HARD",
+      "path": "exercises/det0538/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for one kind of network traffic hidden inside another. An attacker may hide command traffic inside a service you allow, such as web browsing. From the outside it looks normal. This detection looks at the shape and timing of the traffic instead of the port number.",
+    "whyItMatters": "Most networks must allow common services so that staff can work. Blocking those services would stop the business. Tunnelling abuses that trust, and it lets an attacker keep control of a machine without opening a new port. Shape based detection is often the only way to notice it.",
+    "howItWorks": [
+      "Routers and firewalls summarise each connection into a flow record with byte counts, packet counts and duration.",
+      "Name resolvers and web proxies record the destination host, the requested name and the size of each exchange.",
+      "The endpoint records which process opened the connection, using process creation and network connection events.",
+      "The platform groups the records by source host, destination and regular time intervals.",
+      "The rule looks for steady, repeating beacons or for one channel carrying far more data than its service normally does.",
+      "Matching hosts are listed for review with the owning process and the destination service."
+    ],
+    "example": "Picture a till receipt in a shop. A single large purchase is normal. But a receipt showing the same small amount every sixty seconds for six hours is not shopping. It is a subscription or a machine talking. Flow records show the same repeating pattern for tunnelled traffic.",
+    "takeaways": [
+      "Port and protocol are weak signals on their own, because tunnels reuse allowed services.",
+      "Regular timing plus a consistent payload size is the strongest tunnel clue.",
+      "Always link a suspicious flow back to the process that opened it."
+    ]
+  },
+  "objectives": [
+    "Explain how protocol tunnelling hides command and control traffic inside permitted network services",
+    "Identify the flow, proxy, resolver and endpoint records needed to characterise a tunnelled channel",
+    "Describe beaconing behaviour and explain which statistical features separate it from normal browsing",
+    "Correlate a suspicious flow with its originating process, user and host to judge intent",
+    "Write a detection rule for tunnelled or beaconing traffic and tune it against known long lived services"
+  ],
+  "techniqueId": "t1572",
+  "detectsTechniques": [
+    "t1572"
+  ],
+  "dataSources": [
+    "Network flow records with source and destination address, port, byte count, packet count and connection duration",
+    "Web proxy and secure gateway logs recording the connect target, the transport layer security server name and transferred bytes per session",
+    "Domain name system resolver logs with query name, query type, response size and client address",
+    "Endpoint network connection events that map a remote address and port to the local process image and user"
+  ],
+  "logic": "The pattern is a channel that behaves unlike the service it claims to be: connections of near identical size repeating at stable intervals to the same destination, a long lived session carrying steady two way traffic to a newly seen host, or an unusually high volume of DNS queries with large encoded labels from one internal host. The fields that must be correlated are the internal host, the remote address or name, the destination port, the byte and packet counts per interval, the session duration, and the responsible process image. The benign case is a monitoring agent, a backup job or a video call, all of which have documented destinations and known parent processes; the malicious case shows a new destination, a process that should not make network connections, and regularity that matches no approved schedule.",
+  "pseudoQuery": "# title: Protocol tunneling or beaconing channel to new destination\n# logsource:\n#   product: network\n#   service: flow\n# detection:\n#   selection_beacon:\n#     destination_port: [53, 443, 8080]\n#     bytes_out_per_interval|gte: 400\n#     interval_variance|lte: 0.2\n#   filter_approved:\n#     destination_hostname|endswith: [approved-vendor.example, internal-monitoring.example]\n#   filter_internal:\n#     destination_ip|cidr: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]\n#   condition: selection_beacon and not filter_approved and not filter_internal\n# level: medium",
+  "falsePositives": [
+    "Endpoint monitoring and inventory agents that check in with a management server at a fixed interval with a consistent payload",
+    "Cloud sync clients that poll an approved storage service every few seconds with similarly sized requests",
+    "Backup and replication jobs that hold long lived encrypted sessions between two internal subnets",
+    "Video conferencing and voice clients that send steady small packets for the whole length of a call"
+  ],
+  "tuningNotes": "Baseline the destination addresses and the interval patterns of your approved agents, backup jobs and conferencing services for at least two weeks, then allow list those remote destinations together with the parent process that produces the traffic. Restrict the rule to servers and to user groups that do not normally browse the internet, because a developer workstation generates far too much varied traffic to model. Raise the interval regularity threshold until the alert rate is reviewable, and keep a separate lower severity report for first time destinations so that slow tunnels are still visible. Narrowing to servers means you lose coverage for a tunnel from a workstation, so pair this rule with a process to destination anomaly report rather than dropping the traffic view entirely.",
+  "severity": "medium"
+}

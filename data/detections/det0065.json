@@ -1,0 +1,106 @@
+{
+  "id": "det0065",
+  "type": "detection",
+  "title": "Detection Strategy for Container Administration Command Abuse",
+  "shortTitle": "Detection Strategy for Container Administration Command A...",
+  "externalId": "DET0065",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the abuse of container administration commands, where an adversary who already has some access uses the container runtime or orchestrator interface to run commands, copy files or start privileged workloads. The technique matters because an administration interface is itself a powerful execution channel: a single accepted request can run code inside a container, across a pod, or on the node when the workload is privileged. Useful telemetry is the orchestrator audit log of exec, attach and port forward requests with the caller identity, the runtime daemon log of the same actions, and workload process execution inside the container. The detection fails most often on identity: build systems and platform teams legitimately run remote commands all day, so the pattern only becomes useful once you know which service accounts and namespaces are allowed to do it.",
+  "tags": [
+    "containers",
+    "kubernetes",
+    "cloud",
+    "execution",
+    "audit-logs"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Container Administration Command Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0065/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Container Administration Command Abuse - EASY",
+      "path": "exercises/det0065/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Container Administration Command Abuse - MEDIUM",
+      "path": "exercises/det0065/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Container Administration Command Abuse - HARD",
+      "path": "exercises/det0065/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Container Administration Command Abuse - EXTREMELY HARD",
+      "path": "exercises/det0065/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for people or programs using container tools to start commands inside a running container. Containers are light packages that run applications on a shared machine. Tools like the container engine or the cluster interface can open a shell inside one. Attackers use the same tools after they get a foothold.",
+    "whyItMatters": "If the container runs with extra rights, a command inside it can reach the host machine. That turns a small access into control of the server. The request also looks like normal platform work, so logs alone are not enough. You need to know who normally does this in your environment.",
+    "howItWorks": [
+      "The cluster records an audit entry for each request, including the action and the account.",
+      "Actions such as starting a command in a container are written to the audit log.",
+      "The container runtime on each node writes its own record of the same action.",
+      "A SIEM (Security Information and Event Management system) collects audit and runtime logs together.",
+      "The rule checks the account, the namespace and the target workload against an allow list.",
+      "A request from outside the allow list, or a privileged target, raises the alert with the container details."
+    ],
+    "example": "Think of a hotel master key. Housekeeping uses it all day, and that is fine. Then the log shows the same key opening a guest room at two in the morning. The key worked normally, but you still ask why.",
+    "takeaways": [
+      "The container administration interface is an execution channel, not just a management tool.",
+      "Identity and namespace context decide whether a request is routine or suspicious.",
+      "Privileged containers turn a simple command inside a container into a host level risk."
+    ]
+  },
+  "objectives": [
+    "Describe which container administration actions give an attacker code execution.",
+    "Read an orchestrator audit record and extract caller, action, namespace and target workload.",
+    "Correlate runtime daemon entries with the audit record of the same request.",
+    "Build an allow list of service accounts and namespaces permitted to run remote commands.",
+    "Recognise when a requested container has privileges that put the host at risk."
+  ],
+  "techniqueId": "t1609",
+  "detectsTechniques": [
+    "t1609"
+  ],
+  "dataSources": [
+    "Kubernetes audit log entries for the exec, attach and portforward subresources, including the requesting user, namespace and target pod",
+    "Container runtime daemon logs recording exec and create calls with the container identifier and the arguments passed",
+    "Cloud provider audit trail entries for managed container services that start tasks or register cluster nodes",
+    "Linux process execution telemetry on cluster nodes showing commands started by the container runtime",
+    "Container image and workload inventory showing which workloads run privileged or share the host namespace"
+  ],
+  "logic": "The detection looks for remote command execution requests against containers and ranks them by who asked, where the workload runs and how privileged it is. The events to join are the orchestrator audit record, which supplies the caller identity, verb, subresource and target pod or container, and the runtime or node level record of the command actually starting, which supplies the process that ran. The benign case is a narrow, repeating pattern: the same platform or build service accounts, the same development namespaces, and workloads that are not privileged, all during working hours. The malicious case is a request from a user account rather than a service account, from an unusual source address, against a production namespace or a workload that mounts the host filesystem or runs privileged, often followed by file copying, secret listing or a second exec on a different pod.",
+  "pseudoQuery": "# title: Interactive Exec Into Production Container by User Account\n# logsource:\n#   product: kubernetes\n#   category: audit\n# detection:\n#   selection:\n#     verb: create\n#     objectRef.subresource: exec\n#   filter_platform:\n#     user.username|endswith: '-platform-sa'\n#     objectRef.namespace: 'team-dev'\n#   condition: selection and not filter_platform\n# level: medium",
+  "falsePositives": [
+    "Platform engineers who open a shell inside a production container to debug a live incident during an approved change window",
+    "Continuous integration pipelines that run test commands inside short lived build containers using a dedicated service account",
+    "Managed service health checks that execute a small probe command inside containers to confirm the application responds",
+    "Vendor support staff granted temporary cluster access to collect diagnostics from a customer workload under a support contract"
+  ],
+  "tuningNotes": "Collect two weeks of exec requests and group them by caller, namespace and workload, then allow the combinations that repeat predictably and whose callers are service accounts. Keep interactive human access alerting at all times, since a person opening a shell in production is worth a look even when it is legitimate, and escalate automatically when the target workload runs privileged or mounts a host path. The coverage you lose is abuse of an allowed service account, so add a companion rule for that account performing actions outside its normal verb set, such as reading secrets or creating workloads in namespaces it never touches.",
+  "severity": "high"
+}

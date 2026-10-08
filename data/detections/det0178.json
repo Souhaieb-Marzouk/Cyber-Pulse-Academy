@@ -1,0 +1,107 @@
+{
+  "id": "det0178",
+  "type": "detection",
+  "title": "Behavioral Detection of Unauthorized VNC Remote Control Sessions",
+  "shortTitle": "Behavioral Detection of Unauthorized VNC Remote Control S...",
+  "externalId": "DET0178",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects unauthorised remote control sessions over Virtual Network Computing, a remote desktop protocol that lets one host view and control another host's screen. It matters because the protocol is legitimate administration software, so signature and blocklist controls rarely stop it, and a session looks like ordinary remote support once established. Detection depends on network flow and firewall records for the well known service ports used by these tools, process creation of the viewer or server binaries, service installation records where the tool is deployed as a persistent listener, and authentication events on the target host in the same window. The main failure is that helpdesk and engineering teams use the same tools, so the rule must differentiate by direction, source asset, session duration, and whether the server component was newly installed rather than pre approved.",
+  "tags": [
+    "remote access",
+    "vnc",
+    "lateral movement",
+    "network",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Unauthorized VNC Remote Control Sessions",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0178/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Unauthorized VNC Remote Control Sessions - EASY",
+      "path": "exercises/det0178/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Unauthorized VNC Remote Control Sessions - MEDIUM",
+      "path": "exercises/det0178/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Unauthorized VNC Remote Control Sessions - HARD",
+      "path": "exercises/det0178/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Unauthorized VNC Remote Control Sessions - EXTREMELY HARD",
+      "path": "exercises/det0178/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Virtual Network Computing, or VNC, is software that lets one computer see and control another computer's screen. This detection looks for those sessions when they are not approved. It catches remote control that a helpdesk did not arrange.",
+    "whyItMatters": "Once connected, an attacker can work on a machine with a normal looking desktop. Many tools of this kind are free and small, so staff can install them without help. The traffic often runs over a standard port, so it can pass simple filters. Finding an unexpected session early stops an attacker from using a real keyboard and mouse inside your network.",
+    "howItWorks": [
+      "These tools listen on well known service ports, and the network records show which host pairs exchanged traffic on them.",
+      "The operating system records each program start, and the detection watches for the viewer and server programs.",
+      "Installing the tool as a service creates a record, which shows that a listener was set up to start automatically.",
+      "The detection links the network session to the process records on both hosts, using the same time window and addresses.",
+      "It checks the direction. A workstation connecting out to an unknown address is more suspicious than a helpdesk jump host connecting in.",
+      "It compares the account that signed in on the target with the list of people who are allowed to perform remote support."
+    ],
+    "example": "Think of a hotel where cleaners have key cards for every room. That is expected. But a key card used at three in the morning, on a floor that cleaner never covers, is worth a call to the front desk. The card is legitimate. The pattern is not.",
+    "takeaways": [
+      "Remote control tools are legitimate software, so you must judge the pattern, not the program.",
+      "Watch the service installation, the listener port and the session direction together.",
+      "Compare the acting account with the people approved for remote support."
+    ]
+  },
+  "objectives": [
+    "Explain how remote control software establishes a session and why signatures alone do not detect misuse",
+    "Identify network, process and service installation telemetry associated with remote control tools",
+    "Correlate a network session with the process and authentication evidence on the target host",
+    "Use direction, asset role and account context to separate approved support from intrusion",
+    "Document an approved remote support baseline that keeps the rule precise"
+  ],
+  "techniqueId": "t1021-005",
+  "detectsTechniques": [
+    "t1021-005"
+  ],
+  "dataSources": [
+    "Firewall and network flow records showing sessions to remote control service ports with byte counts and duration",
+    "Sysmon event 1 process creation for remote control viewer and server binaries including command lines",
+    "Windows Security event 4697 service installation records and system service creation events for new listeners",
+    "Windows Security event 4624 logon records on the target host for interactive and network logons in the same window",
+    "Asset inventory and change records identifying hosts approved to run remote support tooling"
+  ],
+  "logic": "The detection links an established remote control session to the software and account behind it. The fields that must be correlated are the source and destination addresses, the destination port, the process image and command line on each host, the creation of a new service or listener, and the logon account on the target. A benign case is a helpdesk operator connecting from a known jump host to a managed workstation using a tool that is already installed and inventoried, during working hours, with a matching ticket. The malicious case typically shows a server component installed recently by a script or an unexpected user, an inbound session from an ordinary workstation rather than a support host, long sessions outside business hours, or a session that follows credential theft on the same host.",
+  "pseudoQuery": "# title: Unapproved Remote Control Session With Newly Installed Listener\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_process:\n#     EventID: 1\n#     Image|endswith:\n#       - \\vncserver.exe\n#       - \\winvnc.exe\n#       - \\tvnserver.exe\n#       - \\vncviewer.exe\n#   selection_service:\n#     EventID: 1\n#     CommandLine|contains: '--install'\n#   filter:\n#     Image|startswith: 'C:\\Program Files\\Approved Remote Support\\'\n#   condition: (selection_process or selection_service) and not filter\n# level: medium",
+  "falsePositives": [
+    "A helpdesk team using the approved remote support tool from a documented jump host to assist a user",
+    "Engineering teams connecting to lab or industrial equipment that only exposes a remote control interface",
+    "An employee using a built in operating system screen sharing feature to present during an internal meeting",
+    "A managed service provider connecting during a scheduled maintenance window under a support agreement",
+    "Test automation that opens a remote control session to a virtual machine to run scripted checks"
+  ],
+  "tuningNotes": "Build an inventory of hosts that are allowed to run a remote control listener and the jump hosts that are allowed to initiate sessions, and allow those pairs by asset group rather than by file name. Baseline the ports in actual use, because tools are frequently reconfigured away from their default port, then monitor a small set of ports and process names that reflects your environment. Keep sessions from support jump hosts at lower severity with automatic logging, and alert at higher severity for inbound sessions to servers that never host interactive users. Filtering out the helpdesk entirely would hide abuse of helpdesk credentials, so retain the session records and review them for unusual hours or destinations.",
+  "severity": "medium"
+}

@@ -1,0 +1,104 @@
+{
+  "id": "det0869",
+  "type": "detection",
+  "title": "Detection of Gather Victim Network Information",
+  "shortTitle": "Detection of Gather Victim Network Information",
+  "externalId": "DET0869",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the gathering of victim network information, the reconnaissance step where an adversary maps your address ranges, name servers and internal hosts to plan a later intrusion. It matters because this mapping decides what the attacker targets next, and because most of the activity happens on your own resolvers and firewalls where you already collect data. The telemetry that makes it possible is the DNS query log, the firewall denial log and the network sensor output for name service traffic. The main way it fails in practice is baseline drift: backup software, inventory tools and monitoring agents produce the same volume of name lookups, so the rule must separate an internal system doing its normal job from one host suddenly probing many internal names.",
+  "tags": [
+    "mitre t1590",
+    "reconnaissance",
+    "dns",
+    "network discovery",
+    "baseline"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Gather Victim Network Information",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0869/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Gather Victim Network Information - EASY",
+      "path": "exercises/det0869/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Gather Victim Network Information - MEDIUM",
+      "path": "exercises/det0869/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Gather Victim Network Information - HARD",
+      "path": "exercises/det0869/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Gather Victim Network Information - EXTREMELY HARD",
+      "path": "exercises/det0869/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Network information gathering is an early search for facts about your network. The attacker wants to learn your address ranges, your servers and your naming style. This detection looks for that search in your own domain name system, called DNS for short, and your firewall logs.",
+    "whyItMatters": "You cannot defend a network you cannot see clearly, and neither can an attacker. They must map it first. That map shows what to attack and where to hide. The mapping leaves traces on your resolvers and your network devices. Those traces are often the first sign that someone is studying you.",
+    "howItWorks": [
+      "DNS servers and firewalls record every lookup and every blocked connection attempt. These records flow into your SIEM.",
+      "The rule groups the records by the internal host that asked the question and by a fixed time window.",
+      "It counts how many different names one host asked for, and how many of the answers were empty, meaning the name does not exist.",
+      "Firewall events for connection attempts to many internal addresses that hold no service are counted in the same way.",
+      "When one host passes the thresholds, the alert shows the host, the queries and the rejected addresses so an analyst can confirm the source is not an approved tool."
+    ],
+    "example": "Imagine an information desk in a large office. A normal visitor asks for one room, gets the number and walks away. A person planning a burglary asks for the name of every room, every floor and every staff member, and notes which answers do not exist. The questions alone reveal the plan.",
+    "takeaways": [
+      "Reconnaissance often looks like many failed answers rather than a successful attack.",
+      "The useful fields are the asking host, the name or address asked for, and the answer code.",
+      "You must know which of your own tools scan the network, or these alerts are noise."
+    ]
+  },
+  "objectives": [
+    "Describe the type of information an adversary collects before an intrusion begins",
+    "Identify which of your own logs record name resolution and blocked connections",
+    "Build a baseline of normal name lookup volume for servers, workstations and appliances",
+    "Write a rule that counts distinct queried names and empty answers per internal host",
+    "Escalate a confirmed internal enumeration event and contain the source host"
+  ],
+  "techniqueId": "t1590",
+  "detectsTechniques": [
+    "t1590"
+  ],
+  "dataSources": [
+    "DNS resolver query logs showing the requesting host, the queried name and the response code for each lookup",
+    "Firewall deny logs recording blocked connection attempts with source and destination address and port",
+    "Network intrusion detection alerts for name service queries sent to authoritative servers from internal hosts",
+    "DHCP and asset inventory records used to map an address back to a known device owner"
+  ],
+  "logic": "The pattern is a single internal host that suddenly asks for many distinct names or attempts connections to many unused internal addresses in a short time, with a high share of empty and refused answers. The fields to correlate are the requesting host identity, the queried name or destination address, the response code and the timestamp. The malicious case differs from the benign one because approved inventory, backup and monitoring tools keep a stable query profile that changes slowly, while a freshly compromised host exploring the network shows a sharp step up, a wide spread of destinations and a low success rate, and it usually has no matching change ticket or software installation event.",
+  "pseudoQuery": "# title: Internal host enumerating many internal names\n# logsource:\n#   product: windows\n#   service: dns_server\n# detection:\n#   selection:\n#     event_type: query\n#     response_code:\n#       - NXDOMAIN\n#       - SERVFAIL\n#   filter:\n#     client_hostname|endswith:\n#       - '-inventory01'\n#       - '-monitor01'\n#   timeframe: 5m\n#   condition: selection and not filter | count(distinct query_name) by client_ip > 200\n# level: medium",
+  "falsePositives": [
+    "Backup and inventory agents that resolve every managed host name before a scheduled job runs",
+    "A developer workstation running a local network discovery script during troubleshooting",
+    "Domain controllers performing normal replication and service record lookups across sites",
+    "Security assessment appliances that sweep internal ranges on a weekly authorised schedule"
+  ],
+  "tuningNotes": "Combine the DNS and firewall views because a host that fails to resolve will often start connecting to addresses directly. Allow list the fixed addresses of inventory, backup and assessment systems, then baseline distinct-name counts per host class so servers and workstations carry separate thresholds. Scope the first version to servers and jump hosts, where broad enumeration is rare. You lose visibility of reconnaissance performed from user workstations or through a proxy, so keep a lower severity variant for workstation ranges and review it weekly rather than in real time.",
+  "severity": "medium"
+}

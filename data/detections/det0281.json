@@ -1,0 +1,106 @@
+{
+  "id": "det0281",
+  "type": "detection",
+  "title": "Detection Strategy for Compressed Payload Creation and Execution",
+  "shortTitle": "Detection Strategy for Compressed Payload Creation and Ex...",
+  "externalId": "DET0281",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects compressed and archive based payloads, where an adversary hides executable content inside an archive and then extracts or runs it, either to bypass content inspection or to deliver a file that only becomes dangerous after unpacking. T1027.015 covers both the creation of compressed containers and the execution of content taken from them, which is why the detection has to be temporal: a compression or extraction event is interesting mainly because of what runs in the seconds that follow it. Telemetry comes from process creation with command line auditing, file creation events for archives and extracted files, and archive inspection where tooling can list members and flag double extensions or password protected entries. The main failure is volume and ambiguity, since packaging files is a routine part of software delivery and administration, so the rule must anchor on where the archive came from and what executed after extraction.",
+  "tags": [
+    "defense evasion",
+    "archive",
+    "payload delivery",
+    "obfuscation",
+    "windows",
+    "t1027.015"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Compressed Payload Creation and Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0281/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Compressed Payload Creation and Execution - EASY",
+      "path": "exercises/det0281/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Compressed Payload Creation and Execution - MEDIUM",
+      "path": "exercises/det0281/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Compressed Payload Creation and Execution - HARD",
+      "path": "exercises/det0281/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Compressed Payload Creation and Execution - EXTREMELY HARD",
+      "path": "exercises/det0281/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for files hidden inside compressed packages, known as archives. An archive is one file that contains other files in a smaller form. Attackers use archives to slip past email and web filters, then unpack the file on the victim computer.",
+    "whyItMatters": "Filters often block a dangerous program but allow an archive through. The archive is opened later by a person or a script and the hidden program appears. This makes archives a common delivery route for intrusions. The unpacking step gives you a second chance to catch what the first filter missed. Linking the unpacking to what runs next turns a boring file event into a useful alert.",
+    "howItWorks": [
+      "A monitoring agent records new files that appear on disk, including files inside archives once they are extracted.",
+      "The detection keeps files with archive extensions and files with two extensions, such as a document name followed by an executable one.",
+      "It records any archive password used on the command line, because password protected archives hide their contents from scanners.",
+      "It watches process creation for the moment a file from a temporary folder starts running.",
+      "It links that process to an extraction event from the same user or the same process within a short time window.",
+      "The alert presents the archive, the extracted file, the program that extracted it and the process that ran it."
+    ],
+    "example": "Think of a parcel wrapped in plain brown paper that passes through the mail room without notice. The danger only appears when someone opens it inside the building. The mail room keeps a record of who collected the parcel and which room they took it to. Linking the parcel to the opening is what makes the record useful.",
+    "takeaways": [
+      "Archives are a delivery method, not the payload, so the extraction and what follows matter most.",
+      "Password protected archives are a deliberate attempt to keep scanners from reading the contents.",
+      "Two file extensions, or an executable appearing in a temporary folder, are the clearest single signals."
+    ]
+  },
+  "objectives": [
+    "Explain how adversaries use compressed containers to evade inspection and deliver follow-on payloads.",
+    "Recognise archive related process command lines, including password flags and extraction switches.",
+    "Correlate an archive extraction event with process creation from the extraction output directory.",
+    "Identify file naming patterns such as double extensions and archive members with executable extensions.",
+    "Describe why email and web filtering alone cannot cover this technique and what additional monitoring is required."
+  ],
+  "techniqueId": "t1027-015",
+  "detectsTechniques": [
+    "t1027-015"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including command line, showing the archive tool and any password argument used for extraction",
+    "Sysmon event 11 file create, recording the archive itself and each file extracted from it with its directory",
+    "Windows Security event 4688 process creation with command line auditing, used to link the extraction to the process that started it",
+    "Mail gateway or web proxy logs recording inbound archive attachments or downloads with file name, size and sender or source address"
+  ],
+  "logic": "The pattern is an archive arriving or being created and then being extracted into a user writable directory, followed within a short interval by execution of a file from that directory, or an archive extraction command that supplies a password, which indicates content deliberately concealed from inspection. The fields that must be correlated are the archive file path and source, the extraction command line and its password argument, the list of extracted files and their extensions, the directory they were written to, the user account, and any process creation whose image is one of those extracted files. The benign case is standard software packaging: signed deployment tools extract installers into temporary folders and run them, drivers unpack during installation, and administrators unpack release bundles on servers, all of which follow a deployment record and involve signed content. The malicious case is user driven, the archive came from an external source through mail or web, the extracted content includes an executable or script in a temporary or download path, and it runs almost immediately with an office application or mail client somewhere in the parent chain.",
+  "pseudoQuery": "# title: Archive Extracted with Password then Executed from Temp Path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_extract:\n#     EventID: 1\n#     Image|endswith:\n#       - \\7z.exe\n#       - \\winrar.exe\n#       - \\tar.exe\n#     CommandLine|contains:\n#       - -p\n#       - x \n#   selection_exec:\n#     EventID: 1\n#     Image|contains:\n#       - \\Temp\\\n#       - \\Downloads\\\n#   filter_signed:\n#     Signature: Microsoft Windows\n#   condition: selection_extract and selection_exec and not filter_signed\n# level: medium",
+  "falsePositives": [
+    "Software deployment tools that unpack a signed installer into a temporary directory and immediately run the setup program",
+    "Developers and administrators unpacking release or log bundles on a server as part of a documented maintenance task",
+    "Backup and restore procedures that extract an archive of configuration files into a working directory before applying them",
+    "Users extracting password protected archives that were sent internally by a colleague through an approved file sharing service"
+  ],
+  "tuningNotes": "Anchor the rule on archives that originate from outside the organisation, using the mail gateway or proxy record as the first selection, and then look for extraction and execution on the receiving host within a short window; that single change removes most internal packaging noise. Allowlist the extraction tools and directories used by your deployment and backup agents by image path and signature, and require the executed file to be unsigned or newly seen. The coverage you give up is an internal archive produced by a compromised host or by an insider, so keep a lower severity rule that counts archive extraction into temporary folders per host and review the outliers each week.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0818",
+  "type": "detection",
+  "title": "Detection of Firmware",
+  "shortTitle": "Detection of Firmware",
+  "externalId": "DET0818",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the gathering of firmware information, the technique where an adversary identifies the model, version and build of network devices, printers, cameras and server management controllers, because firmware often carries known flaws that a patch cycle has missed. It matters because edge devices are reached directly from the internet and their firmware is rarely inventoried, so an attacker who learns the exact version can select a matching exploit without touching a user account. The telemetry that makes it possible is web server and proxy logs showing requests to device management pages and firmware file names, simple network management protocol query logs for system description values, dynamic host configuration protocol and network inventory records, and flow data from management subnets. Detection fails because device management interfaces are also polled by legitimate inventory and monitoring tools, so the rule must key on who is asking, from where, and whether they asked for version detail they never request in normal operation.",
+  "tags": [
+    "reconnaissance",
+    "firmware",
+    "mitre t1592.003",
+    "network devices",
+    "asset inventory"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Firmware",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0818/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Firmware - EASY",
+      "path": "exercises/det0818/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Firmware - MEDIUM",
+      "path": "exercises/det0818/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Firmware - HARD",
+      "path": "exercises/det0818/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Firmware - EXTREMELY HARD",
+      "path": "exercises/det0818/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone checking the firmware version of your network devices. Firmware is the small program inside a device such as a router or a camera. The rule watches for requests to device pages that reveal the model and version. It also watches for many device descriptions asked for at once.",
+    "whyItMatters": "Old firmware can have known security faults. An attacker who learns your exact version can pick a matching tool. These devices are often reachable from the internet and rarely updated. Catching the version check early warns you which devices need urgent attention.",
+    "howItWorks": [
+      "Devices expose a management page, and their web server records each request with the address and the page path.",
+      "Monitoring tools also ask devices for a description using the simple network management protocol.",
+      "Both record types are collected by the security monitoring platform with the source and the target device.",
+      "The rule selects requests for version, model, firmware or system description information.",
+      "It counts how many different devices one source queried in a short window.",
+      "A source that is not an approved inventory tool and reads many devices raises the alert."
+    ],
+    "example": "Think of a car park where every car has a sticker showing its model year. A mechanic reads one sticker to order the right part. A stranger who walks the whole row writing down every sticker is planning something else. This detection watches who reads the whole row.",
+    "takeaways": [
+      "Firmware version checks are a normal step before an edge device exploit.",
+      "Approved inventory tools look the same, so identify them before you switch the rule on.",
+      "Keep a live list of device models and firmware so an alert has something to compare against."
+    ]
+  },
+  "objectives": [
+    "Explain why firmware version matters to an adversary targeting edge devices.",
+    "Identify the device, network and inventory telemetry that records version discovery.",
+    "Write a rule that counts distinct devices queried for version data per source.",
+    "Describe how to allow list approved inventory and monitoring tools.",
+    "Explain how discovery findings drive later exploitation of internet facing devices."
+  ],
+  "techniqueId": "t1592-003",
+  "detectsTechniques": [
+    "t1592-003"
+  ],
+  "dataSources": [
+    "Web server and reverse proxy logs on device management interfaces recording request path, user agent and source address",
+    "Simple network management protocol query logs showing system description and version object identifiers requested",
+    "Network inventory and configuration management database records listing device model, firmware version and owner",
+    "Firewall and flow records for the management virtual local area network showing which hosts contact many devices",
+    "File download and update server logs recording firmware image requests by device or by user"
+  ],
+  "logic": "The pattern is one source host or account requesting version, model, firmware or system description data from many different network devices inside a short window, or requesting firmware image paths and update manifests on devices it has no administrative role for. The fields that must be correlated are the source address and the account, the target device identity and management address, the requested path or object identifier, the user agent or protocol, the device count per source, and the approved inventory tool list. The benign case is an asset management or monitoring platform that polls every device on a fixed schedule from one known host and asks for the same small set of version fields; the malicious case is a workstation, a laptop on the guest network or an external address asking many devices for version detail in a burst, often followed by requests to a specific firmware or management endpoint on one model.",
+  "pseudoQuery": "# title: Firmware and Version Enumeration Across Network Devices\n# logsource:\n#   product: network\n#   service: device_management\n# detection:\n#   selection:\n#     url|contains:\n#       - '/setup.cgi'\n#       - '/cgi-bin/version'\n#       - '/system/status'\n#   filter_inventory:\n#     src_ip|cidr: '10[.]20[.]5[.]0/24'\n#   condition: selection and not filter_inventory | count(distinct dst_ip) by src_ip > 10 within 10m\n# level: medium",
+  "falsePositives": [
+    "Network monitoring platforms that poll every switch and access point for system description on a schedule",
+    "Engineers performing a firmware upgrade campaign who check versions across a device group in one session",
+    "Discovery scanning by a configuration management database agent after a network change",
+    "Vendor support engineers who collect device information remotely during a logged support case"
+  ],
+  "tuningNotes": "Build the list of approved inventory and monitoring hosts first, then exclude them by address rather than by device, because a new scanner on an old host is exactly what you want to see. Baseline how many devices each administrator normally manages and alert when one account reads more than twice its usual device count in an hour. Scope the rule to management subnets and to device groups that face the internet, where version data is most valuable. This scoping loses visibility of firmware discovery aimed at internal only devices, so keep a weekly report of version queries per source and review any host that starts querying device groups outside its usual area.",
+  "severity": "medium"
+}

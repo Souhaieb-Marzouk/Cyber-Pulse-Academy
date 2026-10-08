@@ -1,0 +1,107 @@
+{
+  "id": "det0261",
+  "type": "detection",
+  "title": "Detection of Local Data Staging Prior to Exfiltration",
+  "shortTitle": "Detection of Local Data Staging Prior to Exfiltration",
+  "externalId": "DET0261",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers local data staging, tracked as T1074.001, where an adversary gathers files into one place on a host before sending them out. Staging is the step that turns scattered documents into a single object, so it is one of the last chances to stop an exfiltration. The telemetry is process creation for archiving and copy utilities, file creation events for the resulting containers, and file metadata showing one process reading widely across the file system. The approach fails when the adversary uses built-in operating system features instead of third party tools, moves data through an application it already controls, or stages in small volumes that stay under the collection threshold.",
+  "tags": [
+    "data staging",
+    "t1074.001",
+    "collection",
+    "exfiltration",
+    "archive creation",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Local Data Staging Prior to Exfiltration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0261/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Local Data Staging Prior to Exfiltration - EASY",
+      "path": "exercises/det0261/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Local Data Staging Prior to Exfiltration - MEDIUM",
+      "path": "exercises/det0261/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Local Data Staging Prior to Exfiltration - HARD",
+      "path": "exercises/det0261/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Local Data Staging Prior to Exfiltration - EXTREMELY HARD",
+      "path": "exercises/det0261/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Staging means collecting files from many places and putting them together in one place. Staging is not the same as stealing. It is the step just before stealing, when the thief gathers everything into one bag. This detection watches for large collections of files that appear in one folder, often as an archive.",
+    "whyItMatters": "Stolen data is easier to stop while it is still on your network. Once an archive leaves the building, you cannot recall it. Staging creates a clear, unusual event: many files read, one archive written, often in a temporary folder. That event stands out more than a single quiet download. Alerting here gives you time to block the outbound transfer before it starts.",
+    "howItWorks": [
+      "The endpoint records program starts with their full command lines and parent processes.",
+      "A rule matches archiving tools, including built-in commands, with switches that add many files at once.",
+      "A second rule watches for the archive file that the tool writes, and checks where it was written.",
+      "Files written to temporary, public, or recycle directories raise the score.",
+      "File read counters confirm that one process touched many directories in a short time.",
+      "The alert names the archive, the tool, and the account, so an analyst can review it."
+    ],
+    "example": "Imagine a person leaving a shared office at the end of the day. Nobody minds them taking one folder back to their desk. But the guard notices if they walk around every desk. They collect papers into one box and head for the fire exit. The box is the staged archive. The walking around is the collection. Both parts together tell the story.",
+    "takeaways": [
+      "Staging is the step before exfiltration, so it is your best remaining chance to intervene.",
+      "Look at the tool, the command line, and the place the archive was written.",
+      "Volume and location matter more than the name of the archiving program."
+    ]
+  },
+  "objectives": [
+    "Describe the role of local staging in an intrusion chain",
+    "Detect archive creation with recursive or bulk collection switches",
+    "Identify suspicious output locations such as temporary and public folders",
+    "Use the spread of file reads to distinguish collection from a normal backup",
+    "Explain how built-in compression can evade third party tool signatures"
+  ],
+  "techniqueId": "t1074-001",
+  "detectsTechniques": [
+    "t1074-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing archive utilities run with collection switches such as recursive add",
+    "Sysmon event 11 file creation recording archive files written to temporary, public, or recycle directories",
+    "Windows Security event 4688 process creation with command line auditing for built-in compression commands",
+    "Linux auditd execve records for archiving tools with their full argument list",
+    "File system metadata describing a sharp increase in file reads by one process across many directories"
+  ],
+  "logic": "The pattern is one account or process reading widely and then writing a single large container to a user-writable location. The rule first selects process creation events for archiving utilities and built-in compression commands with recursive or bulk switches, then correlates them with file creation events for archive extensions inside temporary, public, or recycle directories on the same host within minutes. The distinguishing detail is the combination of breadth of reads and a compressed output, because legitimate backups run under a service account with a scheduled parent process and write to a defined repository path. Benign cases are user-driven archiving for email attachments and helpdesk collection scripts, which are usually small, near the user profile, and tied to an interactive session.",
+  "pseudoQuery": "# title: Bulk file collection into an archive in a temporary location\n# logsource:\n#   product: windows\n# detection:\n#   selection_tool:\n#     event_id: 1\n#     image|endswith:\n#       - '\\\\rar.exe'\n#       - '\\\\7z.exe'\n#       - '\\\\tar.exe'\n#     command_line|contains:\n#       - ' a '\n#       - '-r'\n#   selection_output:\n#     event_id: 11\n#     target_filename|endswith:\n#       - '.zip'\n#       - '.rar'\n#       - '.7z'\n#       - '.tar'\n#     target_filename|contains:\n#       - '\\\\Temp\\\\'\n#       - '\\\\Users\\\\Public\\\\'\n#   condition: selection_tool and selection_output\n# level: medium",
+  "falsePositives": [
+    "Users who compress a folder of documents to attach to a single email message",
+    "Software deployment packages that build an archive in the temporary folder during installation",
+    "Backup agents that write a compressed snapshot to a staging directory before transfer",
+    "Support engineers who gather diagnostic logs into an archive for a vendor case"
+  ],
+  "tuningNotes": "Baseline archive creation per host role and allowlist the known backup service account and its scheduled parent process. Keep the temporary directory condition but exclude the specific subfolder your deployment tool uses, since installer staging is the largest noise source. Add a size or count condition, for example an archive larger than one hundred megabytes or a tool command that references a network share, so small user archives do not alert. Narrowing this way loses coverage for slow, low volume staging that stays below the threshold and for staging that writes directly to a mapped drive.",
+  "severity": "medium"
+}

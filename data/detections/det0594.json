@@ -1,0 +1,108 @@
+{
+  "id": "det0594",
+  "type": "detection",
+  "title": "Detection of Unauthorized DCSync Operations via Replication API Abuse",
+  "shortTitle": "Detection of Unauthorized DCSync Operations via Replicati...",
+  "externalId": "DET0594",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects directory replication abuse, known as DCSync behavior in ATT&CK sub technique T1003.006, where an account asks a domain controller to replicate directory data and receives password hashes for privileged users without ever running code on the domain controller itself. The primary telemetry is Windows Security event 4662, which records access to an Active Directory object and, when the auditing of directory service access is configured, the specific extended right that was used. Detection works by matching the replication related control access rights in the 4662 properties field, then validating the requesting account identity and the source workstation against the set of accounts that are legitimately allowed to replicate. Almost all noise comes from domain controllers replicating with each other, from backup and identity synchronisation products, and from over broad auditing that records unrelated object reads. The strategy quietly fails when the required access auditing or the required directory object system access control list entries are missing, in which case no event is generated at all.",
+  "tags": [
+    "t1003.006",
+    "dcsync",
+    "active directory",
+    "credential dumping",
+    "windows security",
+    "domain controller"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Unauthorized DCSync Operations via Replication API Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0594/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Unauthorized DCSync Operations via Replication API Abuse - EASY",
+      "path": "exercises/det0594/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Unauthorized DCSync Operations via Replication API Abuse - MEDIUM",
+      "path": "exercises/det0594/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Unauthorized DCSync Operations via Replication API Abuse - HARD",
+      "path": "exercises/det0594/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Unauthorized DCSync Operations via Replication API Abuse - EXTREMELY HARD",
+      "path": "exercises/det0594/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "In a Windows network, domain controllers copy account data between themselves. This is normal and keeps every login working. A DCSync style attack asks a domain controller for that same copy while pretending to be another domain controller. This detection looks for copy requests that come from accounts which should never make them.",
+    "whyItMatters": "A copy request includes password hashes, which are the scrambled forms of passwords. An attacker who gets them can often log in as a domain administrator. This is one of the fastest routes to full control of a network. It needs no malicious file on the domain controller, so file based antivirus tools see nothing. Only directory level logging shows it, which is why this detection matters so much.",
+    "howItWorks": [
+      "Windows can record when an account reads an object in the directory service. That record is Security event 4662.",
+      "The record includes the account, the source computer and the special right that was requested.",
+      "The rule keeps only records that ask for directory replication rights.",
+      "It removes its own domain controllers and known backup or identity tools from the list.",
+      "What remains is checked against the approved list of accounts allowed to replicate.",
+      "A request from any other account, especially from a workstation, is raised as an alert."
+    ],
+    "example": "Think of a library where branch managers may request photocopies of the catalogue. One request says: copy the entire staff contact list, including private numbers. That request is unusual on its own. But the real clue is the requestor. A branch manager asking is normal. A visitor from the street asking is not, even if the form looks correct. Event 4662 is the request form. The directory replication right is the whole staff list. The approved account list is the roster of managers.",
+    "takeaways": [
+      "Replication rights hand over password hashes, so very few accounts should ever hold them.",
+      "You must turn on directory service access auditing and set the object auditing entries, or no event appears.",
+      "The strongest signal is not the request itself but the account and computer that made it."
+    ]
+  },
+  "objectives": [
+    "Explain what directory replication is and why abusing it exposes credential material",
+    "Enable and verify the auditing required to produce directory object access events",
+    "Identify the replication related control access rights in an object access event",
+    "Correlate the requesting account with the source workstation and the target directory object",
+    "Build a defensible list of accounts that may legitimately replicate directory data",
+    "Triage a suspected replication abuse alert and decide whether to contain the source host"
+  ],
+  "techniqueId": "t1003-006",
+  "detectsTechniques": [
+    "t1003-006"
+  ],
+  "dataSources": [
+    "Windows Security event 4662 directory service object access including the subject account, the source workstation and the access mask properties",
+    "Windows Security event 4624 logon records used to resolve the session and logon type behind the object access account",
+    "Windows Security event 4688 process creation on member servers and workstations showing replication tooling executed by the same account",
+    "Active Directory object and access control list configuration exported periodically as a baseline of which accounts hold replication rights",
+    "Domain controller system and directory service logs recording replication partner configuration changes"
+  ],
+  "logic": "The detection hunts for a directory object access event that grants replication style control access rights to an account that is not a domain controller computer account and is not a documented replication consumer. The key fields are the subject account name and domain, the source workstation or logon session, the target object distinguished name, and the access mask or properties value that carries the replication control access rights. Because a workstation rarely appears as the source for such an event, correlating the source workstation field with the account is often enough to separate signal from noise even before an allow list is consulted. The benign case is a domain controller account replicating with a peer, or a documented backup, monitoring or identity synchronisation service running from a fixed server. The malicious case is a member server or workstation address, a user account, or a service account whose usual source address is elsewhere.",
+  "pseudoQuery": "# title: Replication Rights Requested By Non Domain Controller Account\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4662\n#     Properties|contains:\n#       - '1131f6aa-9c07-11d1-f79f-00c04fc2dcd2'\n#       - '1131f6ad-9c07-11d1-f79f-00c04fc2dcd2'\n#   filter_dcs:\n#     SubjectUserName|endswith: '$'\n#   filter_approved:\n#     SubjectUserName|contains:\n#       - 'svc-backup'\n#       - 'svc-identitysync'\n#   condition: selection and not filter_dcs and not filter_approved\n# level: critical",
+  "falsePositives": [
+    "Domain controllers replicating directory data with their configured replication partners during normal directory synchronisation",
+    "Enterprise backup products that read directory partitions through a documented service account on a fixed backup server",
+    "Identity synchronisation or directory bridge services that maintain a copy of directory objects in another system",
+    "Security assessment or purple team exercises that intentionally exercise replication rights from an authorised testing host"
+  ],
+  "tuningNotes": "First confirm that directory service access auditing is enabled and that the object auditing entries needed for these events exist, then validate the rule against a real directory controller to controller replication event before trusting it. Add a filter for computer accounts in the domain controllers organisational unit and for the small number of documented service accounts, and keep that list under version control with an owner. Scope the rule to your directory servers and to accounts that never legitimately log on interactively. Narrowing by account name alone risks missing an attacker who compromises an allowed service account, so also alert when an allowed replication account authenticates from a new source workstation or at an unusual hour.",
+  "severity": "critical"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0897",
+  "type": "detection",
+  "title": "Detection of Selective Exclusion",
+  "shortTitle": "Detection of Selective Exclusion",
+  "externalId": "DET0897",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets selective exclusion, where an adversary narrows what a security control or a log pipeline actually sees so that malicious activity falls outside the monitored set. It covers technique T1679 and matters because the change is usually small, deliberate and quiet: one folder added to an antivirus exclusion list, one subnet removed from a scan scope, one log source dropped from a forwarding agent. The telemetry that makes it possible is product configuration audit events, endpoint agent policy change logs, and the change history of the log pipeline itself, including agent configuration file writes. In practice the strategy fails because exclusion management is a normal daily task with heavy legitimate change volume, so a bare alert on any exclusion change is unusable. The workable approach is to correlate who made the change, from which host, over which remote channel, and whether the change widens or narrows coverage for sensitive paths such as system directories, credential stores or the security tools themselves.",
+  "tags": [
+    "mitre t1679",
+    "defense evasion",
+    "configuration change",
+    "siem",
+    "audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Selective Exclusion",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0897/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Selective Exclusion - EASY",
+      "path": "exercises/det0897/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Selective Exclusion - MEDIUM",
+      "path": "exercises/det0897/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Selective Exclusion - HARD",
+      "path": "exercises/det0897/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Selective Exclusion - EXTREMELY HARD",
+      "path": "exercises/det0897/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Selective exclusion means an attacker makes a security tool ignore one small thing. It could be one folder, one file type or one computer. This detection catches those changes while they happen.",
+    "whyItMatters": "A good security tool sees everything, so an attacker needs to make it blind. Instead of switching the tool off, which is loud, the attacker hides one small part. The tool still looks healthy in the dashboard, so nobody notices. Finding the change is often the only warning you get.",
+    "howItWorks": [
+      "Your security product writes an audit event whenever someone changes its settings.",
+      "You collect these events from the endpoint agent and from the central console.",
+      "You look at the change type. Adding an exclusion is much more interesting than reading a policy.",
+      "You check the target of the change. System folders and the security tool's own folder are high risk.",
+      "You check who made the change and from where. A remote management session is a warning sign.",
+      "You raise an alert and keep the before and after values for the analyst."
+    ],
+    "example": "Picture a hospital sign-in sheet at the front desk. Visitors must write their name before they go upstairs. A thief does not tear up the sheet, because that would be obvious. Instead the thief crosses out one room number so that nobody checks that room. The sheet still looks normal, and the missing check is very hard to see. Selective exclusion works the same way.",
+    "takeaways": [
+      "Attackers prefer to blind one small part of a tool rather than disable it.",
+      "The identity and the source of the change matter as much as the change itself.",
+      "Sensitive paths such as system folders deserve their own higher severity alert."
+    ]
+  },
+  "objectives": [
+    "Describe how selective exclusion differs from fully disabling a security control",
+    "Identify the audit events that record exclusion and scope changes in endpoint and logging products",
+    "Correlate a configuration change with the account, host and remote session that produced it",
+    "Rank exclusion targets by risk so that system and credential paths alert at a higher severity",
+    "Define a baseline of approved exclusion changes and the workflow that keeps it current",
+    "Recognise the log pipeline itself as a target, including agent configuration and filter changes"
+  ],
+  "techniqueId": "t1679",
+  "detectsTechniques": [
+    "t1679"
+  ],
+  "dataSources": [
+    "Endpoint protection product audit events recording policy or exclusion list changes with old and new values",
+    "Windows Security event 4688 process creation showing command line arguments used to modify security tooling configuration",
+    "Central management console audit logs with administrator account, source IP address and session identifier for each policy change",
+    "Windows Security event 4657 registry value modification for security product configuration keys, where object access auditing is enabled",
+    "Log forwarding agent configuration file modification events on Linux hosts, including the writing process and file path"
+  ],
+  "logic": "The pattern is a configuration change that reduces the visibility of a security control rather than one that strengthens it. You correlate configuration change audit events from the endpoint agent or the management console with the account that made the change, the source host or IP address, and the target of the exclusion. The malicious case usually narrows coverage for a sensitive location, arrives from a remote management channel or a scripting interpreter rather than the console user interface, and happens outside a change window without a matching ticket. The benign case is an approved change made from the console by a named administrator during a maintenance window, with a ticket identifier recorded. The distinguishing work is comparing the direction of the change, wider or narrower coverage, against the asset criticality of the target.",
+  "pseudoQuery": "# title: Security Tool Exclusion Added for a Sensitive Path\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'Add-MpPreference'\n#       - '-ExclusionPath'\n#       - 'Set-MpPreference'\n#   filter_ticket:\n#     CommandLine|contains: 'CHG-'\n#   condition: selection and not filter_ticket\n# level: high",
+  "falsePositives": [
+    "Backup or database administrators adding an application data folder to an exclusion list after a documented performance incident",
+    "Software packaging teams that add a build output directory to exclusions during a release pipeline run",
+    "Migration projects that temporarily remove older subnets from a vulnerability scan scope while decommissioning them",
+    "Endpoint administrators narrowing an antivirus scan to reduce resource use on virtual desktop infrastructure hosts",
+    "Monitoring teams that drop a noisy but non security log source from the forwarding agent to control licence cost"
+  ],
+  "tuningNotes": "Build two alert tiers: one for exclusions that name system directories, credential stores or the security product's own install path, and a lower tier for everything else. Allowlist the management console's service account and the configuration management tool, but keep alerting when the same change is made locally on a host through command line or script. Baseline which teams legitimately hold configuration rights, then treat any change from an account outside that set as high severity. Requiring a change ticket reference in the command line loses coverage of attackers who type a fake reference, so validate the ticket against the change system rather than trusting the string.",
+  "severity": "high"
+}

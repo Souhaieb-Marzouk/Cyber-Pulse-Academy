@@ -1,0 +1,107 @@
+{
+  "id": "det0828",
+  "type": "detection",
+  "title": "Detection of Network Trust Dependencies",
+  "shortTitle": "Detection of Network Trust Dependencies",
+  "externalId": "DET0828",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Network Trust Dependencies, the reconnaissance step in which an adversary maps the trust relationships that connect your systems, such as domain trusts, federation links, single sign on providers, and service accounts used between tiers. It matters because a trusted path is the cheapest way in: an attacker who knows which identity provider or jump host everyone trusts can target that one system instead of breaking each host. Detection relies on directory service search auditing for trust objects, DNS and authentication logs showing lookups and logons against those services, and cloud identity audit records for federation configuration reads. It fails most often because trust relationships are rarely documented, so baseline inventory is missing and benign management tools look identical to enumeration.",
+  "tags": [
+    "reconnaissance",
+    "mitre attack",
+    "trust relationship",
+    "identity",
+    "active directory",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Network Trust Dependencies",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0828/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Network Trust Dependencies - EASY",
+      "path": "exercises/det0828/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Network Trust Dependencies - MEDIUM",
+      "path": "exercises/det0828/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Network Trust Dependencies - HARD",
+      "path": "exercises/det0828/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Network Trust Dependencies - EXTREMELY HARD",
+      "path": "exercises/det0828/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for someone mapping the trust links between your systems. A trust link means one system accepts another system's word about who a user is. The detection looks for searches and logons that focus on those links instead of on normal daily work.",
+    "whyItMatters": "Trust lets people move between systems without a second password. Attackers love that, because it saves them work. If an intruder finds the one identity service everyone trusts, they can aim at that single target. Mapping trust is quiet and rarely blocked by normal controls. Spotting the mapping gives you a chance to protect the systems that everything else depends on.",
+    "howItWorks": [
+      "Directory servers can record searches for objects such as trusts, forest links, and federation settings.",
+      "Cloud identity services record reads of single sign on and federation configuration.",
+      "Network and authentication logs record connections and logon attempts against those identity systems.",
+      "The rule groups these events by source address and by the account that made the request.",
+      "It compares the volume and the target against the normal pattern for that source.",
+      "Anything outside the baseline, especially from a workstation rather than a server, becomes an alert."
+    ],
+    "example": "Think of a hospital sign-in sheet. Most people sign in at the front desk where they work. If one visitor spends an hour asking which departments accept each other's passes, and which manager can approve entry to the pharmacy, the receptionist would notice. That visitor has not entered anywhere yet, but the questions show exactly where they plan to go.",
+    "takeaways": [
+      "Trust relationships are high value targets because one compromised link opens many systems.",
+      "Enumeration looks like a small number of unusual reads aimed at identity and trust objects.",
+      "Without a written trust inventory, you cannot separate normal management from malicious mapping."
+    ]
+  },
+  "objectives": [
+    "Explain what a network trust dependency is in plain terms",
+    "List the telemetry sources that expose trust enumeration and federation configuration reads",
+    "Group trust related events by source and account to find activity outside the normal baseline",
+    "Document the trust inventory needed to judge whether a read is expected",
+    "Prioritise alerts that target identity providers and cross domain links over ordinary host discovery"
+  ],
+  "techniqueId": "t1590-003",
+  "detectsTechniques": [
+    "t1590-003"
+  ],
+  "dataSources": [
+    "Active Directory LDAP diagnostic logging of searches for trust and federation configuration objects",
+    "Windows Security event 4662 access to directory service objects with the requesting account",
+    "Microsoft Entra ID audit logs for reads of federation, single sign on, and directory role settings",
+    "Domain controller DNS query logs for trust and service locator records",
+    "Network flow records showing management workstations connecting directly to identity provider addresses"
+  ],
+  "logic": "The pattern is discovery aimed at identity and trust structure rather than at files or users: directory searches that read trust objects and federation settings, DNS lookups for service locator records, and management plane authentications to the identity provider from hosts that never normally talk to it. The fields to correlate are the requesting account, its source host, the object or configuration that was read, and the time window. Benign activity comes from identity administrators, backup software, and monitoring agents that read this configuration on a schedule from a small set of servers. The malicious case is one or two unusual reads from a workstation or server that has no identity management role, sometimes immediately before an attempt to authenticate across the trust.",
+  "pseudoQuery": "# title: Trust And Federation Configuration Enumeration\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4662\n#     ObjectType|contains:\n#       - 'trustedDomain'\n#       - 'msDS-TrustForestTrustInfo'\n#   filter:\n#     SubjectUserName|endswith: '$'\n#     SourceIp|cidr: '10[.]10[.]5[.]0/24'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Identity administrators reviewing trust and federation settings during planned changes",
+    "Directory synchronisation services that read federation configuration on a fixed interval",
+    "Backup and configuration monitoring agents that collect directory objects including trust records",
+    "Migration projects where consultants read trust topology from an approved jump host"
+  ],
+  "tuningNotes": "Build a documented list of the accounts and servers that legitimately read trust and federation configuration, and filter on those service identities rather than on object names. Scope the alert to hosts that have no identity management role, and add a threshold so that a single read is informational while repeated reads within a short window alert. Enrich with the directory role of the requesting account. Narrowing to a small allow list reduces noise but hides a compromised administrator account, so keep an unthresholded audit trail and review it during investigations.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0882",
+  "type": "detection",
+  "title": "Detection of Web Services",
+  "shortTitle": "Detection of Web Services",
+  "externalId": "DET0882",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the abuse of rented web services as attacker infrastructure, mapped to MITRE ATT&CK T1584.006 (Compromise Infrastructure: Web Services). Adversaries rarely own servers; they rent cheap hosting, serverless functions, or content delivery networks and use them for command and control, payload staging, and phishing pages. Because you cannot instrument a provider you do not own, detection depends on watching your own egress: proxy and firewall connection records, DNS resolution logs, and TLS certificate metadata, enriched with external data about recently registered domains and hosting address space. The strategy fails in practice in two ways. First, legitimate business traffic to cloud providers and content delivery networks looks almost identical to adversary traffic, so naive rules drown analysts in noise. Second, adversaries rotate destinations faster than reputation feeds update, so a purely list-based rule misses first contact. The realistic goal is scoring and prioritising new or rare destinations rather than proving malice from a single connection.",
+  "tags": [
+    "mitre t1584.006",
+    "resource development",
+    "network egress",
+    "threat hunting",
+    "cloud abuse"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Web Services",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0882/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Web Services - EASY",
+      "path": "exercises/det0882/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Web Services - MEDIUM",
+      "path": "exercises/det0882/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Web Services - HARD",
+      "path": "exercises/det0882/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Web Services - EXTREMELY HARD",
+      "path": "exercises/det0882/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for signs that an attacker rents web hosting and uses it against you. The hosting is normally a normal cloud service, so the service itself is not the problem. The detection watches which web addresses your computers talk to, and flags the new or unusual ones.",
+    "whyItMatters": "Attackers need somewhere to run their tools and store their files. Renting web services is cheap, fast, and hard for them to trace. The rented server is far away, so your team cannot look inside it. Your only chance to notice is the traffic leaving your own network. If you never baseline that traffic, the first clear sign is usually an alert from a security tool that is already infected.",
+    "howItWorks": [
+      "Your proxy, firewall, and domain name system (DNS) servers record every connection your computers make to the internet.",
+      "A parser turns those records into simple rows: which computer, which address, which port, and at what time.",
+      "The detection compares each destination with your baseline of normal destinations for that computer and user.",
+      "It adds outside context, such as how old the domain is and whether the hosting range is known for abuse.",
+      "Each connection gets a score. High scores raise an alert with the destination, the host, and the account involved.",
+      "An analyst reviews the alert, checks the file or page involved, and decides whether to block the destination."
+    ],
+    "example": "Think of a night watchman at a warehouse gate. He writes down the registration plate of every van that enters. One strange van is not a crime, because new suppliers arrive all the time. But if the same unknown plate visits three times in one night, and the company records say the van was only registered yesterday, he calls the manager. That is what this detection does with web addresses.",
+    "takeaways": [
+      "You cannot see inside the attacker's rented server, so detection works from your own network records.",
+      "The alert is a scored suspicion, not proof, because normal cloud traffic looks similar.",
+      "Baselines and outside context do most of the work. Lists alone are always out of date."
+    ]
+  },
+  "objectives": [
+    "Explain how adversaries use rented web services for command and control and payload staging",
+    "Identify the egress telemetry that makes this technique visible without access to the remote host",
+    "Build a destination baseline for a host group and describe normal cloud usage in it",
+    "Write a scored detection rule that uses domain age and hosting reputation as enrichment",
+    "Triage an alert by checking the process, user, and destination before blocking traffic"
+  ],
+  "techniqueId": "t1584-006",
+  "detectsTechniques": [
+    "t1584-006"
+  ],
+  "dataSources": [
+    "Web proxy logs recording the requested URL, resolved destination address, user agent, and the requesting user account",
+    "DNS server or resolver logs with the queried name, query type, client address, and response code",
+    "Firewall or netflow records of outbound connections including destination address, port, byte counts, and duration",
+    "External threat intelligence feeds covering newly registered domains and hosting ranges reported for abuse"
+  ],
+  "logic": "The pattern is repeated or sustained outbound contact between internal hosts and web destinations that are new, rare for that host group, or hosted in address ranges with a poor reputation. The fields that must be correlated are the internal host, the process or user that initiated the connection, the fully qualified domain name, the destination address, the destination port, and the first-seen timestamp for that pair. What separates the malicious case from the benign one is direction combined with novelty and context: a workstation that has never contacted a domain registered three days ago, resolving through a hosting range with recent abuse reports, and doing so on a regular schedule, is far more interesting than one employee using a well-known cloud service that thousands of peers already use. Volume alone is a weak signal; regularity, novelty, and the requesting process carry the weight.",
+  "pseudoQuery": "# title: Suspicious Outbound Contact to Newly Registered Hosting Destination\n# logsource:\n#   product: network\n#   category: proxy\n# detection:\n#   selection:\n#     event.outcome: allowed\n#   filter_known:\n#     destination.domain|endswith:\n#       - .windowsupdate.com\n#       - .cdn.example-corp.com\n#   condition: selection and not filter_known | near destination.domain_first_seen < 30d and destination.registered_domain_age < 30d\n# level: medium",
+  "falsePositives": [
+    "Engineering teams testing a new software-as-a-service product from a free trial tenant registered days earlier",
+    "Cloud-hosted backup, monitoring, and patch agents that resolve short-lived load balancer names into hosting provider ranges",
+    "Marketing tools loading tracking pixels and landing pages from third-party content delivery networks",
+    "Software installers and updaters that fetch packages from regional mirrors in smaller hosting networks",
+    "Personal cloud storage use from a browser on a managed workstation during working hours"
+  ],
+  "tuningNotes": "Start by baselining destination domains per business unit for at least two weeks, then allowlist verified corporate services at the domain level rather than the address level, because addresses change often. Require a minimum novelty score and at least three connections before alerting, and scope the rule to hosts that handle sensitive data rather than the whole estate. Enriching with domain age and hosting reputation removes most noise but adds a data dependency, so have a fallback that alerts on first-seen domain for a given host. The coverage you lose by narrowing is real: adversaries who rent mainstream cloud services and reuse a long-lived domain will look like normal business traffic, so keep a low-severity record-only version of the rule for the rest of the estate.",
+  "severity": "high"
+}

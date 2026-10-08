@@ -1,0 +1,107 @@
+{
+  "id": "det0289",
+  "type": "detection",
+  "title": "Detection Strategy for Disable or Modify Cloud Log",
+  "shortTitle": "Detection Strategy for Disable or Modify Cloud Log",
+  "externalId": "DET0289",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects attempts to stop, delete, or narrow cloud audit logging so that later activity is never recorded. The action belongs to the impair defenses family and matters because it is often the first observable step of a larger intrusion, arriving before privilege escalation or data access. Cloud providers expose it clearly in control plane telemetry: trail stop, delete, update and event selector calls, diagnostic setting removal, and logging sink deletion all appear as ordinary audited API calls with the calling identity, source address and client user agent attached. The strategy fails when the audit trail you depend on lives in the same account that was modified, because an adversary with enough rights can delete the evidence of the deletion unless logs are shipped to a separate account or an external collector.",
+  "tags": [
+    "cloud logging",
+    "defense evasion",
+    "audit trail",
+    "aws",
+    "azure"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Disable or Modify Cloud Log",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0289/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Disable or Modify Cloud Log - EASY",
+      "path": "exercises/det0289/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Cloud Log - MEDIUM",
+      "path": "exercises/det0289/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Cloud Log - HARD",
+      "path": "exercises/det0289/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Cloud Log - EXTREMELY HARD",
+      "path": "exercises/det0289/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud providers keep an audit log, which is a record of who did what and when. Attackers often try to switch that record off before they do anything else. This detection watches for calls that stop, delete or narrow those logs. It also watches for the same change made in different cloud platforms.",
+    "whyItMatters": "Without the audit log, you have no evidence of what happened next. Investigations turn into guesswork, and attackers know this very well. The change is quick, quiet, and easy to miss among normal administrative work. It usually happens early, so catching it can stop an intrusion before the real damage begins.",
+    "howItWorks": [
+      "The cloud provider writes an audit record for every control plane call, including who made it and from where.",
+      "The rule selects the calls that stop logging, delete or update a trail, or change which events are recorded.",
+      "The same logic watches diagnostic settings and log sinks, which are the equivalent controls in other clouds.",
+      "A configuration inventory shows the intended logging state, so drift is visible even without an event.",
+      "The analyst checks whether the caller is a known automation identity and whether a change record exists.",
+      "If the change was not approved, logging is restored from the separate account before anything else is done."
+    ],
+    "example": "Imagine a shop where the till writes every sale into a book. A thief does not only take goods from the shelves. First he tears pages out of the book. Later, when the owner counts the sales, nothing looks missing at all. Watching the book itself, and not only the shelves, is how you catch this kind of thief.",
+    "takeaways": [
+      "Turning off the audit log is an action you can detect, and it deserves a high severity alert.",
+      "Ship logs to a second account or an external collector, or the evidence can be deleted with the log.",
+      "Compare the logging state you observe against the state you expect, not only against events."
+    ]
+  },
+  "objectives": [
+    "Name the cloud API calls that stop, delete or narrow audit logging.",
+    "Explain why an attacker disables logging before doing anything else.",
+    "Design log shipping so the audit trail survives account level tampering.",
+    "Correlate a logging change with the identity, source address and client agent that made it.",
+    "Detect silent logging configuration drift using configuration inventory."
+  ],
+  "techniqueId": "t1685-002",
+  "detectsTechniques": [
+    "t1685-002"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for trail stop, delete, update and event selector change calls",
+    "AWS CloudTrail configuration records or a posture inventory showing the logging status of each trail",
+    "Azure activity log records for diagnostic setting deletion and log profile changes",
+    "Google Cloud audit logs for logging sink deletion and log exclusion creation",
+    "Cloud security posture inventory showing whether logging is enabled for each account or subscription"
+  ],
+  "logic": "The pattern is a control plane call that reduces how much activity the environment will record, or a change in recorded logging configuration that no approved change explains. The fields to correlate are the API name, the target resource identifier, the calling identity, the source address and the client user agent from audit telemetry, together with the expected logging state from configuration inventory for the same account. The benign case is a platform team removing a duplicate trail or narrowing a selector during a documented cost review, where the caller is a known automation role, the change appears in a ticket, and logging continues through a second trail in a separate account. The malicious case is a stop, delete or exclusion call made by a human user identity rather than an automation role, from an unfamiliar source address, with no matching change record, and with no second trail covering the gap.",
+  "pseudoQuery": "# title: Cloud Audit Logging Stopped or Trail Deleted\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventSource: 'cloudtrail.amazonaws.com'\n#     eventName:\n#       - 'StopLogging'\n#       - 'DeleteTrail'\n#       - 'UpdateTrail'\n#       - 'PutEventSelectors'\n#     errorCode: ''\n#   filter:\n#     userIdentity.type: 'AssumedRole'\n#     userIdentity.arn|contains: 'platform-automation'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "A platform team removing a duplicate or misconfigured trail during an approved cost optimisation review.",
+    "Infrastructure as code pipelines that recreate a trail and briefly report it as deleted between stages.",
+    "An administrator narrowing event selectors to cut ingestion cost while a second trail keeps full coverage.",
+    "A cloud migration project that disables logging in an account being decommissioned.",
+    "A log management tool that rewrites trail selectors whenever its own configuration drifts."
+  ],
+  "tuningNotes": "Build the list of automation roles and pipeline identities that legitimately manage trails, and filter on the assumed role rather than on the API name, so a human identity calling the same API still raises an alert. Ship audit logs to a separate account or an external collector before you rely on this rule, otherwise a privileged adversary can remove the alert and the evidence together. Baseline how often selectors change in your environment, because tooling that repairs configuration drift produces regular low value matches. Keep the delete and stop calls at high severity even after filtering, and treat selector changes as medium. Filtering on automation roles loses coverage of a compromised pipeline credential, so alert separately when those roles are used from an address outside the build network.",
+  "severity": "high"
+}

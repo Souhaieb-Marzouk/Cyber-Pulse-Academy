@@ -1,0 +1,107 @@
+{
+  "id": "det0137",
+  "type": "detection",
+  "title": "Detection Strategy for Disk Wipe via Direct Disk Access and Destructive Commands",
+  "shortTitle": "Detection Strategy for Disk Wipe via Direct Disk Access a...",
+  "externalId": "DET0137",
+  "theme": "Detection Strategy",
+  "summary": "Disk wipe (T1561) covers destructive actions that overwrite partition tables, volume structures, or raw disk sectors so that data becomes unrecoverable and systems no longer start. This detection strategy watches two very different shapes of the same impact: command line destruction through built-in disk, partition, and backup utilities, and direct raw device access from a process that is not a storage driver, a backup agent, or an approved imaging tool. The telemetry that makes it possible is process creation with command lines, endpoint records for raw disk handle requests and driver load events, and system level storage errors such as unexpected volume dismounts that follow within seconds. It fails because the same utilities are used for genuine maintenance, because raw device access is invisible without endpoint instrumentation, and because destruction finishes so quickly that an alert raised afterwards is recovery reporting rather than prevention.",
+  "tags": [
+    "impact",
+    "t1561",
+    "disk wipe",
+    "destructive attack",
+    "process creation",
+    "raw disk access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Disk Wipe via Direct Disk Access and Destructive Commands",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0137/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Disk Wipe via Direct Disk Access and Destructive Commands - EASY",
+      "path": "exercises/det0137/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Disk Wipe via Direct Disk Access and Destructive Commands - MEDIUM",
+      "path": "exercises/det0137/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Disk Wipe via Direct Disk Access and Destructive Commands - HARD",
+      "path": "exercises/det0137/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Disk Wipe via Direct Disk Access and Destructive Commands - EXTREMELY HARD",
+      "path": "exercises/det0137/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A disk wipe destroys the information on a hard drive. It removes the file system, so the computer can no longer start. Some tools wipe a disk on purpose, and attackers use them to destroy evidence or to damage a company. This detection looks for programs that touch the raw disk or run destructive commands.",
+    "whyItMatters": "A wipe can destroy years of records in a few minutes. Backups are the only way back, and attackers often go after the backups first. Staff cannot work while machines are rebuilt. The damage is often worse than a theft, because the data is simply gone. This detection aims to give you minutes instead of days to stop the process.",
+    "howItWorks": [
+      "Process records show the command that ran and the arguments it used.",
+      "The rule lists the commands that format, clean, or overwrite a disk or volume.",
+      "Endpoint records show a program opening the raw disk device directly.",
+      "The rule checks whether that program is an approved storage or backup tool.",
+      "System records show volume errors or an unexpected disk removal soon after.",
+      "An analyst then confirms whether a change ticket explains the activity."
+    ],
+    "example": "Picture a records office with years of paper files. The manager authorises one clerk to shred old documents each Friday. That clerk holds the key to the shredder room. Now imagine a stranger takes the key and shreds every shelf in the building within ten minutes. Nothing was stolen and nothing was copied. The archive is simply empty. A disk wipe is that shredding run. The tools are normal, but the scale and the timing are not.",
+    "takeaways": [
+      "The tools used in a wipe are ordinary, so context and scale decide the alert.",
+      "Raw disk access by a program that is not a storage tool is rare and serious.",
+      "Backups must be isolated, because a wipe often targets them first."
+    ]
+  },
+  "objectives": [
+    "Describe what a disk wipe destroys and why it is treated as an impact technique.",
+    "Recognise process creation patterns for built-in destructive disk utilities.",
+    "Identify raw disk or raw device access that no approved tool explains.",
+    "Correlate storage errors and volume dismounts with a preceding destructive command.",
+    "Explain why backup isolation changes the outcome of a destructive incident."
+  ],
+  "techniqueId": "t1561",
+  "detectsTechniques": [
+    "t1561"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled for disk, partition, and backup utilities",
+    "Sysmon event 1 process creation including parent image and full command line arguments",
+    "Endpoint sensor telemetry for raw disk device handle requests, such as a process opening a physical drive device path",
+    "Windows System event log records for storage driver errors, unexpected volume dismounts, and file system corruption notices"
+  ],
+  "logic": "Disk wiping has two observable shapes, and the rule should keep them as separate selections that share one severity. The command shape is a process creation in which a built-in disk, partition, or backup utility is invoked with destructive arguments, or a script host runs such a utility shortly after arriving on the host. The device shape is a process other than an approved storage, backup, or imaging agent opening a raw physical drive handle, or a storage driver loading outside any maintenance window. The fields to correlate are the process identifier and its parent image, the image path and signature status, the full command line, the device or file object opened, and the timestamps of storage errors or volume dismounts within the following minute. The benign case is planned maintenance performed from a management host with signed vendor tooling and a change record. The malicious case is the same commands run from an interactive session, a script, or a remote management channel outside an approved window, and it usually occurs on many hosts within a short period.",
+  "pseudoQuery": "# title: Destructive disk utility invoked on a volume\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4688\n#     NewProcessName|endswith:\n#       - '\\format.com'\n#       - '\\diskpart.exe'\n#       - '\\vssadmin.exe'\n#       - '\\wbadmin.exe'\n#     CommandLine|contains:\n#       - 'clean'\n#       - 'delete shadows'\n#       - '/quick'\n#   condition: selection\n# level: critical",
+  "falsePositives": [
+    "Storage engineers reclaiming and reimaging servers during a planned maintenance window",
+    "Imaging and provisioning systems that format volumes on newly delivered hardware before deployment",
+    "Backup administrators deleting expired shadow copies to free space on a file server",
+    "A recovery runbook step that formats a volume before restoring from backup",
+    "Virtualisation hosts clearing scratch or cache volumes during routine capacity management"
+  ],
+  "tuningNotes": "Scope the destructive command selection to production servers and to workstations that hold regulated data, and define a maintenance host group that is allowed to run these utilities with a change record and an approved parent process. Leave the raw disk device selection open except for your storage, backup, and imaging agents, because almost nothing else has a legitimate reason to open a physical drive. Baseline which accounts normally run disk utilities so that a previously unseen account stands out at once. You lose coverage against an attacker who reuses an approved management account or hides destruction inside an approved imaging tool, so pair this rule with volume integrity monitoring and with alerts on unexpected volume dismounts appearing across many hosts together.",
+  "severity": "critical"
+}

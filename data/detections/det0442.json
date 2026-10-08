@@ -1,0 +1,107 @@
+{
+  "id": "det0442",
+  "type": "detection",
+  "title": "Detection Strategy for Subvert Trust Controls using SIP and Trust Provider Hijacking.",
+  "shortTitle": "Detection Strategy for Subvert Trust Controls using SIP a...",
+  "externalId": "DET0442",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the hijacking of Windows trust and Subject Interface Package components so that the operating system accepts attacker made signatures as valid. Adversaries modify cryptographic provider and trust provider registry entries, or the user interface package registration, to point signature verification at their own library or to relax the check that decides if a certificate is trusted. Detection depends on registry value change telemetry for the cryptographic and software publishing key paths, on the creation of unexpected provider files, and on the fact that this activity almost never occurs on a normal endpoint. The practical failure is that very few organisations enable registry change collection for these keys, and the handful of legitimate changes, such as a vendor installing its own signature validation component, arrive with no ticket, so the rule needs an allow list that is reviewed rather than trusted.",
+  "tags": [
+    "defense evasion",
+    "trust controls",
+    "signature validation",
+    "registry monitoring",
+    "windows",
+    "t1553.003"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Subvert Trust Controls using SIP and Trust Provider Hijacking.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0442/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Subvert Trust Controls using SIP and Trust Provider Hijacking. - EASY",
+      "path": "exercises/det0442/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Subvert Trust Controls using SIP and Trust Provider Hijacking. - MEDIUM",
+      "path": "exercises/det0442/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Subvert Trust Controls using SIP and Trust Provider Hijacking. - HARD",
+      "path": "exercises/det0442/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Subvert Trust Controls using SIP and Trust Provider Hijacking. - EXTREMELY HARD",
+      "path": "exercises/det0442/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the part of Windows that checks if a signature is real. Attackers change the settings there so a fake signature looks real. That lets their software pass checks that would normally stop it. The detection looks for those settings being changed.",
+    "whyItMatters": "Signature checks protect drivers, installers and scripts. If an attacker can rewrite the checking rules, many other protections fail with them. This change is rare on a normal computer. That rarity is what makes an alert valuable. It is also why a change must be confirmed quickly.",
+    "howItWorks": [
+      "A sensor records changes to values in the registry under the cryptography keys.",
+      "The rule filters for the keys that hold provider and trust settings.",
+      "It checks whether the new value points to a file outside the system folders.",
+      "It looks for a provider file that was created just before the change.",
+      "Any matching host is reported with the account and the old and new value."
+    ],
+    "example": "Think of a passport office that checks stamps. Someone replaces the stamp reference book on the desk with his own version. Every fake stamp now looks correct to the clerk. The detection watches the reference book, not the passports.",
+    "takeaways": [
+      "Trust provider settings decide how signatures are checked.",
+      "Changes here are rare and deserve a prompt review.",
+      "Registry change collection must be enabled in advance."
+    ]
+  },
+  "objectives": [
+    "Describe what a trust provider and a signature validation component do.",
+    "Name the registry area that holds cryptographic provider registrations.",
+    "Detect a provider value that points outside the system directories.",
+    "Correlate a registry change with the creation of a new provider file.",
+    "Build a reviewed allow list for known vendor validation components.",
+    "Explain the impact of a successful trust control bypass."
+  ],
+  "techniqueId": "t1553-003",
+  "detectsTechniques": [
+    "t1553-003"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for keys under the cryptography and software publishing provider paths",
+    "Sysmon event 11 file creation for new dynamic link library files written into system or driver directories",
+    "Sysmon event 1 process creation for installer or command line processes that follow a registry write",
+    "Windows Security event 4657 registry value modification with the object name, value name and new value",
+    "Windows code integrity operational events recording a device driver or library that failed or bypassed signature validation"
+  ],
+  "logic": "The pattern is a registry write under the cryptographic provider, trust provider or user interface package keys where the new value points at a file outside the standard system directories, often paired with the recent creation of that file. The fields to correlate are the target object path, the value name, the new file path, the process that made the write and the account that owns that process. A benign case is a signed vendor installer writing its own validation library to a program directory during a documented deployment, while the malicious case writes to an unexpected folder, names the value after a system provider, and occurs from a script interpreter or a temporary process rather than an installer service.",
+  "pseudoQuery": "# title: Trust Provider Registry Value Redirected To Non System Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains: ['\\\\Cryptography\\\\Providers\\\\', '\\\\Cryptography\\\\OID\\\\EncodingType', '\\\\SoftPub\\\\']\n#   filter:\n#     Details|contains: '\\\\System32\\\\'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Enterprise software that installs its own cryptographic provider during a managed upgrade.",
+    "Smart card middleware that registers a vendor trust module in a program files directory.",
+    "Security products that register a code signing validation component on first install.",
+    "Developer workstations with lab builds of a signing component installed on purpose."
+  ],
+  "tuningNotes": "First confirm that registry value change collection covers these paths on the platforms you care about, because this detection has no value without it. Baseline one clean install of each approved security and middleware product, record the exact value names and file paths it writes, and allow list those pairs by full path rather than by file name. Restrict alerts to servers and to non developer endpoints, and require a matching signed installer process for any allowed write. Narrowing by path loses visibility of an attacker who copies a vendor library name into a legitimate folder, so keep a low severity rule that reports any write to the trust provider keys for weekly review.",
+  "severity": "high"
+}

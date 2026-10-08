@@ -1,0 +1,108 @@
+{
+  "id": "det0436",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow through Services File Permissions Weakness.",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow through Serv...",
+  "externalId": "DET0436",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects a service binary being replaced, renamed or rewritten in a directory whose permissions allow an unprivileged account to modify it, which lets an adversary gain the service account privileges the next time the service starts. It matters because the technique leaves the service configuration untouched, needs no registry change, and is invisible to a rule that only watches service installation and configuration, so the file write is the only reliable signal. Detection depends on file creation and modification telemetry inside service program directories, directory permission data that shows which accounts can write there, and service start events that show the affected service running the new binary. The main way it fails in practice is that legitimate upgrades replace service binaries routinely, so the writing account, the parent process and the accompanying package transaction are what separate an update from a hijack.",
+  "tags": [
+    "service binary",
+    "t1574-010",
+    "privilege escalation",
+    "file permissions",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow through Services File Permissions Weakness.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0436/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Services File Permissions Weakness. - EASY",
+      "path": "exercises/det0436/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Services File Permissions Weakness. - MEDIUM",
+      "path": "exercises/det0436/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Services File Permissions Weakness. - HARD",
+      "path": "exercises/det0436/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Services File Permissions Weakness. - EXTREMELY HARD",
+      "path": "exercises/det0436/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a service program that is replaced by the wrong account. A service is a background program that starts with the computer. It often runs with high permissions. The rule reports a suspicious change to the program file.",
+    "whyItMatters": "If an attacker can write to the folder that holds a service program, they can replace it. The service then runs the attacker program with its own high permissions. No setting is changed, so configuration checks see nothing. Watching who writes into those folders is the way to catch it. The fix is usually a folder permission change.",
+    "howItWorks": [
+      "A service program file sits in a folder that the service uses.",
+      "Auditing or endpoint monitoring records every file write and rename in that folder.",
+      "A write arrives from an account that is not the package manager or a system account.",
+      "The rule checks the folder permissions to see whether an ordinary user could write there.",
+      "It also checks whether a service start event follows the write within a short time.",
+      "A service binary written by an unexpected account, then started, raises an alert."
+    ],
+    "example": "Think of a shared kitchen where each cook keeps a knife in a rack by the door. Anyone can reach the rack, and most people never touch another cook's knife. If someone swaps a knife for one they brought, the rack looks the same and the label still matches. Only the person who watched the rack knows the tool changed. Folder permissions are the rack, and this rule is the watcher.",
+    "takeaways": [
+      "A writable service folder lets an ordinary user replace a privileged program.",
+      "The file write, not the service setting, is the event that reveals the hijack.",
+      "Legitimate upgrades look similar, so check the writer and the package context."
+    ]
+  },
+  "objectives": [
+    "Explain how write access to a service program directory leads to privilege escalation at service start.",
+    "Identify the file telemetry that records replacement or renaming of a service binary.",
+    "Correlate a service binary write with the writing account, its parent process and a later service start.",
+    "Assess directory permissions to find service folders writable by unprivileged groups.",
+    "Distinguish a package manager upgrade from a manual replacement of a service binary.",
+    "Describe the audit configuration needed to see file writes in those directories."
+  ],
+  "techniqueId": "t1574-010",
+  "detectsTechniques": [
+    "t1574-010"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation and event 2 file creation time change for binaries inside service program directories",
+    "Windows Security event 4688 process creation recording the installer or replacing process and its parent",
+    "Windows System event 7036 service state change showing the affected service entering the running state",
+    "Directory access control list inventory showing which groups hold write permission on service program folders",
+    "Windows Security event 4663 object access audit for write access to service binaries when auditing is enabled"
+  ],
+  "logic": "The pattern is a write, rename or replacement of an executable inside a directory that hosts a service binary, where the writing account is not the system package manager or a trusted installer, where the directory access control list grants write permission to a broad group, and where a start of the affected service follows shortly afterwards. The fields that must be correlated are the file path and previous name, the writing process image and parent, the account context, the directory permissions, and the service state change event for the service that references that path. The benign case is dominated by vendor updates that are performed by system or installer accounts and that arrive together with a package transaction and signed files, so writer identity, signature status and the surrounding install activity separate the two. The malicious case is distinguished by a manual replacement from a script host or an interactive session, by a binary whose signature is missing or does not match the vendor, by a file creation time that is far newer than every neighbouring binary, and by the write happening outside a maintenance window.",
+  "pseudoQuery": "# title: Service Binary Written by Non Installer Account in Writable Directory\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - '\\\\Services\\\\'\n#       - '\\\\Program Files\\\\'\n#     TargetFilename|endswith: '.exe'\n#   filter_package:\n#     Image|endswith:\n#       - '\\\\msiexec.exe'\n#       - '\\\\services.exe'\n#       - '\\\\TrustedInstaller.exe'\n#   condition: selection and not filter_package\n# level: high",
+  "falsePositives": [
+    "Vendor update tools that replace a service binary in place under a system account with a signed file",
+    "Administrators manually copying a hotfix binary into an application folder during an incident",
+    "Application self update features that download and rename their own executable on a schedule",
+    "Software packaging teams deploying a new build to a test server outside a formal change window",
+    "Antivirus or endpoint agent remediation that restores a modified binary to its expected version"
+  ],
+  "tuningNotes": "Start with a permission review rather than a rule: list every directory that holds a service binary and flag those where a broad group such as users or everyone holds write access, because those hosts are where this technique succeeds and where the alert rate will be meaningful. Then filter the rule on the exact installer and update process paths and on signed vendor binaries, and keep writes by script hosts, interactive shells and unsigned processes in scope regardless of location. Correlate each write with a service start event for the service that references that path so a filtered update that also restarts an unrelated service still surfaces. You lose coverage for a hijack performed by a legitimate installer account or through a scheduled management job, so compare binary hashes against a known good baseline and alert on any drift in a service directory, even when the writer looks trustworthy.",
+  "severity": "high"
+}

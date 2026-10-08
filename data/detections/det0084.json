@@ -1,0 +1,108 @@
+{
+  "id": "det0084",
+  "type": "detection",
+  "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Delete Cloud Instance",
+  "shortTitle": "Detection Strategy for Modify Cloud Compute Infrastructur...",
+  "externalId": "DET0084",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers deletion of cloud compute instances, an action that destroys availability rather than data, and that is used both to disrupt a victim estate and to remove the evidence of an intrusion before responders can examine it. It matters because instance deletion is part of everyday platform life: autoscaling, pipelines and cleanup jobs terminate instances constantly, so the signal lives entirely in the context around the call. The telemetry that makes it visible is cloud audit logging for the instance termination or deletion action, which records the calling identity, source address, tool, target instance and region, together with any preceding stop or snapshot deletion calls and the identity history for that account. The pattern worth alerting on is scope rather than count: one identity terminating many instances across several availability zones or accounts in a short window, from an unusual source, with no matching pipeline run, or as part of a sequence that first removes backups. It fails in practice in both directions, since scale down events look exactly like an attacker with a delete habit, and an attacker who deletes one instance carefully will never cross a volume threshold.",
+  "tags": [
+    "cloud",
+    "impact",
+    "destruction",
+    "audit log",
+    "anti forensics",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Modify Cloud Compute Infrastructure: Delete Cloud Instance",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0084/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Delete Cloud Instance - EASY",
+      "path": "exercises/det0084/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Delete Cloud Instance - MEDIUM",
+      "path": "exercises/det0084/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Delete Cloud Instance - HARD",
+      "path": "exercises/det0084/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Delete Cloud Instance - EXTREMELY HARD",
+      "path": "exercises/det0084/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud compute instances are virtual servers that run in a provider data centre. This detection watches for those servers being deleted or terminated. It looks at who asked for the deletion, from where, and how many servers were affected.",
+    "whyItMatters": "Deleted instances take services offline, sometimes within minutes. Attackers also delete them to destroy the traces that responders need. Deletion is a normal event in a healthy cloud account, so one alert means little. Many deletions in a short time, from an odd place, is the pattern that matters.",
+    "howItWorks": [
+      "Each request to the cloud control service is written to an audit log.",
+      "The entry names the instance, the region, the source address and the tool used.",
+      "The detection groups deletions by account, identity and region inside a short window.",
+      "It compares the result against the normal rate for that account and time of day.",
+      "It checks whether stop or backup deletion calls came just before the terminations.",
+      "It checks whether a build or scaling process explains the activity."
+    ],
+    "example": "Think of a farm that sells vegetables at a market stall. Staff throw away spoiled boxes each morning, and nobody questions it. One afternoon a stranger clears the whole stall into a skip. The stranger then wipes down the table. Each action was ordinary. The timing, the amount and the stranger are what should worry the market manager.",
+    "takeaways": [
+      "Deleting cloud servers both disrupts a company and destroys evidence of an intrusion.",
+      "Volume alone is weak, so always judge deletion against the account normal pattern.",
+      "Backup removals just before a deletion make the case much stronger."
+    ]
+  },
+  "objectives": [
+    "Explain why cloud instance deletion is both an availability attack and an anti forensics action.",
+    "Identify the audit log fields that describe the caller, the target instance and the region.",
+    "Build a per account baseline of termination volume and the identities that normally cause it.",
+    "Recognise destructive sequences that combine snapshot or backup deletion with instance termination.",
+    "Describe recovery steps including restore from backup and review of the identity used."
+  ],
+  "techniqueId": "t1578-003",
+  "detectsTechniques": [
+    "t1578-003"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for instance termination recording the identity, source address, user agent and instance identifier",
+    "Azure activity log entries for virtual machine delete operations including the calling principal and resource group",
+    "Google Cloud audit logs for instance deletion showing the principal, method and project",
+    "Cloud storage or backup service audit records showing snapshot deletion in the same period",
+    "Cloud identity sign in records linking the acting credential to an authentication event and its source"
+  ],
+  "logic": "Alert when instance deletions in an account exceed the established baseline, when they come from an identity or source address that has never performed them, or when they follow deletion of snapshots or backups. The fields that must be correlated are the calling identity, the action name, the instance or resource identifier, the region or project, the source address, the user agent and the time. Benign deletions come from a narrow set of automation identities, during working hours or a defined scaling cycle, in a single region, with a rate that is stable week to week, and they are usually preceded by a scale in event. The hostile case is a spike across several regions or accounts, an identity that is interactive or newly created, a source address outside the corporate or cloud network, a user agent identifying a general purpose command line tool, and a preceding wave of snapshot or backup removals that removes the ability to restore. An attacker who wants to destroy evidence will often stop instances first, so treat stop activity followed by deletion as one sequence rather than two alerts.",
+  "pseudoQuery": "# title: Bulk Cloud Instance Termination Outside Pipeline Context\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   termination:\n#     eventName|contains:\n#       - 'TerminateInstances'\n#       - 'DeleteInstance'\n#   backup_removal:\n#     eventName|contains:\n#       - 'DeleteSnapshot'\n#       - 'DeleteBackup'\n#   filter_pipeline:\n#     userAgent|contains: 'pipeline-agent'\n#   condition: (termination or backup_removal) and not filter_pipeline\n# level: high",
+  "falsePositives": [
+    "Autoscaling groups scaling in when demand falls and terminating a batch of instances in one region",
+    "Infrastructure as code pipelines that destroy an ephemeral environment as scheduled at the end of a working day",
+    "Cost optimisation jobs that shut down and delete idle development instances after a fixed idle period",
+    "Cluster upgrades that replace worker nodes by terminating the old ones in sequence",
+    "A platform engineer cleaning up orphaned instances and their snapshots during a documented tidy up"
+  ],
+  "tuningNotes": "Establish the baseline of terminations per account and per identity over at least thirty days, then alert on a deviation plus a context condition, such as a new source address or an identity that has never terminated an instance before. Allow list the automation identities that own scaling and ephemeral environments, and require that any deletion by an interactive identity, or from outside the corporate network, be reviewed even at low volume. Handle snapshot and backup deletions with a much lower threshold than instance deletions, because they are rare and they remove your recovery path, and tie them to the instance deletion rule so responders see one event. Consider protecting production accounts with a provider side guardrail that denies bulk deletion to non automation identities, which turns this detection into a prevention control. The coverage you lose by trusting automation identities is an attacker using a stolen automation credential, so pair the rule with alerts on changes to those identities and on new trust relationships being added to their roles.",
+  "severity": "high"
+}

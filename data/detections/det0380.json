@@ -1,0 +1,105 @@
+{
+  "id": "det0380",
+  "type": "detection",
+  "title": "Detection of Local Data Collection Prior to Exfiltration",
+  "shortTitle": "Detection of Local Data Collection Prior to Exfiltration",
+  "externalId": "DET0380",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects local data collection, where an adversary gathers files from a system before sending them out, usually by staging copies into a temporary directory or building an archive. The observable pattern is a sequence rather than a single event: a burst of file reads by one process, followed by file writes of many copies or a single large archive into a staging location, often a temporary folder, a public share, or a cloud synchronisation directory. Detection uses process creation with command lines, endpoint file read and write telemetry or auditd records, archive creation events, and file access auditing on sensitive shares. The main practical difficulty is volume, because backup, encryption and indexing tools also read many files, so the rule depends on the staging destination and the absence of a matching job schedule.",
+  "tags": [
+    "collection",
+    "file access",
+    "exfiltration",
+    "data staging",
+    "audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Local Data Collection Prior to Exfiltration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0380/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Local Data Collection Prior to Exfiltration - EASY",
+      "path": "exercises/det0380/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Local Data Collection Prior to Exfiltration - MEDIUM",
+      "path": "exercises/det0380/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Local Data Collection Prior to Exfiltration - HARD",
+      "path": "exercises/det0380/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Local Data Collection Prior to Exfiltration - EXTREMELY HARD",
+      "path": "exercises/det0380/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Data collection means finding and copying the files an attacker wants before sending them out. This detection looks for the copy step, especially when many files are gathered into one place. It watches file reads, new file writes and archive creation. It catches the preparation, not the theft.",
+    "whyItMatters": "Gathering files takes time, and that time is your chance to act. If you only look at outbound traffic, you may miss data that was staged and left for later. The staging folder also tells you exactly which files are at risk. Blocking or removing that folder early can stop the loss completely.",
+    "howItWorks": [
+      "Collect file read telemetry from sensitive shares and from document folders.",
+      "Collect archive creation events and file writes into temporary or synchronisation directories.",
+      "Count distinct source files read by one process in a short window.",
+      "Check whether the same process then wrote a much smaller number of larger files.",
+      "Compare the activity with scheduled backup, encryption and indexing jobs on that host.",
+      "Alert with the source folders, the staging path, the account and the archive size."
+    ],
+    "example": "Think of a till receipt and a shopping bag. The receipt lists what was taken from the shelves, one line at a time. The bag near the door shows that everything was gathered in one place. This detection watches for the bag.",
+    "takeaways": [
+      "Collection is a read burst followed by writes into a staging location.",
+      "The staging destination, not the volume of reads, is what makes the alert meaningful.",
+      "Removing staged data early stops the loss even if the attacker still has access."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries stage data locally before exfiltration.",
+    "Identify the file read, archive creation and staging path telemetry this needs.",
+    "Build a rule that links a read burst to a later write burst from the same process.",
+    "Separate a collection pattern from normal backup and encryption activity.",
+    "Decide which shares and directories deserve file access auditing first."
+  ],
+  "techniqueId": "t1005",
+  "detectsTechniques": [
+    "t1005"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image and command line for archive and copy utilities",
+    "Sysmon event 11 file create events showing the staging path, file size and hash",
+    "Windows Security object access auditing on sensitive shares recording file reads with the account and process",
+    "Linux auditd file read records on sensitive directories with the process identifier and resolved path",
+    "Cloud storage access logs for uploads to a user synchronisation folder from a managed device"
+  ],
+  "logic": "The pattern is a single process reading many files from sensitive locations and then writing those contents into a staging directory, usually as an archive or a set of renamed copies. Telemetry shows file read events grouped by process identifier, followed within a short window by file write events under a temporary, public or synchronisation path. The fields to correlate are the account, the process identifier and its parent, the source directory set, the staging path, and the total size written. What separates malicious from benign is destination and schedule: an approved backup or encryption job writing to a known repository on its normal timetable is expected, while an interactive user session or a document application parent writing a large archive into a temporary folder is not.",
+  "pseudoQuery": "# title: File Collection Staged into Temporary Directory\n# logsource:\n#   product: windows\n# detection:\n#   selection_read:\n#     EventType: 'FileRead'\n#     TargetFilename|startswith: '\\\\fs01\\finance\\'\n#   selection_stage:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - '\\Temp\\'\n#       - '\\AppData\\Local\\Temp\\'\n#       - 'OneDrive'\n#     TargetFilename|endswith:\n#       - '.zip'\n#       - '.7z'\n#       - '.rar'\n#   filter_backup:\n#     ParentImage|endswith: '\\backupagent.exe'\n#   condition: selection_read and selection_stage and not filter_backup\n# level: high",
+  "falsePositives": [
+    "Backup and disaster recovery agents that compress selected folders into a staging area before transfer",
+    "Help desk staff who archive a user's documents into a zip file when rebuilding a laptop",
+    "Applications that package log files into an archive for support cases on request"
+  ],
+  "tuningNotes": "Allow list the backup, encryption and support tooling accounts and their destination repositories, then keep the rule focused on writes into temporary and synchronisation directories, which are rare for legitimate bulk jobs. Scope the high severity rule to file servers and to hosts that hold regulated data, and baseline the normal read rate per share before enabling it. Filtering on destination path costs you the case of an attacker who stages data on a network share instead of a local folder, so add a second rule for large archives created anywhere outside the approved repository paths.",
+  "severity": "high"
+}

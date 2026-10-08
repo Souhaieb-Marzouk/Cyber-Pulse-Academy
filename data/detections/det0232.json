@@ -1,0 +1,108 @@
+{
+  "id": "det0232",
+  "type": "detection",
+  "title": "Detection Strategy for ESXi Administration Command",
+  "shortTitle": "Detection Strategy for ESXi Administration Command",
+  "externalId": "DET0232",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects administrative command execution on VMware ESXi hypervisors, tracked as ATT&CK T1675, where an adversary uses the built in management interfaces to gather information, change configuration, or run code on the host that runs your virtual machines. It matters because the hypervisor sits beneath every guest, so a compromised ESXi host can be used to read guest memory, disable protection, encrypt many virtual machines at once, or destroy backups that live on attached storage, and yet it is often excluded from endpoint agents and change processes. The telemetry that makes it detectable is the ESXi shell and host daemon logs, remote syslog forwarded from the host to your collector, the shell command history and audit records, and virtual infrastructure management audit events that record who authenticated and what configuration changed. The main failure mode is that administration is legitimate and frequent, so the rule must focus on anomalous context such as an odd source address, an unusual account, off hours execution, or a sequence of destructive commands, rather than on the use of the command itself.",
+  "tags": [
+    "vmware",
+    "esxi",
+    "hypervisor",
+    "administration",
+    "syslog"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for ESXi Administration Command",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0232/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for ESXi Administration Command - EASY",
+      "path": "exercises/det0232/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for ESXi Administration Command - MEDIUM",
+      "path": "exercises/det0232/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for ESXi Administration Command - HARD",
+      "path": "exercises/det0232/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for ESXi Administration Command - EXTREMELY HARD",
+      "path": "exercises/det0232/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for administrator commands run on the software that hosts your virtual machines. That software layer is called a hypervisor, and each virtual machine sits on top of it. Because it sits underneath, a problem there affects everything above it. This detection looks at the logs on that host to see who ran which command.",
+    "whyItMatters": "If an attacker controls the hypervisor, they can reach every virtual machine on it. They can also switch off protections that normally guard those machines. Many teams install agents inside virtual machines but not on the host itself. Watching the host gives you a view that nothing else provides.",
+    "howItWorks": [
+      "The host sends its own log messages to a central collector. The record then survives even if the host is wiped.",
+      "Those messages include logins and the commands run in the host shell.",
+      "The rule lists the commands that change configuration or stop services.",
+      "It checks the account behind each command and the address the session came from.",
+      "It compares the pattern with normal maintenance windows and approved administrators.",
+      "An alert opens when privileged commands appear outside the normal pattern."
+    ],
+    "example": "Think of the mains switch room in a large building. Nobody visits it daily, and the logs are rarely read. One person with the key can turn off power to every floor at once. Because the room serves the whole building, it deserves its own access record.",
+    "takeaways": [
+      "The hypervisor layer is high impact and is often missing from endpoint monitoring.",
+      "Send host logs off the device, because attackers may destroy local evidence.",
+      "Judge the context of a command, since administrators use these tools every day."
+    ]
+  },
+  "objectives": [
+    "Describe why the hypervisor layer is a high value target beneath all guest systems",
+    "Configure remote syslog forwarding from ESXi hosts to a central collector",
+    "Identify the host log records that capture shell commands and management logins",
+    "Baseline legitimate administrative commands, accounts, source addresses and maintenance windows",
+    "Recognise command sequences associated with destructive or disruptive activity",
+    "Define an escalation path that includes the virtual infrastructure team"
+  ],
+  "techniqueId": "t1675",
+  "detectsTechniques": [
+    "t1675"
+  ],
+  "dataSources": [
+    "ESXi host shell and host daemon log messages forwarded to a remote syslog collector",
+    "ESXi audit records for authentication and privileged shell sessions with source address and account",
+    "Virtual infrastructure management audit events recording configuration changes and administrative API calls",
+    "Remote syslog records for host service state changes such as disabled firewall or stopped management agents",
+    "Change management tickets identifying approved maintenance windows and privileged operator accounts"
+  ],
+  "logic": "The detection looks for privileged administrative commands executed on an ESXi host where the session context does not match the approved administration pattern: the source address is not a jump host or management subnet, the account is local rather than a directory account, the time is outside the maintenance window, or the command sequence includes service stops, firewall changes, or bulk virtual machine operations. The fields that must be correlated are the host identifier, the authenticated account, the source address, the recorded command or API operation, the timestamp, and the change record for that host. Benign cases show a named administrator or automation account from a known management address, during a scheduled window, with a matching change ticket, while malicious activity typically shows an unexplained local account, an address outside the management network, log and firewall services being altered, and rapid sequential operations against many virtual machines from a single session.",
+  "pseudoQuery": "# title: ESXi Administrative Command From an Unapproved Source\n# logsource:\n#   product: linux\n# detection:\n#   selection_cmd:\n#     message|contains:\n#       - 'esxcli system'\n#       - 'esxcli network firewall'\n#       - 'esxcli storage'\n#       - 'vim-cmd vmsvc'\n#       - '/bin/esxcfg-'\n#   selection_service:\n#     message|contains:\n#       - 'stopping service'\n#       - 'watchdog'\n#       - 'syslog'\n#   filter_mgmt:\n#     src_ip|startswith:\n#       - '10[.]20[.]'\n#       - '10[.]30[.]'\n#   condition: (selection_cmd or selection_service) and not filter_mgmt\n# level: high",
+  "falsePositives": [
+    "Scheduled backup or replication jobs that call host commands from the backup server during the night",
+    "Hardware monitoring integrations that query storage and sensor state on a fixed polling interval",
+    "Virtual infrastructure administrators troubleshooting a host from a jump box that is not yet in the approved list",
+    "Firmware upgrade tooling that stops and starts host services as part of a documented maintenance window",
+    "Automation accounts that reconfigure networking after a switch replacement approved by change management"
+  ],
+  "tuningNotes": "Collect at least four weeks of host command records, list the accounts, source addresses and commands that appear, and treat that as the approved set, because a hypervisor estate has very stable administration behaviour compared with workstations. Put the management jump hosts and automation appliances on the allowlist by address, and keep the local administrative accounts in scope even from an allowed address so that a reused local credential is still visible. Raise severity when several hosts are actioned in a short window or when logging or firewall services are touched, as those are the steps that hide later activity. The coverage you lose by allowlisting management addresses is an attacker operating from a compromised jump host, so ensure those hosts forward their own session logs and review privileged sessions on them separately.",
+  "severity": "high"
+}

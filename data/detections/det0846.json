@@ -1,0 +1,104 @@
+{
+  "id": "det0846",
+  "type": "detection",
+  "title": "Detection of Cloud Accounts",
+  "shortTitle": "Detection of Cloud Accounts",
+  "externalId": "DET0846",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the reconnaissance technique of identifying cloud accounts, where an adversary maps which cloud tenants an organization uses, which sign in endpoints are live, and which user names exist in that directory. It matters because it confirms which identity provider to attack and gives a target list for password guessing or consent phishing. The telemetry that makes detection possible is cloud provider audit logs for identity and policy read operations, identity provider sign in logs for failed authentication with valid and invalid user names, and network records for traffic to tenant discovery endpoints. The main failure mode is that enumeration tools deliberately stay slow and quiet, so short window thresholds miss the activity and long windows produce too much noise from ordinary administration.",
+  "tags": [
+    "cloud",
+    "reconnaissance",
+    "identity",
+    "enumeration",
+    "detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Cloud Accounts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0846/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Cloud Accounts - EASY",
+      "path": "exercises/det0846/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Cloud Accounts - MEDIUM",
+      "path": "exercises/det0846/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Cloud Accounts - HARD",
+      "path": "exercises/det0846/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Cloud Accounts - EXTREMELY HARD",
+      "path": "exercises/det0846/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone trying to discover which cloud accounts your company uses and which user names are real. A cloud account is a login for rented services. These services may be mail, file storage, or servers. The rule watches for many failed logins and many directory reads from one source. It also watches for tools that ask a provider whether a tenant exists.",
+    "whyItMatters": "Once an attacker knows your provider and your user names, guessing passwords becomes much easier. It also makes a fake login page far more believable. These lookups often happen days before any real break in. Seeing them early gives you time to harden sign in and to warn staff.",
+    "howItWorks": [
+      "The cloud provider writes an audit line for each identity or policy read operation.",
+      "The identity provider records each sign in attempt, including the user name tried and the result.",
+      "The rule groups these events by source address and by the number of distinct names used.",
+      "It also counts sign in attempts against user names that do not exist in your directory.",
+      "A detection tool for cloud tenant discovery leaves a trace in web proxy or firewall logs.",
+      "Many distinct names tried from one address in a short window raises an alert."
+    ],
+    "example": "Think of a hotel reception desk that keeps a guest list. A caller who asks whether twenty different people are staying tonight is not a normal caller. Someone checking one name is normal. The desk log shows the caller number and the names asked about, and that pattern is what the manager reviews.",
+    "takeaways": [
+      "Failed sign ins with real but random user names are a strong cloud discovery signal.",
+      "Provider audit logs catch directory and policy reads as well as sign ins.",
+      "Enumeration is usually slow, so thresholds must be tuned to catch persistence, not bursts."
+    ]
+  },
+  "objectives": [
+    "Define cloud account discovery and explain its role before an intrusion.",
+    "Identify provider audit and identity sign in records used for detection.",
+    "Write a rule that counts distinct user names tried from one source.",
+    "Separate password spray noise from deliberate directory enumeration.",
+    "Explain what tenant discovery tooling looks like in network logs."
+  ],
+  "techniqueId": "t1585-003",
+  "detectsTechniques": [
+    "t1585-003"
+  ],
+  "dataSources": [
+    "Cloud provider audit logs for account listing, policy read and identity describe operations with caller identity and source address",
+    "Identity provider sign in logs recording failed authentication attempts with the attempted user principal name and originating address",
+    "Web proxy logs showing requests to cloud tenant discovery or federation metadata endpoints",
+    "Network flow records for outbound traffic from internal hosts to cloud identity endpoints outside business hours"
+  ],
+  "logic": "The pattern is a source address producing many failed sign ins with different user names, or calling cloud account and policy read operations that no normal workload uses, or probing federation metadata for tenant names. The fields that must be correlated are the source address and its reputation, the count of distinct attempted user names, the number of distinct tenants or accounts touched, the calling application or user agent, and whether any attempt succeeded afterwards. The malicious case is a single external address trying dozens of plausible names with a steady rhythm and no successful sign in, followed later by one success. The benign case is a misconfigured mail client using one stale account, which repeats the same single name.",
+  "pseudoQuery": "# title: Cloud Account and Identity Enumeration From a Single Source\n# logsource:\n#   product: azure\n#   service: signinlogs\n# detection:\n#   selection:\n#     ResultType|contains: '50126'\n#     UserPrincipalName|endswith: '@example[.]com'\n#   condition: selection | count(distinct UserPrincipalName) by IPAddress > 20 within 30m\n# level: medium",
+  "falsePositives": [
+    "Identity migration projects that test sign in for many user names from a single automation host",
+    "Monitoring agents that probe tenant and federation endpoints on a fixed schedule from approved ranges",
+    "Shared devices or kiosks where several staff members mistype their own user names in one hour"
+  ],
+  "tuningNotes": "Baseline the number of distinct user names that each source range normally tries, then set the threshold above the normal peak and add filters for federation metadata readers, migration hosts, and approved monitoring ranges. Keep the count window long enough to survive slow enumeration, but track a rolling daily total as well so that very slow scans still surface. The coverage you lose is an attacker who spreads attempts across many addresses, so pair this rule with a rule that groups by the user names tried across all sources.",
+  "severity": "medium"
+}

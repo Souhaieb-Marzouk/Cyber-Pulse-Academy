@@ -1,0 +1,104 @@
+{
+  "id": "det0840",
+  "type": "detection",
+  "title": "Detection of Install Digital Certificate",
+  "shortTitle": "Detection of Install Digital Certificate",
+  "externalId": "DET0840",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the installation of digital certificates on systems the adversary controls and on victim endpoints, which supports the resource development technique of preparing a certificate for later use. It matters because a certificate gives a payload a trusted publisher name, so users and some security controls accept it more readily. The telemetry that makes it possible is certificate transparency logging, Windows certificate store events, and file creation or signature events on the endpoint. In practice it fails in two ways: certificates issued through a private or stolen key never appear in public logs, and certificate changes on workstations are common enough that unbaselined alerts are ignored.",
+  "tags": [
+    "certificate",
+    "resource development",
+    "code signing",
+    "windows",
+    "detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Install Digital Certificate",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0840/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Install Digital Certificate - EASY",
+      "path": "exercises/det0840/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Install Digital Certificate - MEDIUM",
+      "path": "exercises/det0840/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Install Digital Certificate - HARD",
+      "path": "exercises/det0840/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Install Digital Certificate - EXTREMELY HARD",
+      "path": "exercises/det0840/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection finds a digital certificate that is added to a computer. A digital certificate is a small file that proves software or a website is genuine. The rule looks at the moment the certificate is installed, not at the program that uses it. It catches both expected and unexpected installation.",
+    "whyItMatters": "A certificate makes a file look honest, so people trust it. Attackers want this because it helps their program run without questions. When you watch the installation, you can find the plan before the payload runs. It also helps you see which machine first received the new certificate.",
+    "howItWorks": [
+      "The endpoint agent watches the Windows certificate store and records each new entry.",
+      "Sysmon event 13 reports registry changes, so it can show a certificate written into the store.",
+      "The security information and event management system, or SIEM, collects these events into one place.",
+      "Certificate transparency logs are also collected when a public certificate names one of your domains.",
+      "The rule compares each new certificate with a baseline of known and approved publishers.",
+      "A certificate from an unknown issuer, or one outside a change window, raises an alert."
+    ],
+    "example": "Think of a building manager who keeps a binder of approved contractors. Each approved person has a badge, and the front desk writes down every new badge it makes. If a badge appears for a company nobody hired, the manager checks the paperwork straight away. The certificate store is that badge book, and each new entry is a badge that someone asked for.",
+    "takeaways": [
+      "Installing a certificate is an early step, so it can be seen before an attack runs.",
+      "The useful records are certificate store changes and certificate transparency logs.",
+      "A baseline of trusted publishers is what turns a list of events into an alert."
+    ]
+  },
+  "objectives": [
+    "Explain what a digital certificate is and why an attacker wants one.",
+    "List the telemetry sources that record a certificate installation.",
+    "Write a rule that flags a new certificate from an unexpected issuer.",
+    "Describe how certificate transparency logs help confirm public issuance.",
+    "Reduce false positives by baselining approved publishers and issuers."
+  ],
+  "techniqueId": "t1608-003",
+  "detectsTechniques": [
+    "t1608-003"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for the Windows certificate store keys under the system certificate path",
+    "Windows Security event 4688 process creation with command line auditing enabled, covering certificate import utilities",
+    "Certificate transparency logs collected for lookups that name organization owned domains",
+    "Antivirus or endpoint detection and response signature events that report a new or changed code signing certificate"
+  ],
+  "logic": "The pattern is a new value written into a certificate store or a new certificate observed in transparency logs for a name linked to the organization. The fields that must be correlated are the target key path, the certificate subject and issuer, the thumbprint, the user account, and the process that performed the import. The malicious case is a certificate with an issuer the organization does not use, a subject that copies a trusted brand, or an import on a host that has no software deployment activity. The benign case is a certificate that arrives with an approved software package, matches a known publisher, and happens inside a scheduled change window.",
+  "pseudoQuery": "# title: New Certificate Written Into the Local Certificate Store\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains:\n#       - '\\Microsoft\\SystemCertificates\\AuthRoot\\Certificates'\n#       - '\\Microsoft\\SystemCertificates\\CA\\Certificates'\n#   filter:\n#     Image|endswith:\n#       - '\\certutil.exe'\n#       - '\\msiexec.exe'\n#       - '\\TrustedInstaller.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Enterprise software deployment that installs the vendor code signing chain on every managed workstation",
+    "Information technology teams that rotate internal root certificates during a planned change window",
+    "Development workstations where engineers import self signed certificates for local testing"
+  ],
+  "tuningNotes": "First build a one month baseline of every certificate installation and record the issuers, subjects, and host groups that appear, then filter those known publishers inside the rule. Scope the alert to servers and standard user workstations and keep developer and build hosts in a separate, lower priority rule. Raise priority for certificates written outside the change window or on hosts that have no history of certificate changes. The coverage you lose is a quiet certificate installed inside an approved change window, so keep a weekly review of all new certificates even when no alert fires.",
+  "severity": "high"
+}

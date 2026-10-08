@@ -1,0 +1,107 @@
+{
+  "id": "det0394",
+  "type": "detection",
+  "title": "Web Shell Detection via Server Behavior and File Execution Chains",
+  "shortTitle": "Web Shell Detection via Server Behavior and File Executio...",
+  "externalId": "DET0394",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers web shells, which are small scripts an adversary places inside a web accessible directory so that the web server runs their commands on demand. Detection works best as a chain rather than a file match: a write into a served directory, followed by the web server or its scripting engine starting a child process, followed by outbound network activity from the same host. Telemetry comes from file monitoring on the document roots, process creation records that show the web service as a parent, and server and proxy logs that record the request path and any callback address. The strategy fails in practice when a web shell is written in the same language as the application, when the server process is expected to start interpreters, or when file writes in content managed folders are constant and unaudited.",
+  "tags": [
+    "persistence",
+    "web shell",
+    "linux",
+    "windows",
+    "web server",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Web Shell Detection via Server Behavior and File Execution Chains",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0394/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Web Shell Detection via Server Behavior and File Execution Chains - EASY",
+      "path": "exercises/det0394/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Web Shell Detection via Server Behavior and File Execution Chains - MEDIUM",
+      "path": "exercises/det0394/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Web Shell Detection via Server Behavior and File Execution Chains - HARD",
+      "path": "exercises/det0394/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Web Shell Detection via Server Behavior and File Execution Chains - EXTREMELY HARD",
+      "path": "exercises/det0394/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A web shell is a small script placed on a web server that lets an attacker run commands through the website. This detection looks for a new file in a public website folder and for the web server starting a program afterwards.",
+    "whyItMatters": "A web shell gives an attacker a doorway that survives restarts and looks like normal web traffic. The file may be only a few lines, so file scanning often passes it. Watching what the web server process does, not just the file, is what makes this detection work.",
+    "howItWorks": [
+      "File monitoring records every new file written inside a folder that the website serves.",
+      "The rule keeps writes to script file types in those folders and notes which process wrote them.",
+      "Process creation records show whether the web server later starts a shell or an interpreter.",
+      "Network records show outbound connections from that host to unfamiliar addresses.",
+      "A write plus a child process from the web service, or a callback, becomes one alert."
+    ],
+    "example": "Think of a shop with a letterbox in the door. New letters arrive all day, so nobody watches the slot. The alarm is not the letter, it is seeing the shop owner reach through the slot and open the till from the outside, using instructions written on one of those letters.",
+    "takeaways": [
+      "Match the chain of write, child process, and callback rather than the file alone.",
+      "A web server that starts a shell is abnormal on almost every host.",
+      "Keep content managed upload folders out of the alert path or the queue will never be empty."
+    ]
+  },
+  "objectives": [
+    "Explain why a web shell blends into normal web content and traffic",
+    "Identify the document root paths and script file types that matter on your web servers",
+    "Use process lineage from the web service account to detect command execution",
+    "Correlate a file write with an outbound connection to an unfamiliar address",
+    "Exclude legitimate upload and content management directories without losing server side coverage",
+    "Describe the containment steps to take once a web shell is confirmed"
+  ],
+  "techniqueId": "t1505-003",
+  "detectsTechniques": [
+    "t1505-003"
+  ],
+  "dataSources": [
+    "File integrity monitoring or Sysmon event 11 file creation for script files inside web document root directories",
+    "Sysmon event 1 or Windows Security event 4688 process creation where the parent image is a web server or application server process",
+    "Linux audit framework program execution records showing the web service account starting a shell or interpreter",
+    "Web server access logs with request path, response size, user agent, and source address for the served application",
+    "Proxy or firewall logs recording outbound connections from the web server host to external addresses"
+  ],
+  "logic": "The pattern is a web facing service that gains new executable content and then starts processes or opens connections it never had before. The rule matches file creation in a served directory for script file types, then correlates on the host and a short time window with process creation where the parent is the web server or application server process and the child is a shell, an interpreter, or a network utility. It adds confidence when the same host shows an outbound connection to an address that never appeared in its history, or when the web server account runs a command that reads or writes files outside the application tree. The benign case is a web application that legitimately shells out to a converter, an image library, or a version control client, or a content management system that writes uploads into a served folder. The malicious case is a small newly written script in a served folder followed within minutes by the web service account starting a shell with arguments that include a remote address.",
+  "pseudoQuery": "# title: Web Server Writes Script Then Starts Shell\n# logsource:\n#   product: linux\n#   service: file_event\n# detection:\n#   selection_file:\n#     TargetFilename|endswith:\n#       - '.php'\n#       - '.jsp'\n#       - '.aspx'\n#       - '.cgi'\n#   selection_process:\n#     ParentImage|endswith:\n#       - '/usr/sbin/apache2'\n#       - '/usr/sbin/nginx'\n#       - '/usr/bin/php-fpm'\n#   condition: selection_file and selection_process | count() by host > 1\n# level: high",
+  "falsePositives": [
+    "Content management systems and web applications that write generated script files into a served upload folder",
+    "Continuous deployment pipelines that publish application code directly into the document root over a network share",
+    "Web applications that legitimately run a converter, image tool, or version control client as a child process",
+    "Development or staging web servers where the application directory is edited interactively by engineers"
+  ],
+  "tuningNotes": "Map the document roots and the normal child processes of each web application first, then filter the known application to interpreter pairs, because web applications that legitimately call a converter will otherwise dominate the queue. Exclude upload and cache directories by path only after confirming the application does not execute content there, and keep the rule active for the application code tree. Raise severity when the write is immediately followed by a child process and an outbound connection, and keep a separate low severity rule for suspicious writes alone so you retain visibility when process telemetry is missing. Narrowing to script extensions loses coverage of a shell written as a configuration or text file that the application includes, so pair the rule with periodic review of new files in served directories.",
+  "severity": "critical"
+}

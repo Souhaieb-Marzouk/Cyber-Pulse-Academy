@@ -1,0 +1,106 @@
+{
+  "id": "det0582",
+  "type": "detection",
+  "title": "Detection Strategy for T1542.005 Pre-OS Boot: TFTP Boot",
+  "shortTitle": "Detection Strategy for T1542.005 Pre-OS Boot: TFTP Boot",
+  "externalId": "DET0582",
+  "theme": "Detection Strategy",
+  "summary": "This strategy addresses T1542.005, Pre-OS Boot through TFTP, in which an adversary changes firmware or boot loader settings so the machine retrieves its boot image from an attacker-controlled Trivial File Transfer Protocol (TFTP) server. The technique survives operating system reinstallation and typically bypasses endpoint agents, which are not yet running at boot time. Detection relies on network records of PXE boot traffic, Dynamic Host Configuration Protocol (DHCP) option data, firmware configuration change auditing, and measured boot attestation. The main practical problem is that legitimate network imaging is loud and frequent, so the rule must learn the approved imaging servers and their maintenance windows before it can alert.",
+  "tags": [
+    "persistence",
+    "pre-os boot",
+    "firmware",
+    "network",
+    "pxe"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1542.005 Pre-OS Boot: TFTP Boot",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0582/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1542.005 Pre-OS Boot: TFTP Boot - EASY",
+      "path": "exercises/det0582/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1542.005 Pre-OS Boot: TFTP Boot - MEDIUM",
+      "path": "exercises/det0582/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1542.005 Pre-OS Boot: TFTP Boot - HARD",
+      "path": "exercises/det0582/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1542.005 Pre-OS Boot: TFTP Boot - EXTREMELY HARD",
+      "path": "exercises/det0582/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Large fleets often start computers over the network instead of from a local disk. A small server sends the boot files, and the computer runs them. This detection watches for a computer that starts using an unapproved server. It catches tampering that happens before the operating system loads.",
+    "whyItMatters": "Security agents start with the operating system, so nothing is watching during boot. A changed boot source can load malicious firmware or a modified image. The change can survive a full disk wipe, which makes it very hard to remove. Seeing the new boot server early is often the only practical warning you get.",
+    "howItWorks": [
+      "The computer asks the network for a boot server using standard boot requests.",
+      "A network sensor or the server itself records the request and the server that answered.",
+      "The rule compares the answering server address against your approved imaging servers.",
+      "It also compares the time of the request against your planned maintenance windows.",
+      "Firmware change records and secure boot measurements are checked for the same host.",
+      "A boot from an unapproved server outside the window raises a high severity alert."
+    ],
+    "example": "Imagine a building where every morning the doorman hands out the day's work schedule. Staff simply take the sheet and start work. One day a stranger stands where the doorman usually stands and hands out a slightly different sheet. Nothing looks broken, and work continues. Only a manager who checks the printed address at the bottom of the page notices the change.",
+    "takeaways": [
+      "Nothing on the endpoint is running during boot, so network and firmware records are your only evidence.",
+      "Approved imaging servers and maintenance windows are the two facts that make this rule usable.",
+      "A boot source change can survive a disk wipe, so treat a confirmed alert as a rebuild, not a cleanup."
+    ]
+  },
+  "objectives": [
+    "Describe what pre-boot network booting is and why it sits outside normal endpoint visibility",
+    "List the network records that reveal which server supplied boot files to a host",
+    "Compare observed boot servers against an approved imaging inventory",
+    "Explain how firmware configuration auditing and measured boot records add confirmation",
+    "Plan a response that accounts for persistence surviving an operating system reinstall"
+  ],
+  "techniqueId": "t1542-005",
+  "detectsTechniques": [
+    "t1542-005"
+  ],
+  "dataSources": [
+    "Trivial File Transfer Protocol (TFTP) server logs recording client address, requested filename, and transfer size",
+    "Dynamic Host Configuration Protocol (DHCP) or proxy DHCP server logs showing boot server and boot filename options per client",
+    "Network flow records for outbound UDP port 69 traffic from workstation subnets",
+    "Firmware configuration change events from the platform management interface audit log",
+    "Measured boot or trusted platform module attestation results reported by the endpoint agent"
+  ],
+  "logic": "The pattern is a host retrieving boot files from a source that is not an approved imaging server, or outside the change window when imaging is allowed. The rule joins the client address from DHCP or proxy DHCP logs with the TFTP server address and requested boot filename from transfer logs, then compares that server against the published imaging inventory and the request time against the maintenance calendar. The malicious case shows a boot request answered by an unmanaged address, often a host on the same subnet as the victim rather than the data centre imaging server, and sometimes repeated across several machines. The benign case shows a scheduled reimage from a known server during an approved window.",
+  "pseudoQuery": "# title: Network Boot Served from Unapproved TFTP Server\n# logsource:\n#   product: network\n#   service: tftp\n# detection:\n#   selection:\n#     EventType: 'FileTransfer'\n#     Direction: 'outbound'\n#   filter_imaging:\n#     ServerIP:\n#       - '10[.]20[.]0[.]11'\n#       - '10[.]20[.]0[.]12'\n#   condition: selection and not filter_imaging\n# level: high",
+  "falsePositives": [
+    "Disaster recovery testing that temporarily boots hosts from an alternate site imaging server",
+    "Hardware vendor field engineers using a local boot server for firmware updates on newly delivered machines",
+    "Lab and training environments where students boot thin clients from a classroom server",
+    "Network hardware and appliances that use trivial file transfer for their own configuration backup"
+  ],
+  "tuningNotes": "Publish and monitor an explicit inventory of approved boot and imaging servers, including their subnet ranges, then exclude only those addresses rather than excluding whole subnets, which would hide a rogue server placed inside the data centre. Add a time condition so that transfers outside the documented imaging window alert at a higher severity than in-window transfers. Scope the rule to managed workstation subnets. Narrowing with the address list costs you detection of a rogue server hosted on an approved address after compromise, so pair this rule with firmware audit review on any host that reports an unexpected boot source.",
+  "severity": "high"
+}

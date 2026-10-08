@@ -1,0 +1,108 @@
+{
+  "id": "det0079",
+  "type": "detection",
+  "title": "Detection of Remote Service Session Hijacking",
+  "shortTitle": "Detection of Remote Service Session Hijacking",
+  "externalId": "DET0079",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets session takeover on remote access services, where an operator reuses, hijacks or rides an existing connection rather than creating a new authenticated one. It matters because the usual access alerts key on new authentication, and a hijacked session produces no new credential use at all, so the operator inherits the victim permissions, the victim desktop state and any cached credentials already unlocked in that session. The telemetry that makes it visible is the remote session service operational log that records session identifiers, connection, reconnection and disconnection state, the security log that records the interactive and network logon types with source addresses, and network flow data that links a session to the client address that currently holds it. The reliable pattern is one session identifier associated with two different source addresses, or a session reconnecting from an address that never authenticated for it, inside a short window. It fails in practice because remote access infrastructure is complex: brokers, jump hosts and gateways rewrite source addresses, so the rule must be scoped to sessions that should be pinned to one client before it can avoid constant false alerts.",
+  "tags": [
+    "session hijacking",
+    "remote access",
+    "rdp",
+    "lateral movement",
+    "windows",
+    "network monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Remote Service Session Hijacking",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0079/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Remote Service Session Hijacking - EASY",
+      "path": "exercises/det0079/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Remote Service Session Hijacking - MEDIUM",
+      "path": "exercises/det0079/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Remote Service Session Hijacking - HARD",
+      "path": "exercises/det0079/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Remote Service Session Hijacking - EXTREMELY HARD",
+      "path": "exercises/det0079/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Remote access services let you control another computer over the network. A session is one active connection. This detection looks for a session that seems to be in two places at once. It also looks for a session taken over by a different machine.",
+    "whyItMatters": "When an attacker takes over an open session, nobody signs in again. Many alarms only watch sign ins, so they stay silent. The attacker also gets whatever the real user had already unlocked. That makes this one of the quietest ways to gain control of a server.",
+    "howItWorks": [
+      "The remote access service writes a record when a session connects or ends.",
+      "Each record carries a session number, the account and the client address.",
+      "The security log supplies the sign in type and the address for that session.",
+      "Network flow records show which client address holds the connection now.",
+      "The detection groups all of this by session number and compares the addresses.",
+      "One session number seen from two addresses raises the alert."
+    ],
+    "example": "Think of a hotel room key card. The front desk logs each card and the room it opens. One evening the same card number opens a room on the fourth floor. A minute later the same card opens a room on the tenth floor. The guest never asked for a second card, and no new guest checked in.",
+    "takeaways": [
+      "A hijacked session creates no new sign in, so sign in alarms miss it.",
+      "Follow the session number and the client address to spot a takeover.",
+      "Know which gateways rewrite addresses, or every reconnect will look malicious."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between authenticating for a new session and taking over an existing one.",
+    "Identify the session service and security log fields that describe who owns a session.",
+    "Correlate session identifiers with logon types and source addresses to spot a conflicting owner.",
+    "Account for session brokers and gateways that legitimately change the apparent client address.",
+    "Describe triage and containment steps for a suspected session takeover, including session termination."
+  ],
+  "techniqueId": "t1563",
+  "detectsTechniques": [
+    "t1563"
+  ],
+  "dataSources": [
+    "Remote desktop services operational log entries for session connection, reconnection, disconnection and session identifier",
+    "Windows Security event 4624 logon records with logon type and source network address for interactive and remote interactive logons",
+    "Windows Security event 4778 and 4779 session reconnection and disconnection records naming the account and session",
+    "Network flow or gateway records mapping a client address to a remote access session at a point in time",
+    "Remote access gateway and broker logs showing how a client address was translated before reaching the target host"
+  ],
+  "logic": "Group remote access records by session identifier and alert when that identifier is associated with more than one client address in a short interval, or when a reconnection arrives from an address that has no matching authentication record for the account. The correlated fields are the session identifier, the account name, the logon type, the source address from the security log, and the connection state and timestamp from the session service log. Benign causes include remote desktop brokers, jump hosts and gateways that rewrite addresses, wireless roaming on the client side, and dual stack clients that switch between address families on reconnect. What distinguishes the hostile case is a session that stays owned by the original client at the same time, a reconnect from an address in a different network range without any preceding authentication, and process or file activity in that session for pages or directories the account has never touched. Weight the alert by whether the target is a server with administrative rights and by whether the second address belongs to the corporate estate at all.",
+  "pseudoQuery": "# title: Remote Session Identifier Owned By Two Client Addresses\n# logsource:\n#   product: windows\n#   service: terminal-services\n# detection:\n#   session_event:\n#     EventID:\n#       - 4778\n#       - 4779\n#   conflicting_owner:\n#     condition: count(distinct IpAddress) by SessionName > 1 within 10m\n#   filter_broker:\n#     IpAddress|cidr: '10[.]10[.]0[.]0/16'\n#   condition: session_event and conflicting_owner and not filter_broker\n# level: high",
+  "falsePositives": [
+    "Remote desktop broker or jump host deployments where the gateway address changes while the user session stays alive",
+    "Users who roam between wireless networks on a laptop and reconnect to the same server session from a new address",
+    "Dual stack clients that reconnect over a different address family after a brief network interruption",
+    "Support engineers who shadow an active session to help a user while the original session remains connected",
+    "Load balanced remote access farms where a reconnect lands on a different node and appears under a new source address"
+  ],
+  "tuningNotes": "Start by documenting every component that can rewrite or front a remote session, including brokers, gateways, virtual desktop infrastructure and network address translation, and exclude those address ranges as owners rather than excluding the hosts. Pin sessions to a client address only for services where that assumption is true, such as direct remote desktop access to a server subnet, and leave brokered access in a low severity lane. Baseline how often reconnections happen outside of business hours and outside maintenance windows, because that combination is where an alert earns attention. Keep the account and session identifier in the alert so triage can immediately see whether the two addresses belong to the same person in the asset inventory. The coverage you lose by excluding broker ranges is a hijack performed from inside that range, so pair this rule with monitoring for unusual process or file activity inside remote sessions and with alerts on new inbound access paths to the server subnet.",
+  "severity": "high"
+}

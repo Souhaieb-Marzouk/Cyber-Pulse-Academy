@@ -1,0 +1,108 @@
+{
+  "id": "det0595",
+  "type": "detection",
+  "title": "Detection Strategy for Exploitation for Stealth",
+  "shortTitle": "Detection Strategy for Exploitation for Stealth",
+  "externalId": "DET0595",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers exploitation for stealth, ATT&CK technique T1211, where an adversary runs a crafted input against a vulnerable application in order to obtain code execution while leaving no file on disk and touching only a service that is expected to be busy. Detection cannot rely on payload signatures, because there may be no payload file at all. Instead it correlates three weaker signals: an application that crashes or restarts unexpectedly, a child process or unexpected library load that appears under a service that should never spawn one, and a burst of malformed or oversized requests hitting one service from a single source. Each signal alone is unremarkable, which is exactly why the technique works; the value comes from joining them in a short window on the same host. The strategy degrades badly on hosts where the service already spawns helper processes by design, and on applications that crash routinely, so baselining process parentage per service is the main prerequisite.",
+  "tags": [
+    "t1211",
+    "exploitation",
+    "defense evasion",
+    "process creation",
+    "service crash",
+    "fileless"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exploitation for Stealth",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0595/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exploitation for Stealth - EASY",
+      "path": "exercises/det0595/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Stealth - MEDIUM",
+      "path": "exercises/det0595/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Stealth - HARD",
+      "path": "exercises/det0595/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Stealth - EXTREMELY HARD",
+      "path": "exercises/det0595/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Some attackers do not bring a program with them. They send a specially shaped request to a service that is already running. The service then starts doing what the attacker wants. This detection looks for the side effects. It looks for a service that crashes, a strange child program, and a flood of odd requests.",
+    "whyItMatters": "File scanning cannot find a file that does not exist. If an attacker only abuses a running service, classic antivirus review may show nothing at all. The service also already has permission to do useful things, so the attacker inherits that trust. Crashes are often dismissed as bugs and closed without investigation. This detection turns those dismissed events into a pattern that someone can review with the surrounding context.",
+    "howItWorks": [
+      "The endpoint agent records every new process, including its parent program and full command line.",
+      "The rule knows which parent programs normally start child processes, based on a baseline per service.",
+      "It also collects application error and crash reports, plus service restart records.",
+      "Network or host based sensors count malformed or oversized requests aimed at the same service.",
+      "The rule joins these streams by host and time. A crash, an odd child process and a request burst together form one alert.",
+      "A single item on its own stays at a low level so it does not drown the queue."
+    ],
+    "example": "Picture a hospital sign in sheet at a ward desk. Visitors must give a name and the patient they are seeing. Now imagine nobody stopped writing when a visitor walked into a staff only medicine room. The sheet still looks normal. What gives it away is a combination of clues. An alarm sounded on the medicine room door. A nurse saw a stranger. The ward camera showed a burst of activity. No single clue proves anything. Together they tell a clear story. This detection joins the clues the same way.",
+    "takeaways": [
+      "When no file is dropped, you must detect behaviour instead of content.",
+      "Crashes and restarts are evidence, not just maintenance noise, when they line up with other signals.",
+      "You need a baseline of which program may start which child process, or the alert list will be full of normal helpers."
+    ]
+  },
+  "objectives": [
+    "Explain why exploitation without a dropped file defeats content based detection",
+    "Describe the side effects that exploitation of a running service tends to leave behind",
+    "Baseline normal parent and child process relationships for the services on each host group",
+    "Correlate application crash, service restart and request anomaly telemetry on the same host",
+    "Explain why each single signal is weak and how joining them reduces false alerts",
+    "Escalate a suspected exploitation alert into host isolation and memory review steps"
+  ],
+  "techniqueId": "t1211",
+  "detectsTechniques": [
+    "t1211"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, image path and full command line",
+    "Sysmon event 7 image load records showing unexpected libraries loaded into a long running service process",
+    "Windows Application event log entries recording application faults and service control manager entries recording unexpected service termination",
+    "Linux kernel and systemd journal records for segmentation faults, core dumps and unit restarts",
+    "Web server, database or reverse proxy access logs containing request size, status code and client address for the affected service"
+  ],
+  "logic": "The rule looks for a short sequence of related events on one host rather than a single indicator. It starts from an application fault, unexpected service restart or crash record, then asks whether the same service process spawned a child process, loaded a library, or opened a network connection that its baseline says it never does. The fields that must be correlated are the host, the time window, the parent process image and identifier, and the child image or library path; on the network side, the client address and the request pattern within the same window. The benign case is a service that is documented to spawn helpers, a scheduled maintenance restart, or a known bug that produces the same fault every day. The malicious case is an unprecedented parent and child pair, a child process whose image sits in a writable directory, or a crash immediately followed by a shell or script interpreter starting under the service account.",
+  "pseudoQuery": "# title: Unexpected Child Process Or Library Load Following Service Crash\n# logsource:\n#   product: windows\n# detection:\n#   selection_child:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\\\w3wp.exe'\n#       - '\\\\httpd.exe'\n#     Image|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\powershell.exe'\n#       - '\\\\sh.exe'\n#   selection_crash:\n#     EventID: 1000\n#   filter_baseline:\n#     ParentImage|endswith:\n#       - '\\\\scheduledsvc.exe'\n#   condition: selection_child and selection_crash and not filter_baseline\n# level: high",
+  "falsePositives": [
+    "Web or application servers that legitimately start script interpreters or worker helper processes as part of their normal request handling",
+    "Known application bugs that produce a repeating crash signature on a fixed schedule and are already tracked by the operations team",
+    "Scheduled maintenance restarts and patch cycles that stop and start services and briefly change their process behaviour",
+    "Software deployment or diagnostic tooling that loads additional libraries into a running service under a change ticket"
+  ],
+  "tuningNotes": "Baseline parent and child process relationships per service and per host group before enabling the rule, and store that baseline as data rather than as hard coded exclusions, because the approved helper processes differ between platforms and even between versions. Add filters for the services that are documented to spawn interpreters, and for the crash signatures that operations has already accepted. Scope the first release to internet facing hosts, where request anomalies are meaningful, and leave internal hosts at a lower level until the baseline is stable. Narrowing by parent image costs you visibility into exploitation of less common services, so keep a lower severity companion rule that alerts on any first seen parent and child pair across the estate.",
+  "severity": "high"
+}

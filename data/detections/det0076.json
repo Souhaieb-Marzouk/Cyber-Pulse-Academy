@@ -1,0 +1,108 @@
+{
+  "id": "det0076",
+  "type": "detection",
+  "title": "Behavioral Detection of Visual Basic Execution (VBS/VBA/VBScript)",
+  "shortTitle": "Behavioral Detection of Visual Basic Execution (VBS/VBA/V...",
+  "externalId": "DET0076",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers execution through the Visual Basic family of interpreters, which includes the standalone Windows script hosts and the scripting engine embedded in Office documents. It matters because the interpreter is a signed, trusted component that is already installed everywhere, so running code through it avoids dropping an unfamiliar binary and often bypasses controls that only allow signed programs. The telemetry that makes it visible is process creation with full command lines and parent lineage, script engine events that identify the script file, and the file and network activity the interpreter produces in the seconds after it starts. The strongest pattern is a scripting engine whose parent is a document reader, a browser or a mail client, or a script launched from a temporary or user writable directory with an obfuscated argument list. It fails in practice for a mundane reason: Visual Basic scripts run constantly for real business tasks such as logon mappings, software packaging and internal automation, so parent lineage and file location carry far more signal than the interpreter name does.",
+  "tags": [
+    "scripting",
+    "visual basic",
+    "command and control",
+    "windows",
+    "sysmon",
+    "office"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Visual Basic Execution (VBS/VBA/VBScript)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0076/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Visual Basic Execution (VBS/VBA/VBScript) - EASY",
+      "path": "exercises/det0076/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Visual Basic Execution (VBS/VBA/VBScript) - MEDIUM",
+      "path": "exercises/det0076/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Visual Basic Execution (VBS/VBA/VBScript) - HARD",
+      "path": "exercises/det0076/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Visual Basic Execution (VBS/VBA/VBScript) - EXTREMELY HARD",
+      "path": "exercises/det0076/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Visual Basic is a simple language built into Windows. Files written in it end with names such as vbs or vba. This detection looks for those scripts being run. It pays extra attention to which program started them and where the file came from.",
+    "whyItMatters": "The program that runs these scripts is on every Windows computer already. The system trusts it, so it is not treated as new software. An attacker can use it instead of bringing their own tool. Scripts can also hide inside ordinary documents, which users open every day.",
+    "howItWorks": [
+      "A host sensor records each new process, its parent process and the full command line.",
+      "The detection notes when that program is a Visual Basic script host or an Office program.",
+      "It checks the parent of the script host. A document reader rarely starts a script.",
+      "It records where the script file sits. Temporary and download folders are unusual places.",
+      "Network and file events after the start show what the script did.",
+      "Known automation accounts and approved script folders are moved to a quiet lane."
+    ],
+    "example": "Think of a building with a standard key that opens the front door. Every staff member carries one, so nobody questions seeing it. A visitor borrows that key and opens a side room. The visitor leaves a note for the next visitor. The key was never suspicious. The question that matters is why a visitor held it.",
+    "takeaways": [
+      "A trusted built in interpreter is attractive because it never looks like new software.",
+      "Check the parent process and the script location, not just the interpreter name.",
+      "List the scripts your business really runs, or every alert will look the same."
+    ]
+  },
+  "objectives": [
+    "Explain why interpreter based execution avoids many binary focused controls.",
+    "Identify the parent child relationships that separate document driven script execution from administration.",
+    "Evaluate script file location and command line obfuscation as risk factors.",
+    "Correlate the interpreter process with the file and network activity that follows it.",
+    "Build an allow list of approved automation scripts and accounts to reduce noise."
+  ],
+  "techniqueId": "t1059-005",
+  "detectsTechniques": [
+    "t1059-005"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, parent command line, image path and current directory",
+    "Windows Security event 4688 process creation with command line auditing and creator process id",
+    "Sysmon event 11 file creation showing scripts written to temporary, download or user profile directories",
+    "Sysmon event 3 network connection showing the process that opened an outbound connection and its destination",
+    "Office application event logs recording document open plus macro or active content warnings"
+  ],
+  "logic": "Alert when a Visual Basic interpreter runs a script from a temporary, download or user profile directory, or when its parent is a document reader, browser or mail client, and weight the case by what happens next. The fields to correlate are the interpreter image, its parent image, the command line arguments including any script path, the account, and any outbound network connection or child process created within the following minute. Benign activity is dominated by management scripts: a stable parent such as a deployment service, a script path inside a version controlled or administrative share, a service account, and the same behaviour repeated across the fleet. Malicious activity typically shows a single host, a user account, a script whose name imitates a system file, arguments that are encoded or built from string concatenation, and either an immediate download or a child process that is a system utility. Treat a document parent as the highest value combination, because that is the chain that turns a file the user opened into code execution.",
+  "pseudoQuery": "# title: Visual Basic Script Executed From User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   vb_interpreter:\n#     Image|endswith:\n#       - '\\\\wscript.exe'\n#       - '\\\\cscript.exe'\n#   suspicious_parent:\n#     ParentImage|endswith:\n#       - '\\\\winword.exe'\n#       - '\\\\outlook.exe'\n#   suspicious_path:\n#     CommandLine|contains:\n#       - '\\\\AppData\\\\'\n#       - '\\\\Temp\\\\'\n#   condition: vb_interpreter and (suspicious_parent or suspicious_path)\n# level: high",
+  "falsePositives": [
+    "Logon and mapping scripts delivered from a managed script share and running under a service account",
+    "Software packaging and deployment tools that execute Visual Basic scripts to configure applications on many hosts",
+    "Finance and operations teams running approved spreadsheet automation that uses macros with external data connections",
+    "Administrators running diagnostic or inventory scripts from their own profile during troubleshooting",
+    "Legacy line of business applications whose installer or updater is written as a Visual Basic script"
+  ],
+  "tuningNotes": "Treat the interpreter as neutral and build the rule from parent lineage, script location and post execution behaviour, then maintain an allow list of approved script directories, script names and the accounts that run them. Baseline script executions per day per host so that a normally quiet server running a script host at midnight stands out, which is a stronger signal than volume on a developer laptop. Exclude signed deployment tooling by parent image and publisher where your sensor provides that field, and exclude the version controlled management share by path. Where the business truly depends on document macros, tune to the parent and the document source rather than blocking the interpreter, and alert on macros in documents arriving from the internet or from removable media. Narrowing this way leaves a gap for an attacker who reuses an approved script path or an approved automation account, so pair the rule with content monitoring of those approved directories and with egress alerts for script hosts.",
+  "severity": "medium"
+}

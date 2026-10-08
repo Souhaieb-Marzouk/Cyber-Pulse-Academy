@@ -1,0 +1,108 @@
+{
+  "id": "det0237",
+  "type": "detection",
+  "title": "Detection Strategy for Boot or Logon Initialization Scripts: RC Scripts",
+  "shortTitle": "Detection Strategy for Boot or Logon Initialization Scrip...",
+  "externalId": "DET0237",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence through shell initialisation scripts, tracked as ATT&CK T1037.004, where an adversary appends commands to the per user or system wide run control files that a shell reads when an account logs in or opens a terminal. It matters because these files are plain text, they are read by the login shell with the privileges of the account that owns them, and a single appended line survives reboots and reconnects while generating almost no visible process activity at the moment it is written; on macOS the same mechanism applies through the login shell and the system wide shell resource files. The telemetry that makes it detectable is file integrity or audit monitoring on the shell configuration paths, process creation events showing a shell or a script interpreter writing to those files, and authentication records that tie the modification to a specific login session and source address. The main failure mode is that package managers, user profile tools, and developers themselves modify these files legitimately and often, so the rule must weigh who changed the file, from where, and whether the added content launches something from a temporary or user writable path.",
+  "tags": [
+    "linux",
+    "macos",
+    "persistence",
+    "shell profile",
+    "file integrity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Boot or Logon Initialization Scripts: RC Scripts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0237/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Boot or Logon Initialization Scripts: RC Scripts - EASY",
+      "path": "exercises/det0237/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Boot or Logon Initialization Scripts: RC Scripts - MEDIUM",
+      "path": "exercises/det0237/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Boot or Logon Initialization Scripts: RC Scripts - HARD",
+      "path": "exercises/det0237/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Boot or Logon Initialization Scripts: RC Scripts - EXTREMELY HARD",
+      "path": "exercises/det0237/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the small configuration files that your command shell reads at login. A shell is the text window where you type commands. These files can hold settings and shortcuts, and they run automatically each time you log in. An attacker who adds one line to such a file gains quiet access that returns after every restart.",
+    "whyItMatters": "The change is invisible while it happens, because no new program starts at that moment. The code runs later, as part of a normal login, so it looks like ordinary activity. These files belong to individual users, so a single compromised account is enough. Removing the line requires knowing it was added, which is exactly what this detection provides.",
+    "howItWorks": [
+      "The file monitoring service records every change to the shell configuration files.",
+      "The rule checks who made the change and from which program.",
+      "It reads the new content and looks for a command that starts another program.",
+      "It records the login session and the address the user came from.",
+      "Changes made by package installers or your management tools are treated as normal.",
+      "An alert fires when a shell or script added a command that reaches outside normal paths."
+    ],
+    "example": "Think of a coat hook by the staff entrance. Most people hang a coat and leave. Hanging a spare key there means the key is picked up every morning. Nobody notices the first time it was placed.",
+    "takeaways": [
+      "Login scripts run automatically, so a single added line is lasting access.",
+      "The important evidence is who changed the file and what command was added.",
+      "Legitimate tools edit these files, so judge the source of the change."
+    ]
+  },
+  "objectives": [
+    "List the shell initialisation files that execute at login on Linux and macOS",
+    "Configure auditd or a file integrity monitor to capture changes to those paths",
+    "Detect writes to shell configuration performed by a shell or script interpreter",
+    "Read new file content to identify commands that fetch or execute remote content",
+    "Separate legitimate package and profile tooling changes from malicious ones",
+    "Remove a confirmed persistence line and assess what else ran under that account"
+  ],
+  "techniqueId": "t1037-004",
+  "detectsTechniques": [
+    "t1037-004"
+  ],
+  "dataSources": [
+    "Linux auditd file watch events on home directory shell configuration files and the system wide profile directories",
+    "macOS file integrity or unified log events recording modification of the user shell resource files",
+    "Linux auditd execve records with the command line of the process that wrote the configuration file",
+    "Authentication records showing the login session, account and source address active at modification time",
+    "File integrity monitoring baseline with content hashes for shell configuration files on each host class"
+  ],
+  "logic": "The detection flags a modification to a shell initialisation file where the writing process is a shell, a script interpreter, a network facing service, or a text editing action performed by a service account, and where the added content starts or downloads another program or points at a temporary, home, or shared directory. The fields that must be correlated are the file path and owner, the changed content, the process that wrote the file with its parent and effective user, the login session or source address associated with that time, and whether the host is a server where interactive profile changes are rare. Benign cases are package installations that append environment lines as root from the package manager, configuration management runs from an agent with a stable pattern, and developers editing their own profile interactively from an editor, while malicious persistence usually shows a write from a non interactive source such as a web service account, a command that fetches content over the network, a copy of a system binary or interpreter launched from a hidden directory, and a short gap between a suspicious login and the file change.",
+  "pseudoQuery": "# title: Shell Profile Modified by a Process\n# logsource:\n#   product: linux\n# detection:\n#   selection_file:\n#     type: 'WRITE'\n#     name|endswith:\n#       - '/.bashrc'\n#       - '/.profile'\n#       - '/.zshrc'\n#       - '/etc/profile'\n#   filter_tools:\n#     exe|endswith:\n#       - '/dpkg'\n#       - '/apt'\n#       - '/yum'\n#       - '/vim'\n#       - '/nano'\n#   condition: selection_file and not filter_tools\n# level: medium",
+  "falsePositives": [
+    "Developer environment setup scripts that append tool paths and aliases to a personal profile during onboarding",
+    "Version control or language package managers that add an environment line to the profile as root on install",
+    "Operations automation that standardises the system wide profile across a fleet through a configuration management run",
+    "Terminal multiplexer or remote access tools that write a startup line the first time a user connects",
+    "Backup restore operations that overwrite a profile file with its previous content from an archive"
+  ],
+  "tuningNotes": "Record the hash of each shell configuration file on your golden images, then alert only on files whose content differs from the image baseline or from the configuration management expected state, which removes almost all package and onboarding noise. Keep the security relevant detail in the alert by capturing the added lines rather than only the file path, and prioritise writes performed by service accounts or network facing processes, since those should never touch interactive profiles. Scope the high severity tier to servers and to accounts with elevated privileges, and keep workstations at lower severity because developers change their own profiles constantly. The coverage you lose by trusting the configuration management baseline is an attacker who modifies the profile in a way the agent later overwrites, so monitor agent failures and host exclusions as a separate integrity check.",
+  "severity": "medium"
+}

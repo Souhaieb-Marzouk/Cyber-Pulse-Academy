@@ -1,0 +1,108 @@
+{
+  "id": "det0596",
+  "type": "detection",
+  "title": "Behavioral Detection of Remote SSH Logins Followed by Post-Login Execution",
+  "shortTitle": "Behavioral Detection of Remote SSH Logins Followed by Pos...",
+  "externalId": "DET0596",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects remote interactive logins over the secure shell protocol followed by execution on the target host, which ATT&CK tracks as T1021.004. The secure shell daemon produces clean authentication records, but the interesting behaviour is what happens after a successful login, so the detection joins two streams: the authentication event with its source address, account and authentication method, and the process or command execution records that follow within the same login session. The pattern of concern is a valid account logging in from an address or at an hour it has never used, immediately running a shell, an interpreter, a download utility or a command that touches credentials or scheduled tasks. The benign cases are automation accounts running scheduled jobs, configuration management agents, backup transports and administrators working from jump hosts. The strategy fails in two common ways: session correlation is impossible when the audit configuration does not record the terminal or session identifier, and the source address is meaningless when the fleet is reached through a bastion host that hides the true origin.",
+  "tags": [
+    "t1021.004",
+    "ssh",
+    "remote services",
+    "linux",
+    "authentication",
+    "lateral movement"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Remote SSH Logins Followed by Post-Login Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0596/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Remote SSH Logins Followed by Post-Login Execution - EASY",
+      "path": "exercises/det0596/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Remote SSH Logins Followed by Post-Login Execution - MEDIUM",
+      "path": "exercises/det0596/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Remote SSH Logins Followed by Post-Login Execution - HARD",
+      "path": "exercises/det0596/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Remote SSH Logins Followed by Post-Login Execution - EXTREMELY HARD",
+      "path": "exercises/det0596/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Secure shell, usually shortened to SSH, is the standard way to log in to a Linux server. It works from another computer over the network. This detection looks at two things together. It looks at who logged in over SSH. It also looks at what ran immediately afterwards. A login on its own is normal. A login followed by unusual commands from an unknown address is what matters.",
+    "whyItMatters": "Most servers allow many logins every day, so watching logins alone produces an unreadable alert list. But once an attacker has one valid account, they use it to run their tools. Those tools need a command to start. By joining the login record to the command record, you can see the whole first minute of a session. That short window often separates a routine job from someone exploring a server they should not be on.",
+    "howItWorks": [
+      "The SSH service writes a log line for each successful login. It records the account name, the source address and the authentication method.",
+      "The audit service or process accounting records each command that runs, with a session or terminal identifier.",
+      "The rule groups both kinds of record by host, account and session identifier.",
+      "It keeps sessions where a command runs within a short time of the login.",
+      "It compares the source address and the account with the learned history for that host.",
+      "Sessions that use a new address and run unexpected commands are raised for review."
+    ],
+    "example": "Think of a staff car park with a barrier and a key card. The barrier log shows every card used at every minute. That log alone tells you very little, because hundreds of staff drive in each day. But if the barrier log is placed next to the office door log, a pattern appears. A card enters the car park at three in the morning and opens the finance office two minutes later. Neither log is alarming alone. Together they point to one person and one room. This detection places two logs side by side in the same way.",
+    "takeaways": [
+      "Logins are common, so the signal comes from the commands that follow them.",
+      "You need a session identifier to connect a login to the commands it started.",
+      "Learn the normal source address for each account, because a new address is often the first clue."
+    ]
+  },
+  "objectives": [
+    "Describe how the secure shell service and the audit service record a remote session",
+    "Correlate an authentication event with the commands executed inside the same session",
+    "Identify the fields that link a login to later process activity on a Linux host",
+    "Recognise the automation, backup and configuration management accounts that behave like this legitimately",
+    "Detect a valid account used from an unusual source address or at an unusual hour",
+    "Assess the risk of a suspected compromised account and decide on containment"
+  ],
+  "techniqueId": "t1021-004",
+  "detectsTechniques": [
+    "t1021-004"
+  ],
+  "dataSources": [
+    "Secure shell daemon authentication log entries recording the account, source address, port and authentication method for accepted logins",
+    "Linux auditd execve records including the session identifier, account, executable path and full command line",
+    "Linux process accounting or endpoint agent process creation telemetry carrying the parent process and command line",
+    "Systemd journal entries for the session and service units started after authentication",
+    "Configuration management or job scheduler inventory used as a baseline of expected automated logins per host"
+  ],
+  "logic": "The detection requires two events joined on host, account and session. The first is an accepted secure shell authentication that carries the source address, the account name, the authentication method such as public key or password, and the terminal or session identifier. The second is command execution inside that same session within a short window, recorded either by the audit service or by process accounting. The malicious pattern is a session whose source address, account or hour has not been seen for that host, immediately followed by execution of a shell, a script interpreter, a file transfer utility or a command that reads credential files or changes scheduled tasks. The benign case is a known automation account from a fixed management address running the same small command set every day, or an administrator arriving from a documented bastion host during working hours. The decisive differences are the novelty of the source address and the nature of the first commands rather than the login itself.",
+  "pseudoQuery": "# title: Remote SSH Login Followed By Unusual Command Execution In Session\n# logsource:\n#   product: linux\n# detection:\n#   selection_login:\n#     service: sshd\n#     action: accepted\n#   selection_exec:\n#     type: EXECVE\n#     exe|endswith:\n#       - '/bin/sh'\n#       - '/bin/bash'\n#       - '/usr/bin/curl'\n#       - '/usr/bin/wget'\n#   filter_automation:\n#     acct|endswith:\n#       - '-deploy'\n#       - '-backup'\n#   condition: selection_login and selection_exec and not filter_automation\n# level: medium",
+  "falsePositives": [
+    "Configuration management agents that log in over secure shell with a service account and run a fixed command set every few minutes",
+    "Backup and file transfer jobs using key based authentication from a documented backup server",
+    "Batch scheduling accounts that run overnight data processing scripts from a central controller",
+    "Administrators working from an approved bastion host outside business hours during an incident bridge or planned maintenance"
+  ],
+  "tuningNotes": "Start by grouping automation accounts by host and learning their normal command set and source address, then filter those pairs explicitly with the account name and the management address rather than by suppressing the whole account. Require the audit configuration to log the session identifier, because without it the correlation produces either nothing or a flood. Scope the first version to hosts that should never accept interactive human logins, such as database and container nodes, and leave general purpose build servers at a lower severity while the baseline settles. Excluding known automation costs you visibility into a compromised automation account, so add a companion rule that alerts when an automation account runs a command outside its learned set or attempts an outbound network connection.",
+  "severity": "medium"
+}

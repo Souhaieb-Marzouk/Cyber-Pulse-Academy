@@ -1,0 +1,106 @@
+{
+  "id": "det0066",
+  "type": "detection",
+  "title": "User Execution – Malicious Link (click → suspicious egress → download/write → follow-on activity)",
+  "shortTitle": "User Execution – Malicious Link (click → suspicious egres...",
+  "externalId": "DET0066",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects malicious link execution as a chain rather than as a single event: a user opens a link from a browser or mail client, the host contacts an address that does not fit its normal pattern, a file lands in a user writable location, and something runs from that location soon after. The technique matters because the click is the moment user judgement replaces technical control, and the resulting activity is almost always the start of the intrusion rather than the whole of it. Telemetry comes from process creation with parent image, proxy and DNS records with the client address, file creation events showing the downloaded path and extension, and follow on child process creation. The practical failure is that this chain is extremely common in normal work, so the value comes from scoping to hosts where users should not download executables and from ranking by what ran next.",
+  "tags": [
+    "phishing",
+    "user-execution",
+    "browser",
+    "download",
+    "correlation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: User Execution – Malicious Link (click → suspicious egress → download/write → follow-on activity)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0066/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "User Execution – Malicious Link (click → suspicious egress → download/write → follow-on activity) - EASY",
+      "path": "exercises/det0066/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "User Execution – Malicious Link (click → suspicious egress → download/write → follow-on activity) - MEDIUM",
+      "path": "exercises/det0066/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "User Execution – Malicious Link (click → suspicious egress → download/write → follow-on activity) - HARD",
+      "path": "exercises/det0066/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "User Execution – Malicious Link (click → suspicious egress → download/write → follow-on activity) - EXTREMELY HARD",
+      "path": "exercises/det0066/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection follows what happens after a user clicks a link in a message or on a web page. It looks for the browser reaching out, a file arriving, and then that file being opened. The three steps together tell a story that no single event can tell.",
+    "whyItMatters": "A user click can bypass many technical controls, because the action looks like normal work. Early steps such as a download are easy to dismiss. Seeing the whole chain quickly tells you which click actually started something. That shortens the time before someone can respond.",
+    "howItWorks": [
+      "A host sensor records each new process, including which program started it.",
+      "Proxy and DNS records, meaning the name lookup service, show what the browser contacted.",
+      "File creation events show what was written and where, including the file extension.",
+      "The SIEM (Security Information and Event Management system) links these events by host and time.",
+      "The rule looks for a browser or mail client, then a download into a user folder.",
+      "If the new file runs within minutes, the alert fires with the whole chain attached."
+    ],
+    "example": "Think of a sign in sheet at a hospital ward. One entry tells you little. A visitor signing in, walking to the medicine room, and leaving with a box tells you a great deal. The order of the entries is the real evidence.",
+    "takeaways": [
+      "The click itself is normal, so you must detect what follows it.",
+      "Chain detection by host and time beats any single event rule for this technique.",
+      "The strongest confirmation is a downloaded file that runs minutes later."
+    ]
+  },
+  "objectives": [
+    "Describe why malicious link execution is detected as a sequence of related events.",
+    "Identify the browser, proxy, DNS and file creation fields needed to rebuild the chain.",
+    "Link events by host and time window, and explain why process identifiers may not join them.",
+    "Rank alerts by what executed after the download rather than by the download alone.",
+    "Explain which user populations justify strict alerting on downloads of executable files."
+  ],
+  "techniqueId": "t1204-001",
+  "detectsTechniques": [
+    "t1204-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing the browser or mail client image, its parent process and the process identifier",
+    "Web proxy logs recording the client address, requested URL, response size and user agent for the click",
+    "DNS resolver logs showing the hostname lookup made by the client immediately before the connection",
+    "Sysmon event 11 file creation recording the downloaded file path, extension and creating process identifier",
+    "Sysmon event 15 alternate data stream creation that reveals the downloaded from the internet marker on the new file"
+  ],
+  "logic": "The rule correlates four event types on one host inside a bounded window: a browser or mail client process starting or already running, an outbound request recorded by the proxy or DNS resolver to an address the host has not used before, a file written to a user writable directory with an extension that is unusual for that user community, and a process starting from that same file. The fields to link are the host name, the user account, the destination address or URL, the created file path and the later executing image path with its parent. The benign case is a document, media file or installer from a corporate service that lands in the download folder and may be opened once, with the destination appearing across many hosts in the same department. The malicious case is a small number of hosts reaching a newly registered or low reputation address, receiving an archive or script rather than a document, and executing it within seconds to minutes, frequently followed by a second process that opens a connection to a different external address.",
+  "pseudoQuery": "# title: Browser Handoff to Script From User Folder\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection_browser:\n#     ParentImage|endswith:\n#       - '\\\\chrome.exe'\n#       - '\\\\msedge.exe'\n#       - '\\\\outlook.exe'\n#   selection_child:\n#     Image|endswith:\n#       - '.exe'\n#       - '.js'\n#       - '.lnk'\n#     Image|contains: '\\\\Users\\\\'\n#   filter_vendor:\n#     Image|contains: '\\\\AppData\\\\Local\\\\Programs\\\\VendorApp\\\\'\n#   condition: selection_browser and selection_child and not filter_vendor\n# level: medium",
+  "falsePositives": [
+    "Business applications that open a web based sign in page in the browser and then launch a locally installed helper program",
+    "Users downloading installers for approved software from an internal self service portal and running them immediately",
+    "Virtual meeting clients that hand off to the browser for authentication and start a companion executable afterward",
+    "Service desk staff who download vendor diagnostic tools on demand while working a ticket with a user"
+  ],
+  "tuningNotes": "Scope the executable download and run part of the rule to hosts in finance, human resources and executive groups where users have no business need to install software, and leave a lower severity version everywhere else. Deduplicate by the file hash so one popular download does not produce an alert per host, and add a filter for signed binaries from vendors on your approved list. The coverage you lose is a download into a folder outside the user profile, such as a mapped share or a temporary directory with a different path, so keep a supplementary rule on script interpreter children of browser processes regardless of the file location.",
+  "severity": "high"
+}

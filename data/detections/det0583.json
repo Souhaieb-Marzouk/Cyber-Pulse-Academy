@@ -1,0 +1,106 @@
+{
+  "id": "det0583",
+  "type": "detection",
+  "title": "Detection Strategy for T1136 - Create Account across platforms",
+  "shortTitle": "Detection Strategy for T1136 - Create Account across plat...",
+  "externalId": "DET0583",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects T1136, Create Account, where an adversary establishes a new local, domain, or cloud identity to keep access after the initial intrusion. Account creation is a legitimate administrative action on every platform, so the detection value comes from correlation rather than from the event alone: which actor created the account, from which host, whether it was immediately added to a privileged group, and whether the change matches a change record. The relevant telemetry spans Windows directory service and local security logs, Linux account file commands and audit records, and cloud identity audit logs. The typical failure is alert noise from helpdesk and provisioning automation, which must be baselined before the rule can be trusted.",
+  "tags": [
+    "persistence",
+    "account creation",
+    "windows",
+    "linux",
+    "cloud"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1136 - Create Account across platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0583/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1136 - Create Account across platforms - EASY",
+      "path": "exercises/det0583/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1136 - Create Account across platforms - MEDIUM",
+      "path": "exercises/det0583/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1136 - Create Account across platforms - HARD",
+      "path": "exercises/det0583/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1136 - Create Account across platforms - EXTREMELY HARD",
+      "path": "exercises/det0583/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "An account is a name and password that lets someone use a system. This detection looks for new accounts being created. It catches an intruder building a second way back in after the first break-in.",
+    "whyItMatters": "Resetting the stolen password of one user is easy. Removing an account you never knew about is much harder. A hidden account can keep working long after the original entry point is closed. Catching the creation gives you a clear and complete way to remove the access.",
+    "howItWorks": [
+      "Each platform records the event when an account is created, along with who asked for it.",
+      "Those records are collected into your security information and event management (SIEM) platform.",
+      "The rule lists every creation and links it to the host and the acting account.",
+      "It then checks for a privileged group change involving the new account minutes later.",
+      "It flags accounts created outside business hours or by unexpected tools.",
+      "Events that match no approved change record are sent to an analyst."
+    ],
+    "example": "Think of a large office building with a sign-in sheet at reception. A contractor asks for a new key card and says a manager approved it. The card is printed, and the person leaves. Weeks later the contractor is gone but the card still opens the side door, because nobody checked whether the approval was real.",
+    "takeaways": [
+      "Creating an account is normal on its own, so the context around the change carries the meaning.",
+      "An account added to a privileged group right after creation is the strongest single signal.",
+      "Compare every creation against an approved change record before you call it malicious."
+    ]
+  },
+  "objectives": [
+    "Name the audit events that record account creation on Windows, Linux, and major cloud platforms",
+    "Correlate an account creation with a following privileged group membership change",
+    "Identify which tools and acting accounts normally create users in your environment",
+    "Review a creation event against change management evidence",
+    "Document a response that removes the account and every artefact tied to it"
+  ],
+  "techniqueId": "t1136",
+  "detectsTechniques": [
+    "t1136"
+  ],
+  "dataSources": [
+    "Windows Security event 4720 recording local or domain account creation with the subject and target account names",
+    "Windows Security event 4728 and event 4732 recording addition of a member to a privileged security group",
+    "Linux auditd records for the user creation commands and writes to the local account and shadow files",
+    "AWS CloudTrail events for CreateUser and CreateLoginProfile calls including the requesting identity",
+    "Microsoft Entra ID audit logs recording user creation and directory role assignment"
+  ],
+  "logic": "The pattern is account creation followed quickly by privilege grant, or creation performed by an actor that never creates accounts. The rule selects creation records across platforms into a normalised schema holding the actor, the target account, the source host or address, the platform, and the timestamp, then joins any privileged group membership change within a short window on the same target account. The malicious case shows a service account, a web server process, or a workstation administrator creating a user, followed by an immediate add to a domain administrators or equivalent group, often outside business hours. The benign case shows a provisioning tool or helpdesk role acting on a ticket during working hours with no privileged grant.",
+  "pseudoQuery": "# title: Account Created and Added to Privileged Group Within Minutes\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_create:\n#     EventID: 4720\n#   selection_priv:\n#     EventID:\n#       - 4728\n#       - 4732\n#   filter_provisioning:\n#     SubjectUserName|endswith: 'svc-iam-provision'\n#   condition: selection_create and selection_priv and not filter_provisioning\n# level: high",
+  "falsePositives": [
+    "Identity provisioning platforms that create accounts in bulk during a joiner, mover, or leaver process",
+    "Cloud automation that creates a temporary service account for a deployment pipeline and deletes it afterwards",
+    "Helpdesk staff creating a local support account on a machine while resolving an incident",
+    "Linux configuration management runs that create application service accounts on new servers"
+  ],
+  "tuningNotes": "Baseline who creates accounts for two to four weeks and record the actor, the platform, the normal hours, and the usual target group, then allowlist the provisioning service identities by exact name rather than allowlisting the whole platform. Keep full alerting for any creation that is followed by a privileged group change, and downgrade creations without a privilege grant to a daily review queue. Scope the privileged portion of the rule to domain controllers and cloud tenants with production data. The narrowing you lose is a low-privilege account planted for later lateral movement, so keep the creation inventory even when you stop alerting on it.",
+  "severity": "high"
+}

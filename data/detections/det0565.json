@@ -1,0 +1,106 @@
+{
+  "id": "det0565",
+  "type": "detection",
+  "title": "Detection Strategy for System Language Discovery",
+  "shortTitle": "Detection Strategy for System Language Discovery",
+  "externalId": "DET0565",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers system language discovery, tracked as T1614.001, where an adversary checks the configured language and regional settings of a host to decide whether the target is worth pursuing and how to shape later payloads to avoid attracting attention. The value of the detection is early warning: this query is nearly always part of the reconnaissance phase that precedes heavier activity on the same host. Useful telemetry includes process creation with command lines for locale and region queries, object access auditing for the locale registry key, and command line records showing the same query run from a script interpreter. It fails in practice because administrators, inventory agents and software installers query locale settings constantly, so a single match carries very little weight and the rule is only useful when scored against a per-host baseline.",
+  "tags": [
+    "discovery",
+    "reconnaissance",
+    "locale",
+    "windows",
+    "t1614.001"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for System Language Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0565/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for System Language Discovery - EASY",
+      "path": "exercises/det0565/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for System Language Discovery - MEDIUM",
+      "path": "exercises/det0565/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for System Language Discovery - HARD",
+      "path": "exercises/det0565/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for System Language Discovery - EXTREMELY HARD",
+      "path": "exercises/det0565/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for programs that ask the machine which language and region it uses. The answer is called the locale, and it includes the language and the country settings. The technique is system language discovery because the attacker is learning the system before acting.",
+    "whyItMatters": "The answer is small, but it tells an attacker whether to continue. It also helps the attacker choose text and formats that look normal to you. The query is easy to run and often sits at the very start of an intrusion. If you see it early, you may catch the whole operation before damage happens.",
+    "howItWorks": [
+      "The agent records each new process with the full command line and the user who started it.",
+      "A filter keeps commands that read the language, locale or regional settings of the host.",
+      "The platform also watches the registry key that stores the language setting, when object access auditing is switched on.",
+      "Each match is labelled with the parent process, so you can tell a script from an interactive session.",
+      "The platform counts these events for each host and compares the result with the normal baseline.",
+      "Only a sudden rise, or a first-ever match on a sensitive host, raises an alert."
+    ],
+    "example": "Think of a hospital sign-in sheet at the front desk. Before doing anything else, a stranger reads the sheet to learn the staff names and the shift times. Reading the sheet hurts nobody, and nobody would call it a crime. But it is the clearest early sign that the stranger is planning something.",
+    "takeaways": [
+      "Language checks are reconnaissance, so treat them as an early warning and not as proof.",
+      "A single match means little, while a new match on a sensitive host means much more.",
+      "Always review what the same user did just before and just after."
+    ]
+  },
+  "objectives": [
+    "Describe what the locale and language settings tell an adversary about a host.",
+    "Identify which telemetry records a command line language query.",
+    "Explain why a baseline per host is required before this rule can alert usefully.",
+    "Distinguish interactive reconnaissance from software that queries locale at start up.",
+    "State why this detection is best used as a lead rather than as a stand alone alert."
+  ],
+  "techniqueId": "t1614-001",
+  "detectsTechniques": [
+    "t1614-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and command line",
+    "Sysmon event 13 registry value set events for the system locale key",
+    "Windows Security object access auditing events for the international registry key under the control set",
+    "Endpoint agent script execution records for shell and scripting interpreter command lines"
+  ],
+  "logic": "The observable pattern is a process whose command line retrieves locale or language information, such as a system information tool, a registry read of the international settings key, or a call through a scripting interface. You must correlate the command line, the parent process, the user account and the host role, because inventory agents and installers issue the same query at a predictable rate while an interactive session issues it once, by hand, on a host that never sees it otherwise. The malicious case is distinguished by timing and spread: several discovery commands run by the same account within minutes, from a parent that is a script interpreter or a remote session, on hosts outside the normal inventory schedule.",
+  "pseudoQuery": "# title: System Locale Discovery via Command Line\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     CommandLine|contains:\n#       - 'Get-WinSystemLocale'\n#       - 'Get-Culture'\n#       - 'Get-UICulture'\n#       - 'systeminfo'\n#       - 'Win32_OperatingSystem'\n#   filter_inventory:\n#     ParentImage|endswith: '\\\\inventoryagent.exe'\n#   condition: selection and not filter_inventory\n# level: low",
+  "falsePositives": [
+    "Asset inventory agents that read the operating system locale during their scheduled collection cycle",
+    "Administrators troubleshooting a display or date format problem reported by a user",
+    "Application installers that refuse to continue until they confirm the system language",
+    "Logon scripts that map regional settings for new user profiles"
+  ],
+  "tuningNotes": "Baseline the daily count of locale queries per host group for at least two weeks before alerting, then set the rule to fire on a rise above that baseline rather than on a single match, and exclude the documented inventory and deployment service accounts. Scope alerting to hosts that hold sensitive data or support privileged access, because developer workstations and build servers run these commands constantly. Narrowing this way means you lose visibility of a patient attacker who performs one quiet query on a low-value host first, so keep a low-severity collection rule on everything and review it in bulk.",
+  "severity": "low"
+}

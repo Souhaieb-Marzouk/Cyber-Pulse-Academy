@@ -1,0 +1,106 @@
+{
+  "id": "det0144",
+  "type": "detection",
+  "title": "Detect Forged Kerberos Golden Tickets (T1558.001)",
+  "shortTitle": "Detect Forged Kerberos Golden Tickets (T1558.001)",
+  "externalId": "DET0144",
+  "theme": "Detection Strategy",
+  "summary": "This strategy targets T1558.001, forged Kerberos ticket granting tickets known as golden tickets, where an attacker who has taken the secret key of a domain account can mint tickets that the domain controller accepts. Detection works because forged tickets break the rules that the real key distribution centre follows: impossible ticket lifetimes, encryption types that no longer exist in the domain, ticket options that no legitimate issuing path sets, and account or group values in the ticket that do not match directory records. The required telemetry is domain controller Kerberos service ticket requests and authentication events read together with directory configuration. The main failure mode is that normal service accounts produce unusual looking tickets too, so the rule must compare against what the domain actually permits rather than against generic ticket attributes.",
+  "tags": [
+    "t1558.001",
+    "active-directory",
+    "kerberos",
+    "credential-access",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Forged Kerberos Golden Tickets (T1558.001)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0144/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Forged Kerberos Golden Tickets (T1558.001) - EASY",
+      "path": "exercises/det0144/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Forged Kerberos Golden Tickets (T1558.001) - MEDIUM",
+      "path": "exercises/det0144/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Forged Kerberos Golden Tickets (T1558.001) - HARD",
+      "path": "exercises/det0144/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Forged Kerberos Golden Tickets (T1558.001) - EXTREMELY HARD",
+      "path": "exercises/det0144/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "In a Windows network, a special server hands out entry passes so users can reach services. An attacker who steals the master key can print fake passes. This detection looks for passes that do not follow the normal printing rules.",
+    "whyItMatters": "A fake entry pass can claim to be any user, even a top administrator. It can also stay valid for years. Because the pass is technically well formed, ordinary logins often look normal. Spotting the small differences between a real pass and a fake one matters. It is one of the few chances to catch the attack before it spreads.",
+    "howItWorks": [
+      "Domain controllers record every request for a service entry pass in their security log.",
+      "The records include the ticket lifetime, the encryption type used, and the ticket options requested.",
+      "The detection compares these values with the settings the domain actually allows.",
+      "It also checks whether the account and group information in the pass matches the directory record.",
+      "Any mismatch, especially an extremely long lifetime, is raised for an analyst to review."
+    ],
+    "example": "Think of a swimming pool that issues paper wristbands for the day. The bands are simple, but they have a colour and a date the staff know. A forged band may look perfect at a glance. Yet the colour belongs to last season and the date is two years away. The staff catch it by knowing the rules, not by staring harder at the paper.",
+    "takeaways": [
+      "Forged tickets break the domain rules that real ones obey.",
+      "Ticket lifetime and encryption type are the strongest clues.",
+      "You need both domain policy and directory data to judge a ticket."
+    ]
+  },
+  "objectives": [
+    "Describe what a Kerberos ticket granting ticket is and how it is issued",
+    "Explain why stolen signing keys allow an attacker to mint valid looking tickets",
+    "Identify the ticket fields that reveal a forged ticket",
+    "Correlate domain controller security events with directory configuration",
+    "Separate legitimate service account activity from forged ticket use",
+    "Set a severity that reflects the level of access this technique grants"
+  ],
+  "techniqueId": "t1558-001",
+  "detectsTechniques": [
+    "t1558-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4769 Kerberos service ticket request on domain controllers with ticket options and encryption type",
+    "Windows Security event 4768 Kerberos authentication ticket request including requested ticket lifetime",
+    "Windows Security event 4624 logon events on member servers showing authentication package and ticket derived account details",
+    "Active Directory replication metadata and account attribute changes such as password age and account expiry",
+    "Domain controller policy settings recording maximum ticket lifetime and the encryption types currently enabled"
+  ],
+  "logic": "The detection hunts for service ticket requests whose properties cannot come from the legitimate key distribution centre, most reliably a requested lifetime far beyond the domain maximum, an encryption type that has been removed from the domain, or ticket options that the normal client path never sets. The fields that must be correlated are the requesting account, the service name in the ticket request, the encryption type, the ticket lifetime, the ticket option flags, the client address, and the domain controller that answered. A benign case is a service account on a known host requesting a ticket with the current encryption type and a lifetime inside policy, while the malicious case is the same account suddenly asking for an unusual service on an unusual host, or a ticket whose user and group values do not match the current directory record.",
+  "pseudoQuery": "# title: Kerberos Service Ticket With Lifetime Beyond Domain Policy\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4769\n#     TicketLifetime|gt: 10h\n#   filter:\n#     AccountName|endswith: '$'\n#   condition: selection and not filter\n# level: critical",
+  "falsePositives": [
+    "Legacy applications that request unusually long ticket lifetimes and are documented as an accepted exception",
+    "Service accounts running scheduled batch work that produce many service ticket requests in one burst",
+    "Domain controllers responding to replication or trust traffic that generates atypical ticket option combinations",
+    "Kerberos testing performed by the identity team during a planned configuration change"
+  ],
+  "tuningNotes": "Before enabling this rule, record the maximum ticket lifetime and the enabled encryption types for each domain, and express the rule in terms of those values so that policy changes do not cause noise. Allow list documented legacy applications and machine accounts that genuinely need long lifetimes, and scope the rule to domain controllers only. Add a second, lower severity rule for encryption types that are still enabled for compatibility but rarely used, because those are the downgrade choices an attacker prefers. The coverage you lose by allow listing legacy tickets is precisely the attacker who copies that legacy pattern, so review the allow list every quarter against current business need.",
+  "severity": "critical"
+}

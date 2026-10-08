@@ -1,0 +1,106 @@
+{
+  "id": "det0276",
+  "type": "detection",
+  "title": "Detection Strategy for Rogue Domain Controller (DCShadow) Registration and Replication Abuse",
+  "shortTitle": "Detection Strategy for Rogue Domain Controller (DCShadow)...",
+  "externalId": "DET0276",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the registration of a rogue domain controller and the replication abuse that follows, where an adversary uses directory replication rights to push changes into Active Directory without generating the ordinary object change events. T1207 is a quiet privilege escalation path: once a host is registered as a domain controller and replication is triggered, the attacker can install a backdoor account, modify access control entries or set a password on a privileged account while the changes appear to originate from replication. Detection depends on directory service change auditing for computer objects and service principal names, on replication specific audit records, and on replication network telemetry showing an unexpected source host. It fails when audit policy on domain controllers is incomplete or when the environment has many legitimate temporary domain controllers from training or test builds.",
+  "tags": [
+    "domain controller",
+    "replication",
+    "active directory",
+    "privilege escalation",
+    "persistence",
+    "t1207"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Rogue Domain Controller (DCShadow) Registration and Replication Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0276/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Rogue Domain Controller (DCShadow) Registration and Replication Abuse - EASY",
+      "path": "exercises/det0276/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Rogue Domain Controller (DCShadow) Registration and Replication Abuse - MEDIUM",
+      "path": "exercises/det0276/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Rogue Domain Controller (DCShadow) Registration and Replication Abuse - HARD",
+      "path": "exercises/det0276/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Rogue Domain Controller (DCShadow) Registration and Replication Abuse - EXTREMELY HARD",
+      "path": "exercises/det0276/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a computer pretending to be a domain controller. A domain controller is a server that holds the master copy of accounts and permissions. A fake one can push changes into that master copy while looking like normal copying between servers.",
+    "whyItMatters": "Changes that arrive through copying, called replication, are trusted by design. That trust is what makes this attack so dangerous. An attacker can add a hidden account or change permissions and the ordinary change log may not show it. The fake server only needs to exist for a short time to do damage. Finding it requires watching server registration and copying traffic, which many teams never review.",
+    "howItWorks": [
+      "Directory services record changes to computer accounts, including the names that identify a server as a domain controller.",
+      "The detection watches for a new or modified computer object that gains those identifying names outside a planned build.",
+      "It checks which account made the change and from which host, comparing that with the server build team.",
+      "It looks at audit records for copying operations and notes the source server named in the record.",
+      "It compares that source with the real list of domain controllers, because a source that is not on the list cannot be trusted.",
+      "If a copy operation names an unknown source, or privileged objects change right after, an alert is raised."
+    ],
+    "example": "Think of two accountants who reconcile the ledger by copying each other's totals. The finance office trusts any figure that arrives by that copying process. If a stranger walks in, copies a fake set of totals into the ledger, and leaves, the trust in the copying process is exactly what let them succeed.",
+    "takeaways": [
+      "Replication is a trusted channel, so abuse of it can bypass the change records you normally rely on.",
+      "Compare every replication source with your real domain controller list, or you will miss the rogue host.",
+      "A rogue domain controller may exist for only minutes, so the alert must be near real time."
+    ]
+  },
+  "objectives": [
+    "Explain how registering a rogue domain controller enables replication based changes that evade ordinary auditing.",
+    "Identify the directory object attributes, such as service principal names, that mark a server as a domain controller.",
+    "Locate the audit records that capture replication activity and the source server named in each record.",
+    "Build and maintain an authoritative list of legitimate domain controllers for comparison.",
+    "Describe the investigation steps to confirm a rogue domain controller and the risk to credentials afterwards."
+  ],
+  "techniqueId": "t1207",
+  "detectsTechniques": [
+    "t1207"
+  ],
+  "dataSources": [
+    "Windows Security event 4742 computer account changed, capturing the changed attributes including service principal names and operating system details",
+    "Windows Security event 5136 directory service object modification for computer objects and their service principal name attributes",
+    "Directory service access auditing records for replication operations, which name the source server and the partition being replicated",
+    "Windows Security event 4741 computer account created, used to spot a new host being registered with domain controller attributes"
+  ],
+  "logic": "The pattern is a computer object that acquires domain controller identifying attributes, such as a directory replication service principal name or a domain controller specific operating system value, together with replication activity whose source is not on the authoritative list of domain controllers. The fields that must be correlated are the target computer account name, the changed attribute names and values, the acting account and source host, the replication source server recorded in the replication audit event, and the timing of privileged object changes that follow. The benign case is a planned domain controller promotion, which is preceded by a change record, performed by the server build team, and followed by normal directory traffic from that host. The malicious case shows the attribute change performed by a non standard account or workstation, often using an account that already holds replication rights, and it is usually followed within minutes by the addition of an account to a privileged group or a change to an access control entry on a sensitive object.",
+  "pseudoQuery": "# title: Computer Account Gains Domain Controller Attributes or Unknown Replication Source\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_attr:\n#     EventID: 4742\n#     ChangedAttributes|contains: servicePrincipalName\n#   selection_repl:\n#     EventID: 4662\n#     ObjectType|contains: domainDNS\n#     AccessMask|contains: Control-Access\n#   filter_build:\n#     SubjectUserName|endswith: $\n#   condition: (selection_attr or selection_repl) and not filter_build\n# level: critical",
+  "falsePositives": [
+    "Planned domain controller promotion or rebuild performed by the server team during a documented maintenance window",
+    "Disaster recovery testing in which a domain controller is restored or temporarily registered from an isolated recovery network",
+    "Lab, training or staging environments that share the production directory and legitimately register temporary domain controllers",
+    "Directory synchronisation or backup products that hold replication permissions and read the directory on a schedule"
+  ],
+  "tuningNotes": "The single most effective tuning step is to maintain an authoritative inventory of domain controllers and replication permission holders, then filter on those exact accounts while alerting on every other source. Scope collection to domain controllers and keep replication audit categories that name the source server enabled, because without the source field the rule cannot separate legitimate copying from abuse. You lose coverage for an adversary who operates from a compromised legitimate domain controller, so pair the rule with a periodic comparison of replication metadata per object and with monitoring for changes to the replication permissions themselves, which is a common precursor to this technique.",
+  "severity": "critical"
+}

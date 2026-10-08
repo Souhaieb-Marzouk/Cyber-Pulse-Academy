@@ -1,0 +1,107 @@
+{
+  "id": "det0055",
+  "type": "detection",
+  "title": "Detection strategy for Group Policy Discovery on Windows",
+  "shortTitle": "Detection strategy for Group Policy Discovery on Windows",
+  "externalId": "DET0055",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1615, Group Policy Discovery, where an adversary queries the directory and the local machine to learn which policies, password rules, logon scripts, and software restrictions apply in the environment. It matters because the answers shape everything that follows: which accounts will break out of a password spray, which hosts permit script execution, and where the domain trusts point. The telemetry that makes it visible is endpoint and directory level: process creation showing the native policy reporting tools, script block logging for the policy reporting commandlets, registry access to the local policy cache, and directory service query records for policy container objects. The main failure is that the operating system itself reads policy at every logon, and administrators generate reports routinely, so the rule must key on the account type, the frequency, and the breadth of the queries rather than the tool name alone.",
+  "tags": [
+    "mitre t1615",
+    "discovery",
+    "group policy",
+    "windows",
+    "directory services"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection strategy for Group Policy Discovery on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0055/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection strategy for Group Policy Discovery on Windows - EASY",
+      "path": "exercises/det0055/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection strategy for Group Policy Discovery on Windows - MEDIUM",
+      "path": "exercises/det0055/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection strategy for Group Policy Discovery on Windows - HARD",
+      "path": "exercises/det0055/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection strategy for Group Policy Discovery on Windows - EXTREMELY HARD",
+      "path": "exercises/det0055/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that ask which rules apply to a computer or to a user. Those rules are managed centrally and they are called group policy. Attackers read them to learn password rules and to find weak machines. This rule watches for the tools that read those rules.",
+    "whyItMatters": "The rules tell an attacker how the network works. Password rules show how hard a guessing attack must try. Script rules show which machines allow automation. That knowledge saves the attacker time and reduces the chance of an alert. Reading the rules is quiet, so it rarely triggers other controls. Your own systems also read the rules, which makes context essential.",
+    "howItWorks": [
+      "The operating system records an event each time it processes its policy settings.",
+      "The agent records process creation with command lines, including known policy reporting tools.",
+      "The rule separates the automatic system reader from a person or script running a report.",
+      "It looks at how many different policy areas one session requested in a short time.",
+      "It checks the account type, because an ordinary user asking for a full policy report is unusual.",
+      "A scripting host, a standard user account, and broad queries together raise the alert."
+    ],
+    "example": "Picture a hotel guest who asks the receptionist for every rule in the building. The list includes quiet hours, pool access, laundry times, and staff key storage. One question is normal. Asking for all of them at once is not. Group policy discovery detection notices the guest who collects every rule in one visit. It ignores the guest who only asks about breakfast.",
+    "takeaways": [
+      "The rules themselves are not secret, but the collection of all of them at once says an intruder is planning.",
+      "The operating system reads policy constantly, so the account type and the tool used are the keys to this rule.",
+      "Discovery often comes right before an attempt to change policy, so treat a match as an early warning."
+    ]
+  },
+  "objectives": [
+    "Explain what group policy is and why an attacker would enumerate it.",
+    "Identify the policy processing events and process telemetry that reveal policy discovery.",
+    "Distinguish automatic system policy reads from manual reporting by a person.",
+    "Write a pseudo rule that flags policy reporting tools run by non administrative accounts.",
+    "Describe how directory service query records add context to a policy discovery alert.",
+    "Explain how this activity relates to later attempts to modify policy settings."
+  ],
+  "techniqueId": "t1615",
+  "detectsTechniques": [
+    "t1615"
+  ],
+  "dataSources": [
+    "Group Policy operational log events that record policy processing cycles and policy source information",
+    "Sysmon event 1 process creation including command line and parent image for policy reporting utilities",
+    "Windows Security event 4688 process creation with command line auditing for scripting hosts and reporting tools",
+    "PowerShell script block logging that records policy reporting commandlets and their parameters",
+    "Sysmon event 13 registry value access for the local group policy cache keys under the software hive"
+  ],
+  "logic": "The rule separates automatic policy consumption from deliberate policy enumeration. It correlates process creation records for the native policy reporting tools and the policy reporting commandlets with the account that ran them, the parent process, and the session type, then measures how many distinct policy areas or directory containers the session queried in a short window. The malicious case is a standard user or a service account that should never generate reports launching a reporting tool from a scripting host, or a session that enumerates policy for many organisational units and hosts in sequence. The benign case is the policy engine reading settings at logon, an administrator generating a report for a ticket, or a compliance tool collecting policy state on a schedule. The account privilege level, the parent process, and the query breadth are the fields that separate them.",
+  "pseudoQuery": "# title: Group Policy Enumeration By Non Administrative Account\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains: gpresult, Get-GPOReport, Get-GPResultantSetOfPolicy, Get-GPO\n#   filter:\n#     User|endswith: $@corp.example.com\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Desktop support engineers running a policy report to diagnose a user setting that will not apply",
+    "Compliance and configuration baselines tools that collect policy state from every endpoint on a schedule",
+    "Domain administrators generating documentation reports after an organisational unit restructure",
+    "Logon scripts run by the policy engine that read the local policy cache as part of normal processing"
+  ],
+  "tuningNotes": "Anchor the rule on the account and the parent process first: allowlist the policy engine and the signed configuration management agent, then keep the alert for reporting tools launched from a scripting host or by an interactive standard user. Add a count of distinct policy queries or directory containers per hour and alert above the baseline. Scope the high severity tier to servers and to accounts that hold administrative rights, since helpdesk report generation is expected on the desktop estate. The coverage you lose is a careful attacker who runs a single quiet query using only built in commands, so pair this rule with monitoring for policy modification events and for new logon scripts.",
+  "severity": "medium"
+}

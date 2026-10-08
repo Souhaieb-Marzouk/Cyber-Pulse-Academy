@@ -1,0 +1,107 @@
+{
+  "id": "det0134",
+  "type": "detection",
+  "title": "Detect Suspicious Access to Windows Credential Manager",
+  "shortTitle": "Detect Suspicious Access to Windows Credential Manager",
+  "externalId": "DET0134",
+  "theme": "Detection Strategy",
+  "summary": "The Windows Credential Manager (T1555.004) stores saved domain, application, and web credentials in encrypted vault files inside each user profile, which makes it a high value and low noise target during credential access. This detection strategy looks for three related behaviours: a process requesting stored credentials when that process has no business reading them, direct access to the vault files on disk including copying them to another location, and any vault access that originates from a non interactive context such as a service, a scheduled task, or a remote logon session. Telemetry comes from process creation with command lines, endpoint file access and file creation events, sensitive object access records, and the short list of signed utilities that legitimately query stored credentials. It fails because vault access leaves only a thin trail, because vault files are ordinary files in a user profile that backup software also reads, and because automation platforms genuinely do need stored credentials to run scheduled jobs.",
+  "tags": [
+    "credential access",
+    "t1555.004",
+    "windows",
+    "credential manager",
+    "file access",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Suspicious Access to Windows Credential Manager",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0134/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Suspicious Access to Windows Credential Manager - EASY",
+      "path": "exercises/det0134/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Suspicious Access to Windows Credential Manager - MEDIUM",
+      "path": "exercises/det0134/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Suspicious Access to Windows Credential Manager - HARD",
+      "path": "exercises/det0134/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Suspicious Access to Windows Credential Manager - EXTREMELY HARD",
+      "path": "exercises/det0134/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Credential Manager is a built-in Windows feature that saves passwords for you. It keeps them in files inside your user profile. This detection looks for programs that read those saved passwords. It catches theft of stored logins for shared drives and websites.",
+    "whyItMatters": "Saved passwords are convenient, so many people store logins for file shares and internal sites. If an attacker reads that store, they gain access without guessing anything. The theft is quiet, because no login screen appears and nothing looks broken. Stolen credentials can later be reused across many systems. This detection gives you a chance to reset those passwords before they are used.",
+    "howItWorks": [
+      "Each user profile holds vault files that contain the saved credentials.",
+      "The rule watches for processes that read those files or copy them elsewhere.",
+      "It also watches for programs that ask the system for stored credentials directly.",
+      "It compares the requesting program with a list of tools that should do this.",
+      "Each alert shows the user, the program path, and the time of the access.",
+      "An analyst then checks whether backup software or a script explains the access."
+    ],
+    "example": "Think of a coat check at a theatre. Guests hand over their coats and receive a ticket. The attendant keeps everything in a locked room behind the desk. Now imagine someone slips behind the desk and copies every ticket number. No coat is missing, so nobody complains that evening. Later they return with the copied numbers and collect coats that are not theirs. Credential Manager is that locked room, and reading its files is copying the ticket numbers.",
+    "takeaways": [
+      "Saved credentials are as valuable as typed ones and easier to steal.",
+      "Watch both the vault files and the programs that request stored credentials.",
+      "Treat any read by an unexpected program as a password reset event."
+    ]
+  },
+  "objectives": [
+    "Describe what the Windows Credential Manager stores and where the vault files live.",
+    "Identify the file access, file creation, and process events that indicate vault access.",
+    "Recognise the small set of legitimate tools that query stored credentials.",
+    "Prioritise alerts that originate from a service, a scheduled task, or a remote session.",
+    "Plan the credential rotation that follows a confirmed read of the credential store."
+  ],
+  "techniqueId": "t1555-004",
+  "detectsTechniques": [
+    "t1555-004"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image path, parent image, and full command line for credential vault access attempts",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 11 file creation for copies of vault files appearing in temporary directories, network shares, or archive paths",
+    "Windows Security event 4656 handle request records for credential vault objects with object access auditing enabled",
+    "Sysmon event 3 network connection records from a process that just read credential vault files"
+  ],
+  "logic": "The detection watches for three distinguishable behaviours. The first is a file based read of the vault files inside a user profile, recognised by the path, by access from a process whose image is not an approved credential consumer, or by a copy of a vault file appearing in a temporary directory or on a network share. The second is a programmatic request for stored credentials from an unusual process, typically a command interpreter, a scripting host, or a recently written binary in a user writeable directory. The third is context: the read happens in a session that is not interactive, such as a service, a scheduled task, or a remote logon, or it happens immediately before outbound network activity from the same process identifier. The fields to correlate are the user account, the process identifier and image path, the parent process, the file path touched, and the logon session type. The benign case is a signed backup, endpoint management, or password manager service reading vault data on the user's behalf, and those keep stable file paths, publishers, and schedules that you can baseline.",
+  "pseudoQuery": "# title: Process reads or copies Windows credential vault files\n# logsource:\n#   product: windows\n# detection:\n#   selection_cmd:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'Microsoft\\Credentials'\n#       - 'Microsoft\\Vault'\n#   selection_handle:\n#     EventID: 4656\n#     ObjectName|contains: 'Microsoft\\Vault'\n#     AccessList|contains: 'FILE_READ_DATA'\n#   condition: selection_cmd or selection_handle\n# level: high",
+  "falsePositives": [
+    "Password manager and single sign-on agents that read the credential vault on behalf of the signed in user",
+    "Backup software that copies whole user profiles, including the credential vault, to a central store",
+    "A user running a supported command line utility to list or add a stored credential for a file share",
+    "Migration tooling that moves saved credentials to a new workstation during a hardware refresh"
+  ],
+  "tuningNotes": "Start by listing the signed applications in your estate that read the credential vault, and allow them by image path and publisher rather than by process name. Scope the rule to servers, administrative jump hosts, and activity outside normal business hours, where vault reads are genuinely rare, and rank reads from a service or scheduled task context above interactive reads. Keep every read from a non standard path, because the binary involved is usually new. Excluding approved publishers will miss an attacker who loads a signed but vulnerable binary to reach the vault, so pair this rule with detection on unusual logon patterns and on copies of profile data to network shares.",
+  "severity": "high"
+}

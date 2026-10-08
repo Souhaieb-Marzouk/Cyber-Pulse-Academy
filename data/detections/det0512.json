@@ -1,0 +1,109 @@
+{
+  "id": "det0512",
+  "type": "detection",
+  "title": "Detection of Exfiltration Over Asymmetric Encrypted Non-C2 Protocol",
+  "shortTitle": "Detection of Exfiltration Over Asymmetric Encrypted Non-C...",
+  "externalId": "DET0512",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers exfiltration over an asymmetric encrypted non command and control protocol, the sub technique tracked as T1048.002. Instead of sending stolen data to an attacker owned server, the adversary hides it inside ordinary business traffic such as web uploads, file transfer, mail attachments or code repositories, so the destination looks legitimate and the channel is encrypted end to end. The telemetry that makes this visible is proxy and firewall connection records with byte counts and destination categories, TLS metadata such as server name indication and certificate details, file creation of staged archives, and process network creation events that tie a specific binary to the transfer. The strategy fails in practice because the technique is defined by intent rather than by any single protocol, so the detection has to combine volume, destination reputation and novelty against a per user baseline, and any organisation that cannot classify destinations will generate mostly noise.",
+  "tags": [
+    "exfiltration",
+    "t1048.002",
+    "encrypted channel",
+    "proxy",
+    "network",
+    "data loss prevention"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Exfiltration Over Asymmetric Encrypted Non-C2 Protocol",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0512/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Exfiltration Over Asymmetric Encrypted Non-C2 Protocol - EASY",
+      "path": "exercises/det0512/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Exfiltration Over Asymmetric Encrypted Non-C2 Protocol - MEDIUM",
+      "path": "exercises/det0512/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Exfiltration Over Asymmetric Encrypted Non-C2 Protocol - HARD",
+      "path": "exercises/det0512/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Exfiltration Over Asymmetric Encrypted Non-C2 Protocol - EXTREMELY HARD",
+      "path": "exercises/det0512/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for data leaving your network through a normal everyday service rather than an attacker server. The data is encrypted, so a reader cannot see inside it. The attacker hides the theft inside traffic that looks like ordinary business use. The rule watches how much data goes out, where it goes and which program sends it.",
+    "whyItMatters": "Blocking known malicious addresses does not help when the destination is a public file sharing site. Encryption means content inspection often cannot tell what is inside. The transfer may also be split into several small uploads, so no single event looks large. Detection therefore depends on volume, timing and destination reputation rather than on content.",
+    "howItWorks": [
+      "The proxy and firewall record every outbound connection, with the destination, port and bytes sent.",
+      "The rule adds a category to each destination, such as file sharing, webmail or code hosting.",
+      "It compares today bytes uploaded by that user against the same user normal daily baseline.",
+      "It also looks for files first being collected into a compressed archive on the endpoint.",
+      "Process network events tell the analyst which program on that host opened the connection.",
+      "A large upload to an unclassified destination from a host that just created an archive is the alert."
+    ],
+    "example": "Imagine a courier depot where parcels leave all day and nobody checks every box. One day a clerk notices a new sender. That sender has never posted anything before, and today sends forty heavy boxes to a private address. This rule is that clerk, watching the pattern rather than the parcels.",
+    "takeaways": [
+      "The destination may be a legitimate public service, so reputation alone is not enough.",
+      "Encryption hides content, so volume and timing become the main evidence.",
+      "Baselines per user and per department are what make the volume comparison meaningful."
+    ]
+  },
+  "objectives": [
+    "Explain why an attacker would exfiltrate over a legitimate encrypted service instead of an owned server.",
+    "Name the proxy and firewall fields that show destination, byte count and session duration.",
+    "Describe how TLS metadata such as server name indication can be used without decryption.",
+    "Build a per user upload baseline and choose a deviation threshold that suits the business.",
+    "Correlate a staged archive on the endpoint with a large outbound session from the same host.",
+    "Explain the limits of this detection and what additional coverage is needed."
+  ],
+  "techniqueId": "t1048-002",
+  "detectsTechniques": [
+    "t1048-002"
+  ],
+  "dataSources": [
+    "Web proxy connection logs including destination host, category, bytes sent, bytes received and duration",
+    "Firewall or netflow records with source and destination address, port and total bytes transferred",
+    "TLS handshake metadata recording server name indication, certificate issuer and negotiated version",
+    "Sysmon event 3 network connection and event 22 DNS query tying a process to the outbound session",
+    "Sysmon event 11 file creation of compressed archives and staged data folders on the sending host"
+  ],
+  "logic": "The pattern is a sustained or repeated upload to a destination that is not part of the approved business set, performed by a host or user whose normal upload volume is far lower, often shortly after a compressed archive is created on that host. The fields that must be correlated are the source address and user, the destination host and its category, the bytes sent and session duration from proxy and firewall records, the process image from network creation events, and the archive path on the endpoint, joined on host and a window of minutes to hours. The malicious case usually shows an unclassified or newly registered destination, a single large session or many evenly sized sessions, and a process that is not the browser the user normally browses with. The benign case is software updates and cloud backups, which repeat at predictable times from a consistent process and use destinations on the approved list.",
+  "pseudoQuery": "# title: Large Outbound Upload to Unclassified Destination After Archive Creation\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: 'connection'\n#     direction: 'outbound'\n#     bytes_sent: '> 100MB'\n#   filter_approved:\n#     destination_category:\n#       - 'software update'\n#       - 'approved cloud storage'\n#       - 'backup service'\n#   condition: selection and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Software deployment and patching systems that upload large diagnostic bundles to a vendor support portal",
+    "Finance and engineering users who send large project archives to an approved external partner share",
+    "Cloud backup and synchronisation clients performing a first full seed of a new laptop or server",
+    "Researchers and analysts who upload datasets to public code hosting as part of their normal published work",
+    "Developers who push a large repository to an external code hosting service from a build or workstation"
+  ],
+  "tuningNotes": "Build the approved destination list from ninety days of proxy data and treat it as a tuning artefact that is reviewed monthly, because new legitimate services appear constantly. Then alert only when the destination category is unclassified or the upload exceeds twice the ninety fifth percentile for that user group. Keep the archive creation event as a scoring signal rather than a hard requirement, and suppress known backup windows. The coverage you lose is exfiltration to a service you approved for business use, and slow low volume transfers that never exceed the per user threshold.",
+  "severity": "high"
+}

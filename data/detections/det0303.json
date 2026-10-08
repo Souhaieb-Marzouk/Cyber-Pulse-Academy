@@ -1,0 +1,108 @@
+{
+  "id": "det0303",
+  "type": "detection",
+  "title": "Local Account Enumeration Across Host Platforms",
+  "shortTitle": "Local Account Enumeration Across Host Platforms",
+  "externalId": "DET0303",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers local account enumeration, mapped to T1087.001, where an adversary lists the accounts that exist on a single host in order to plan credential access or lateral movement. It matters because enumeration is cheap, quiet and usually the first step before privilege escalation: knowing which local administrator accounts exist on a host tells an attacker exactly what to steal next. The telemetry that makes it visible is process creation with command lines that name local account and group listing utilities, directory service or account query interfaces on the host, and the burst of reads against the local account store that follows. The main way it fails in practice is that the underlying utilities are built in and heavily used by legitimate administration and monitoring software, so a rule matching the tool name alone produces constant noise, and renamed or scripted enumeration that never calls the familiar binary is invisible to it.",
+  "tags": [
+    "mitre t1087.001",
+    "account discovery",
+    "local accounts",
+    "discovery",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Local Account Enumeration Across Host Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0303/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Local Account Enumeration Across Host Platforms - EASY",
+      "path": "exercises/det0303/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Local Account Enumeration Across Host Platforms - MEDIUM",
+      "path": "exercises/det0303/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Local Account Enumeration Across Host Platforms - HARD",
+      "path": "exercises/det0303/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Local Account Enumeration Across Host Platforms - EXTREMELY HARD",
+      "path": "exercises/det0303/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Local account enumeration means listing the user accounts that exist on one computer. This rule looks for commands and tools that ask a machine for its list of accounts or groups. On its own this is harmless. It is still a common early step for an attacker who wants to know which accounts to target.",
+    "whyItMatters": "You cannot steal a credential for an account you do not know about. Listing local accounts tells an attacker where the powerful accounts are and which service accounts exist. Because the commands are built into the operating system, they do not look unusual to most people. Noticing the pattern, such as a burst of listings from one process, gives you an early warning.",
+    "howItWorks": [
+      "The endpoint agent records every program start along with the full command that was typed or run.",
+      "The rule checks for account and group listing tools. One example is the local user management command.",
+      "It also watches for scripting calls that query local accounts through the operating system interface.",
+      "It measures how many account queries come from one parent process in a short time. People rarely list every group by hand.",
+      "The system adds context such as the account running the command and whether it usually performs administration.",
+      "If the burst comes from an unusual process, the system sends an alert. The alert includes the exact command lines."
+    ],
+    "example": "Think of someone standing at a hotel reception desk and reading the guest list out loud. Reading a list breaks no locks and takes no keys. But one person reads the manager list, then the master key list, then the safe access list. All of that happens in two minutes. The receptionist would remember that person.",
+    "takeaways": [
+      "Local account enumeration is a planning step, so an early alert can interrupt an intrusion.",
+      "The tools involved are legitimate, so detection relies on bursts, unusual parents and unusual accounts.",
+      "The command line is your best evidence, so make sure command line auditing is enabled."
+    ]
+  },
+  "objectives": [
+    "Explain what local account enumeration is and where it fits in an intrusion sequence.",
+    "Identify the process creation and account query telemetry that reveals enumeration on Windows and Linux.",
+    "Recognise the built-in administration tools that legitimately perform the same actions.",
+    "Build a burst based rule that groups many account queries under one parent process in a short window.",
+    "Correlate enumeration with later credential access or privilege escalation on the same host.",
+    "Describe how scripting languages can perform the same queries without the familiar binary names."
+  ],
+  "techniqueId": "t1087-001",
+  "detectsTechniques": [
+    "t1087-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled, showing local account and group listing utilities and their arguments",
+    "Sysmon event 1 process creation with parent image, user account and full command line for the same utilities and for script interpreters",
+    "Windows Security event 4798, which is logged when a user's local group membership is enumerated, where that auditing subcategory is enabled",
+    "Linux auditd execve records for account listing commands such as getent passwd, cat of the password file and id enumeration utilities",
+    "Endpoint detection agent telemetry recording repeated reads of the local security accounts database by non-system processes"
+  ],
+  "logic": "The pattern is a burst of local account or group enumeration activity from one host, typically one parent process spawning several listing tools in a short window, or a single script interpreter issuing many account queries, performed by an account or process that does not normally administer that host. The fields that must be correlated are the process image and full command line, the parent process, the acting user, the host identity, and the count and timing of the queries, which separates a hand typed query from automated discovery. The benign case is configuration management or monitoring software that inventories local accounts on a schedule, help desk scripts that check group membership, or an administrator troubleshooting one account at a time, all of which tend to come from a small set of known parent processes and service accounts. The malicious case is enumeration that arrives shortly after an initial foothold, from a command shell, a remote management session or a scripting engine, often followed by credential dumping or further discovery on the same host.",
+  "pseudoQuery": "# title: Burst of Local Account and Group Enumeration Commands\n# logsource:\n#   product: windows\n# detection:\n#   selection_users:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'net user'\n#       - 'net localgroup'\n#       - 'Get-LocalUser'\n#       - 'Get-LocalGroupMember'\n#   filter_admin:\n#     ParentImage|endswith:\n#       - '\\\\CcmExec.exe'\n#       - '\\\\MonitoringAgent.exe'\n#   condition: selection_users and not filter_admin\n# level: medium",
+  "falsePositives": [
+    "Configuration management agents that inventory local user and group membership on a fixed schedule",
+    "Help desk automation scripts that check whether a user is a member of a local administrator group",
+    "Application installers that verify local service accounts exist before creating services",
+    "System administrators troubleshooting a login problem by listing local accounts on one server",
+    "Penetration testing engagements performed with a known test account during an agreed testing window"
+  ],
+  "tuningNotes": "Baseline which parent processes and service accounts legitimately run account listing commands in your environment, and filter them by parent process plus account rather than by tool name, because the tools themselves are used by everyone. Aggregate by host and by parent process over a short window and alert only when several distinct account queries occur within it, which removes single manual queries and ordinary installer behaviour. Raise severity for interactive shells and remote management parents, and for hosts classified as servers or domain controllers where inventory software should not be running ad hoc queries. Correlate with credential access or privilege escalation events on the same host within the following hour so that planned administration does not page anyone. This narrowing loses coverage when enumeration happens slowly over hours or through a single query for one interesting group, so keep a low severity rule for interactive enumeration on sensitive hosts and review remote management session activity separately.",
+  "severity": "medium"
+}

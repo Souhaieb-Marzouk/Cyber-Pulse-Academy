@@ -1,0 +1,107 @@
+{
+  "id": "det0325",
+  "type": "detection",
+  "title": "External Proxy Behavior via Outbound Relay to Intermediate Infrastructure",
+  "shortTitle": "External Proxy Behavior via Outbound Relay to Intermediat...",
+  "externalId": "DET0325",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects external proxy use (T1090.002), where an adversary relays command and control traffic through infrastructure they do not own, such as rented virtual private servers, content delivery networks or public proxy pools, so that victim connections never touch attacker-registered address space. The detection is built on network flow records, proxy and firewall logs, and DNS resolution data, correlated against asset inventory and destination reputation. It matters because relay hops break naive blocklists: the destination is legitimate hosting, so IP reputation alone rarely fires. In practice the strategy fails in two ways: heavily used cloud regions create enormous benign overlap, and encrypted relay traffic gives no payload to inspect, so the analyst must lean on flow shape, session longevity and peer-group rarity rather than content.",
+  "tags": [
+    "mitre t1090.002",
+    "command and control",
+    "network flow",
+    "proxy",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: External Proxy Behavior via Outbound Relay to Intermediate Infrastructure",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0325/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "External Proxy Behavior via Outbound Relay to Intermediate Infrastructure - EASY",
+      "path": "exercises/det0325/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "External Proxy Behavior via Outbound Relay to Intermediate Infrastructure - MEDIUM",
+      "path": "exercises/det0325/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "External Proxy Behavior via Outbound Relay to Intermediate Infrastructure - HARD",
+      "path": "exercises/det0325/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "External Proxy Behavior via Outbound Relay to Intermediate Infrastructure - EXTREMELY HARD",
+      "path": "exercises/det0325/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for computers in your network that talk to a relay server on the internet. A relay is a middle machine that passes traffic onward for someone else. Attackers rent these middle machines so their real servers stay hidden.",
+    "whyItMatters": "Blocking a bad address does not help when the bad traffic arrives from a rented server. Many normal tools also use relays, so you cannot simply block every one. This detection finds the few relay conversations that look unusual for your network. It gives you a starting point before the attacker moves data.",
+    "howItWorks": [
+      "Your network devices record every connection that leaves the network. Each record lists a source computer, a destination address and a port.",
+      "The detection compares each destination address against a list of known hosting and relay providers.",
+      "It then checks how rare that destination is inside your network. A server that one computer contacts once is more interesting than one that a hundred computers use daily.",
+      "It also looks at session shape, such as a long quiet connection that sends small amounts of data in both directions.",
+      "Events that pass these checks are grouped by source computer so one alert shows a pattern, not a single packet.",
+      "An analyst reviews the group and decides if the traffic is a business tool or a hidden relay."
+    ],
+    "example": "Think of a night watchman who checks who enters the building. He cannot stop every visitor, because many people have real business inside. Instead he notes visitors who signed in at a side door, stayed for hours and never visited any office. One such visitor may mean nothing, but five in a week from the same company deserves a phone call.",
+    "takeaways": [
+      "A relay hides the attacker, so you must judge the connection, not just the address.",
+      "Rarity inside your own network is often a stronger signal than reputation lists.",
+      "One alert should show a pattern over time, because a single flow proves very little."
+    ]
+  },
+  "objectives": [
+    "Explain what an external proxy or relay is and why it hides attacker infrastructure",
+    "Identify the flow and proxy log fields needed to describe an outbound relay session",
+    "Correlate destination rarity with asset inventory to separate normal cloud use from abuse",
+    "Describe the limits of address reputation when the destination is legitimate hosting",
+    "Write a first draft rule that scopes relay traffic to sensitive asset groups"
+  ],
+  "techniqueId": "t1090-002",
+  "detectsTechniques": [
+    "t1090-002"
+  ],
+  "dataSources": [
+    "Zeek conn.log network flow records with source and destination address, port, byte counts and duration",
+    "Sysmon event 3 network connection including process image and destination address",
+    "Forward web proxy logs recording the requesting host, destination host name and bytes transferred",
+    "DNS server query logs with the fully qualified domain name and the client that asked for it",
+    "Firewall session logs with connection duration and total bytes for outbound sessions"
+  ],
+  "logic": "The pattern is repeated outbound sessions from a small set of internal hosts to hosting or relay infrastructure that no other peer group contacts, combined with flow shapes that do not match normal browsing or update traffic. Detection requires correlating the destination address and autonomous system with the process that opened the connection and with a baseline of how many distinct internal hosts normally reach that destination. The benign case is a widely shared cloud service reached by many hosts with regular, high-volume sessions; the malicious case is one or two hosts reaching a rarely used address in a hosting range with long, low-volume, bidirectional sessions that repeat on a schedule. Rarity across the fleet, not the address alone, is what carries the signal.",
+  "pseudoQuery": "# title: Rare Outbound Relay Session to Hosting Infrastructure\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     destination_asn_category: hosting\n#     bytes_out: < 20000\n#     bytes_in: < 20000\n#     duration_seconds: > 600\n#   filter:\n#     destination_host: ['*.windowsupdate.com', '*.office365.com', '*.amazonaws.com']\n#   condition: selection and not filter | timeframe 10m | group by destination_address | count(distinct source_ip) < 3\n# level: medium",
+  "falsePositives": [
+    "Software update services that download small delta patches from regional hosting addresses over long-lived sessions",
+    "Remote support tools that keep a persistent low-bandwidth tunnel open to vendor-managed relay infrastructure",
+    "Backup agents that push small metadata updates to object storage endpoints hosted on shared addresses",
+    "Employee use of approved commercial virtual private network services for travel, often from a consistent small host group",
+    "Internet of things devices that phone home to a vendor broker on a fixed schedule with tiny payloads"
+  ],
+  "tuningNotes": "Start by baselining all destinations your fleet contacts over thirty days, then suppress any address or host name reached by more than a handful of distinct internal hosts, which removes the noisy cloud services quickly. Scope the rule to sensitive asset groups such as server subnets and administrator workstations first, because rare destinations are far more meaningful there than on a large developer network. Add a filter for approved remote support and backup vendors after confirming their address ranges with the owning team. The coverage you lose is genuine relay use from noisy client subnets and any attacker who deliberately spreads relay traffic across many hosts to defeat the rarity test.",
+  "severity": "medium"
+}

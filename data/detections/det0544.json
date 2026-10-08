@@ -1,0 +1,105 @@
+{
+  "id": "det0544",
+  "type": "detection",
+  "title": "Detection Strategy for Process Doppelgänging on Windows",
+  "shortTitle": "Detection Strategy for Process Doppelgänging on Windows",
+  "externalId": "DET0544",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers process doppelganging on Windows, matching technique T1055.013, where an adversary writes a malicious image inside a file system transaction, creates a process section from the transacted file and then rolls the transaction back so the file on disk never shows the malicious content. It matters because the resulting process appears to run from a legitimate signed binary while file based scanning sees only the original clean file. The telemetry that makes it possible is process creation records with transaction and section information, image load events with signature status, and file system transaction activity correlated within a very short time window on the same host. It fails in practice because transaction events are high volume and partial implementations exist, so defenders often lack the exact transaction fields and must fall back to correlating transient file writes with process creation.",
+  "tags": [
+    "windows",
+    "process injection",
+    "file system transaction",
+    "t1055.013",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Process Doppelgänging on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0544/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Process Doppelgänging on Windows - EASY",
+      "path": "exercises/det0544/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Process Doppelgänging on Windows - MEDIUM",
+      "path": "exercises/det0544/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Process Doppelgänging on Windows - HARD",
+      "path": "exercises/det0544/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Process Doppelgänging on Windows - EXTREMELY HARD",
+      "path": "exercises/det0544/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a Windows trick that hides malicious code inside a file transaction. A transaction is a group of file changes that either all happen or all are undone. The attacker writes code, starts a process from it, then undoes the change.",
+    "whyItMatters": "After the undo, the file on disk is the original clean program again. A file scanner finds nothing wrong, and the running process still holds the hidden code. That gap between what is on disk and what is in memory is why this needs its own detection logic.",
+    "howItWorks": [
+      "The endpoint records every process start together with the image path and the parent process.",
+      "The endpoint records image load events and whether each loaded file carries a valid signature.",
+      "File system monitoring records when a transaction begins, writes data and then commits or rolls back.",
+      "The platform links these records by host and by a very short time window, usually seconds.",
+      "The rule looks for a process start that follows a rolled back transaction touching the same file path.",
+      "A match raises an alert with the image path, the transaction result and the signature state."
+    ],
+    "example": "Think of a visitor who writes a note on a whiteboard, photographs it, then wipes the board clean. The board looks untouched, but the photograph in the visitor pocket still holds the note. Rolling back the transaction wipes the board while the running process keeps the note.",
+    "takeaways": [
+      "The file on disk and the running copy can differ. That difference is the whole point of the trick.",
+      "Timing correlation matters, because the transaction and the process start happen seconds apart.",
+      "Unsigned image loads in a signed process are a strong supporting signal."
+    ]
+  },
+  "objectives": [
+    "Explain how a file system transaction can be rolled back after a process is created from the modified file",
+    "Identify the process creation, image load and transaction telemetry needed to observe this behaviour",
+    "Describe how to correlate a rolled back transaction with a process start on the same host",
+    "Interpret image load signature status alongside process creation to judge whether an image is genuine",
+    "Write a detection rule for this pattern and explain its telemetry dependencies and blind spots"
+  ],
+  "techniqueId": "t1055-013",
+  "detectsTechniques": [
+    "t1055-013"
+  ],
+  "dataSources": [
+    "Windows process creation records including image path, parent image, process identifier and creating process identifier",
+    "Image load events recording the signed status and signature details of modules loaded into a running process",
+    "File system transaction monitoring records showing transaction begin, file write, rollback and commit outcomes per process",
+    "Endpoint sensor records of section and process creation activity that link a process to the file it was created from"
+  ],
+  "logic": "The pattern is a file that is written inside a transaction and then rolled back, followed within seconds by a new process whose image path points at that same file and whose loaded modules include an unsigned or mismatched image. The fields that must be correlated are the host, the file path and its transaction outcome, the process identifier of the transaction owner and the process identifier of the new process, the image path, and the signature status reported at image load. The benign case is installer and antivirus software that uses transactions for rollback safety but commits them and creates processes from properly signed files; the malicious case shows a rollback with no commit and a process created from the same path immediately afterwards.",
+  "pseudoQuery": "# title: Process created from a rolled back file system transaction\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_transaction:\n#     EventID: 11\n#     TransactionOutcome: rolled back\n#     TargetFilename|endswith: [.exe, .dll]\n#   selection_process:\n#     EventID: 1\n#     Image|endswith: [.exe, .dll]\n#   filter_signed:\n#     Signed: true\n#     SignatureStatus: Valid\n#   condition: selection_transaction and selection_process and not filter_signed\n# level: high",
+  "falsePositives": [
+    "Installer and patching software that opens a transaction to replace files and rolls it back when a preinstall check fails",
+    "Antivirus engines that quarantine a file inside a transaction and then roll the transaction back after a clean verdict",
+    "Application compatibility shims and sandboxing tools that create transient files and abandon them on exit",
+    "Endpoint management agents that stage a binary in a temporary folder and delete or revert it when the policy changes"
+  ],
+  "tuningNotes": "Confirm first which file and process events your endpoint sensor actually emits with transaction detail, because many deployments record the process start without the transaction result and the rule then produces nothing. Baseline the software that uses transactions on each server group and allow list its image names and signatures, then restrict the rule to executable and library file extensions. Keep the time window tight, a few seconds, so that unrelated rollbacks and process starts are not joined together by accident. You lose coverage if the sensor does not report transaction outcome at all, in which case fall back to alerting on unsigned image loads inside processes created from user writable directories.",
+  "severity": "high"
+}

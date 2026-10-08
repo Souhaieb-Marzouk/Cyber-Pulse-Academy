@@ -1,0 +1,107 @@
+{
+  "id": "det0471",
+  "type": "detection",
+  "title": "Detection of Tainted Content Written to Shared Storage",
+  "shortTitle": "Detection of Tainted Content Written to Shared Storage",
+  "externalId": "DET0471",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects harmful content written into a shared location that other users or systems will later open, which maps to the tainted shared content technique used for lateral movement through trusted data. The detection correlates file creation and modification events on file servers and cloud collaboration platforms with the process that wrote the file, the account behind it, and the access that follows from other hosts. The strongest form of the rule is behavioral: a rarely used account writes an executable or macro-enabled document into a share it normally only reads, and another host opens it minutes later. It fails in practice because shared drives are busy places with constant legitimate writes from business applications, so scoping to unusual writer behaviour and unusual file types is what keeps the queue manageable.",
+  "tags": [
+    "mitre t1080",
+    "tainted shared content",
+    "lateral movement",
+    "file share",
+    "smb",
+    "data integrity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Tainted Content Written to Shared Storage",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0471/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Tainted Content Written to Shared Storage - EASY",
+      "path": "exercises/det0471/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Tainted Content Written to Shared Storage - MEDIUM",
+      "path": "exercises/det0471/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Tainted Content Written to Shared Storage - HARD",
+      "path": "exercises/det0471/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Tainted Content Written to Shared Storage - EXTREMELY HARD",
+      "path": "exercises/det0471/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Shared storage is a folder or drive that many people can read and write, such as a department file share. Tainted shared content means an attacker puts a harmful file there on purpose. Other people then open it because the location looks safe and familiar.",
+    "whyItMatters": "People trust their own file shares more than they trust email attachments. A file in the correct folder may pass checks that a download would fail. One upload can reach many users at once. Watching who writes what into shared space is therefore a useful early warning.",
+    "howItWorks": [
+      "The file server records who opens, creates and changes files, and the endpoint agent records local writes.",
+      "The detection looks at new files written into shared folders rather than files that already existed.",
+      "It checks the file type, such as a script or a document that can run macros.",
+      "It compares the writing account with the account's usual role, for example whether it normally writes there at all.",
+      "It then looks for another host opening the same file soon afterwards.",
+      "An analyst reviews the file, the writer and the readers before removing the file and containing the source host."
+    ],
+    "example": "Think of a workplace kitchen with a shared fridge and a note saying help yourself. Anyone can put a labelled box inside, and everyone trusts what is already in the fridge. A person who adds a box with the wrong contents reaches every colleague who takes from it. This detection watches who adds boxes.",
+    "takeaways": [
+      "Files in a trusted share often escape the checks applied to email and downloads.",
+      "The useful signal is an unusual writer placing an executable or macro document into shared space.",
+      "Look for readers after the write, because that tells you the possible spread."
+    ]
+  },
+  "objectives": [
+    "Explain why shared storage is attractive for moving harmful content inside a network.",
+    "Identify the file access, share access and endpoint telemetry that records writes into shares.",
+    "Define a normal writer baseline per share so unusual writes stand out.",
+    "Correlate a suspicious write with later reader activity to estimate exposure.",
+    "Describe safe handling steps for a suspected tainted file on a production share."
+  ],
+  "techniqueId": "t1080",
+  "detectsTechniques": [
+    "t1080"
+  ],
+  "dataSources": [
+    "Windows file server object access audit events recording file creation and write with the requesting account and source address",
+    "Sysmon event 11 file creation on servers capturing target filename and the image that created the file",
+    "Cloud collaboration audit logs recording file upload with the actor, the site and the file extension",
+    "Windows Security event 5140 network share access showing the share name, the account and the source address",
+    "File integrity monitoring baselines for critical shares recording changed files and their hashes"
+  ],
+  "logic": "The pattern is a write of an executable, script or macro-enabled document into a shared location by an account or process that does not normally write there. Correlate the creating process image and account from the endpoint event with the file name, extension and target share path from the file server event, then enrich with the share access events from other source addresses in the following minutes. In the benign case the writer is a known publishing account or a business application service, the file type is one the share is meant to hold, and the write happens during working hours. In the malicious case the account is a workstation user writing to a server share for the first time, the file name mimics an existing document but adds a script or archive extension, and several other hosts read it shortly afterwards.",
+  "pseudoQuery": "# title: Executable or Script Written to Shared Folder by Unusual Account\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_write:\n#     EventID: 5140\n#     ShareName|contains: '\\\\'\n#     AccessMask|contains: 'WriteData'\n#   selection_types:\n#     FileName|endswith:\n#       - '.exe'\n#       - '.js'\n#       - '.lnk'\n#       - '.docm'\n#   filter_publishers:\n#     SubjectUserName|endswith: '$'\n#   condition: selection_write and selection_types and not filter_publishers\n# level: medium",
+  "falsePositives": [
+    "Software deployment shares where administrators and packaging teams publish installers and scripts by design",
+    "Business applications that export reports or templates into a departmental share as a scheduled job",
+    "Users saving macro-enabled workbooks and shortcuts into team folders as part of ordinary work",
+    "Backup and archiving agents that write compressed or recovered files back into a share after a restore"
+  ],
+  "tuningNotes": "Start by profiling which accounts and processes write to each share over a month, then allowlist publishing accounts and application service identities instead of whole shares. Restrict the rule to file types that carry execution risk and to shares that hold documents rather than installers, and add a volume condition so a single unusual write matters more than bulk activity. Join the alert to share access events so the analyst sees the readers without extra queries. The coverage you lose by allowlisting a publishing share is detection of an attacker who compromises that publisher account, so monitor those accounts with separate authentication and process rules.",
+  "severity": "medium"
+}

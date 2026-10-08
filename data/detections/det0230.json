@@ -1,0 +1,108 @@
+{
+  "id": "det0230",
+  "type": "detection",
+  "title": "Detect Suspicious or Malicious Code Signing Abuse",
+  "shortTitle": "Detect Suspicious or Malicious Code Signing Abuse",
+  "externalId": "DET0230",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the code signing process, tracked as ATT&CK T1553.002, where an adversary signs malicious code with a stolen, misissued, or self created certificate, or tampers with the trust store so that an untrusted publisher appears trusted. It matters because signature checks are the last automatic trust decision in many products: endpoint policy, macro settings, and driver installation rules all relax once a file carries a valid signature, so a signed malicious binary can move through controls that would stop the same file unsigned. The telemetry that makes it detectable is process creation for signing utilities and their command lines, file creation events for new catalog or signature files, certificate store modification events, and code integrity audit events that record an image failing signature validation. The main failure mode is that legitimate build pipelines sign artifacts constantly, so the rule must be scoped to where signing is expected and must focus on anomalies such as signing on a workstation, use of a self signed or short lived certificate, or signature timestamps that predate the binary.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "code signing",
+    "certificates",
+    "supply chain"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Suspicious or Malicious Code Signing Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0230/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Suspicious or Malicious Code Signing Abuse - EASY",
+      "path": "exercises/det0230/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Suspicious or Malicious Code Signing Abuse - MEDIUM",
+      "path": "exercises/det0230/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Suspicious or Malicious Code Signing Abuse - HARD",
+      "path": "exercises/det0230/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Suspicious or Malicious Code Signing Abuse - EXTREMELY HARD",
+      "path": "exercises/det0230/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for unusual use of digital signatures. A digital signature is a stamp that says who made a file and that the file has not changed. A valid stamp helps security tools decide the file is safe. Attackers want that stamp on their own harmful files, so they steal a certificate or make their own. This detection looks for signing tools used in the wrong place at the wrong time.",
+    "whyItMatters": "Many protection settings relax when a file is properly signed. A signed harmful file can pass checks that would block an unsigned one. Stolen certificates can also make a file appear to come from a company you trust. If you notice the misuse early, you can revoke the certificate and stop the file from working anywhere.",
+    "howItWorks": [
+      "The endpoint agent records every program that starts, including the program name and its arguments.",
+      "The rule looks for tools whose job is to add a digital signature.",
+      "It checks where the signing happened, such as a normal user laptop instead of a build server.",
+      "It records the certificate used and whether that certificate is one your company owns.",
+      "It also records files added to the trusted certificate store on the machine.",
+      "An alert fires when signing or trust changes happen outside your approved build process."
+    ],
+    "example": "Think of a passport office. A stamp in a passport is trusted because only the office has the stamp. If someone makes their own stamp that looks similar, the passport passes a quick check at the border. The stamp is the only thing being trusted, and that is the weakness.",
+    "takeaways": [
+      "A valid signature makes security tools treat a file as trusted, so misuse is high impact.",
+      "Legitimate signing happens on build systems, so workstation signing is a strong lead.",
+      "Track certificate expiry, issuer, and which machine did the signing."
+    ]
+  },
+  "objectives": [
+    "Explain what a code signing certificate proves and what it does not prove",
+    "Identify process creation events for signing utilities and their command line arguments",
+    "Detect certificate store changes that add publisher or root trust certificates",
+    "Distinguish signing performed on a build server from signing on an endpoint",
+    "Correlate a newly signed binary with the process that wrote and then executed it",
+    "Describe revocation and certificate lifecycle steps after confirmed misuse"
+  ],
+  "techniqueId": "t1553-002",
+  "detectsTechniques": [
+    "t1553-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including command line for signing utilities such as signtool.exe",
+    "PowerShell script block logging capturing Set-AuthenticodeSignature and certificate import cmdlets",
+    "Windows Security event 4657 registry value modification on the certificate store registry branches",
+    "Code integrity or AppLocker audit events recording an image that failed signature validation",
+    "Sysmon event 11 file create for newly written catalog files, signature files and signed binaries"
+  ],
+  "logic": "The detection looks for a signing tool execution or a certificate store modification where the activity does not match the expected build and release process: the host is not an approved build server, the certificate used is self signed, expired, revoked, or not issued to the organisation, or the trust store gains a publisher or root certificate from an unusual parent process. The fields that must be correlated are the process image and full command line, the file being signed and its path, the certificate thumbprint, issuer and subject, the signing timestamp, the parent process, and the host role. Benign activity is a continuous integration agent signing artifacts with an organisation certificate under a known parent process and a stable working directory, while malicious use typically appears as a short lived signing utility run from a temporary folder, a certificate issued minutes earlier, a signature applied to a file in a user download or public directory, or a store modification made by a script host rather than by a user in the certificate interface.",
+  "pseudoQuery": "# title: Code Signing Tool Used Outside an Approved Build Host\n# logsource:\n#   product: windows\n# detection:\n#   selection_tool:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\signtool.exe'\n#       - '\\osslsigncode.exe'\n#     CommandLine|contains:\n#       - 'sign'\n#       - '/f '\n#       - '/csp'\n#   selection_store:\n#     EventID: 13\n#     TargetObject|contains: '\\Certificates\\'\n#   filter_build:\n#     Computer|contains: 'build'\n#   condition: (selection_tool or selection_store) and not filter_build\n# level: high",
+  "falsePositives": [
+    "Release engineers signing a hotfix by hand on a jump host during a documented emergency change",
+    "Driver or firmware packages installed by vendor support tooling that imports a publisher certificate locally",
+    "Application packaging teams that re sign internally developed installers on a departmental workstation",
+    "Smart card middleware installing a root certificate during deployment from a management tool",
+    "Developers testing signature verification locally with a self signed certificate on a lab machine"
+  ],
+  "tuningNotes": "Enumerate the build and release infrastructure first, then allowlist those hosts by name pattern and by the service account that runs the pipeline, because signing on a build agent is expected and signing on an analyst laptop is not. Keep a filter for the organisation's own certificate thumbprints so that use of an unknown certificate stands out even on an approved host, and add a watch on certificates with a validity period of only a few days, which is common in misuse. To preserve coverage on compromised build systems, log the certificate thumbprint in a separate low severity rule rather than filtering it out, and retain the command line field so a stolen certificate used to sign a new binary in an unusual directory is still visible. The coverage you lose by allowing your build hosts is a real compromise of the pipeline itself, so complement this with integrity monitoring of the build configuration and of published artifacts.",
+  "severity": "high"
+}

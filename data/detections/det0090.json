@@ -1,0 +1,107 @@
+{
+  "id": "det0090",
+  "type": "detection",
+  "title": "Cross-host C2 via Removable Media Relay",
+  "shortTitle": "Cross-host C2 via Removable Media Relay",
+  "externalId": "DET0090",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects command and control that travels by removable media instead of the network, where one host collects data or instructions and a second host reads them from the same device. The technique matters because it defeats network egress monitoring entirely, and it is a realistic bridge for an air gapped or heavily filtered environment. Detection depends on file creation and process execution telemetry that names the removable volume path, plus user session context so writes at logon can be tied to one person. The most common failure is that endpoint sensors often do not record removable media events at all, and when they do, ordinary office use of USB drives floods the rule. Use this material for learning, not as an authoritative standard.",
+  "tags": [
+    "command and control",
+    "removable media",
+    "usb",
+    "exfiltration",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cross-host C2 via Removable Media Relay",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0090/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cross-host C2 via Removable Media Relay - EASY",
+      "path": "exercises/det0090/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cross-host C2 via Removable Media Relay - MEDIUM",
+      "path": "exercises/det0090/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cross-host C2 via Removable Media Relay - HARD",
+      "path": "exercises/det0090/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cross-host C2 via Removable Media Relay - EXTREMELY HARD",
+      "path": "exercises/det0090/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a USB drive or similar removable device that carries messages between computers. One computer writes a file to the device, and another computer reads it later. Attackers use this when they cannot talk to their server over the network. The detection watches files that are created on removable devices and programs that start from them.",
+    "whyItMatters": "Most monitoring watches network traffic. A device that moves by hand leaves no network trace between the two computers. This makes removable media a quiet path for instructions and for stolen data. The gap is dangerous because a strict network filter can make a team feel safe. Watching media events closes a blind spot that many tools ignore.",
+    "howItWorks": [
+      "The endpoint sensor, or the operating system audit policy, records when a removable volume is attached to the computer.",
+      "Operating system audit records show the files that were created on or copied to that volume.",
+      "The rule watches which program wrote the file, and flags scripting interpreters and command shells.",
+      "It also looks for programs that start from the removable drive path rather than from a normal install folder.",
+      "Analysts compare write events on one computer with read or execute events on another computer at a later time.",
+      "A writing account that also owns the device, or the same file name appearing on two hosts, is the strongest link."
+    ],
+    "example": "Picture two offices with no telephone line between them, only a locked corridor. A staff member carries a folder down the corridor twice a day. Nobody can read the folder in transit, but the corridor log shows who carried it and when. If the same folder appears on both desks within an hour, the two offices are clearly talking. Removable media is that corridor, and the log of file writes and program starts is your corridor record.",
+    "takeaways": [
+      "Removable media can carry instructions and stolen data with no network traffic at all.",
+      "The strongest evidence is the same file or device appearing on two hosts, not one event.",
+      "Sensor coverage for removable devices is often missing, so verify it before you trust the rule."
+    ]
+  },
+  "objectives": [
+    "Explain how removable media can act as a command channel between two hosts.",
+    "Identify the telemetry that records writes to and execution from removable volumes.",
+    "Correlate a write on one host with a read or execution on another host.",
+    "Assess whether your current endpoint sensor captures removable media events.",
+    "Describe the containment steps for a suspected media relay without destroying evidence."
+  ],
+  "techniqueId": "t1092",
+  "detectsTechniques": [
+    "t1092"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation showing target filenames on removable volume drive letters",
+    "Sysmon event 1 process creation where the image path or parent path is a removable drive letter",
+    "Windows Security event 4663 object access audit entries for files written to removable volumes",
+    "Windows Security event 4688 process creation with command line auditing for scripting interpreters started from media",
+    "Endpoint device control logs that record removable storage attach and file copy operations"
+  ],
+  "logic": "The pattern is a file that appears on a removable volume and a program that runs from that volume, repeated across more than one host. The correlated fields are the target path drive letter, the process image and parent that performed the write, the interactive user account, and any execution event whose image path begins with a removable drive letter. Benign use looks like one user copying a presentation to their own device, or a vendor delivering signed drivers on approved media during a scheduled visit. Malicious relay behaviour looks like writes from a scripting interpreter to a device path at logon or shortly before shutdown, script or archive extensions on the volume, and the same file name or hash observed on a second host, especially one that cannot reach the internet. Because legitimate media use is common, the rule needs at least two of these conditions before it should alert.",
+  "pseudoQuery": "# title: Payload Written to or Executed From Removable Media\n# logsource:\n#   product: windows\n# detection:\n#   sel_write:\n#     EventID: 11\n#     TargetFilename|contains: ':\\\\'\n#     TargetFilename|endswith: ['.ps1', '.bat', '.js', '.zip', '.exe']\n#   sel_exec:\n#     EventID: 1\n#     Image|contains: ':\\\\'\n#     Image|endswith: ['\\\\powershell.exe', '\\\\cmd.exe', '\\\\wscript.exe', '\\\\rundll32.exe']\n#   filter:\n#     Image|contains: 'ApprovedMediaShare'\n#   condition: (sel_write or sel_exec) and not filter\n# level: high",
+  "falsePositives": [
+    "Presentation or media files copied to a personal USB drive by a user before a scheduled meeting",
+    "Vendor or field engineers running a signed diagnostic utility from their own approved device",
+    "Automated kiosk or industrial equipment that writes measurement exports to a fixed removable disk",
+    "IT staff imaging new laptops from a bootable removable drive during a documented rollout",
+    "Photographers or design teams who transfer large project files by external drive as part of their normal work"
+  ],
+  "tuningNotes": "First confirm that your sensors actually collect file creation and process start events that include drive letters, then allowlist the drive letters used by imaging and backup hardware and the specific hosts that mount them. Score events rather than alerting on one: require a scripting interpreter as the writer, an executable file type on the volume, and a second host in the same period. Scope the rule to hosts on restricted segments where no removable media should ever appear, and add a filter for the documented imaging window. You lose coverage of a patient relay that uses ordinary document files with embedded content, so keep the copy and rename behaviour of those documents in a monthly review.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0859",
+  "type": "detection",
+  "title": "Detection of Network Devices",
+  "shortTitle": "Detection of Network Devices",
+  "externalId": "DET0859",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers compromise of network devices such as routers, switches, firewalls and remote access appliances, which an adversary then uses as infrastructure to relay or redirect traffic. These devices often run older software, keep limited logs and sit outside normal endpoint monitoring, so a takeover can persist unnoticed for months. The telemetry that makes it visible is device syslog for configuration and authentication events, central authentication logs for management logins, simple network management protocol change notifications and flow records showing unexpected outbound tunnels. It fails because many estates never forward device logs at all, or forward them only to local buffers that an attacker can clear.",
+  "tags": [
+    "resource development",
+    "network devices",
+    "configuration change",
+    "syslog",
+    "infrastructure"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Network Devices",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0859/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Network Devices - EASY",
+      "path": "exercises/det0859/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Network Devices - MEDIUM",
+      "path": "exercises/det0859/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Network Devices - HARD",
+      "path": "exercises/det0859/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Network Devices - EXTREMELY HARD",
+      "path": "exercises/det0859/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A network device moves traffic between networks. Examples are routers, switches and firewalls. These devices have their own operating systems and their own admin accounts. An attacker who controls one can watch traffic, redirect it or hide other attacks. This detection looks for changes and logins that suggest the device is no longer yours alone.",
+    "whyItMatters": "Ordinary computer monitoring does not watch these devices closely. A stolen router can redirect your traffic to a copy of a website you trust. It can also give the attacker a quiet way into many networks at once. Because the device sits between networks, it is in a perfect place to stay hidden. Change control and strong logging matter more here than on a laptop, yet these devices are often forgotten during hardening. Your detection is the only record that a change happened.",
+    "howItWorks": [
+      "Each network device sends log messages to a central collector, usually over syslog.",
+      "Those messages include logins, configuration commits and local account changes.",
+      "The detection compares new configuration lines with the last approved version.",
+      "It also checks whether the management login came from an approved jump host.",
+      "Flow records are reviewed for new outbound tunnels or unusual routing updates.",
+      "When a change or login has no matching approved ticket, the rule raises an alert."
+    ],
+    "example": "Think of the door log for the engineering room in a hospital. The room holds the pipes and the power for the whole building. Only three engineers should enter, and each entry must match a work order. If somebody signs in at two in the morning with no work order, the security desk calls the duty manager. The room itself looks ordinary and nobody watches it during the day. Your network device is that engineering room, and its syslog is the sign in sheet. Without the sheet, you would never know who opened the door.",
+    "takeaways": [
+      "Network devices are high value targets that endpoint tools rarely watch.",
+      "Forward device logs off the box, or an attacker can erase the evidence.",
+      "Every accepted configuration change needs a matching approved work record."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers target routers, switches and remote access appliances.",
+    "List the log sources that reveal a network device takeover.",
+    "Compare device configuration changes with approved change records.",
+    "Describe how outbound tunnel creation appears in flow data.",
+    "Recommend hardening steps for network device management access."
+  ],
+  "techniqueId": "t1584-008",
+  "detectsTechniques": [
+    "t1584-008"
+  ],
+  "dataSources": [
+    "Network device syslog messages for authentication, configuration commit and local account change events",
+    "Central authentication logs from terminal access controller access control system or radius servers for management logins",
+    "Simple network management protocol trap and configuration change notifications from managed devices",
+    "Router or firewall flow exports showing new tunnel interfaces or unexpected outbound sessions",
+    "Change management ticket records used to confirm whether a change was approved"
+  ],
+  "logic": "The pattern is a configuration change, account change or new tunnel on a network device that does not match an approved change record, especially when the management login arrives from outside the approved jump host range. The fields that must be correlated are the device identifier, the management source address, the account used, the configuration lines that changed and the change ticket reference. Benign changes come from scheduled maintenance windows, configuration automation and vendor support sessions that are announced in advance. What separates the malicious case is a change outside any window, a new local account or credential, and forwarding of device logs to an address nobody on the team recognises.",
+  "pseudoQuery": "# title: Network Device Configuration Change Without Approved Ticket\n# logsource:\n#   product: network\n# detection:\n#   selection_change:\n#     action:\n#       - 'config-commit'\n#       - 'local-account-created'\n#       - 'tunnel-interface-created'\n#   filter_approved_source:\n#     src_ip|in: 'jump_host_ranges'\n#   filter_ticket:\n#     change_ticket|exists: true\n#   condition: selection_change and not filter_approved_source and not filter_ticket\n# level: high",
+  "falsePositives": [
+    "Emergency configuration changes made during an incident bridge with the ticket raised afterwards.",
+    "Vendor or carrier maintenance performed on managed equipment under a support contract.",
+    "Configuration automation pipelines that commit changes without writing a ticket reference.",
+    "Lab or staging devices that were added to the same log collector by mistake."
+  ],
+  "tuningNotes": "Start by forwarding device logs to a collector that the device itself cannot write to, and by baselining the accounts and source addresses that normally manage each device. Add filters for your automation pipelines, for announced maintenance windows and for carrier managed equipment. Scope the rule to devices that carry production traffic. If you narrow it to a short list of critical devices you gain precision, but you lose visibility of the access switches an attacker may use as a stepping stone, so keep a weekly report of all device changes for review.",
+  "severity": "high"
+}

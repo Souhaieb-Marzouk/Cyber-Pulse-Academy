@@ -1,0 +1,106 @@
+{
+  "id": "det0830",
+  "type": "detection",
+  "title": "Detection of Active Scanning",
+  "shortTitle": "Detection of Active Scanning",
+  "externalId": "DET0830",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Active Scanning, the reconnaissance technique in which an adversary probes victim infrastructure with network traffic to find live hosts, open ports, and running services. It matters because scanning is often the first observable contact an organisation has with an attacker, and it turns a theoretical exposure into a targeted one. Detection relies on firewall deny logs, network flow records, intrusion detection alerts, and service logs showing repeated connection failures. The classic failure is that vulnerability scanners, monitoring probes, and cloud health checks produce the same traffic profile, so the rule must distinguish approved scanners by source and schedule from unknown sources that sweep broadly and slowly.",
+  "tags": [
+    "reconnaissance",
+    "mitre attack",
+    "network scanning",
+    "firewall logs",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Active Scanning",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0830/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Active Scanning - EASY",
+      "path": "exercises/det0830/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Active Scanning - MEDIUM",
+      "path": "exercises/det0830/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Active Scanning - HARD",
+      "path": "exercises/det0830/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Active Scanning - EXTREMELY HARD",
+      "path": "exercises/det0830/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone probing your network to find open doors. Probing means sending many connection attempts to learn which hosts answer and which services run. The detection watches for scans from sources you do not recognise.",
+    "whyItMatters": "A scan is often the first time an attacker touches your systems. If you see it, you know someone is interested and you can block them early. Scans also show which of your services are exposed to the internet. Most scans are automated and repeated, so they are easy to miss in busy logs. Grouping them by source turns thousands of small events into one clear alert.",
+    "howItWorks": [
+      "Firewalls and network devices write a record when they block or allow a connection.",
+      "The rule counts blocked connections by source address and by destination port.",
+      "A single source touching many ports on one host looks like a port sweep.",
+      "A single source touching the same port on many hosts looks like a host sweep.",
+      "Known scanner addresses, monitoring probes, and cloud health check ranges are removed.",
+      "What remains is scored by breadth and speed, and alerts when it passes the threshold."
+    ],
+    "example": "Think of a person walking down a street trying every car door handle. They do not break anything. They just want to know which cars are unlocked. A single handle pull tells you nothing, but someone pulling fifty handles in two minutes is worth a call to the police. The detection counts the handle pulls, not the cars.",
+    "takeaways": [
+      "Active scanning is usually the earliest visible sign of an interested adversary.",
+      "Counting distinct ports and hosts per source is what turns noise into a clear signal.",
+      "Approved vulnerability scanners create identical traffic, so source based filtering is essential."
+    ]
+  },
+  "objectives": [
+    "Describe the difference between a port sweep, a host sweep, and a service version probe",
+    "Identify the network telemetry that records blocked and allowed connection attempts",
+    "Threshold scan detection by distinct destination ports and hosts per source address",
+    "Maintain a registry of approved scanners and monitoring systems for filtering",
+    "Judge severity from whether the scanned targets are internet facing or internal only"
+  ],
+  "techniqueId": "t1595",
+  "detectsTechniques": [
+    "t1595"
+  ],
+  "dataSources": [
+    "Firewall deny and allow logs with source address, destination address, destination port, and action",
+    "Network flow records such as NetFlow or IPFIX with byte and packet counts per connection",
+    "Intrusion detection system alerts for port sweep and host sweep signatures",
+    "Zeek connection logs recording connection state and attempted service names",
+    "Web and mail server error logs showing repeated requests to non existent paths from one address"
+  ],
+  "logic": "The pattern is breadth of contact from one source in a short period: many distinct destination ports on a single host, or one destination port across many hosts, mostly resulting in refused or dropped connections. The fields that must be correlated are the source address, the count of distinct destination ports, the count of distinct destination hosts, the connection outcome, and the time window. Benign activity comes from vulnerability scanners, inventory discovery, monitoring probes, and content delivery health checks, all of which originate from known addresses on a schedule. The malicious case is an unknown or newly seen source, often with a low and slow rate to avoid thresholds, hitting services that are not part of any approved scan scope.",
+  "pseudoQuery": "# title: Internal Port Sweep From Unapproved Source\n# logsource:\n#   product: network\n#   category: firewall\n# detection:\n#   selection:\n#     action: denied\n#   filter:\n#     src_ip|cidr:\n#       - '10[.]10[.]0[.]0/16'\n#       - '10[.]20[.]0[.]0/16'\n#   condition: selection and not filter | count(distinct dst_port) by src_ip > 20\n# level: medium",
+  "falsePositives": [
+    "Approved vulnerability scanners running credentialed and unauthenticated scans on a weekly schedule",
+    "Network discovery tools that map live hosts after a change window or a switch replacement",
+    "Monitoring and load balancer health checks that repeatedly probe service ports across the estate",
+    "User devices with misconfigured applications that retry connections to many services after a network change"
+  ],
+  "tuningNotes": "Build the approved scanner registry first and filter by source address range plus scan window, not by signature alone, because slow scans evade signatures. Tune the distinct port and host thresholds against a week of real traffic, and add a second low threshold rule for slow scans with long time windows. Scope the high severity alert to internet facing address ranges and keep internal sweeps at medium. Reducing sensitivity to protect against alert fatigue will miss patient scanning from a single host, so retain the raw firewall logs for at least ninety days for retrospective hunting.",
+  "severity": "medium"
+}

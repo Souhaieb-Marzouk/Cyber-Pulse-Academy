@@ -1,0 +1,107 @@
+{
+  "id": "det0195",
+  "type": "detection",
+  "title": "Behavioral Detection of System Network Configuration Discovery",
+  "shortTitle": "Behavioral Detection of System Network Configuration Disc...",
+  "externalId": "DET0195",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects system network configuration discovery, the set of built in commands an adversary uses to learn a host's addresses, routes, name servers and interface details after gaining access. It matters less because of what it reveals on one host and more because it marks the orientation phase of an intrusion, and because the same commands appear within automated chain activity such as remote management frameworks and batch reconnaissance scripts. Detection rests on process creation with full command lines, interpreter invocation records on Linux, and the sequence and frequency of the commands. The practical failure is that these commands are everyday administration, so the rule is only useful when it scores rarity of the command and parent pair per asset type and links a burst of commands to one session.",
+  "tags": [
+    "discovery",
+    "network configuration",
+    "command line",
+    "windows",
+    "linux",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of System Network Configuration Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0195/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of System Network Configuration Discovery - EASY",
+      "path": "exercises/det0195/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of System Network Configuration Discovery - MEDIUM",
+      "path": "exercises/det0195/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of System Network Configuration Discovery - HARD",
+      "path": "exercises/det0195/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of System Network Configuration Discovery - EXTREMELY HARD",
+      "path": "exercises/det0195/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for commands that read a computer's network settings, such as its address, routes and name servers. Attackers run these commands to map where they are. The commands are ordinary and built into the system. The rule focuses on how many run, in what order, and who started them.",
+    "whyItMatters": "Knowing the network layout helps an attacker choose the next target. The check happens early and quickly, often within minutes of gaining access. One command means little, but a burst of them in a row means someone is exploring. It is also useful when it comes from a service account that never logs in. Detecting the pattern gives you an early warning worth acting on.",
+    "howItWorks": [
+      "A process runs one or more commands that read network settings.",
+      "The operating system records the process, the full command and the parent process.",
+      "The rule counts how many different discovery commands ran in one session.",
+      "It checks whether that combination is common for that host type and account.",
+      "It also checks whether a scripting interpreter or a remote tool started them.",
+      "A rare burst from an unusual parent produces an alert during the exploration."
+    ],
+    "example": "Imagine a new cleaner starting at an office. On the first night they walk every corridor, read every door sign and check which lights are on. That is reasonable once. Nobody minds a person learning the building. Staff do notice a cleaner who reads the door signs every night for a week. That cleaner never cleans anything. The pattern, not the single walk, is the odd part.",
+    "takeaways": [
+      "Network discovery is a weak single event, so count commands inside a session.",
+      "Rarity of the command and parent pair is what makes this rule workable.",
+      "A service account running these commands is far more interesting than a person doing it."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries perform network configuration discovery early in an intrusion.",
+    "Identify the built in commands that read addresses, routes and name server settings.",
+    "Count distinct discovery commands within a single session as a scoring signal.",
+    "Use rarity of the command and parent process pair for each asset group.",
+    "Recognise discovery launched by a service account or a remote management tool.",
+    "Describe how to chain discovery with subsequent lateral movement detections."
+  ],
+  "techniqueId": "t1016",
+  "detectsTechniques": [
+    "t1016"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including full command line and parent image",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Linux auditd execve records capturing network utility invocations and their arguments",
+    "Endpoint management console records of remote shell and remote management sessions on a host"
+  ],
+  "logic": "The pattern is a burst of two or more distinct network configuration commands executed within a short window from the same session or parent process, particularly when the parent is a scripting interpreter, a scheduled task created recently, or a remote management tool, and especially when the account is a service identity that does not normally log in interactively. The fields to correlate are the process image, the full command line, the parent image, the executing account, the host asset group and the timestamps, grouped by session identifier. The malicious case chains commands such as address listing, route listing and interface configuration queries in quick succession, often from a temporary directory or an unusual working directory, and frequently continues into credential access or lateral movement tooling within the same hour. The benign case is a single documented command run by a network or support engineer during a ticket, or a fixed configuration script that runs one specific command at a predictable time under a service account.",
+  "pseudoQuery": "# title: Burst of Network Configuration Discovery\n# logsource:\n#   product: windows\n# detection:\n#   selection_netconfig:\n#     EventID: 1\n#     CommandLine|contains|any:\n#       - 'ipconfig /all'\n#       - 'netsh interface show'\n#       - 'route print'\n#       - 'Get-NetIPConfiguration'\n#   filter_approved_admin:\n#     User|endswith: '$'\n#     ParentImage|endswith: '\\\\configmgmt.exe'\n#   filter_support_tools:\n#     ParentImage|contains: '\\\\RemoteSupport\\\\'\n#   condition: selection_netconfig and not (filter_approved_admin or filter_support_tools)\n# level: low",
+  "falsePositives": [
+    "Network engineers running a documented sequence of address and route checks while troubleshooting a connectivity ticket",
+    "Virtual machine provisioning scripts that read interface configuration to register a new host in inventory",
+    "Monitoring plugins that collect interface and routing data on a schedule using a service account",
+    "Support staff running diagnostics from an approved remote support console during a user session"
+  ],
+  "tuningNotes": "Filter on the specific command and parent process pairs that your configuration management and monitoring agents use, and keep a distinct unfiltered path for commands started by scripting interpreters or by an interactive session on a server, since that is where the technique lives. Baseline per host type for two weeks and set the burst threshold at two distinct commands within five minutes, which is high enough to ignore single diagnostic commands. Because single commands are so common, scope the alert to servers, domain controllers and privileged workstations rather than every laptop, and count sessions rather than raw events so one automated task does not flood the queue. The coverage you lose by trusting approved service accounts is discovery performed with those credentials, so correlate this rule with lateral movement alerts on the same host and raise the combined finding to high severity when discovery is followed by remote service creation.",
+  "severity": "low"
+}

@@ -1,0 +1,109 @@
+{
+  "id": "det0316",
+  "type": "detection",
+  "title": "Detection Strategy for Disk Content Wipe via Direct Access and Overwrite",
+  "shortTitle": "Detection Strategy for Disk Content Wipe via Direct Acces...",
+  "externalId": "DET0316",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects wiping of disk content through direct device access, mapped to the disk structure wipe area and recorded in the assignment as t1561-001. Impact activity of this kind destroys data so that recovery is impossible, and it is usually the last stage of an intrusion after staging, exfiltration or a failed extortion attempt. The distinguishing telemetry is coarse grained: a process opening a raw volume device, disk management commands that clear structures, and the sudden loss of file auditing across many files in a short period. The pattern is genuinely rare, which is an advantage, but the same primitives appear in legitimate disk preparation and secure decommissioning, so the rule must weigh the actor, the target volume and the maintenance calendar before it raises severity.",
+  "tags": [
+    "disk wipe",
+    "impact",
+    "raw device access",
+    "data destruction",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Disk Content Wipe via Direct Access and Overwrite",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0316/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Disk Content Wipe via Direct Access and Overwrite - EASY",
+      "path": "exercises/det0316/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Disk Content Wipe via Direct Access and Overwrite - MEDIUM",
+      "path": "exercises/det0316/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Disk Content Wipe via Direct Access and Overwrite - HARD",
+      "path": "exercises/det0316/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Disk Content Wipe via Direct Access and Overwrite - EXTREMELY HARD",
+      "path": "exercises/det0316/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Disk content wiping means destroying the data on a disk so it cannot be read again. An attacker can do this by writing directly to the raw disk device instead of to ordinary files. This detection looks for programs that touch a whole disk in that way.",
+    "whyItMatters": "Backups help, but wiping can also reach attached backup volumes. Losing a disk can stop a business process for days. Destruction is also used to hide other activity, such as stolen data. Alerts on raw disk access arrive in time to stop a job that runs for hours.",
+    "howItWorks": [
+      "A raw disk device is a special path that represents an entire disk rather than one file.",
+      "Programs that write to it bypass the normal file system, so they can overwrite structures and data.",
+      "The endpoint agent records the process, its command line and any attempt to reach those device paths.",
+      "The rule also uses the file system audit log, which shows large numbers of deletions or changes quickly.",
+      "It checks whether the account or the host is one that legitimately prepares disks, such as a build server.",
+      "When a non approved process touches a raw volume, or changes appear in bulk outside a maintenance window, it alerts."
+    ],
+    "example": "Picture a library where every book has a catalogue card. A vandal does not remove books one by one. They empty the catalogue drawers and bolt the shelves shut, so nothing can be found even if some books survive. Raw disk access is the empty catalogue, and the files are the books you can no longer locate.",
+    "takeaways": [
+      "Raw device access bypasses the file system, so normal file monitoring misses it.",
+      "Bulk change activity in the audit log is the second, complementary signal.",
+      "Wiping is high impact and rare, so treat almost every unapproved case as urgent."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between deleting files and overwriting disk structures",
+    "Identify process, privilege and file audit telemetry that reveals raw volume access",
+    "List the built in disk preparation tools that legitimately write to raw devices",
+    "Design a rule that correlates device access with bulk changes to many files",
+    "Set severity and response steps appropriate to an irreversible impact technique",
+    "Verify coverage by reviewing recent approved disk preparation activity"
+  ],
+  "techniqueId": "t1561-001",
+  "detectsTechniques": [
+    "t1561-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation capturing disk utility names and command line arguments that reference raw device paths",
+    "Windows Security event 4673 for a privileged service call made by a process requesting sensitive disk privileges",
+    "Windows Security event 4688 process creation with command line auditing enabled on hosts without a full endpoint agent",
+    "File system audit or endpoint file activity records showing a burst of deletions, truncations or attribute changes across many files",
+    "Change management records identifying approved disk preparation and secure decommissioning windows per host"
+  ],
+  "logic": "The detection treats raw volume access as the primary signal because a process that opens a physical disk device is doing something the ordinary file system does not need. It builds the suspect set from process creation where the command line references a physical drive path, a destructive utility, or a zero writing pattern, and from privileged service call events where a process requests the right to write raw device data. The malicious case is separated from legitimate preparation by three factors: whether the acting account belongs to the storage or build team, whether an approved change window is open for that host, and whether the activity is accompanied by a burst of file changes across unrelated directories. The last factor matters most for extortion style wiping, where destruction of data and destruction of access paths happen together.",
+  "pseudoQuery": "# title: Raw Disk Device Access or Bulk File Destruction\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_device:\n#     EventID: 1\n#     CommandLine|contains:\n#       - \\\\.\\PhysicalDrive\n#       - \\Device\\Harddisk\n#       - clean all\n#       - format /p\n#   selection_bulk:\n#     EventID: 23\n#     TargetFilename|endswith: .bak\n#   filter_approved_tools:\n#     User|endswith: svc-storage-deploy$\n#   condition: (selection_device or selection_bulk) and not filter_approved_tools\n# level: critical",
+  "falsePositives": [
+    "Storage team workstations that repartition and format newly attached disks during routine hardware provisioning",
+    "Disk imaging software that writes a golden image to a raw device as part of a standard build process",
+    "Backup agents that read from raw volumes and briefly open the device to take a block level snapshot",
+    "Secure decommissioning procedures that overwrite retired disks before they leave the building",
+    "Virtualisation hosts that create or resize virtual disk files and adjust partition structures accordingly"
+  ],
+  "tuningNotes": "Allowlist the approved tooling by hash and the responsible service accounts rather than by command line text, and require a matching change record before suppressing anything. Start at critical severity for raw device writes by non approved accounts and reserve the bulk change rule for hosts that store business critical data, because backup rotation can create large change volumes. The coverage you lose by trusting a storage team account is real: if that account is compromised you will not see the wipe, so pair this rule with authentication monitoring on privileged storage accounts and alert on any raw device access that originates from a workstation session.",
+  "severity": "critical"
+}

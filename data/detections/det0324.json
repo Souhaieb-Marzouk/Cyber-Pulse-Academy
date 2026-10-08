@@ -1,0 +1,108 @@
+{
+  "id": "det0324",
+  "type": "detection",
+  "title": "Detection Strategy for Polymorphic Code Mutation and Execution",
+  "shortTitle": "Detection Strategy for Polymorphic Code Mutation and Exec...",
+  "externalId": "DET0324",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the behaviour of polymorphic code, the technique recorded in the assignment as t1027-014, where each execution produces a file with different bytes but the same purpose, so hash based detection ages out within hours. Because the file identity cannot be relied on, the detection anchors on the stable parts of the chain: the process that writes a new executable, the directory it writes to, the immediate execution of that new file, and the sequence of actions the child performs. Telemetry comes from process creation with parent and image path, file creation, image load and the first network connections made by the new process. The practical failure is that updaters, installers and self extracting packages produce the same chain legitimately, so the rule needs the parent identity and the destination reputation to stay usable.",
+  "tags": [
+    "polymorphic code",
+    "obfuscation",
+    "defense evasion",
+    "process lineage",
+    "file creation",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Polymorphic Code Mutation and Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0324/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Polymorphic Code Mutation and Execution - EASY",
+      "path": "exercises/det0324/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Polymorphic Code Mutation and Execution - MEDIUM",
+      "path": "exercises/det0324/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Polymorphic Code Mutation and Execution - HARD",
+      "path": "exercises/det0324/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Polymorphic Code Mutation and Execution - EXTREMELY HARD",
+      "path": "exercises/det0324/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Polymorphic code changes its own appearance each time it runs while keeping the same job. Attackers do this so that a file fingerprint, called a hash, stops matching after a short time. This detection ignores the fingerprint and watches what the program does.",
+    "whyItMatters": "Blocklists of known bad files expire quickly when the files keep changing. Behaviour is harder for an attacker to change than bytes are. Watching a program that writes and starts another program catches many fresh samples. It also helps you group incidents that look unrelated by file name.",
+    "howItWorks": [
+      "A program runs and writes a new copy of itself to a folder. Temporary directories are a common choice.",
+      "It then starts that new file as a fresh process, often using a system tool to launch it.",
+      "The endpoint agent records the file creation, the process start and the parent that caused it.",
+      "Your platform adds details about the file, such as its signature status and whether the path is user writable.",
+      "The rule links the write and the execution, then compares the child's behaviour with known patterns of activity.",
+      "One process writes a file into a temporary folder and starts it. The child then changes the network or registry."
+    ],
+    "example": "Think of a forger who changes one letter of a signature on every cheque. Each cheque looks slightly different, so the clerk's list of known fakes is useless. The clerk instead watches for the same person presenting the same account details with a new signature each week. The pattern, not the signature, is the evidence.",
+    "takeaways": [
+      "Hashes identify one file, not one family of behaviour.",
+      "A write followed immediately by an execution from the same parent is a strong signal.",
+      "Grouping alerts by parent process and directory reveals a single campaign behind many file names."
+    ]
+  },
+  "objectives": [
+    "Explain why hash based detection fails against self changing code",
+    "Identify the process chain that shows a program writing and starting a new file",
+    "Use signature status and directory location to score a newly written executable",
+    "Cluster related alerts by parent process, path and network destination",
+    "Reduce false positives from installers, updaters and self extracting archives",
+    "Describe how process lineage supports containment decisions during an incident"
+  ],
+  "techniqueId": "t1027-014",
+  "detectsTechniques": [
+    "t1027-014"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation capturing parent image, image path, command line and process identifier chain",
+    "Sysmon event 11 file creation recording a new executable written by another process and the target directory",
+    "Sysmon event 7 image load or event 3 network connection made by the child process shortly after it starts",
+    "Endpoint detection and response process lineage records showing grandparent relationships and signature status for each image"
+  ],
+  "logic": "The detection links two events that describe one intention: a process creates an executable file, and the same parent process, or a helper such as a shell or script host it started, executes that file within a short window. To separate malicious mutation from ordinary installation, the rule scores the chain by parent identity, destination directory and signature status, since a legitimate updater writes signed files into its own program directory under a recognised parent, while a mutating loader writes an unsigned or newly signed image into a temporary or user profile path and executes it immediately. The child's first actions, such as a network connection to a destination with no history on that host, then confirm that the new file is not merely being staged.",
+  "pseudoQuery": "# title: Process Writes and Runs New Executable\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - .exe\n#       - .dll\n#     TargetFilename|contains: \\Users\\\n#   selection_exec:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - \\rundll32.exe\n#       - \\regsvr32.exe\n#       - \\wscript.exe\n#       - \\mshta.exe\n#   filter_signed:\n#     Signed: 'true'\n#     Company: Microsoft Corporation\n#   condition: selection_write and selection_exec and not filter_signed\n# level: medium",
+  "falsePositives": [
+    "Self extracting installers that unpack an executable into a temporary directory and launch it immediately",
+    "Software update frameworks that stage a new binary in a cache folder and restart the application to run it",
+    "Development build tools that compile output into a project directory and execute the resulting binary",
+    "Remote management agents that download a helper executable and start it to complete a support session",
+    "Application packaging tools that generate and run a wrapper executable during deployment on a workstation"
+  ],
+  "tuningNotes": "Start by allowing only the exact parent and destination pairs used by your software distribution and update tooling, rather than allowlisting by file extension or by the presence of any signature, because attackers reuse signed binaries as launchers. Keep the severity at medium for the write and execute chain on its own and raise it to high when the child process reaches a destination that has no prior history on the host or when the same parent creates and runs several differently named files within an hour. Narrowing to known malicious parents loses coverage of new loader families, so pair this rule with a broader watch on unsigned executable writes into user writable directories and review that queue weekly.",
+  "severity": "medium"
+}

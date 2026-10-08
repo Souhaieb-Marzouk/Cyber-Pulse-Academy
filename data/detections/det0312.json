@@ -1,0 +1,107 @@
+{
+  "id": "det0312",
+  "type": "detection",
+  "title": "Detect Active Setup Persistence via StubPath Execution",
+  "shortTitle": "Detect Active Setup Persistence via StubPath Execution",
+  "externalId": "DET0312",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence established through the Active Setup mechanism, where a registry value runs a command for every user at sign-in. Active Setup is a documented Windows feature that completes per-user configuration after an install, and because it executes on behalf of each interactive user it survives reboots and user changes without a scheduled task or service. The telemetry that exposes it is registry value modification on the Active Setup key, paired with process creation that shows the same command running shortly after a user signs in. The main practical failure is that legitimate installers also write these keys, so the rule only becomes reliable once it inspects the value data and correlates it with the executing process rather than alerting on the key path alone.",
+  "tags": [
+    "active setup",
+    "registry persistence",
+    "windows",
+    "boot or logon autostart",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Active Setup Persistence via StubPath Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0312/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Active Setup Persistence via StubPath Execution - EASY",
+      "path": "exercises/det0312/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Active Setup Persistence via StubPath Execution - MEDIUM",
+      "path": "exercises/det0312/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Active Setup Persistence via StubPath Execution - HARD",
+      "path": "exercises/det0312/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Active Setup Persistence via StubPath Execution - EXTREMELY HARD",
+      "path": "exercises/det0312/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Active Setup is a Windows feature that runs a short command for each user when that user signs in. It exists so installers can finish setting up a program for every account. Attackers can abuse it, because anything written there runs again and again at sign-in.",
+    "whyItMatters": "Persistence means the attacker keeps access after a reboot. Active Setup is quiet, because it is a normal Windows feature and not a new service. It also runs for every user who signs in, so one registry value can affect a whole computer. Detection lets you remove the value before it runs daily and quietly.",
+    "howItWorks": [
+      "A registry key holds a command value that Windows reads during sign-in for each user.",
+      "The endpoint agent records registry changes, including which process changed which value.",
+      "Your central logging platform stores these records together with process creation events.",
+      "The rule first looks for writes to the Active Setup registry path.",
+      "It then reads the value data and checks for script hosts, temporary folders or encoded arguments.",
+      "Finally it looks for that same command line as a running process soon after a sign-in. If both parts match, it alerts."
+    ],
+    "example": "Think of a building where the reception desk keeps a note that says hand every visitor a key card. The note is meant to save time. If someone replaces the note with an instruction to hand out master keys, every visitor after that gets one. The registry value is the note, and the sign-in is each visitor arriving at the desk.",
+    "takeaways": [
+      "Active Setup runs a command for each user at sign-in, so it is strong persistence.",
+      "The registry value data matters more than the key path for detection.",
+      "Correlate the registry write with the process that actually runs the command."
+    ]
+  },
+  "objectives": [
+    "Explain what Active Setup is and why it runs commands for every user",
+    "Identify the registry path and value name used by Active Setup persistence",
+    "Describe the registry and process telemetry needed to detect the technique",
+    "Write a detection that inspects value data for script hosts and temporary paths",
+    "Separate legitimate installer writes from attacker writes using process and user context",
+    "Plan a validation test that writes a harmless marker value and confirms the alert"
+  ],
+  "techniqueId": "t1547-014",
+  "detectsTechniques": [
+    "t1547-014"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set capturing the Active Setup key path, the value name and the value data",
+    "Sysmon event 1 process creation recording the command line and parent image of anything started after sign-in",
+    "Windows Security event 4624 logon type 2 or 10 used to place the process execution after an interactive sign-in",
+    "Endpoint agent registry monitoring for the machine hive Active Setup component path on hosts without Sysmon"
+  ],
+  "logic": "The detection joins two events that only make sense together. First it looks for a registry value set under the Active Setup component path where the value data points at a script interpreter, a temporary or user writable directory, or carries an encoded argument, because legitimate installers normally point at a signed vendor binary in the program files tree. Second it looks for a process creation whose command line matches that same value data within a short window after an interactive sign-in, which is the moment Active Setup actually executes. Requiring both parts removes the bulk installer noise that makes the key path alone unusable, and it preserves coverage of attacker variants where the value is written by a living off the land binary rather than by an installer.",
+  "pseudoQuery": "# title: Active Setup StubPath Registry Persistence\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_registry:\n#     EventID: 13\n#     TargetObject|contains: \\Active Setup\\Installed Components\\\n#     TargetObject|endswith: \\StubPath\n#     Details|contains:\n#       - powershell\n#       - wscript\n#       - mshta\n#       - rundll32\n#       - \\Temp\\\n#   selection_process:\n#     EventID: 1\n#     Image|endswith:\n#       - powershell.exe\n#       - wscript.exe\n#   condition: selection_registry and selection_process\n# level: high",
+  "falsePositives": [
+    "Enterprise software installers that register a first-run configuration command under Active Setup for every new user profile",
+    "Virtual desktop image builders that inject a stub command to map department drives at each user sign-in",
+    "Legacy line of business applications that still use Active Setup to register a browser helper component",
+    "Remediation scripts deployed by the desktop team that legitimately reapply a per-user settings value after a reset",
+    "Application virtualisation packages that write a launcher value pointing at a user writable cache directory"
+  ],
+  "tuningNotes": "Baseline the Active Setup values present across your standard workstation images and allowlist the signed vendor commands by publisher or hash rather than by key, so an attacker cannot inherit an approved path. Keep the command line inspection focused on script interpreters and temporary directories, and alert at high severity when the write comes from a process outside your software deployment tooling. Narrowing to workstations and excluding servers removes some noise but sacrifices coverage on terminal servers where Active Setup abuse affects many users at once, so keep servers in scope at medium severity.",
+  "severity": "high"
+}

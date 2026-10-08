@@ -1,0 +1,107 @@
+{
+  "id": "det0285",
+  "type": "detection",
+  "title": "Multi-Event Behavioral Detection for DCOM-Based Remote Code Execution",
+  "shortTitle": "Multi-Event Behavioral Detection for DCOM-Based Remote Co...",
+  "externalId": "DET0285",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects remote code execution through the Distributed Component Object Model, where an adversary asks a remote Windows host to instantiate a component that then launches a process of the attacker's choosing. The activity is hard to see because it rides on legitimate remote procedure call traffic and the launched process usually carries a Microsoft signed parent such as the component hosting surrogate. The enabling telemetry is process creation that names that parent image, network logon events for the caller, network connection events attributed to the hosting process, and the DistributedCOM operational log that records the component identifier and the launching account. The strategy fails when a rule keys on the parent image alone, because component hosting starts child processes continuously on some server roles and the queue becomes unmanageable.",
+  "tags": [
+    "dcom",
+    "remote execution",
+    "lateral movement",
+    "windows",
+    "network logon"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Event Behavioral Detection for DCOM-Based Remote Code Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0285/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Event Behavioral Detection for DCOM-Based Remote Code Execution - EASY",
+      "path": "exercises/det0285/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Event Behavioral Detection for DCOM-Based Remote Code Execution - MEDIUM",
+      "path": "exercises/det0285/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Event Behavioral Detection for DCOM-Based Remote Code Execution - HARD",
+      "path": "exercises/det0285/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Event Behavioral Detection for DCOM-Based Remote Code Execution - EXTREMELY HARD",
+      "path": "exercises/det0285/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "DCOM is a Windows feature that lets one program ask another program to do work. The two programs may sit on different computers. Many real management tools depend on this feature every day. An attacker can use the same feature to make a remote computer start a program they choose. This detection looks for unusual programs started by the component hosting process.",
+    "whyItMatters": "The traffic travels over a normal Windows service, so a simple firewall rule is unlikely to stop it. The new program often appears under a trusted parent, which makes it easy to dismiss during triage. Administrators use this path for legitimate work, so you cannot just block the feature. Correlating the caller identity with the program that started is what turns a noisy event into a useful alert.",
+    "howItWorks": [
+      "The rule reads process creation events and keeps those with a component host as the parent.",
+      "It then compares the child process name with a list of interpreters and shells that rarely start this way.",
+      "A network sign in record for the same computer shows which account asked the remote host to act.",
+      "A network connection record from the hosting process identifies the machine that sent the request.",
+      "The component operational log adds the component identifier and the launching account for context.",
+      "The analyst compares the caller and the component with the normal pattern for that server role."
+    ],
+    "example": "Think of a hotel where room service staff may enter guest rooms. A guest calls the front desk and asks for a meal. That is normal, and nobody at the front desk questions it. Now imagine the trolley carries tools into a room, and a stranger walks out with a laptop. The trolley itself is not the problem here. The unusual combination of who asked, what was carried and what happened next is the signal.",
+    "takeaways": [
+      "A trusted parent process is not proof that the child process is harmless.",
+      "Correlate the caller account and the remote host, not just the process names.",
+      "Expect noise, and filter by which child processes are normal for each server role."
+    ]
+  },
+  "objectives": [
+    "Explain how the component model lets one host start a process on another host.",
+    "Identify the parent image that points to component based process creation.",
+    "Correlate network logon, network connection and component operational log records.",
+    "Distinguish approved management automation from an unexpected shell or interpreter.",
+    "Build a per server baseline of child processes that normally start this way."
+  ],
+  "techniqueId": "t1021-003",
+  "detectsTechniques": [
+    "t1021-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with parent image, new process name and full command line",
+    "Windows Security event 4624 network logon events naming the calling account and the source workstation",
+    "Sysmon event 3 network connection showing the hosting process image, destination address and port",
+    "Windows DistributedCOM operational log records showing the component identifier and launching account",
+    "Sysmon event 1 process creation with the parent image, user field and integrity level"
+  ],
+  "logic": "The pattern is a component hosting process on a remote host creating a child process that a system service has no reason to run. The fields to correlate are the parent image and child image from process creation telemetry, the logon type, calling account and source workstation from network logon events, the destination address from network connection events attributed to the same hosting process, and the component identifier from the DistributedCOM operational log. The benign case is a management platform that instantiates a known component, where the parent and child pair repeats on a schedule and the caller account is the platform service identity. The malicious case shows a first seen parent and child pair, a caller account that never manages that host, and an interpreter launched with a temporary path or encoded arguments shortly after a network logon.",
+  "pseudoQuery": "# title: DCOM Host Spawning Shell or Script Interpreter\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4688\n#     ParentImage|endswith:\n#       - '\\\\dllhost.exe'\n#       - '\\\\mmc.exe'\n#     NewProcessName|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\powershell.exe'\n#       - '\\\\mshta.exe'\n#       - '\\\\rundll32.exe'\n#   condition: selection\n# level: high",
+  "falsePositives": [
+    "Management platforms that use component services to collect inventory and then launch an approved helper program.",
+    "Software distribution tools that install or repair components remotely and start short lived child processes.",
+    "Monitoring agents configured to run collection scripts through a component host on a fixed schedule.",
+    "Administrators using remote management consoles that instantiate a component to run diagnostic commands.",
+    "Backup software that triggers a remote component to prepare a volume snapshot before copying data."
+  ],
+  "tuningNotes": "Build a per server role baseline of which child processes appear under the component host, then filter the known parent and child combinations rather than the parent image alone. Scope the high severity rule to servers that hold sensitive data or administrative rights and keep ordinary member workstations at medium severity. Always carry the command line into the alert, because an interpreter started from a temporary directory or with encoded arguments is the strongest discriminator between routine component hosting and remote execution. Narrowing to known combinations loses coverage of a novel component that spawns a familiar binary, so keep a low severity companion rule that flags any first seen parent and child pair anywhere in the estate.",
+  "severity": "high"
+}

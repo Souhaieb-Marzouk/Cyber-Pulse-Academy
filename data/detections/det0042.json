@@ -1,0 +1,107 @@
+{
+  "id": "det0042",
+  "type": "detection",
+  "title": "Detection Strategy for T1218.012 Verclsid Abuse",
+  "shortTitle": "Detection Strategy for T1218.012 Verclsid Abuse",
+  "externalId": "DET0042",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the signed Windows component verclsid, the signed binary proxy execution behaviour tracked as T1218.012. The tool exists to verify a component object before the shell loads it, and it accepts a class identifier to check, but it can also cause other execution paths to be reached, so a document handler or script that launches it can borrow the trust of a Microsoft signed binary that many allow lists accept. The telemetry that makes it visible is process creation with full command line, parent image, and signature details, plus any loaded modules or network activity attributed to that process. It fails in practice because the component runs as part of normal shell operation when a user opens certain folders, so a rule keyed only on its name is useless and the reliable signal is an unexpected parent process combined with an argument that a normal verification would not use.",
+  "tags": [
+    "defence evasion",
+    "t1218.012",
+    "signed binary",
+    "windows",
+    "process creation",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1218.012 Verclsid Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0042/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1218.012 Verclsid Abuse - EASY",
+      "path": "exercises/det0042/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1218.012 Verclsid Abuse - MEDIUM",
+      "path": "exercises/det0042/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1218.012 Verclsid Abuse - HARD",
+      "path": "exercises/det0042/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1218.012 Verclsid Abuse - EXTREMELY HARD",
+      "path": "exercises/det0042/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows includes a small signed program called verclsid that checks a component before the desktop loads it. Attackers can start that trusted program so their own code runs under its name. This detection looks for it starting from the wrong parent program.",
+    "whyItMatters": "Allow lists often trust Microsoft signed files. A program that borrows that trust can run without a new file on disk. It can also start from a document. So the first step of an intrusion may look like ordinary file handling.",
+    "howItWorks": [
+      "The endpoint agent records each new process with its full command line.",
+      "The rule selects process creation where the file name is verclsid.",
+      "It reads the parent program, such as the desktop shell or a document application.",
+      "Normal use has the shell as the parent, so the rule removes that case.",
+      "It also removes an empty or known argument list used for standard checks.",
+      "A document or script host as the parent, with an unusual argument, is the alert."
+    ],
+    "example": "Think of a building pass that only cleaners carry. The pass is real, so guards wave it through. A visitor at the front desk holds a cleaner pass. The question is how they got it and what they plan to open.",
+    "takeaways": [
+      "Signed system tools are attractive because trusted lists allow them.",
+      "The parent process is the key field, not the tool name.",
+      "Any network activity from this tool is highly abnormal."
+    ]
+  },
+  "objectives": [
+    "Explain what signed binary proxy execution means in plain terms.",
+    "Identify the normal parent process for the verclsid component.",
+    "Select the process creation fields needed to judge one of its launches.",
+    "Recognise arguments that differ from a routine component verification.",
+    "Describe why allow listing a path alone does not stop this technique.",
+    "Write a response step that checks for follow on processes and loaded modules."
+  ],
+  "techniqueId": "t1218-012",
+  "detectsTechniques": [
+    "t1218-012"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, full command line, signature status, and current directory for the component process",
+    "Windows Security event 4688 process creation with command line auditing enabled and the parent process identifier",
+    "Sysmon event 3 network connection attributable to the component process, which is abnormal for this tool",
+    "Sysmon event 7 image load showing modules loaded into the component process that do not belong to the signed binary"
+  ],
+  "logic": "The pattern is the component verification utility launching with a parent process, working directory, or argument that does not match routine shell operation. The fields that must be correlated are the image name, the parent image, the command line arguments, the signature status, the current directory, and any child process or network connection that follows within seconds. The malicious case shows a document application, a script host, or a mail client as the parent, an argument that supplies an unusual class identifier, execution from a user writable working directory, and a child process or network connection shortly afterwards, none of which a normal verification produces. The benign case is the desktop shell or a file manager launching the tool during normal folder or file handling, with the standard argument, from a system directory, and with no child process afterwards. Because the tool is genuinely common, the rule should be written as an exclusion of the normal case rather than as a match on the tool name.",
+  "pseudoQuery": "# title: Verclsid Launched by Document Handler or Script Host\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: '\\verclsid.exe'\n#     CommandLine|contains: '/S'\n#   filter:\n#     ParentImage|endswith:\n#       - '\\explorer.exe'\n#       - '\\dllhost.exe'\n#       - '\\svchost.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Third party file managers and shell replacement utilities that call the component verification tool instead of the standard desktop shell",
+    "Software installation and repair tooling that validates registered components during an upgrade and runs from a management share",
+    "Application compatibility testing where a desktop engineering team triggers component checks manually on a lab machine",
+    "Backup and indexing agents that read file metadata and cause the shell to verify a component outside the normal parent chain"
+  ],
+  "tuningNotes": "Write this as an exclusion of the expected parent chain rather than a match on the tool, and allow list your third party shell tools by image hash so they do not mask the interesting cases. Add the current directory as a second discriminator, because launches from a user profile or temporary folder are rare in normal operation. Baseline the argument patterns your estate produces for a week and store them, since the argument is the field most likely to reveal an unusual class identifier. The coverage you lose when you exclude the shell parent is an attacker who reaches the tool through the shell itself, so keep a separate low severity feed for component launches that spawn a child process.",
+  "severity": "high"
+}

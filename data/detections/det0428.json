@@ -1,0 +1,108 @@
+{
+  "id": "det0428",
+  "type": "detection",
+  "title": "Detection Strategy for Bind Mounts on Linux",
+  "shortTitle": "Detection Strategy for Bind Mounts on Linux",
+  "externalId": "DET0428",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects mount operations on Linux that bind a path from one place in the file system into another, which an adversary uses to make host files, container images or restricted directories reachable from inside a confined process or container. It matters because a bind mount is a supported administration feature, so it needs no exploit, yet it can hand a low privileged context a view of the host root directory, of credentials, or of another container file system. Detection relies on kernel audit records for the mount system call, container runtime events for new mounts inside a pod or container, and command history or process telemetry showing the mount command and its arguments. The main way it fails in practice is that container runtimes, orchestrators and monitoring agents create bind mounts constantly, so the rule has to key on the source path and the requesting context rather than on the mount event.",
+  "tags": [
+    "linux",
+    "bind mount",
+    "t1564-013",
+    "container",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Bind Mounts on Linux",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0428/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Bind Mounts on Linux - EASY",
+      "path": "exercises/det0428/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Bind Mounts on Linux - MEDIUM",
+      "path": "exercises/det0428/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Bind Mounts on Linux - HARD",
+      "path": "exercises/det0428/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Bind Mounts on Linux - EXTREMELY HARD",
+      "path": "exercises/det0428/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a Linux feature called a bind mount. A bind mount shows a folder in a second place without copying it. The rule reports when a host folder is attached into a container or another restricted space.",
+    "whyItMatters": "Containers are meant to keep programs apart from the host machine. A bind mount can remove that separation in one command. Attackers use it to read host files or to escape a container. Administrators also use it in a planned way, so the source path matters. That is how you tell the two apart.",
+    "howItWorks": [
+      "A process asks the Linux kernel for a mount operation with the bind flag set.",
+      "The kernel records the call in the audit log with the source and target paths.",
+      "Container runtime logs record mounts added to a running container or to a new one.",
+      "The rule filters out the standard container runtime library and image directories.",
+      "It keeps mounts whose source is a host root, host device or credential directory.",
+      "A remaining event becomes an alert that names the container, the source path and the user."
+    ],
+    "example": "Think of a secure office where staff work in glass rooms. Each room has its own desk and its own files. A bind mount is like putting a doorway from a room straight into the records vault. The doorway is legal to build and uses no force. The building plan simply shows a new opening where none should be, and that is what the security team reviews.",
+    "takeaways": [
+      "A bind mount can expose host files to a container without any exploit.",
+      "Judge the mount by its source path and by which context asked for it.",
+      "Container runtimes make many benign mounts, so a baseline is essential."
+    ]
+  },
+  "objectives": [
+    "Explain what a bind mount does and why it can weaken container isolation.",
+    "Identify the audit and container runtime fields that record a mount operation and its arguments.",
+    "Distinguish routine runtime mounts from mounts whose source is a host root or device.",
+    "Correlate a mount event with the container, the namespace and the requesting process.",
+    "Recognise mount sequences that precede credential access or container escape behaviour.",
+    "Describe the visibility lost when audit rules for the mount system call are not deployed."
+  ],
+  "techniqueId": "t1564-013",
+  "detectsTechniques": [
+    "t1564-013"
+  ],
+  "dataSources": [
+    "Linux auditd records for the mount system call including the source path, target path and mounting process",
+    "Container runtime events for container start and for mount changes on a running container",
+    "Orchestrator audit logs recording volumes and host path claims in a workload definition",
+    "Process creation telemetry capturing the mount command with its full argument list and parent shell",
+    "Linux file access auditing for sensitive host directories reached through the new mount target"
+  ],
+  "logic": "The pattern is a mount operation with the bind flag whose source path is a host root directory, a host device node, a container runtime socket directory or a credential store, especially when it runs inside a container namespace or under an account that does not normally manage storage. The fields that must be correlated are the mounting process and its parent, the source and target paths, the mount flags, the namespace or container identifier, and the identity that requested it. The benign case is dominated by the container runtime itself, which binds image layer directories and standard pseudo file systems for every container start, and by orchestration agents that mount secrets and configuration volumes. The malicious case differs by source path and by requester: it reaches for the host root, a block device or another workload's data, and it is usually issued by a shell inside the container rather than by the runtime process on the host.",
+  "pseudoQuery": "# title: Bind Mount of Host Root or Device Into Container Namespace\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: 'SYSCALL'\n#     syscall: 'mount'\n#     a0|contains: 'bind'\n#     a1:\n#       - '/'\n#       - '/etc'\n#       - '/var/run'\n#       - '/dev/sd'\n#   filter_runtime:\n#     exe|endswith:\n#       - '/usr/bin/containerd'\n#       - '/usr/bin/dockerd'\n#       - '/usr/bin/kubelet'\n#   condition: selection and not filter_runtime\n# level: high",
+  "falsePositives": [
+    "Kubernetes nodes where the kubelet binds host directories for pods that declare a host path volume",
+    "Monitoring and logging agents that mount the host file system read only to collect metrics and logs",
+    "Build systems that bind mount a source directory into a short lived container during a compile job",
+    "Administrators mounting a directory inside a network namespace for troubleshooting, then removing it",
+    "Backup containers that bind mount a data volume to copy it to remote storage on a schedule"
+  ],
+  "tuningNotes": "Deploy the audit rule for the mount system call on a pilot set of nodes first and collect at least two weeks of behaviour, then build a filter from the exact runtime and agent executable paths and from the standard source paths such as the container storage directory, so that the allowlist is based on evidence rather than on assumptions. Restrict the high severity version to mounts whose source is the host root, a block device or a credential directory, and to requests that do not come from the runtime process, and keep a separate informational rule for all other bind mounts on container hosts. Enrich alerts with the pod or container name, the image and the owning service account so responders can act quickly. You lose coverage for a bind mount performed by the container runtime on behalf of a malicious workload definition, and for escapes that use other namespace features, so also review workload definitions that claim host paths and monitor for mounts followed by access to runtime sockets.",
+  "severity": "high"
+}

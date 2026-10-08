@@ -1,0 +1,106 @@
+{
+  "id": "det0200",
+  "type": "detection",
+  "title": "Indirect Command Execution – Windows utility abuse behavior chain",
+  "shortTitle": "Indirect Command Execution – Windows utility abuse behavi...",
+  "externalId": "DET0200",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the abuse of legitimate system utilities to launch other programs, covering T1202 Indirect Command Execution. The technique matters because the parent process visible to security tooling is a signed, trusted binary, so any rule that looks only for suspicious parents or unsigned executables will miss it completely. The telemetry is process creation with full command lines and parent identifiers, collected by the endpoint agent or by Windows Security process auditing. The strategy fails in practice for two reasons: these utilities are used constantly by installers and management agents for benign reasons, and the real effect often depends on an argument or a setting rather than on the utility itself.",
+  "tags": [
+    "mitre t1202",
+    "defense evasion",
+    "process creation",
+    "windows",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Indirect Command Execution – Windows utility abuse behavior chain",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0200/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Indirect Command Execution – Windows utility abuse behavior chain - EASY",
+      "path": "exercises/det0200/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Indirect Command Execution – Windows utility abuse behavior chain - MEDIUM",
+      "path": "exercises/det0200/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Indirect Command Execution – Windows utility abuse behavior chain - HARD",
+      "path": "exercises/det0200/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Indirect Command Execution – Windows utility abuse behavior chain - EXTREMELY HARD",
+      "path": "exercises/det0200/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for trusted system tools that start other programs. Tools like these are made by the operating system vendor. An attacker uses one as a cover story. Your log shows a friendly tool, but the tool quietly runs something else. The rule follows the chain from the tool to the real program.",
+    "whyItMatters": "Many detection rules trust signed system programs. Attackers know this and use those programs as a middle step. The middle step hides the real command behind a familiar name. This makes the activity look like normal administration work. If you do not follow the chain, you will not see the attacker's program at all.",
+    "howItWorks": [
+      "The endpoint agent records each new process together with its full command line.",
+      "It also records the parent process, which is the program that started the child.",
+      "The detection keeps a short list of system utilities that can launch other programs.",
+      "It flags those utilities when they spawn a child that writes a file or starts a shell.",
+      "The rule then checks the arguments for a reference to a script or to a remote path.",
+      "Known software deployment parents are filtered out to keep the alert list short."
+    ],
+    "example": "Imagine a hotel where only staff members may enter the kitchen. A delivery driver cannot walk in, so a staff member carries the boxes for him. The door log shows a staff member entering, which is completely normal. The log does not show the driver, but his boxes are inside the kitchen. Indirect command execution works in the same way. A trusted program is the staff member at the door. The attacker's payload is the box that came in with it.",
+    "takeaways": [
+      "A trusted parent process can still run malicious code.",
+      "Follow the child process, not just the name of the parent.",
+      "Filters matter, because installers use these tools every day."
+    ]
+  },
+  "objectives": [
+    "Explain why indirect execution defeats detection based on parent process names.",
+    "List utilities that can launch other programs and their legitimate uses.",
+    "Correlate the parent utility, the child process, and the command line arguments.",
+    "Write filters for software deployment and management agents.",
+    "Recognise arguments that point to remote, encoded, or temporary content."
+  ],
+  "techniqueId": "t1202",
+  "detectsTechniques": [
+    "t1202"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, child image, and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Endpoint sensor records of child processes spawned by signed system utilities",
+    "Windows Security event 4688 records joined with logon events for the acting account"
+  ],
+  "logic": "The pattern is a trusted system utility that exists mainly to launch or proxy another program spawning a child that a user did not ask for. The fields that must be correlated are the parent image and its command line, the child image and its command line, the acting account, and the session the child runs in. The malicious case differs from the benign one in what the child does next and where it came from: installers and deployment agents launch shells from a known parent path with local package arguments, while an operator uses the same utility to start a shell, a script host, or a signed binary loader with a remote path, an encoded argument, or output that lands in a temporary folder. Correlation of parent and child in one event is what makes the rule work, because the parent is unremarkable in isolation and only the pair carries meaning.",
+  "pseudoQuery": "# title: System Utility Spawns Unexpected Child Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     parent_image|endswith:\n#       - '\\pcalua.exe'\n#       - '\\forfiles.exe'\n#     child_image|endswith:\n#       - '\\cmd.exe'\n#       - '\\powershell.exe'\n#       - '\\rundll32.exe'\n#   filter_machine_account:\n#     user|endswith: '$'\n#   condition: selection and not filter_machine_account\n# level: medium",
+  "falsePositives": [
+    "Software deployment agents that wrap installers through a compatibility shim",
+    "Login scripts that loop a command through forfiles for every user profile",
+    "Help desk automation that launches a shell from a signed management utility",
+    "Application compatibility tooling used to start legacy programs on a new build",
+    "Vendor support bundles that run a diagnostic command through a system proxy utility"
+  ],
+  "tuningNotes": "Keep the rule focused on utility to child pairs rather than on the utility alone, and add a filter for your software deployment parent processes once you have baselined them, because they produce the largest share of the noise. If workstation volume is still too high, scope the strict severity tier to server and administrative subnets. That scoping costs you visibility into user workstation abuse, so keep an argument based version running everywhere that looks for remote paths, encoded content, or output written to public and temporary folders.",
+  "severity": "medium"
+}

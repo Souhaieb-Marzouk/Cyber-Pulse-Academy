@@ -1,0 +1,105 @@
+{
+  "id": "det0546",
+  "type": "detection",
+  "title": "Detection of Abused or Compromised Cloud Accounts for Access and Persistence",
+  "shortTitle": "Detection of Abused or Compromised Cloud Accounts for Acc...",
+  "externalId": "DET0546",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers abuse of compromised or attacker created cloud accounts for access and persistence, matching technique T1078.004. It matters because a valid cloud identity produces authorised looking activity, so the detection must weigh behaviour rather than authentication success, and because cloud credentials often grant access to every resource in an account. The telemetry that makes it possible is cloud audit records for console sign in and programmatic key use, identity service sign in logs with conditional access outcomes, access key creation and rotation events, and resource enumeration activity per identity. It fails in practice because the same identity may legitimately work from several countries and automate heavily, so a rule that simply flags new locations or a new key creation produces far more noise than a small team can triage.",
+  "tags": [
+    "cloud",
+    "valid accounts",
+    "identity",
+    "t1078.004",
+    "persistence"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Abused or Compromised Cloud Accounts for Access and Persistence",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0546/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Abused or Compromised Cloud Accounts for Access and Persistence - EASY",
+      "path": "exercises/det0546/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Abused or Compromised Cloud Accounts for Access and Persistence - MEDIUM",
+      "path": "exercises/det0546/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Abused or Compromised Cloud Accounts for Access and Persistence - HARD",
+      "path": "exercises/det0546/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Abused or Compromised Cloud Accounts for Access and Persistence - EXTREMELY HARD",
+      "path": "exercises/det0546/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a cloud account being used by someone who should not have it. The account may be stolen, or an attacker may have created a new one. The detection studies how the account behaves, not only whether the password worked.",
+    "whyItMatters": "A valid account is trusted by design, so a simple login check says nothing. One stolen key can read storage, change settings and create more keys. Finding the misuse quickly limits what the attacker can reach, and it is much cheaper than rebuilding everything later.",
+    "howItWorks": [
+      "The cloud provider writes an audit record for every action taken in the account, including sign in events.",
+      "The identity service records the sign in location, the device, and whether extra checks were passed.",
+      "The platform builds a profile for each identity, covering countries, addresses, times and usual actions.",
+      "It compares today behaviour with that profile and counts the differences.",
+      "The rule raises an alert when several differences appear together, such as a new country and key creation.",
+      "The alert lists the identity, the actions and the source address in a defanged form for the analyst."
+    ],
+    "example": "Think of a till receipt and a staff rota. A cashier working the morning shift is normal. The same cashier signs in at two in the morning from another town. Then she opens the safe. The manager wants to hear about that pattern.",
+    "takeaways": [
+      "Judge behaviour, because a stolen key looks exactly like a real one.",
+      "New access key creation by an unusual identity is a strong persistence signal.",
+      "Several small differences together matter more than one unusual login."
+    ]
+  },
+  "objectives": [
+    "Explain why valid cloud account abuse is difficult to detect using authentication success alone",
+    "Identify the cloud audit and identity sign in records needed to profile account behaviour",
+    "Describe how new access key creation and rapid resource enumeration indicate persistence",
+    "Correlate sign in context such as location, device and time with the actions taken afterwards",
+    "Write a detection rule for suspicious cloud account use and tune it against legitimate remote and automation activity"
+  ],
+  "techniqueId": "t1078-004",
+  "detectsTechniques": [
+    "t1078-004"
+  ],
+  "dataSources": [
+    "Cloud provider audit logs for management events with caller identity, source address, user agent and target resource",
+    "Identity provider sign in logs showing location, device details, multi factor authentication result and conditional access outcome",
+    "Cloud audit records for access key creation, key rotation, credential creation and role or policy attachment",
+    "Cloud asset and permissions inventory showing each identity normal resource scope and expected source networks"
+  ],
+  "logic": "The pattern is a cloud identity whose session context and subsequent actions both break from its history: sign in from a country or address range never seen before, an unfamiliar user agent, and then a burst of resource listing calls, policy changes or access key creation within a short period. The fields that must be correlated are the identity name or key identifier, the source address, the user agent, the multi factor outcome, the sequence of management events, and whether the identity has created credentials. The benign case is a documented traveller, a new automation role, or a migration project where the source range and actions match a change record; the malicious case shows a first time location, disabled or bypassed multi factor prompts, immediate key creation, and enumeration that touches resources the identity never used before.",
+  "pseudoQuery": "# title: Cloud account used from new location followed by credential creation\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection_signin:\n#     eventName: [ConsoleLogin, GetSessionToken]\n#     source_ip|not_in: corporate-egress-ranges\n#   selection_persistence:\n#     eventName: [CreateAccessKey, CreateLoginProfile, AttachUserPolicy, UpdateLoginProfile]\n#   filter_break_glass:\n#     userIdentity.arn|contains: role/incident-response\n#   condition: selection_signin and selection_persistence and not filter_break_glass\n# level: high",
+  "falsePositives": [
+    "Staff travelling or working from home who legitimately sign in from a new country and then rotate their own access key",
+    "Automation platforms that create access keys during a deployment and run from a source address range that was never registered",
+    "Third party support engineers who use a customer provided identity from their own office network",
+    "Cloud migration projects that attach broad policies to existing user accounts while rebuilding permissions"
+  ],
+  "tuningNotes": "Baseline the last ninety days of source address ranges and user agents for every cloud identity and every automation role, then treat a new range as a signal rather than an incident on its own. Group the corporate egress ranges and the automation platform ranges so that legitimate remote work does not fire, and require credential creation or policy change in the same session before raising severity. Exclude break glass and incident response roles from this rule and monitor them in a dedicated report. Narrowing to the strongest combination means a quiet attacker who only reads data may go unnoticed, so keep a separate lower severity report for first time source addresses on identities that hold data access permissions.",
+  "severity": "high"
+}

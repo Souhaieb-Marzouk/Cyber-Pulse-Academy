@@ -1,0 +1,106 @@
+{
+  "id": "det0271",
+  "type": "detection",
+  "title": "Detect Domain Controller Authentication Process Modification (Skeleton Key)",
+  "shortTitle": "Detect Domain Controller Authentication Process Modificat...",
+  "externalId": "DET0271",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects tampering with the authentication process on a domain controller, the behaviour known as a skeleton key, where an adversary plants code inside the logon service so that a single password works for every account. It is one of the highest impact changes possible because it silently defeats password based authentication for the whole domain while leaving normal logon records intact. Detection leans on process access and module load telemetry around the local security authority process on domain controllers, on unexpected driver or service installation, and on behavioural outliers such as an unusual number of accounts authenticating successfully with the same password pattern or logons from accounts whose passwords were just changed. It fails when endpoint telemetry on domain controllers is incomplete or excluding the security process, which is common because of stability concerns.",
+  "tags": [
+    "credential access",
+    "domain controller",
+    "authentication tampering",
+    "lsass",
+    "persistence",
+    "t1556.001"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Domain Controller Authentication Process Modification (Skeleton Key)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0271/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Domain Controller Authentication Process Modification (Skeleton Key) - EASY",
+      "path": "exercises/det0271/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Domain Controller Authentication Process Modification (Skeleton Key) - MEDIUM",
+      "path": "exercises/det0271/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Domain Controller Authentication Process Modification (Skeleton Key) - HARD",
+      "path": "exercises/det0271/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Domain Controller Authentication Process Modification (Skeleton Key) - EXTREMELY HARD",
+      "path": "exercises/det0271/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for code that has been inserted into the part of a server that checks passwords. The trick lets an attacker log in as anyone using one secret password. It is one of the most serious changes an attacker can make on a company network.",
+    "whyItMatters": "Domain controllers decide who is allowed to log in across the whole company. If the password check is modified, every account is at risk at once. The change can survive restarts and normal password resets. It also leaves the normal sign-in records looking healthy, so you cannot rely on failed logins to find it. Catching it early is the difference between one incident and a full rebuild.",
+    "howItWorks": [
+      "The detection collects events where one process opens another process and asks for a high level of access.",
+      "It watches the logon service process on domain controllers, because that process holds the password checking logic.",
+      "It checks for modules and drivers loaded into that process from unusual folders rather than the system folder.",
+      "It watches for new services or drivers installed on a domain controller outside a change window.",
+      "It compares that activity with authentication behaviour, such as many accounts succeeding with the same single credential.",
+      "The alert brings together the responsible process, the account, the file path and the affected server."
+    ],
+    "example": "Think of a bank vault with a digital lock that reads every key card. A technician secretly fits a small gadget inside the lock so that one spare card opens every safe deposit box. The door log still shows normal entries, because everyone uses a real card. You only find the gadget by inspecting the lock itself.",
+    "takeaways": [
+      "This is a critical detection. A successful attack here means you must assume every credential in the domain is exposed.",
+      "Authentication logs alone will not show it, so process and module telemetry on domain controllers is essential.",
+      "Any unexplained driver or service change on a domain controller should be treated as an incident until explained."
+    ]
+  },
+  "objectives": [
+    "Describe how modifying the logon process on a domain controller grants durable, domain wide authentication access.",
+    "Explain why normal logon auditing may look healthy during this attack and what telemetry compensates for that.",
+    "Identify suspicious process access and module load patterns around the local security authority process on domain controllers.",
+    "Correlate unexpected driver or service installation on a domain controller with authentication anomalies.",
+    "Plan the containment and credential reset steps that follow a confirmed modification of the authentication process."
+  ],
+  "techniqueId": "t1556-001",
+  "detectsTechniques": [
+    "t1556-001"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access targeting the local security authority process, with granted access, source image and target image",
+    "Sysmon event 7 image load, which records modules loaded into the logon service process and their signing status",
+    "Windows Security event 4697 service installation on domain controllers, showing the service name, image path and installing account",
+    "Windows Security event 4624 successful logon records on domain controllers, used to spot accounts authenticating from unusual sources after a password change"
+  ],
+  "logic": "The pattern is an unexpected process requesting high privilege access to the logon service process on a domain controller, or an unsigned module loading into that process, or a new kernel driver or service appearing on those servers outside a maintenance window. The fields that must be correlated are the target image and target process identifier, the source image and requested access mask, the signature and path of any loaded module, the service image path and installing account, and the host name, which must be a domain controller. Benign security products and backup agents do read process memory on servers, which is the main source of noise, so the rule should allowlist their signed image paths and instead escalate on unsigned or unusually located binaries. The strongest signal is combination: a module loaded into the logon service from a user writable directory, followed within minutes by successful authentications for several accounts that have no matching password change activity.",
+  "pseudoQuery": "# title: Suspicious Access or Module Load Against Logon Service on Domain Controller\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_access:\n#     EventID: 10\n#     TargetImage|endswith: \\lsass.exe\n#     GrantedAccess|contains:\n#       - '0x1010'\n#       - '0x1410'\n#   filter_security_tools:\n#     SourceImage|contains:\n#       - \\Program Files\\Windows Defender\\\n#       - \\Program Files\\CrowdStrike\\\n#   condition: selection_access and not filter_security_tools\n# level: critical",
+  "falsePositives": [
+    "Endpoint detection and response agents that legitimately read process memory in the logon service to inspect authentication behaviour",
+    "Backup and disaster recovery software on domain controllers that snapshots the security process state",
+    "Approved security assessment software run by the internal red team from a documented host during a scheduled exercise",
+    "Legitimate kernel driver installation during a planned operating system update or hardware support package deployment"
+  ],
+  "tuningNotes": "Scope this rule strictly to domain controllers and to the authentication process, and allowlist the signed image paths of the security and backup products you have actually deployed, verified by hash rather than by file name. Baseline a full kernel driver and service inventory for each domain controller, then alert on anything new that appears outside a change window instead of trying to enumerate bad drivers. Because the rule is narrow, the coverage you give up is activity on member servers and workstations, which is an acceptable trade; keep a separate lower severity rule for process access to credential stores on those hosts so that you still see credential theft attempts elsewhere.",
+  "severity": "critical"
+}

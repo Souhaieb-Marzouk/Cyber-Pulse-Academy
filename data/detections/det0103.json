@@ -1,0 +1,107 @@
+{
+  "id": "det0103",
+  "type": "detection",
+  "title": "Behavioral Detection of Network Share Connection Removal via CLI and SMB Disconnects",
+  "shortTitle": "Behavioral Detection of Network Share Connection Removal ...",
+  "externalId": "DET0103",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses T1070.005, indicator removal through network share connection removal, where an adversary disconnects mapped drives and SMB sessions to erase evidence of which shares were touched during an intrusion. It matters because a mapped drive or an authenticated server message block session named in logs is direct proof that a host read or wrote data on a file server, and removing it breaks that chain exactly when an investigation would need it. The telemetry that makes detection possible is process creation records for share management commands, SMB client and server session records showing logon and logoff of a session, and file server auditing that captures the share access that preceded the disconnect. It fails in practice because logout scripts, backup jobs and user drive mapping tools create and remove share connections constantly, so the rule has to profile which accounts and which hosts ever map shares legitimately before it can treat a sudden cleanup as suspicious.",
+  "tags": [
+    "defense-evasion",
+    "indicator-removal",
+    "smb",
+    "file-share",
+    "lateral-movement"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Network Share Connection Removal via CLI and SMB Disconnects",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0103/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Network Share Connection Removal via CLI and SMB Disconnects - EASY",
+      "path": "exercises/det0103/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Network Share Connection Removal via CLI and SMB Disconnects - MEDIUM",
+      "path": "exercises/det0103/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Network Share Connection Removal via CLI and SMB Disconnects - HARD",
+      "path": "exercises/det0103/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Network Share Connection Removal via CLI and SMB Disconnects - EXTREMELY HARD",
+      "path": "exercises/det0103/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for the removal of connections to shared network folders. A shared folder is a directory on a server that other computers can open over the network. The rule looks for commands and events that close those connections.",
+    "whyItMatters": "Shared folders are how most companies move and store files, including sensitive ones. A record of a connection to a share proves a machine reached that data. If an attacker disconnects every session at the end, that proof disappears. The removal itself is unusual enough to be worth a look.",
+    "howItWorks": [
+      "The endpoint records every new process with its command line, which captures share management commands.",
+      "The file server records when a client opens and closes a session, with the account name and client address.",
+      "Those records travel to the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule looks for disconnection commands or session teardown events that name several shares in a short period.",
+      "It compares the account and host against a baseline of which machines normally map and unmap shares.",
+      "When cleanup comes from a server or an account that never maps shares, the rule raises an alert for review."
+    ],
+    "example": "Imagine a library sign in sheet where every visitor writes their name and the shelf they used. A visitor who spent all afternoon in the rare books room crosses out their own line on the way out. The books are missing and the sheet looks clean. This detection is the librarian who notices the crossing out, because honest visitors do not erase their own entries.",
+    "takeaways": [
+      "A share connection is evidence that a host reached specific data on a server.",
+      "Cleaning up those connections is quiet but leaves its own traces in two places.",
+      "Baseline normal mapping first, otherwise user scripts will drown the alert."
+    ]
+  },
+  "objectives": [
+    "Explain how share connection records support data access investigations",
+    "Name the client side and server side telemetry that captures share connections and disconnects",
+    "Identify the fields that tie a disconnect to a specific account, host and share",
+    "Describe why logout scripts and backup tools create the same events as an attacker",
+    "Build a baseline of accounts and hosts that normally map and unmap shares",
+    "Choose the alert thresholds, such as shares per minute, that separate cleanup from routine use"
+  ],
+  "techniqueId": "t1070-005",
+  "detectsTechniques": [
+    "t1070-005"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled, filtered for net use and share disconnection arguments",
+    "SMB client and server session records showing session establishment and teardown with account name and client address",
+    "Windows Security event 4624 and 4625 logon records that map a network session to an account",
+    "File server access auditing showing the share and path accessed before a session ended",
+    "PowerShell script block logging capturing Remove-SmbMapping or net use delete invocations"
+  ],
+  "logic": "The pattern is a burst of share or SMB session teardowns from one host or one account inside a short window, especially when the same host removed connections it had just created and had no legitimate mapping habit. The fields that must be correlated are the account name, the client host, the target server and share names, the session identifiers, and the timing between the original session establishment and its removal. The benign case is a logon or logoff script, a backup product or a drive mapping tool that creates and removes the same known shares at the same predictable times for a user who always maps them, so disconnects by service accounts, by servers that never map shares, or of shares the account has never touched are what distinguish malicious cleanup.",
+  "pseudoQuery": "# title: Bulk Network Share Disconnection Outside Normal Logoff Pattern\n# logsource:\n#   product: windows\n# detection:\n#   selection_cmd:\n#     Image|endswith: ['\\\\net.exe', '\\\\net1.exe', '\\\\powershell.exe']\n#     CommandLine|contains: ['use /delete', 'use * /delete', 'Remove-SmbMapping']\n#   selection_session:\n#     EventType: 'smb_session_close'\n#   filter_logoff:\n#     CommandLine|contains: '/delete'\n#     ParentImage|endswith: '\\\\userinit.exe'\n#   condition: (selection_cmd and not filter_logoff) or selection_session\n# level: medium",
+  "falsePositives": [
+    "Logon and logoff scripts that remove stale drive mappings for roaming users at every sign out",
+    "Backup software that connects to file shares, copies data and tears the session down on a fixed schedule",
+    "A file server being decommissioned, which removes many client sessions at once across the estate",
+    "Administrators troubleshooting a locked file by disconnecting one user session to release an open handle"
+  ],
+  "tuningNotes": "Start by profiling which parent processes and which accounts perform share removals in a normal week, then filter the top few by signature and scheduled task context. Keep the rule unfiltered for server operating systems and for service accounts, because those almost never need to remove interactive share mappings. Raise the threshold to a small number of shares within a few minutes rather than alerting on a single delete. Excluding interactive logoff scripts means you could miss an attacker who copies that trick, so keep a watched subset of high value file servers where every disconnect generates a case.",
+  "severity": "low"
+}

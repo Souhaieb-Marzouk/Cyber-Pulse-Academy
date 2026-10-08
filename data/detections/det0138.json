@@ -1,0 +1,107 @@
+{
+  "id": "det0138",
+  "type": "detection",
+  "title": "Detection of Malicious Code Execution via InstallUtil.exe",
+  "shortTitle": "Detection of Malicious Code Execution via InstallUtil.exe",
+  "externalId": "DET0138",
+  "theme": "Detection Strategy",
+  "summary": "InstallUtil abuse (T1218.004) uses a signed Microsoft .NET utility that installs and uninstalls server resources, because the utility will load and run code from a compiled assembly while the process itself looks entirely trustworthy. This detection strategy therefore targets the invocation rather than the binary: process creation where the utility runs an assembly from a user writeable, temporary, or download directory, runs with no assembly path, or is started by a document reader, script host, browser, or remote management tool instead of a deployment pipeline. Supporting telemetry includes .NET runtime or application log entries for a failed assembly load, module load records showing assemblies loaded out of temporary directories, and file creation events for an assembly compiled moments earlier. It fails because deployment and update pipelines legitimately run the same utility, because the invocation can be quiet and short lived, and because command line auditing must be enabled for the decisive field to exist at all.",
+  "tags": [
+    "defense evasion",
+    "t1218.004",
+    "signed binary proxy execution",
+    "dotnet",
+    "process creation",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Malicious Code Execution via InstallUtil.exe",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0138/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Malicious Code Execution via InstallUtil.exe - EASY",
+      "path": "exercises/det0138/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Malicious Code Execution via InstallUtil.exe - MEDIUM",
+      "path": "exercises/det0138/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Malicious Code Execution via InstallUtil.exe - HARD",
+      "path": "exercises/det0138/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Malicious Code Execution via InstallUtil.exe - EXTREMELY HARD",
+      "path": "exercises/det0138/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "InstallUtil is a genuine Windows tool that installs and removes .NET services. A service is a program that runs in the background. Because the tool is trusted and signed, attackers can ask it to load their own code. The tool then runs that code for them. This detection looks for the tool being used in unusual ways, not for the tool itself.",
+    "whyItMatters": "Security tools often allow trusted Windows programs to run without question. An attacker who borrows such a program can act without bringing an obviously strange file. The borrowed tool also appears in logs under a familiar name. That makes the activity easy to miss in a busy environment. This detection focuses on the arguments and the parent process instead of the name.",
+    "howItWorks": [
+      "A process record shows the utility starting with its full command line.",
+      "The rule inspects the assembly path that was given to the utility.",
+      "It flags assemblies loaded from a user folder, a temporary folder, or a download folder.",
+      "It also flags a run with no assembly path, which is unusual for a real install.",
+      "It checks which program started the utility, such as a document reader.",
+      "An analyst then reviews the assembly file and the network activity from that session."
+    ],
+    "example": "Think of a company van with the company logo on the side. Staff wave it through the gate without checking, because everyone knows the van. A thief paints the same logo on an old van and drives in with a load of stolen goods. The guard at the gate sees a familiar logo and looks no further. InstallUtil is that trusted van. The detection asks what the van is carrying and who is driving it, not what the logo says.",
+    "takeaways": [
+      "Attackers borrow signed system tools so that the file itself looks innocent.",
+      "Check the assembly path and the parent process, not the tool name.",
+      "Real deployments run from managed paths and from deployment accounts."
+    ]
+  },
+  "objectives": [
+    "Explain why a signed .NET installation utility is attractive to an attacker.",
+    "Identify the command line features that separate abuse from a genuine installation.",
+    "Interpret module load and file creation records that show a freshly compiled assembly.",
+    "Correlate the parent process with the assembly location to raise or lower severity.",
+    "Describe how to baseline legitimate deployment use of the utility."
+  ],
+  "techniqueId": "t1218-004",
+  "detectsTechniques": [
+    "t1218-004"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, image path, and full command line for the installation utility",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 7 image loaded records showing assemblies loaded from temporary or user profile directories",
+    "Sysmon event 11 file creation for compiled assemblies written into temporary directories shortly before execution",
+    ".NET runtime and application log entries recording assembly load failures from user writeable paths"
+  ],
+  "logic": "The detection scores the invocation rather than the executable, because the executable is a legitimate signed system binary that must be allowed to run. The strongest pattern is a process creation where the utility runs an assembly located outside managed installation directories, such as a user profile, a temporary folder, or a download folder, and where the parent process is not a deployment agent but a document reader, a script host, a browser, or a remote management tool. A second pattern is the utility running with no assembly argument at all, which is not how real services are installed, or running an uninstall switch against an assembly in a user writeable path. Supporting evidence comes from module load records showing .NET assemblies loaded from the same temporary path and from file creation events for an assembly written seconds before it was executed. The fields to correlate are the process identifier and parent image, the image path and signature, the assembly path taken from the command line, the loaded module path, and the user account. The benign case is a signed deployment or update pipeline running the utility with a full path beneath a managed software directory, using a service account on a predictable schedule.",
+  "pseudoQuery": "# title: InstallUtil loading an assembly from a user writeable path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: '\\InstallUtil.exe'\n#   filter_managed:\n#     CommandLine|contains:\n#       - '\\Program Files\\'\n#       - '\\Microsoft.NET\\'\n#   condition: selection and not filter_managed\n# level: high",
+  "falsePositives": [
+    "Application deployment pipelines that install .NET services from a staging directory outside the program files tree",
+    "Developers testing a locally built service assembly from their project output folder",
+    "Uninstall routines started by an installer package that references an assembly in a temporary extraction folder",
+    "Configuration management scripts that install a service from a network share instead of a packaged location"
+  ],
+  "tuningNotes": "Baseline which accounts and parent processes run this utility in your environment, then allow the deployment account together with its managed staging paths rather than allowing the utility globally. Keep the parent process condition for document readers, script hosts, and remote management tools at high severity, because none of those belong in a real installation. Scope the rule to endpoints and leave build servers out, since local assembly testing is normal there. Trusting the deployment account costs you coverage, so alert whenever that account runs an assembly from outside its usual staging share, and keep the module load and file creation correlations ready to add context when the command line is absent because auditing is disabled.",
+  "severity": "high"
+}

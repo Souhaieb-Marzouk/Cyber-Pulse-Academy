@@ -1,0 +1,107 @@
+{
+  "id": "det0273",
+  "type": "detection",
+  "title": "Detection Strategy for Encrypted Channel across OS Platforms",
+  "shortTitle": "Detection Strategy for Encrypted Channel across OS Platforms",
+  "externalId": "DET0273",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects adversary use of encrypted channels to hide command and control or exfiltration traffic, at the level of the cryptographic protocol rather than a specific tool. The detection works by combining network metadata about transport layer security and secure shell sessions with endpoint process context, because encryption alone is normal and only the combination of an unexpected process, an unexpected destination and an unexpected certificate story is suspicious. Useful telemetry includes proxy or firewall records carrying server name indication and certificate fields, flow records with byte counts and durations, and process creation on hosts that originate the traffic. It fails in practice because inspection is increasingly blind, so the rule must lean on statistical and certificate based signals rather than payload content.",
+  "tags": [
+    "encrypted channel",
+    "command and control",
+    "network metadata",
+    "tls",
+    "exfiltration",
+    "t1573"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Encrypted Channel across OS Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0273/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Encrypted Channel across OS Platforms - EASY",
+      "path": "exercises/det0273/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Encrypted Channel across OS Platforms - MEDIUM",
+      "path": "exercises/det0273/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Encrypted Channel across OS Platforms - HARD",
+      "path": "exercises/det0273/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Encrypted Channel across OS Platforms - EXTREMELY HARD",
+      "path": "exercises/det0273/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for network connections that are encrypted in a way that hides them from your monitoring. Normal encryption is everywhere, so the detection does not flag encryption itself. It flags the odd details around an encrypted connection, such as where it goes and which program started it.",
+    "whyItMatters": "Attackers hide their traffic inside encryption so that nobody can read it. Transport layer security protects your users and also protects an intruder. If you cannot see inside the traffic, you must judge it by its shape. That means the destination, the timing, the certificate and the program that opened the connection. These clues still let you catch hidden channels.",
+    "howItWorks": [
+      "A proxy or network sensor records the details of each encrypted session it sees, without reading the content.",
+      "The detection collects the destination address and port, the server name, the certificate issuer and the session size.",
+      "It compares that destination with a list of approved services for the company.",
+      "On the endpoint, process creation records show which program opened the connection and under which account.",
+      "Long or regular sessions to a new destination from a scripting interpreter stand out from normal web browsing.",
+      "The alert joins the network view and the endpoint view so the analyst sees both sides of the connection."
+    ],
+    "example": "Think of a night watchman who cannot open sealed parcels. He still notes who sends them, how heavy they are, how often they arrive, and whether the sender is new. A parcel that arrives every hour from an unknown address and weighs exactly the same each time tells him plenty without opening the box.",
+    "takeaways": [
+      "Encryption is normal, so you must score the context around the connection, not the encryption.",
+      "Certificate details and the originating program are often the only visible clues.",
+      "Regular timing and unusual destinations separate a hidden channel from ordinary web traffic."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries use encrypted channels and why content inspection alone cannot detect them.",
+    "Identify the network metadata fields, such as server name indication, certificate issuer and flow duration, that remain visible.",
+    "Correlate network flow records with endpoint process creation to attribute an encrypted session to a program.",
+    "Recognise beaconing patterns such as regular intervals and consistent payload sizes.",
+    "Judge when encryption of a channel is expected business use and when it warrants investigation."
+  ],
+  "techniqueId": "t1573",
+  "detectsTechniques": [
+    "t1573"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway logs recording server name indication, certificate issuer and subject, destination address and port, and bytes transferred",
+    "Network flow records with connection start time, duration, packet and byte counts for each internal to external pair",
+    "Sysmon event 3 network connection on endpoints, showing the image, user, destination address and destination port",
+    "Sysmon event 1 process creation including image, parent image and command line for the process that opens outbound encrypted sessions",
+    "Secure shell server and client authentication logs showing session establishment between internal hosts on non standard ports"
+  ],
+  "logic": "The pattern is an outbound encrypted session to a destination that is not part of the approved service inventory, opened by an image that has no business reason to talk to that destination, with flow characteristics such as long duration, regular intervals or consistent byte counts. The fields that must be correlated are the destination address and port and server name from the proxy record, the certificate issuer and subject, the flow duration and byte totals, and the image, user and parent image from the endpoint process event. Benign traffic is easy to characterise once baselined: browsers and update services talk to a stable set of server names with varied session sizes and human shaped timing, whereas a hidden channel shows a scripting interpreter or an unusual binary contacting a raw address or a newly registered domain on a non standard port at machine like intervals. Certificate anomalies such as a self signed or mismatched issuer for a well known service name are a strong additional discriminator.",
+  "pseudoQuery": "# title: Encrypted Outbound Session from Script Host to Unapproved Destination\n# logsource:\n#   product: network\n# detection:\n#   selection_flow:\n#     destination_port|not_in:\n#       - 443\n#       - 8443\n#     tls_established: true\n#   selection_endpoint:\n#     Image|endswith:\n#       - \\powershell.exe\n#       - \\curl.exe\n#       - \\rundll32.exe\n#   filter_approved:\n#     server_name|endswith:\n#       - .windowsupdate.com\n#       - .microsoft.com\n#   condition: selection_flow and selection_endpoint and not filter_approved\n# level: medium",
+  "falsePositives": [
+    "Software update services and telemetry agents that keep long lived encrypted sessions to vendor infrastructure on non standard ports",
+    "Remote support tools that establish persistent encrypted tunnels to a managed relay for unattended access",
+    "Command line administration scripts that call a cloud application programming interface over an encrypted channel on a non standard port",
+    "Content distribution or video conferencing clients that create many long lived encrypted flows with regular keepalive traffic"
+  ],
+  "tuningNotes": "Tune by building an inventory of approved destination server names, addresses and ports per asset group, then excluding those from the rule and raising severity for sessions to destinations that have never been seen in the environment before. Add flow shape conditions, such as a minimum session duration combined with a low variance in bytes per interval, to drop ordinary browsing and backup traffic. You lose coverage for an adversary who hides a channel on port 443 to a compromised legitimate site, so keep a second rule that looks at certificate changes for well known service names and review it weekly rather than expecting it to fire in real time.",
+  "severity": "medium"
+}

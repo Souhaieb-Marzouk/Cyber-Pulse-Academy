@@ -1,0 +1,109 @@
+{
+  "id": "det0012",
+  "type": "detection",
+  "title": "Detection Strategy for VBA Stomping",
+  "shortTitle": "Detection Strategy for VBA Stomping",
+  "externalId": "DET0012",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects VBA stomping, an Office macro evasion in which the compiled code inside a document no longer matches the readable source lines stored beside it (T1564.007, Hide Artifacts: VBA Stomping). The technique matters because most macro review tooling and many sandboxes read the source text, while the application executes the compiled code, so a document can look harmless on inspection and still run the attacker's logic. Detection therefore depends on parsing the document container itself, comparing the compiled stream with the source stream, and then confirming execution at the endpoint. It fails when the security stack only examines documents at the gateway, when password protected archives hide the file, or when analysts have no tooling to inspect the internal streams.",
+  "tags": [
+    "defense evasion",
+    "office macros",
+    "vba stomping",
+    "t1564.007",
+    "file analysis",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for VBA Stomping",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0012/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for VBA Stomping - EASY",
+      "path": "exercises/det0012/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for VBA Stomping - MEDIUM",
+      "path": "exercises/det0012/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for VBA Stomping - HARD",
+      "path": "exercises/det0012/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for VBA Stomping - EXTREMELY HARD",
+      "path": "exercises/det0012/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Office documents can carry small programs called macros. Inside the file, a macro exists in two forms: the readable text a person can review, and a compiled version the computer runs. An attacker can erase the readable text but keep the compiled version. This detection finds that mismatch.",
+    "whyItMatters": "Reviewers and many security tools read the readable text. If it is missing or looks clean, the document appears safe. The compiled code still runs when the user enables macros. This defeats careful manual inspection, which is a common last line of defence. Comparing the two forms is the only reliable way to catch it before execution.",
+    "howItWorks": [
+      "A document arrives by email, download or file share and is scanned before it reaches the user.",
+      "A parsing tool opens the file as a container and lists the internal parts, including macro storage.",
+      "The tool reads the readable source and the compiled code for each macro module.",
+      "It compares them, and it also checks whether the compiled code exists with no source at all.",
+      "If the two disagree, the file is flagged and held or a copy is sent for analyst review.",
+      "The endpoint agent confirms real execution by recording the Office application that opened the file and the child process it later started."
+    ],
+    "example": "Think of a parcel with an invoice taped to the outside and a different item inside. The label reads harmless and the outer wrapping is neat. Only opening the box shows the true contents. A careful checker always compares the label with what is inside.",
+    "takeaways": [
+      "A macro has a readable form and a compiled form, and they can disagree.",
+      "Attackers keep the compiled code and remove the readable code to fool reviewers.",
+      "Document level scanning plus endpoint execution records give the full picture."
+    ]
+  },
+  "objectives": [
+    "Explain how a macro is stored in an Office document in both readable and compiled form.",
+    "Describe why reviewing the readable source alone is not sufficient.",
+    "Identify the internal document streams that must be compared to detect stomping.",
+    "Correlate a suspicious document with the endpoint process that opens it and its children.",
+    "Explain how password protected containers limit document inspection.",
+    "Plan a response that preserves the document for analysis without executing it."
+  ],
+  "techniqueId": "t1564-007",
+  "detectsTechniques": [
+    "t1564-007"
+  ],
+  "dataSources": [
+    "Email gateway and file share scanning logs recording document metadata and macro presence flags",
+    "Document container inspection output listing macro source streams and compiled code streams with their sizes",
+    "Sysmon event 1 process creation showing the Office application that opened the document and the processes it spawned",
+    "Microsoft Office application event logs recording macro execution warnings and document open events",
+    "Sysmon event 11 file creation showing the document being written to disk from an email client or browser download"
+  ],
+  "logic": "The rule compares the two representations of a macro inside a document container and then looks for execution. The primary selection is a document whose compiled macro stream is present while the readable source stream is empty, truncated or inconsistent in content or size, which is the fingerprint of stomping. Fields that must be correlated are the file name and hash, the internal stream names and sizes, the macro module names, the parent application that opened the file, and the child process started afterwards with its command line. The malicious case is a document from an external sender with compiled code and missing source that leads to a scripting host, a shell or a download utility starting from the Office application. The benign case is a document produced by an older or unusual authoring tool that stores compiled code differently, or a file damaged during transfer, which is why the alert should include analysis of the compiled code and never rely on the mismatch alone.",
+  "pseudoQuery": "# title: Office Document With Compiled Macro and Missing Source\n# logsource:\n#   product: windows\n# detection:\n#   selection_doc:\n#     file_extension:\n#       - '.doc'\n#       - '.docm'\n#       - '.xls'\n#       - '.xlsm'\n#     vba_compiled_present: 'true'\n#     vba_source_size: 0\n#   selection_exec:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\\\WINWORD.EXE'\n#       - '\\\\EXCEL.EXE'\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\cmd.exe'\n#       - '\\\\mshta.exe'\n#       - '\\\\rundll32.exe'\n#   condition: selection_doc or selection_exec\n# level: high",
+  "falsePositives": [
+    "Documents generated by legacy authoring tools that store compiled macro code without matching source",
+    "Files corrupted or truncated during transfer that lose the source stream while keeping compiled code",
+    "Macro enabled templates distributed internally with protected or locked modules",
+    "Documents produced by conversion scripts that strip source text but preserve compiled parts",
+    "Office add in deployment packages that include compiled macros for legitimate business automation"
+  ],
+  "tuningNotes": "Validate the parser first: run it against a sample of ordinary documents from your own organisation and record the normal ratio between compiled and source sizes, because some authoring tools produce unusual but harmless structures. Scope the alert to documents arriving from external senders or from download paths, and allow list internal template repositories. Require the endpoint execution half before escalating to an incident, since a mismatch without execution is usually a damaged file. Add inspection inside archives and for password protected containers through a sandbox, because files the gateway cannot read are invisible to this rule. The coverage you lose by trusting internal documents is a compromised internal authoring host, so monitor for mass file modification on document servers.",
+  "severity": "high"
+}

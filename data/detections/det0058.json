@@ -1,0 +1,105 @@
+{
+  "id": "det0058",
+  "type": "detection",
+  "title": "Detection Strategy for Web Service: Dead Drop Resolver",
+  "shortTitle": "Detection Strategy for Web Service: Dead Drop Resolver",
+  "externalId": "DET0058",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the use of legitimate web services as a dead drop resolver, where an implant reads its command and control address from content that the operator controls on a public platform such as a social profile, a paste site or a code repository. The technique matters because the retrieval host is a trusted, well known brand that most organizations allow, so domain reputation and blocklists rarely help. Telemetry that makes it visible is web proxy and secure web gateway logs joined with DNS resolution records and firewall connection records, all keyed on the client host over a short time window. The common way this fails in practice is baseline drift: many business groups legitimately poll the same platforms, and low volume periodic fetches look identical in shape whether they are a scheduled job or an implant checking in.",
+  "tags": [
+    "network",
+    "command-and-control",
+    "web-service",
+    "proxy-logs",
+    "dns"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Web Service: Dead Drop Resolver",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0058/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Web Service: Dead Drop Resolver - EASY",
+      "path": "exercises/det0058/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Web Service: Dead Drop Resolver - MEDIUM",
+      "path": "exercises/det0058/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Web Service: Dead Drop Resolver - HARD",
+      "path": "exercises/det0058/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Web Service: Dead Drop Resolver - EXTREMELY HARD",
+      "path": "exercises/det0058/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a computer that quietly fetches a small piece of text from a public website. The computer then connects to a new address that it learned from that text. Attackers hide their control server address inside the text. The public site is the hiding place, which people call a dead drop.",
+    "whyItMatters": "Blocking bad domain names does not help when the address comes from a site your staff use every day. The request looks like normal browsing, so it slips past most filters. Catching the pattern of fetch then connect gives you a chance to react earlier.",
+    "howItWorks": [
+      "The web proxy records each request a computer makes, including the destination site and how much data came back.",
+      "The domain name system, or DNS, log records the name the computer asked to resolve.",
+      "A SIEM (Security Information and Event Management system) groups these records by computer over a short window.",
+      "The rule looks for a small text fetch from a public platform that is not in the normal use baseline.",
+      "It then looks for a connection from the same computer to a new external address within minutes.",
+      "Both steps together raise the alert, because either step alone is just ordinary browsing."
+    ],
+    "example": "Imagine a spy who never meets a contact. Instead, they read the number written inside a library book, then go to that address. The library visit is legal and boring. Only the follow up walk to the new address shows what happened.",
+    "takeaways": [
+      "The hiding place is a trusted public site, so blocking bad names will not catch it.",
+      "The useful signal is two steps together: a small fetch, then a connection to a new address.",
+      "You must baseline which teams really use these platforms, or the rule will be noisy."
+    ]
+  },
+  "objectives": [
+    "Describe how a dead drop resolver uses a legitimate web service to deliver an address.",
+    "Identify the proxy, DNS and firewall fields needed to prove the fetch then connect sequence.",
+    "Correlate events by client address and time window to avoid alerting on single requests.",
+    "Baseline which public platforms the organization uses legitimately for business content fetching.",
+    "Explain why reputation based blocking alone cannot cover this technique."
+  ],
+  "techniqueId": "t1102-001",
+  "detectsTechniques": [
+    "t1102-001"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway logs with the client IP, full request URL, HTTP method, user agent and response bytes",
+    "DNS resolver logs recording the queried domain name, query type and the client source address",
+    "Firewall or network flow records showing the outbound destination IP address and port for each session",
+    "Cloud egress or TLS inspection metadata listing the server name indication presented during the handshake"
+  ],
+  "logic": "The pattern is a two step sequence on one client: first an HTTP or HTTPS retrieval of a small response from a public content platform that the organization does not normally use, then within a short window a connection to an external address that has no prior relationship with that host. The fields that must be joined are the client address, the request URL and hostname from the proxy, the response size, and the destination address from the firewall or flow record. The benign case looks different in shape: ordinary users who use these platforms fetch many objects per session, return repeatedly with a stable user agent, and connect to addresses that other hosts also reach. The malicious case is one small fetch, a long pause, and a connection to an address that no other host in the estate has ever contacted, often repeated on a fixed timer.",
+  "pseudoQuery": "# title: Dead Drop Resolver Fetch Followed by New External Connection\n# logsource:\n#   product: network\n#   category: proxy\n# detection:\n#   selection:\n#     cs-method: GET\n#     c-uri|contains:\n#       - 'pastebin.com/raw'\n#       - 'paste.ee'\n#       - 'gist.githubusercontent.com'\n#     sc-bytes: < 2048\n#   condition: selection\n# level: medium",
+  "falsePositives": [
+    "Developer tooling that downloads build scripts from a public paste or snippet site during continuous integration runs",
+    "Threat intelligence platforms that poll public code repositories on a fixed schedule to collect new indicators",
+    "Marketing teams that embed live content from a public platform into an internal dashboard and refresh it every few minutes",
+    "Personal cloud storage clients that fetch a single small configuration object from a public hosting service at logon"
+  ],
+  "tuningNotes": "Start by grouping the events per client for a five minute window and require both the small fetch and the connection to a destination that no other host contacted in the previous thirty days, which removes most legitimate pollers. Scope the rule to server subnets and administrative jump hosts first, where scheduled content fetching is rare, and add an allow list of the platforms your business units genuinely use. The coverage you lose is dead drop activity that hides inside an approved platform already on the allow list, so keep a lower severity variant that alerts on any change in the requested path on those platforms for hosts in the restricted scope.",
+  "severity": "high"
+}

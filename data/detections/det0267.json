@@ -1,0 +1,108 @@
+{
+  "id": "det0267",
+  "type": "detection",
+  "title": "Resource Hijacking Detection Strategy",
+  "shortTitle": "Resource Hijacking Detection Strategy",
+  "externalId": "DET0267",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers resource hijacking, tracked as T1496, where an adversary uses your compute capacity to mine cryptocurrency or run other expensive workloads. The impact is direct: performance loss, higher cloud bills, and a foothold that can be reused later. Detection combines three views, because no single one is reliable. Endpoint telemetry shows sustained processor use by an unexpected process, network telemetry shows long lived connections to pool endpoints on unusual ports, and cloud audit logs show instance creation or quota changes that no approved change explains. It fails when the workload runs inside a container with limited visibility, when utilisation is capped to look normal, or when the activity happens in a cloud account without audit logging enabled.",
+  "tags": [
+    "resource hijacking",
+    "t1496",
+    "cryptomining",
+    "cloud abuse",
+    "impact",
+    "performance baseline"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Resource Hijacking Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0267/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Resource Hijacking Detection Strategy - EASY",
+      "path": "exercises/det0267/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Resource Hijacking Detection Strategy - MEDIUM",
+      "path": "exercises/det0267/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Resource Hijacking Detection Strategy - HARD",
+      "path": "exercises/det0267/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Resource Hijacking Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0267/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Resource hijacking means someone else uses your computers to do their work. The most common form is cryptocurrency mining, where machines solve puzzles to earn money for the attacker. Your electricity and cloud bill pay for it. This detection looks for computers that work much harder than their normal job requires.",
+    "whyItMatters": "Mining slows down the systems your business depends on and can raise cloud costs by a large amount. The same access can be reused for other crimes later. The activity is often quiet, because miners avoid using all of the processor in order to stay hidden. Cloud accounts are a favourite target, since a single stolen key can create hundreds of machines. Fast detection limits both the cost and the exposure.",
+    "howItWorks": [
+      "Endpoint agents report how much processor time each program uses over time.",
+      "The rule builds a baseline per host and flags programs that stay far above it.",
+      "Network records show long outbound connections on unusual ports, which fit mining pool traffic.",
+      "Cloud audit records show new large instances created by an unusual account or key.",
+      "The rule links these signals by time and by the account involved.",
+      "A confirmed alert lists the process, the destination, and the cost or quota change."
+    ],
+    "example": "Think of a guest in a hotel who runs a laundry business from their room. They use the hotel's water, power, and machines all night. The room looks normal from the corridor. Only the utility meter and the water bill show the truth. Resource hijacking is that guest, the meter is your processor and network telemetry, and the bill is your cloud invoice.",
+    "takeaways": [
+      "No single signal is enough, so combine host, network, and cloud evidence.",
+      "Baselines per host role matter, because servers and workstations look very different.",
+      "Attackers limit usage to stay hidden, so alert on duration as well as on peak values."
+    ]
+  },
+  "objectives": [
+    "Explain why resource hijacking is a business problem as well as a security problem",
+    "Establish per-host processor baselines and flag sustained deviation",
+    "Recognize network patterns that indicate mining pool communication",
+    "Use cloud audit logs to spot unexpected instance creation and quota changes",
+    "Describe how capping usage defeats simple threshold alerts"
+  ],
+  "techniqueId": "t1496",
+  "detectsTechniques": [
+    "t1496"
+  ],
+  "dataSources": [
+    "Endpoint performance telemetry recording sustained processor and graphics processor utilisation per process",
+    "Sysmon event 1 process creation for mining binaries or interpreters started with mining pool arguments",
+    "Sysmon event 3 network connection showing long lived outbound sessions to an unfamiliar address on a non-standard port",
+    "Cloud provider audit logs for large instance creation, quota increases, and spot instance requests by an unexpected principal",
+    "Container or cluster audit logs for workload creation with images outside the approved registry"
+  ],
+  "logic": "The pattern is compute capacity being consumed for a purpose unrelated to the host's role, sustained over hours rather than minutes. The rule combines endpoint performance telemetry that flags a process holding processor or graphics utilisation well above the host baseline, network connection records showing a long lived session on an uncommon port to an unfamiliar address, and cloud audit entries for instance creation or quota increases by a principal that normally does not request them. The distinguishing detail is persistence combined with a destination that has no business relationship with your organisation, because legitimate builds and batch jobs are short lived or scheduled and connect to known services. Cloud side cases must be judged against the change calendar, since autoscaling also creates many instances quickly.",
+  "pseudoQuery": "# title: Sustained high processor use with a connection to an unknown external host\n# logsource:\n#   product: windows\n# detection:\n#   selection_proc:\n#     event_id: 1\n#     image|endswith:\n#       - '\\\\miner.exe'\n#       - '\\\\minerd.exe'\n#     command_line|contains:\n#       - 'stratum'\n#       - 'donate-level'\n#   selection_net:\n#     event_id: 3\n#     initiated: 'true'\n#     destination_port:\n#       - 3333\n#       - 4444\n#       - 5555\n#   filter:\n#     destination_ip|startswith: '10.'\n#   condition: (selection_proc or selection_net) and not filter\n# level: high",
+  "falsePositives": [
+    "A data science team that runs a long simulation on a workstation without telling anyone",
+    "A rendering or video encoding job that legitimately uses every processor core for several hours",
+    "Autoscaling in a cloud account that creates many instances during a traffic peak",
+    "A sanctioned distributed computing project such as a research grid client",
+    "Backup and search indexing jobs that run nightly and consume most of the processor"
+  ],
+  "tuningNotes": "Build per host role baselines for processor and network duration before enabling alerts, and require sustained use over several hours so that batch jobs and builds drop out. Allowlist the pool destinations you can confirm are sanctioned research or testing endpoints, and exclude internal address ranges from the network selection. On the cloud side, tie alerts to the change calendar and to the identities that normally request capacity, and set a spend or instance count threshold that autoscaling does not reach. Narrowing by duration loses coverage for a miner that pauses in cycles, so pair it with a rule on connection regularity to the same destination.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0586",
+  "type": "detection",
+  "title": "Detection of NTDS.dit Credential Dumping from Domain Controllers",
+  "shortTitle": "Detection of NTDS.dit Credential Dumping from Domain Cont...",
+  "externalId": "DET0586",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects T1003.003, operating system credential dumping specifically aimed at the Active Directory database file on domain controllers, whether by copying the database with volume shadow copies, using built-in directory service utilities, or by impersonating a domain controller to request replication. Domain controllers are the highest value hosts in a Windows estate, so the detection combines process creation on those servers, object access auditing against the database and log files, and directory replication activity from computer accounts that should never request it. The hard part is that backup software and directory maintenance legitimately touch the same files, so path, account, and host role correlation is mandatory.",
+  "tags": [
+    "credential access",
+    "active directory",
+    "windows",
+    "domain controller",
+    "ntds"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of NTDS.dit Credential Dumping from Domain Controllers",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0586/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of NTDS.dit Credential Dumping from Domain Controllers - EASY",
+      "path": "exercises/det0586/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of NTDS.dit Credential Dumping from Domain Controllers - MEDIUM",
+      "path": "exercises/det0586/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of NTDS.dit Credential Dumping from Domain Controllers - HARD",
+      "path": "exercises/det0586/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of NTDS.dit Credential Dumping from Domain Controllers - EXTREMELY HARD",
+      "path": "exercises/det0586/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A domain controller stores every user account and password hash in a database file. This detection looks for that file being copied or read outside normal backup work. It catches the theft of the data that could unlock the whole network.",
+    "whyItMatters": "The stored passwords are hashed, but a stolen copy can still be cracked or reused. One successful theft can lead to every account in the company. The file is heavily protected, so we must watch both the file and the tools that touch it. Early detection here prevents a small incident from becoming a company wide one.",
+    "howItWorks": [
+      "Domain controllers record every program that runs, with its full command line.",
+      "They can also record which account opened or copied a protected database file when auditing is on.",
+      "The rule looks for known copy and maintenance tools used on that specific file path.",
+      "It checks for replication requests from computers that are not domain controllers.",
+      "It compares the acting account against the approved backup and administration group.",
+      "A match with an unapproved account raises a critical alert in your security information and event management (SIEM) platform."
+    ],
+    "example": "Think of a bank vault that holds a copy of every customer signature. Staff may take a photograph of a single sheet when a customer asks. One night someone photographs the entire vault contents. Nothing is removed and the vault is still locked. Only the access log shows that a full copy was made, which is the real warning.",
+    "takeaways": [
+      "Only a small set of accounts and hosts should ever touch the directory database file.",
+      "Impersonating a domain controller to request replication is as serious as copying the file.",
+      "Audit policy is what makes the file access visible, so confirm it is enabled on every domain controller."
+    ]
+  },
+  "objectives": [
+    "Explain what the Active Directory database file stores and why its theft is critical",
+    "Name the Windows audit events that reveal directory database access and replication requests",
+    "Identify the built-in and third party tools abused for this collection step",
+    "Differentiate approved backup and maintenance activity from collection",
+    "Define containment steps that include credential rotation for the affected domain"
+  ],
+  "techniqueId": "t1003-003",
+  "detectsTechniques": [
+    "t1003-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation on domain controllers with command line auditing enabled",
+    "Windows Security event 4663 object access auditing for the directory database and its transaction log files",
+    "Windows Security event 4656 handle requests to the directory database file including the requesting account",
+    "Directory service access events recording replication requests and their originating computer account",
+    "Sysmon event 10 process access events plus Sysmon event 11 file creation for copies written to temporary directories"
+  ],
+  "logic": "The pattern is a process or account interacting with the directory database file or its replication interface outside the approved maintenance path. The rule correlates process creation on a domain controller, object access auditing hits against the database and its transaction logs, and directory replication requests, grouping them by acting account and source computer. The malicious case shows a command shell or an unsigned utility creating a shadow copy, copying the database to a temporary folder, and then compressing the result, or shows replication being requested by an ordinary member server computer account. The benign case shows the approved backup service account reading the files during the documented backup window from the backup server itself.",
+  "pseudoQuery": "# title: Directory Database Copy or Replication from Unapproved Account\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_access:\n#     EventID: 4663\n#     ObjectName|endswith: '\\ntds.dit'\n#   selection_repl:\n#     EventType: 'DirectoryServiceReplication'\n#   filter_backup:\n#     SubjectUserName|endswith: 'svc-dcbackup'\n#   condition: (selection_access or selection_repl) and not filter_backup\n# level: critical",
+  "falsePositives": [
+    "Enterprise backup software using volume shadow copies to protect domain controller system state during its scheduled window",
+    "Directory maintenance runbooks that copy the database to a staging path for offline integrity checks",
+    "Migration projects that read directory data with an approved discovery tool under change control",
+    "Monitoring agents that take directory database performance and size readings through supported interfaces"
+  ],
+  "tuningNotes": "Allowlist the backup service account and the backup server network addresses together, and require the access to fall inside the published backup window, which removes most legitimate noise without hiding off-hours copying. Alert at critical severity for any replication request from a computer account that is not a domain controller, and keep that rule free of broad allowlists. Confirm object access auditing is enabled on every domain controller or the file portion of the rule is blind. The coverage you lose by allowlisting backup paths is an intruder who reuses the backup account, so watch for that account authenticating outside its normal hours.",
+  "severity": "critical"
+}

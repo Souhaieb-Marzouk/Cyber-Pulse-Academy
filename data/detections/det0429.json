@@ -1,0 +1,108 @@
+{
+  "id": "det0429",
+  "type": "detection",
+  "title": "Detect Modification of macOS Startup Items",
+  "shortTitle": "Detect Modification of macOS Startup Items",
+  "externalId": "DET0429",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects modification of the macOS startup item and login item mechanisms, which an adversary uses to run code again every time a user logs in or the machine restarts. It matters because these locations are part of the supported operating system design rather than a flaw, so persistence needs no privilege escalation and survives reboots, updates and casual cleanup. Detection depends on endpoint file monitoring for the startup directories, unified log records showing launchd loading the items, and process telemetry that ties a writer process to the new file and to a later execution. The main way it fails in practice is that software installers, updaters and managed enterprise software place files in the same folders daily, so analysts need asset baselines and code signing checks before the rule is useful.",
+  "tags": [
+    "macos",
+    "persistence",
+    "t1037-005",
+    "startup items",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Modification of macOS Startup Items",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0429/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Modification of macOS Startup Items - EASY",
+      "path": "exercises/det0429/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Modification of macOS Startup Items - MEDIUM",
+      "path": "exercises/det0429/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Modification of macOS Startup Items - HARD",
+      "path": "exercises/det0429/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Modification of macOS Startup Items - EXTREMELY HARD",
+      "path": "exercises/det0429/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes to the startup items on a Mac. Startup items are files that tell the computer to run a program when a user logs in. The rule reports new or changed items, especially those written by an unusual program.",
+    "whyItMatters": "Attackers want their code to run again after a restart. macOS offers several supported ways to do that. A startup item is one of the oldest and simplest. Because it is a normal feature, it does not look like an error. That is why you must know which programs normally write there. Everything else deserves a look.",
+    "howItWorks": [
+      "A program writes a property list file into a startup item or login item folder.",
+      "Endpoint monitoring records the new file, who created it and which process wrote it.",
+      "The system log shows the launch service loading that item for the current user.",
+      "The rule compares the new file with a baseline of known installer and management tools.",
+      "It checks the code signature of the writing process and its parent process.",
+      "An unsigned writer, or an item that runs from a home or temporary folder, raises an alert."
+    ],
+    "example": "Think of a hotel sign in sheet at the staff entrance. Regular staff sign in each morning and the sheet grows all week. That is expected and nobody reads it closely. If a new name appears at four in the morning, written in a hand nobody recognises, the supervisor looks twice. The sheet is a normal part of the hotel. The odd entry is the signal.",
+    "takeaways": [
+      "Startup items are a supported macOS feature, so malware uses them without a flaw.",
+      "Check the writing process, its signature and the path of the item itself.",
+      "Know which installers write there, or the rule will not survive first contact."
+    ]
+  },
+  "objectives": [
+    "Explain how macOS startup items and login items cause code to run at user logon.",
+    "Identify the folders and file types that hold these persistence items.",
+    "Correlate a file creation event with the writing process, its parent and its code signature.",
+    "Use a baseline of approved installers and management agents to reduce noise.",
+    "Recognise an item that points at an unsigned binary inside a user or temporary directory.",
+    "Describe the coverage gap for persistence created by the operating system itself."
+  ],
+  "techniqueId": "t1037-005",
+  "detectsTechniques": [
+    "t1037-005"
+  ],
+  "dataSources": [
+    "Endpoint file system monitoring for writes to the system and user startup items and launch agents directories",
+    "macOS unified log entries where the launch service loads a login item or startup item for a user session",
+    "Process creation telemetry recording the writing process image, parent image and code signature status",
+    "Endpoint inventory of approved installers, package managers and mobile device management agents per host",
+    "File metadata records capturing owner, permissions, creation time and quarantine attribute of the new item"
+  ],
+  "logic": "The pattern is a new or modified property list or executable appearing in a startup or login item location, where the writing process is not an approved installer or management agent, or where the item references a program stored in a user home directory, a downloads folder or a temporary path. The fields that must be correlated are the file path and type, the creating process and its parent, the code signature and team identifier of that process, the owner and permissions of the file, and the subsequent load of the item recorded by the launch service. The benign case is dominated by signed installers and by enterprise management agents that write to the same directories on a known schedule, so signature status, parent lineage and file location are what separate the two. Confidence rises when the item is written shortly after a user opened a document or archive, and when the item points at a binary that has no valid signature.",
+  "pseudoQuery": "# title: Startup Item or Launch Agent Written by Unsigned Process on macOS\n# logsource:\n#   product: macos\n# detection:\n#   selection:\n#     EventType: 'file_create'\n#     TargetFilename|contains:\n#       - '/Library/StartupItems/'\n#       - '/Library/LaunchAgents/'\n#       - '/Users/'\n#     TargetFilename|endswith: '.plist'\n#   filter_installer:\n#     Image|endswith:\n#       - '/usr/sbin/installer'\n#       - '/Library/Application Support/Company/agent'\n#     SignatureStatus: 'signed'\n#   condition: selection and not filter_installer\n# level: medium",
+  "falsePositives": [
+    "Software package installers that register a login helper or updater for the current user during installation",
+    "Enterprise management agents that install or repair a launch agent on a schedule across the fleet",
+    "Developer tools and virtualisation software that add login items when a new project environment is created",
+    "Administrators adding a login script for a shared Mac used in a lab or a kiosk",
+    "Backup clients that enable a menu bar helper through a user level startup item"
+  ],
+  "tuningNotes": "Build the baseline from your endpoint inventory: list every startup and login item on every Mac, record the signing team identifier of the binary it points at, and store that as the expected state so the rule can alert on drift rather than on existence. Filter on the exact installer and management agent paths and on their signatures, not on the folder, and always keep items written by unsigned processes or pointing outside program directories in scope. Scope the first release to machines that hold sensitive data or belong to privileged users, and treat user home directory items as a separate higher severity case because legitimate installers rarely write there. You lose coverage when an approved installer path is reused by an attacker or when persistence is created by the operating system at first launch, so also monitor for items that appear with no corresponding install event and review the loaded item list for changes you never alerted on.",
+  "severity": "medium"
+}

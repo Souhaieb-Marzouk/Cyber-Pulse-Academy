@@ -1,0 +1,104 @@
+{
+  "id": "det0876",
+  "type": "detection",
+  "title": "Detection of Compromise Accounts",
+  "shortTitle": "Detection of Compromise Accounts",
+  "externalId": "DET0876",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the compromise of accounts, where an adversary takes over a mailbox, a business application login or a single sign on identity to conduct phishing, to move data or to reach further systems. It matters because a stolen identity uses your own trust relationships, so the activity looks like a normal user and passes many network controls. The telemetry that makes it possible includes failed and successful authentication records from the directory and the identity provider, multi factor authentication outcome logs, mailbox rule change events and token or session creation records. It fails in practice because logins from new places happen for legitimate reasons every day, and because directory logs and cloud sign in logs often live in different systems that nobody joins together.",
+  "tags": [
+    "mitre t1586",
+    "resource development",
+    "account takeover",
+    "authentication",
+    "impossible travel"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Compromise Accounts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0876/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Compromise Accounts - EASY",
+      "path": "exercises/det0876/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Compromise Accounts - MEDIUM",
+      "path": "exercises/det0876/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Compromise Accounts - HARD",
+      "path": "exercises/det0876/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Compromise Accounts - EXTREMELY HARD",
+      "path": "exercises/det0876/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Account compromise means an attacker gains control of a real user account. They can then read mail, send messages and reach other systems as that user. This detection looks for the login and setting changes that show an account has changed hands.",
+    "whyItMatters": "A stolen account already has the trust that took years to build. Messages from it pass many filters. The attacker does not need to break into a system if they can simply sign in. Catching the moment of takeover limits how much they can reach. The login records usually show the takeover before the damage appears.",
+    "howItWorks": [
+      "Your directory and your cloud identity provider write a record for each sign in, showing the result, the address and the device.",
+      "Multi factor authentication is recorded as well, including when it was satisfied or bypassed with an older protocol.",
+      "The rule looks for a run of failures from one source followed by a success, or a success from a location the user has never used.",
+      "It then checks what happened in the session, such as new mailbox rules, new application tokens or mass file downloads.",
+      "An alert groups the account, the source, the authentication method and the follow-on actions so the analyst can act fast."
+    ],
+    "example": "Think of a door log for an office. The same staff card opens the main door at eight each morning. If that card fails five times at nine at night, then succeeds through the service entrance, and then the printing room door opens for the first time in a year, you have a story worth investigating.",
+    "takeaways": [
+      "Failed logins matter most when they are followed by a success from the same source.",
+      "Look inside the session, not just at the login, because the actions show intent.",
+      "Joining directory and cloud logs is what turns weak signals into a strong alert."
+    ]
+  },
+  "objectives": [
+    "Explain why a compromised identity is harder to spot than a compromised device",
+    "List the authentication and session events that indicate account takeover",
+    "Correlate failed sign ins, a later success and follow-on mailbox or token changes",
+    "Recognise legacy authentication that satisfies no multi factor challenge",
+    "Carry out a containment checklist that revokes sessions and tokens, not only a password"
+  ],
+  "techniqueId": "t1586",
+  "detectsTechniques": [
+    "t1586"
+  ],
+  "dataSources": [
+    "Windows Security event 4625 failed logon and 4624 successful logon with logon type and source address",
+    "Cloud identity provider sign in logs with risk detail, multi factor result and client application used",
+    "Mail server or productivity suite audit events for inbox rule creation and mailbox delegation changes",
+    "Directory audit events for token issuance, application consent grants and password or key resets"
+  ],
+  "logic": "The pattern is a concentrated set of authentication failures against one account from a small address range, immediately followed by a successful sign in from the same range with a client application that does not enforce multi factor authentication, and then a security relevant change such as a new inbox rule, a new application token or a new delegate. The fields to correlate are the account, the source address, the client application, the authentication method and the type and time of the follow-on change. The benign case is a user who mistypes a password once and then signs in from the usual device and network, while the malicious case shows a burst of attempts across several accounts from one address and a success on a legacy client.",
+  "pseudoQuery": "# title: Failed sign in burst then success from same source on legacy client\n# logsource:\n#   product: azure\n#   service: signin\n# detection:\n#   selection:\n#     result_type:\n#       - 50126\n#       - 50053\n#   success:\n#     result_type: 0\n#     client_app|contains: 'other clients'\n#   timeframe: 15m\n#   condition: selection and success | count() by user, source_ip > 8\n# level: high",
+  "falsePositives": [
+    "A user who changed their password on a mobile device and keeps an old saved credential in a mail client",
+    "A shared service account used by a scheduled job with a stale password that fails until the cache refreshes",
+    "Staff on a corporate virtual private network that egresses through a new address range after a network change",
+    "A penetration test that attempts password spraying against the directory within an agreed scope"
+  ],
+  "tuningNotes": "Allow list your corporate egress ranges, the published addresses of approved mail clients and the accounts that are intentionally automated. Baseline the client applications each account normally uses, and treat legacy clients as high risk because they cannot present a multi factor challenge. Restricting to privileged or high value accounts reduces noise a great deal but leaves ordinary user compromises undetected, so keep a second rule for all users with a higher threshold and a manual review queue.",
+  "severity": "high"
+}

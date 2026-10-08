@@ -1,0 +1,107 @@
+{
+  "id": "det0270",
+  "type": "detection",
+  "title": "Detection of Domain or Tenant Policy Modifications via AD and Identity Provider",
+  "shortTitle": "Detection of Domain or Tenant Policy Modifications via AD...",
+  "externalId": "DET0270",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers unauthorized changes to the policy layer that controls who can access what: Group Policy objects in on-premises Active Directory and policy or conditional access objects in a cloud identity provider. T1484 matters because these changes let an adversary grant themselves durable access, weaken authentication requirements, or push configuration to every host in a domain without touching a single endpoint. Detection relies on directory service change auditing, identity provider audit logs that record policy updates, and file change monitoring on the policy template store. The common failure is volume and ambiguity: many legitimate administrators edit policy, and the audit record names the object but not always the specific attribute that changed, so the rule must be paired with change review and with entropy around who normally edits policy.",
+  "tags": [
+    "policy modification",
+    "active directory",
+    "identity provider",
+    "privilege escalation",
+    "group policy",
+    "t1484"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Domain or Tenant Policy Modifications via AD and Identity Provider",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0270/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Domain or Tenant Policy Modifications via AD and Identity Provider - EASY",
+      "path": "exercises/det0270/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Domain or Tenant Policy Modifications via AD and Identity Provider - MEDIUM",
+      "path": "exercises/det0270/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Domain or Tenant Policy Modifications via AD and Identity Provider - HARD",
+      "path": "exercises/det0270/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Domain or Tenant Policy Modifications via AD and Identity Provider - EXTREMELY HARD",
+      "path": "exercises/det0270/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for changes to the rules that control access in a company network or a cloud service. These rules decide who may log in and what they may reach. A change here can open doors for a whole organisation at once, so it deserves close attention.",
+    "whyItMatters": "The policy layer is a high value target. One small edit can let an attacker log in without strong checks or reach every computer in a domain. Such a change often looks like ordinary administration, so it can sit unnoticed for months. Detecting the edit early protects every account at the same time. It also gives you a clear place to look when something feels wrong.",
+    "howItWorks": [
+      "Directory services and cloud identity providers record each change to a policy object in an audit log.",
+      "The detection collects those records and keeps the ones that touch access rules, trust settings or authentication policy.",
+      "It looks at the attribute that changed, not only the object name, so a rename does not hide a permissions change.",
+      "It compares the account making the change with a baseline of who normally edits policy in that environment.",
+      "It checks whether a second change follows quickly, because attackers often pair a policy change with a new trust or login rule.",
+      "The analyst gets the object, the changed attribute, the account, the source address and the time in one alert."
+    ],
+    "example": "Think of the master key cabinet in a hotel. Any manager may add a key, and that is fine. The security office still keeps a log of every key that was cut and every lock that was rekeyed. If someone rekeys the whole building at three in the morning and gives themselves a master key, the log is how you find out.",
+    "takeaways": [
+      "Policy changes affect many systems at once, so they must be reviewed even when they look routine.",
+      "Log the changed attribute, not just the object, or a quiet permissions change will slip past you.",
+      "Know which accounts are allowed to edit policy, and treat every other editor as an incident until proven otherwise."
+    ]
+  },
+  "objectives": [
+    "Explain how domain and tenant policy modification can create durable, environment wide access for an adversary.",
+    "Locate the audit records that capture policy object changes in Active Directory and in a cloud identity provider.",
+    "Identify the attributes whose modification is high risk, such as access control entries, trust settings and authentication policy.",
+    "Build an allowlist of approved policy editors and detect activity from accounts outside that list.",
+    "Describe how to combine change auditing with a human change process to reduce unactionable alerts."
+  ],
+  "techniqueId": "t1484",
+  "detectsTechniques": [
+    "t1484"
+  ],
+  "dataSources": [
+    "Windows Security event 5136 directory service object modification, which records the changed attribute name and value for policy objects",
+    "Windows Security event 4662 operation on a directory object, filtered to changes against the domain naming context",
+    "File integrity monitoring on the Group Policy template store in the system volume, which shows new or edited policy files",
+    "Cloud identity provider audit logs for policy and conditional access updates, recording the actor, the target object and the before and after values",
+    "Cloud identity provider audit logs for domain or tenant federation settings, which change how authentication is trusted"
+  ],
+  "logic": "The pattern is a change to a policy object or federation setting performed by an account or from a source that does not normally modify policy in that environment. The fields to correlate are the object distinguished name or policy identifier, the attribute name and its old and new values, the acting account, the source address, and the time of the change. What makes the malicious case stand out is not the event type, since administrators produce the same event, but the combination of a high impact attribute such as a discretionary access control entry, domain trust or conditional access grant, with an unexpected actor, an unusual hour, or a burst of related changes in a short window. An adversary preparing durable access will often modify a trust or authentication policy and then add an account or group in the same session, so the correlation window across both object types is what gives the rule its strength.",
+  "pseudoQuery": "# title: High Impact Policy or Federation Object Modified\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_object:\n#     EventID: 5136\n#     ObjectClass|contains:\n#       - groupPolicyContainer\n#       - trust\n#   selection_attr:\n#     AttributeName|contains:\n#       - nTSecurityDescriptor\n#       - trustDirection\n#       - msDS-TrustForestTrustInfo\n#   filter_approved:\n#     SubjectUserName|contains: svc-gpo\n#   condition: selection_object and selection_attr and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Directory administrators performing planned Group Policy updates during an approved change window with a linked ticket",
+    "Identity governance tooling that adjusts conditional access policies automatically when group membership or device compliance state changes",
+    "Migration projects that recreate policy objects and trust settings while moving users between domains or tenants",
+    "Delegated helpdesk staff editing a small subset of policy settings for a single department after a documented request"
+  ],
+  "tuningNotes": "Tune by narrowing to high impact attributes first, such as access control entries, trust configuration and authentication policy, and by scoping collection to domain controllers and to the identity provider tenant that actually holds production users. Build a baseline of which accounts and source addresses modify policy over a full business cycle, including month end and patching nights, and add those as filters by exact account rather than by role name. The tradeoff is clear: filtering out routine policy editors and low risk attributes removes a large share of legitimate noise but also blinds you to an attacker using a compromised administrator account, so retain a count based rule that flags any change from an account that has not edited policy in the past ninety days.",
+  "severity": "high"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0077",
+  "type": "detection",
+  "title": "Detection of Exfiltration Over Alternate Network Interfaces",
+  "shortTitle": "Detection of Exfiltration Over Alternate Network Interfaces",
+  "externalId": "DET0077",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers theft that leaves through a path outside the monitored corporate network, using a second network adapter, a wireless connection to an unmanaged network, or an encrypted tunnel to a third party service. It matters because the whole point of the technique is to avoid the inspection point: data that travels over a mobile broadband link or a personal tunnel never reaches the web proxy, the data loss prevention sensor or the firewall that the organisation relies on. The telemetry that makes it visible is endpoint network connection records that identify the interface carrying each flow, adapter and tunnel establishment records, and flow data with enough interface context to show traffic on a path that should be idle. The pattern worth alerting on is a host that suddenly sends significant volume over a newly appeared or normally idle interface while its primary corporate link is still connected and healthy. It fails in practice because legitimate users move between docking stations, wireless networks and mobile hotspots all day, so an interface change alone is meaningless and the rule has to earn its keep by combining volume, destination reputation and whether the data being read is sensitive.",
+  "tags": [
+    "exfiltration",
+    "network interface",
+    "endpoint",
+    "data loss prevention",
+    "network monitoring",
+    "usb tethering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Exfiltration Over Alternate Network Interfaces",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0077/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Exfiltration Over Alternate Network Interfaces - EASY",
+      "path": "exercises/det0077/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Exfiltration Over Alternate Network Interfaces - MEDIUM",
+      "path": "exercises/det0077/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Exfiltration Over Alternate Network Interfaces - HARD",
+      "path": "exercises/det0077/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Exfiltration Over Alternate Network Interfaces - EXTREMELY HARD",
+      "path": "exercises/det0077/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A computer can reach the internet in more than one way. There is the office cable, the office wireless and a phone hotspot. This detection looks for large amounts of data leaving by another path.",
+    "whyItMatters": "Your network sensors only see traffic that passes them. A laptop on a mobile hotspot is outside that view. An attacker can copy files out and leave almost no trace in your network logs. Spotting the change of path is often the only clue you get.",
+    "howItWorks": [
+      "The host sensor records each network connection and the adapter used.",
+      "The system logs when a new adapter appears, such as a tethered phone.",
+      "The detection tracks normal traffic for each computer and each adapter.",
+      "It flags a host that sends a large volume over an adapter that is idle.",
+      "It checks whether the main corporate connection was still active.",
+      "It adds weight when the same host recently read many files or made an archive."
+    ],
+    "example": "Think of an office that checks every bag leaving through the front door. Someone carries boxes down the fire stairs instead. The front door log stays perfectly quiet, and the guard sees nothing. The only hint is the fire door alarm, which shows a door that is never used.",
+    "takeaways": [
+      "Data that leaves by a second path never reaches your inspection tools.",
+      "The useful clue is a change of path plus an unusual volume of data.",
+      "Approved remote and mobile devices need their own baseline, or alerts become noise."
+    ]
+  },
+  "objectives": [
+    "Explain how alternate network paths bypass network based inspection and data loss controls.",
+    "Identify the interface, adapter and tunnel records that reveal which path carried a flow.",
+    "Correlate a change of network path with the volume and sensitivity of the data being read.",
+    "Separate approved mobile and remote working patterns from anomalous interface use.",
+    "Describe the containment options available when a host is exfiltrating over an unmanaged link."
+  ],
+  "techniqueId": "t1011",
+  "detectsTechniques": [
+    "t1011"
+  ],
+  "dataSources": [
+    "Endpoint sensor network connection events including the interface index, interface description and destination address",
+    "Sysmon event 22 DNS query records showing the name resolution that precedes a connection from a secondary adapter",
+    "Operating system network profile and adapter state logs recording when a new wireless network or tethered device is connected",
+    "Virtual private network client logs recording tunnel establishment, peer address and duration",
+    "Flow records exported with interface or virtual routing context from switches and routers on the corporate edge"
+  ],
+  "logic": "Alert when a host moves bulk data over an interface that is not its normal corporate path, particularly when the primary interface stays up, which is the opposite of ordinary roaming behaviour. The fields to correlate are the host, the interface identifier or description, the destination address and port, the bytes sent, and the presence of the primary connection in the same interval. Benign causes are wide: docking and undocking, switching between wireless and wired, working from a home network, and using a phone as a hotspot when the office link fails. The malicious case usually shows the two paths active at once, a destination that is a file sharing or cloud storage service with no corporate relationship, an outbound volume that is large relative to that host history, and file reads or archive creation on the same host in the preceding minutes. Destination reputation and data volume are what make this actionable; interface change alone is not.",
+  "pseudoQuery": "# title: Bulk Outbound Transfer Over Secondary Network Interface\n# logsource:\n#   product: windows\n#   category: network_connection\n# detection:\n#   bulk_egress:\n#     Initiated: 'true'\n#     DestinationIsPrivate: 'false'\n#     BytesSent|gte: 50000000\n#   secondary_adapter:\n#     InterfaceDescription|contains:\n#       - 'Wireless'\n#       - 'Mobile Broadband'\n#   primary_link:\n#     InterfaceDescription|contains: 'Ethernet'\n#   condition: bulk_egress and secondary_adapter and primary_link\n# level: high",
+  "falsePositives": [
+    "Remote workers whose virtual private network client reconnects over a home wireless network during a large file synchronisation",
+    "Field staff tethering a laptop to a mobile phone to upload inspection photos or reports when no office link exists",
+    "Cloud backup clients that continue a large upload after a laptop is undocked from its wired connection",
+    "Software update and content distribution clients that download or seed large files over whichever adapter is available",
+    "Engineers who connect a lab or test adapter to a laptop while the corporate connection remains active"
+  ],
+  "tuningNotes": "The essential step is to baseline which interfaces each host and each user group is expected to use, and to express the rule against that baseline rather than against a fixed adapter list. Tag managed laptops with approved mobile broadband subscriptions and exclude their subscriptions by identity, not by adapter name, so a reinstall does not create a blind spot. Set the volume threshold from the ninety fifth percentile of outbound bytes per host per hour for the same interface class, which keeps the rule useful on both laptops and workstations. Where possible, add destination reputation and a requirement that the primary link was healthy, since a genuine network failover is the single largest source of noise. The coverage you lose is a slow, low volume exfiltration spread over days, so pair the rule with periodic review of long term egress baselines per host and with monitoring for new adapters appearing on desktops that should never have them.",
+  "severity": "high"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0522",
+  "type": "detection",
+  "title": "Detect Kerberos Ticket Theft or Forgery (T1558)",
+  "shortTitle": "Detect Kerberos Ticket Theft or Forgery (T1558)",
+  "externalId": "DET0522",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets the theft of a Kerberos ticket from memory and the later use of a forged ticket, the behaviours grouped under steal or forge Kerberos tickets. A stolen ticket lets an attacker authenticate as the victim without knowing the password, and a forged ticket signed with a recovered key can grant access to any service in the domain. Domain controller Kerberos service events, ticket request volume and encryption type fields, logons that reuse an unexpected ticket, and impossible ticket lifetimes make the pattern visible. The hard part is separating automated enumeration from application behaviour that legitimately requests thousands of service tickets, so request volume must be baselined per account and per source host before thresholds are set.",
+  "tags": [
+    "credential access",
+    "kerberos",
+    "windows",
+    "active directory",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Kerberos Ticket Theft or Forgery (T1558)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0522/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Kerberos Ticket Theft or Forgery (T1558) - EASY",
+      "path": "exercises/det0522/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Kerberos Ticket Theft or Forgery (T1558) - MEDIUM",
+      "path": "exercises/det0522/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Kerberos Ticket Theft or Forgery (T1558) - HARD",
+      "path": "exercises/det0522/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Kerberos Ticket Theft or Forgery (T1558) - EXTREMELY HARD",
+      "path": "exercises/det0522/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for stolen or copied Kerberos tickets, and for tickets that an attacker made. Kerberos is the system Windows domains use to prove who you are without sending your password each time. A copied ticket can be used from another machine. A forged ticket can claim any identity. The alert looks for unusual ticket requests and impossible ticket details.",
+    "whyItMatters": "A Kerberos ticket is a pass that a server trusts. If an attacker copies it, they can act as the real user. A password change does not stop them, because the ticket is already issued. A forged ticket can open almost any door in the domain while it lives. Normal sign-in alerts miss this, because the logon looks valid. Ticket events give you an early view of this activity.",
+    "howItWorks": [
+      "The domain controller writes a record each time it issues a ticket granting ticket or a service ticket. The record names the account and the source address.",
+      "A collector forwards those records to the central platform. There the rule groups them by account and source host over a short window.",
+      "The rule looks for a sudden rise in service ticket requests from one account. This is stronger when the account never uses those services.",
+      "It also checks the encryption type field, because older weak encryption such as RC4 often means a downgrade was requested.",
+      "Finally it compares ticket lifetimes, and flags tickets that stay valid far longer than your policy allows.",
+      "Matching activity is enriched with the asset owner and the service names before it reaches the analyst queue."
+    ],
+    "example": "Think of a hospital sign-in sheet. Staff show a badge, and the desk writes down the name and the rooms that person may enter. A thief can copy a badge from a coat and use it later. Another thief can print a badge with any name at all. The desk log still looks normal. Only the small details show the problem. One badge may be used in two places at once. Another may be valid for ten years.",
+    "takeaways": [
+      "A copied or forged ticket works without a password, so password resets do not remove the access.",
+      "Volume, encryption type and ticket lifetime are the three details worth alerting on.",
+      "Baseline ticket requests per service account first, or automation will drown the queue."
+    ]
+  },
+  "objectives": [
+    "Describe how a stolen Kerberos ticket lets an attacker authenticate without a password",
+    "Identify the domain controller event fields that record the requesting account, source address, service name and ticket encryption type",
+    "Explain why weak or downgraded encryption on service ticket requests is worth investigating",
+    "Build a per account and per host baseline of normal service ticket request volume",
+    "Explain why forged tickets can show lifetimes that policy does not allow",
+    "Write a triage plan that checks the source host, the account and the requested services before escalation"
+  ],
+  "techniqueId": "t1558",
+  "detectsTechniques": [
+    "t1558"
+  ],
+  "dataSources": [
+    "Windows Security event 4768 Kerberos authentication ticket request on domain controllers with account and source address fields",
+    "Windows Security event 4769 Kerberos service ticket request including service name, ticket options and ticket encryption type",
+    "Windows Security event 4771 Kerberos pre-authentication failure with the failure code and client address",
+    "Windows Security event 4624 logon with logon type 3 and Kerberos authentication package details",
+    "Domain controller audit policy configuration showing that Kerberos service ticket operations auditing is enabled"
+  ],
+  "logic": "The pattern is Kerberos activity that does not match how an account normally uses the domain. Correlate the requesting account, the source address, the requested service name and the ticket encryption type across ticket request events inside a short window. A malicious case shows one account asking for many different service tickets in seconds, a workstation requesting tickets for services it has never touched, weak encryption such as RC4 where domain policy requires stronger, or a ticket lifetime longer than policy allows. Benign cases are backup and monitoring tools that enumerate many services from one service account, so those accounts and hosts must be excluded by name after baselining.",
+  "pseudoQuery": "# title: Kerberos Service Ticket Anomaly With Weak Encryption\n# logsource:\n#   product: windows\ndetection:\n  selection:\n    EventID: 4769\n    TicketEncryptionType: '0x17'\n    Status: '0x0'\n  filter_machine:\n    TargetUserName|endswith: '$'\n  filter_service:\n    ServiceName|endswith: '$'\n  condition: selection and not filter_machine and not filter_service\nlevel: high",
+  "falsePositives": [
+    "Backup or monitoring service accounts that request service tickets for many hosts during a scheduled scan",
+    "Applications that still negotiate RC4 because a legacy service does not support stronger encryption",
+    "Single sign-on clients that renew tickets for the same user on a fixed timetable",
+    "Authorised vulnerability scanners that authenticate to every service in a subnet during an assessment"
+  ],
+  "tuningNotes": "Baseline ticket request volume per account and per source host for at least two weeks before setting a threshold, and keep a named allow list for backup, monitoring and scanning accounts. Restrict the weak encryption condition to accounts and services where domain policy already requires stronger encryption, otherwise legacy applications will dominate the queue. Track lifetime anomalies separately from volume anomalies, because the benign causes rarely overlap. Each filter you add also hides an attacker who stays under the volume threshold, so review filtered events on a slower schedule.",
+  "severity": "critical"
+}

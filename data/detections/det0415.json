@@ -1,0 +1,108 @@
+{
+  "id": "det0415",
+  "type": "detection",
+  "title": "Application Exhaustion Flood Detection Across Platforms",
+  "shortTitle": "Application Exhaustion Flood Detection Across Platforms",
+  "externalId": "DET0415",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers application exhaustion flood, tracked as T1499.003, where an adversary drives an application to consume its finite resources so that real users cannot be served, without needing a large network flood. It matters because this is the denial of service variant that most often succeeds, since a single expensive search, report or upload endpoint can exhaust database connections, worker threads or memory from relatively few requests. The telemetry that makes detection possible is request level data: web server or reverse proxy access logs with uniform resource locator, status code, response time and client address, load balancer metrics for connection counts and queue depth, application performance monitoring data for thread pool and pool saturation, and resource metrics for memory and file descriptors. The main way it fails is that the symptom looks identical to an organic traffic spike or a slow database query, so a useful rule needs a request level measure of cost per client and the shape of the request distribution rather than a raw request count.",
+  "tags": [
+    "web application",
+    "denial of service",
+    "availability",
+    "metrics",
+    "rate limiting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Application Exhaustion Flood Detection Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0415/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Application Exhaustion Flood Detection Across Platforms - EASY",
+      "path": "exercises/det0415/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Application Exhaustion Flood Detection Across Platforms - MEDIUM",
+      "path": "exercises/det0415/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Application Exhaustion Flood Detection Across Platforms - HARD",
+      "path": "exercises/det0415/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Application Exhaustion Flood Detection Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0415/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "An application exhaustion flood is an attack that uses up the limited resources of a web application. Examples are database connections, worker threads and memory. Few requests may be needed if each one is expensive. This detection looks for a small number of clients making expensive requests until the service slows or fails.",
+    "whyItMatters": "A slow or unavailable service stops your business and your customers notice at once. Attackers need far less traffic than a classic flood, so a large network link does not protect you. The first sign is often a slow service, which engineers may treat as a normal fault. Fast detection separates an attack from a code problem. It also protects the systems behind the application from being overwhelmed.",
+    "howItWorks": [
+      "The web server or reverse proxy writes a record for every request. It holds the caller address, the page and the answer time.",
+      "The rule groups those records by caller and by page, then measures how much work each caller asks for.",
+      "It also reads application metrics such as busy threads, free database connections and memory use.",
+      "It compares the current pattern with the normal one for that hour, including the usual number of callers.",
+      "A small number of callers using most of the capacity, while error rates rise for everyone, raises the score.",
+      "When capacity drops and the caller pattern stays narrow, the system opens an alert and names the top callers."
+    ],
+    "example": "Think of a single cashier in a shop. Most customers buy one or two items and leave quickly. One customer arrives with a trolley of hundreds of items and asks for each one to be wrapped separately. The queue behind grows, and the shop looks broken. The cashier is fine. The cost of one customer's requests is the problem.",
+    "takeaways": [
+      "Denial of service does not need huge traffic, only expensive requests.",
+      "Measure cost per caller, not just total requests, or normal busy hours will look like attacks.",
+      "Pair request data with server capacity data so you can tell pressure from heavy but healthy load."
+    ]
+  },
+  "objectives": [
+    "Explain how an application can be exhausted without a large volume of traffic.",
+    "Read access logs to find the requests that consume the most server time.",
+    "Use application metrics such as connection pool and thread pool saturation to confirm pressure.",
+    "Compare current traffic shape with the same period on previous days.",
+    "Identify which endpoints are expensive and should be rate limited.",
+    "Describe how to distinguish an attack from a slow dependency or a bad release."
+  ],
+  "techniqueId": "t1499-003",
+  "detectsTechniques": [
+    "t1499-003"
+  ],
+  "dataSources": [
+    "Web server or reverse proxy access logs with client address, request uniform resource locator, status code, response time and bytes returned",
+    "Load balancer metrics for active connections, request rate, queue depth and backend healthy host count",
+    "Application performance monitoring traces with endpoint name, duration and error rate per transaction",
+    "Operating system resource metrics for memory, file descriptors and central processing unit on application hosts",
+    "Database monitoring metrics for active sessions, connection pool usage and slow query counts"
+  ],
+  "logic": "The pattern is a small number of client addresses or sessions accounting for a large share of the total server time consumed in a short window, concentrated on endpoints that are known to be expensive, while the overall request rate may rise only modestly and error rates and latency rise for the remaining population. The fields to correlate are the client address, the request path, the response time and the status code in access logs, the queue depth and error rate in the load balancer metrics, and the pool saturation in the application metrics. A genuine busy period shows the load spread across many callers with a normal mix of paths and a stable latency, while an exhaustion attack shows concentration, a narrow path set and a sharp rise in time per request. The distinguishing factor is the share of capacity consumed by the top few callers relative to their share of requests.",
+  "pseudoQuery": "# title: Few clients consume most application time on expensive endpoint\n# logsource:\n#   product: network\n#   service: webserver\n# detection:\n#   selection:\n#     RequestPath|contains: ['/search', '/export', '/report']\n#     StatusCode: [200, 500, 503]\n#   filter_internal:\n#     ClientIp: '10[.]0[.]0[.]0/8'\n#   condition: selection and not filter_internal | count() by ClientIp > 500 in 5m and avg(ResponseTime) by ClientIp > 3000\n# level: medium",
+  "falsePositives": [
+    "A scheduled reporting job or integration that pulls large exports from the same endpoint every night",
+    "A monitoring or synthetic test service that repeatedly calls expensive endpoints from a fixed address range",
+    "A crawler from a partner or search provider that legitimately indexes a large catalogue in one pass",
+    "A database slowdown that makes ordinary requests expensive for every caller at the same time",
+    "A new software release that introduces an inefficient query and increases the cost of a popular page"
+  ],
+  "tuningNotes": "Filter your own known automation ranges and scheduled job accounts first, since internal callers are usually the top consumers of expensive endpoints during normal operation. Then scope the rule to the public entry points that accept unauthenticated traffic, where a real attack is most likely and where the client address field is meaningful. Baseline the ninety ninth percentile of server time per client and the normal request mix for each endpoint over several weeks, and alert on the ratio of capacity share to request share rather than on absolute counts. Add a filter for declared load testing windows owned by the performance team so their work does not page anyone. Narrowing to unauthenticated endpoints means an attacker who first creates many free accounts and then floods would be missed, so add a second rule for authenticated sessions that suddenly consume a large share of capacity, and watch the pool saturation metrics as a backstop.",
+  "severity": "high"
+}

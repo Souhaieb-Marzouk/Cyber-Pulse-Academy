@@ -1,0 +1,107 @@
+{
+  "id": "det0389",
+  "type": "detection",
+  "title": "Behavioral Detection of DLL Injection via Windows API",
+  "shortTitle": "Behavioral Detection of DLL Injection via Windows API",
+  "externalId": "DET0389",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses dynamic link library injection, where an adversary causes code to run inside another process so the activity appears to come from a trusted program and survives as long as that process lives. The technique is visible when a process opens another process with memory write rights, when a module loads into a target from a temporary or user writable path, and when a cross process thread is created. Useful telemetry comes from process access events, image load events, and remote thread creation records produced by endpoint and kernel collectors on Windows. In practice the strategy fails because endpoint protection, backup, accessibility, and monitoring products perform operations that look identical at the event level, so the rule needs a trusted injector baseline and module reputation data to stay useful.",
+  "tags": [
+    "defense evasion",
+    "process injection",
+    "windows",
+    "sysmon",
+    "memory",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of DLL Injection via Windows API",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0389/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of DLL Injection via Windows API - EASY",
+      "path": "exercises/det0389/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of DLL Injection via Windows API - MEDIUM",
+      "path": "exercises/det0389/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of DLL Injection via Windows API - HARD",
+      "path": "exercises/det0389/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of DLL Injection via Windows API - EXTREMELY HARD",
+      "path": "exercises/det0389/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A dynamic link library is a file of shared code that programs load to do work. Injection means putting a library into a different running program than the one that asked for it. This detection looks for one process reaching into another to add code.",
+    "whyItMatters": "Injected code hides inside a trusted program, so a process list looks clean. It can read the target program's memory, which may hold passwords or session keys. Catching the moment a process opens another with write rights is often the earliest chance to respond.",
+    "howItWorks": [
+      "The endpoint agent records every time one process asks for access to another process.",
+      "The rule keeps requests that ask for rights to change memory or create a thread in the target.",
+      "It checks whether the source process is a known protection or management product.",
+      "It also looks for a module load in the target from a temporary or user writable folder.",
+      "A write access request plus a suspicious module load on the same host becomes one alert."
+    ],
+    "example": "Imagine a hotel where each room key only opens one door. One guest asks reception for a master key to another guest's room. Staff know which cleaners may hold a master key. A request from a guest who should not have one, followed by an open door, is the alarm.",
+    "takeaways": [
+      "The key event is a process opening another process with rights to change its memory.",
+      "You must baseline legitimate injectors first, or the alert queue becomes unusable.",
+      "A module loading from a temporary folder into a system process is a strong supporting signal."
+    ]
+  },
+  "objectives": [
+    "Explain how code running inside another process hides its origin",
+    "Identify the process access, module load, and thread creation events this detection needs",
+    "Interpret the access rights field to separate read only inspection from memory modification",
+    "Build a baseline of legitimate injector processes for the environment",
+    "Correlate a cross process access event with the module that appears in the target afterwards",
+    "Describe how to handle findings on hosts that run accessibility or automation software"
+  ],
+  "techniqueId": "t1055-001",
+  "detectsTechniques": [
+    "t1055-001"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access recording the source image, target image, and granted access rights",
+    "Sysmon event 8 remote thread creation showing the process that created a thread inside another process",
+    "Sysmon event 7 image loaded with the module path, hash, and signature status in the target process",
+    "Windows Security event 4656 handle request audit records for process objects when object access auditing is enabled",
+    "Endpoint detection agent memory protection and module load telemetry for watched processes"
+  ],
+  "logic": "The pattern is one process obtaining the rights it needs to place code in another process, followed by a module appearing in that target from an untrusted location. The rule reads process access events, keeps only those whose granted rights include memory write or thread creation capability, and removes source images that are known protection, backup, accessibility, or management products. It then correlates on the host and the target process identifier with image load events where the loaded module sits in a temporary or user writable directory or fails signature validation, and with remote thread creation events naming the same target. The benign case is an endpoint agent, a debugger, a screen reader, or a backup product that injects into processes for a documented purpose and loads its module from its own installation directory with a valid signature. The malicious case is a script host, an office application, or a downloaded executable opening a browser, a mail client, or a system process and then loading an unsigned module from a temporary folder.",
+  "pseudoQuery": "# title: Cross Process Memory Write Followed By Unsigned Module Load\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_access:\n#     EventID: 10\n#     GrantedAccess|contains:\n#       - '0x1F0FFF'\n#       - '0x0020'\n#       - '0x000A'\n#   filter_injectors:\n#     SourceImage|endswith:\n#       - '\\\\MsMpEng.exe'\n#       - '\\\\CSFalconService.exe'\n#   selection_load:\n#     EventID: 7\n#     Signed: 'false'\n#   condition: (selection_access and not filter_injectors) or selection_load\n# level: high",
+  "falsePositives": [
+    "Endpoint protection and endpoint detection agents that inject their monitoring library into every new process",
+    "Accessibility tools such as screen readers and input helpers that attach to the foreground application",
+    "Software development debuggers and profilers attaching to a process under test on a developer workstation",
+    "Application virtualisation and compatibility layers that load their runtime library into launched programs"
+  ],
+  "tuningNotes": "Build the injector allow list from a two week baseline of source images that open other processes, and match on image path and signature together so a copied binary cannot borrow the exemption. Filter on the module path and signature for the load half of the rule, since a signed vendor library in its own installation directory is expected and an unsigned module in a temporary folder is not. Keep the high severity tier for injections into browsers, mail clients, password managers, and system processes, and reduce severity for injections into ordinary user applications. Narrowing to those targets loses visibility of injection into a line of business application, so keep a weekly report of all cross process memory write events by source image and review anything new.",
+  "severity": "high"
+}

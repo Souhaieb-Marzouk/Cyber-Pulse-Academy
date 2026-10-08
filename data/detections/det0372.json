@@ -1,0 +1,105 @@
+{
+  "id": "det0372",
+  "type": "detection",
+  "title": "Multi-Platform Detection Strategy for T1678 - Delay Execution",
+  "shortTitle": "Multi-Platform Detection Strategy for T1678 - Delay Execu...",
+  "externalId": "DET0372",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects deliberate delay of execution, where an adversary makes their code wait before acting so that it escapes short observation windows and breaks the link between an initial access event and later activity. On hosts the signs are long sleeps inside a process, scheduled tasks or cron entries with a distant start time, and a process that sits idle for an unusual duration before spawning children. In cloud and container environments the same idea appears as a function or job with a scheduled delay or an unusually long runtime before outbound connections. Detection correlates process creation, scheduled task and cron creation, and network connection events that occur well after the triggering activity on the same host. The main failure is that delay is a normal property of legitimate jobs, so the rule needs the pairing of a short lived trigger with a much later action by the same parent.",
+  "tags": [
+    "execution",
+    "scheduled task",
+    "cron",
+    "correlation",
+    "cloud"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Platform Detection Strategy for T1678 - Delay Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0372/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Platform Detection Strategy for T1678 - Delay Execution - EASY",
+      "path": "exercises/det0372/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Platform Detection Strategy for T1678 - Delay Execution - MEDIUM",
+      "path": "exercises/det0372/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Platform Detection Strategy for T1678 - Delay Execution - HARD",
+      "path": "exercises/det0372/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Platform Detection Strategy for T1678 - Delay Execution - EXTREMELY HARD",
+      "path": "exercises/det0372/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for malicious code that waits. Instead of acting at once, the program pauses for minutes or hours, or sets a timer, and then runs its real work. It catches the waiting pattern and links the early event to the later one. That link is what usually goes missing.",
+    "whyItMatters": "Many security tools watch a process only while it is active. If the code sleeps through that window, the tool sees nothing worth reporting. Delay also makes the first infection and the later damage look like two unrelated events. Finding the connection helps you respond to the right host. It also stops an attack from being dismissed as a false alarm.",
+    "howItWorks": [
+      "Collect process creation events with start and end times from endpoints and servers.",
+      "Collect scheduled task, cron and systemd timer creation events with their trigger times.",
+      "Measure how long a process lives before it starts any child process or opens a network connection.",
+      "Compare that idle period with the normal behaviour of the same program on other hosts.",
+      "Correlate the delayed action back to the earlier event, such as a file write or a download.",
+      "Alert when a parent process waits far longer than usual and then contacts a new external address."
+    ],
+    "example": "Think of a till receipt that shows a refund. If the refund happens seconds after the sale, staff may not notice. If it happens three hours later, on a different shift, the two papers never sit side by side. This detection staples the receipt to the sale.",
+    "takeaways": [
+      "Delay breaks the timeline that most detections depend on, so you must rebuild it.",
+      "Scheduled tasks and cron entries are the most durable way to wait.",
+      "A long idle period followed by a first external connection is the strongest single signal."
+    ]
+  },
+  "objectives": [
+    "Explain why an attacker delays execution and what detection windows that defeats.",
+    "Identify scheduled task, cron and timer telemetry that reveals a planned later action.",
+    "Measure process idle time and compare it with a normal baseline for the same program.",
+    "Correlate an initial event with a later action across a gap of hours.",
+    "Choose a correlation window that fits your log retention and alert capacity."
+  ],
+  "techniqueId": "t1678",
+  "detectsTechniques": [
+    "t1678"
+  ],
+  "dataSources": [
+    "Windows Security event 4698 scheduled task creation including the trigger time and the task action",
+    "Sysmon event 1 process creation with process start time and parent process identifier for duration analysis",
+    "Linux auditd scheduled job file changes under etc cron directories and systemd timer unit creation",
+    "Sysmon event 3 network connection including the initiating process and the timestamp of the first connection",
+    "AWS CloudTrail Lambda Invoke events or Azure activity log function run records showing long gaps before outbound activity"
+  ],
+  "logic": "The pattern is a long gap between an early trigger and a later action that share a parent. Telemetry shows a process, scheduled task, or cloud function created at one time, and the same host or function performing its first meaningful action much later, such as a network connection to a new external address or the start of a child process. The fields to correlate are the host or function identity, the creating account, the creation timestamp and the action timestamp. What distinguishes malicious from benign is that legitimate jobs declare a regular schedule and repeat predictably, while the malicious case shows a one off creation by an unexpected account followed by a single delayed action.",
+  "pseudoQuery": "# title: Scheduled Task Created With Distant Trigger Followed by Execution\n# logsource:\n#   product: windows\n# detection:\n#   selection_task:\n#     EventID: 4698\n#     TaskContent|contains: 'Trigger'\n#   selection_exec:\n#     EventID: 4688\n#     ParentImage|endswith: '\\svchost.exe'\n#     CommandLine|contains: 'AppData'\n#   filter_maint:\n#     SubjectUserName|endswith: '$'\n#   condition: selection_task and selection_exec and not filter_maint\n# level: medium",
+  "falsePositives": [
+    "Patch management and antivirus update tasks that are scheduled to run hours after the policy is applied",
+    "Backup jobs that are created during the working day but start in the maintenance window at night",
+    "Application installations that register a first run task with a delay of several hours"
+  ],
+  "tuningNotes": "Whitelist the creating accounts and task name patterns used by your patch, backup and monitoring platforms, and keep the correlation window long enough to cover a full working day but no longer, so alert volume stays manageable. Base the idle duration threshold on observed values for the same binary across the fleet rather than on a guess. Extending the window improves coverage of long sleeps but raises the cost of every correlation query, so scope the rule to hosts that hold sensitive data and accept that a slow attacker on a low value workstation may pass unnoticed.",
+  "severity": "medium"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0300",
+  "type": "detection",
+  "title": "Detection Strategy for Reflective Code Loading",
+  "shortTitle": "Detection Strategy for Reflective Code Loading",
+  "externalId": "DET0300",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers reflective code loading, mapped to T1620, where an adversary loads a module or assembly directly into memory from a buffer or a remote source instead of writing it to disk and letting the operating system loader run it. It matters because this is a primary way attackers avoid file based detection: nothing lands in a folder, so antivirus scanning of new files and simple file creation rules see nothing, yet the code executes with the trust of the host process. Useful telemetry includes process access and memory allocation events, image load events where the module has no backing file on disk, and the script block and module logging that records in-memory loading calls. The main way it fails in practice is that legitimate software also allocates and executes memory, so the detection lives or dies on behavioural context such as which process is doing it, whether the region was made executable, and whether the module has a valid on-disk counterpart, which requires deep telemetry that many environments do not collect.",
+  "tags": [
+    "mitre t1620",
+    "reflective loading",
+    "in-memory execution",
+    "defence evasion",
+    "image load"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Reflective Code Loading",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0300/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Reflective Code Loading - EASY",
+      "path": "exercises/det0300/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Reflective Code Loading - MEDIUM",
+      "path": "exercises/det0300/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Reflective Code Loading - HARD",
+      "path": "exercises/det0300/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Reflective Code Loading - EXTREMELY HARD",
+      "path": "exercises/det0300/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Normally a program is stored as a file on disk. The operating system reads that file before running it. Reflective loading skips the file step. The code is placed straight into the memory of a running program. This rule looks for that pattern. It is a common way to run malicious code while leaving nothing on disk.",
+    "whyItMatters": "Many defences check files as they are created or opened. If the malicious code never becomes a file, those checks never see it. The code also borrows the identity of a trusted program, so other tools may trust it. Memory activity is harder to watch. You need special sensors and a clear picture of what normal looks like.",
+    "howItWorks": [
+      "A sensor inside the operating system reports when a program asks for new memory and marks it as runnable.",
+      "The same sensor reports when a program loads a code module and whether a matching file exists on disk.",
+      "The rule looks for a memory region that is filled from a network or file source and then made runnable.",
+      "It also checks whether the loaded module has no file behind it, which is the clearest sign of reflective loading.",
+      "Script engine logs can add evidence when a script loads an assembly or module from a block of text.",
+      "The system combines these facts with the process name and its parent, then alerts if the pattern is unusual."
+    ],
+    "example": "Imagine a visitor who wants to enter a building. The usual way is to sign the register at the front desk, so a record exists. Instead, the visitor walks in beside an employee and signs nothing. Security can still notice a person entering with an employee who expected no guest. That mismatch is the clue, not the missing form.",
+    "takeaways": [
+      "Reflective loading runs code from memory so that no file appears on disk.",
+      "Detection depends on memory and image load telemetry, not on file scanning.",
+      "The strongest signal is a code module in memory that has no matching file on disk."
+    ]
+  },
+  "objectives": [
+    "Explain reflective code loading and why it defeats file based detection.",
+    "Identify the memory allocation, process access and image load telemetry needed to detect it.",
+    "Interpret the difference between a module with a backing file on disk and one without.",
+    "Use script engine logging to spot in-memory loading performed through scripting languages.",
+    "Describe why this technique is common in post-exploitation frameworks and what that means for triage.",
+    "List the collection gaps that would leave this detection blind on your endpoints."
+  ],
+  "techniqueId": "t1620",
+  "detectsTechniques": [
+    "t1620"
+  ],
+  "dataSources": [
+    "Sysmon event 7 image load records including the loaded module path and signature status, where a missing or unresolvable image path indicates in-memory loading",
+    "Endpoint detection agent telemetry for virtual memory allocation and protection changes, showing regions that become executable after being written",
+    "Windows Security event 4688 process creation and Sysmon event 1 process creation to identify the host process and its parent chain",
+    "PowerShell script block logging and module logging records that capture in-memory assembly loading calls",
+    "Linux auditd and kernel module load records showing anonymous executable memory mappings created by scripting runtimes"
+  ],
+  "logic": "The pattern is a process that allocates memory, writes data or a code module into it, and then makes that region executable or loads it as a module, especially when the loaded image has no corresponding file on disk or is unsigned. The fields that must be correlated are the target process identifier, the source of the memory content where it is available, the memory protection change, the image name and signature state, and the parent process that started the activity. The benign case involves just-in-time compilers and runtime environments, such as managed language runtimes and script hosts, that routinely generate and execute code in memory, usually with a stable signature pattern and a known parent process. The malicious case typically shows a process loading code into another process, a memory region that becomes executable immediately after being written from an unusual source, or a script host loading an assembly or module from an encoded block, and it often appears alongside credential access or discovery behaviour on the same host.",
+  "pseudoQuery": "# title: In-Memory Module Load Without Backing File\n# logsource:\n#   product: windows\n# detection:\n#   selection_imageload:\n#     EventID: 7\n#     Signed: 'false'\n#     ImageLoaded|contains: 'not_found'\n#   selection_script:\n#     EventID: 4104\n#     ScriptBlockText|contains:\n#       - 'Reflection.Assembly'\n#       - 'FromBase64String'\n#       - 'Invoke-Expression'\n#   filter_runtime:\n#     Image|endswith:\n#       - '\\\\MsMpEng.exe'\n#       - '\\\\dllhost.exe'\n#   condition: (selection_imageload or selection_script) and not filter_runtime\n# level: high",
+  "falsePositives": [
+    "Application just-in-time compilers that generate native code in memory as part of normal interpreted language execution",
+    "Endpoint protection and endpoint detection agents that unpack signed detection logic into memory from their own store",
+    "Software installers and updaters that load compressed modules in memory before writing them out",
+    "Legitimate administrative scripts that load approved internal assemblies from a code repository during automation runs",
+    "Browser and document viewer sandbox processes that execute generated code inside contained memory regions"
+  ],
+  "tuningNotes": "Start by cataloguing the processes on each host type that legitimately allocate executable memory or load unsigned modules, then filter at process and signer level rather than by raw event type, so that just-in-time runtimes do not drown the queue. Require the memory region to be both newly written and then made executable, or require a script block that both decodes and loads code, so that a single benign memory event never alerts alone. Scope the highest severity tier to server and administrative hosts where in-memory loading by script hosts is rare, and keep a lower severity tier for workstations. Correlate with other behaviour on the same host, such as credential access or discovery, to keep false positives manageable. Narrowing by process list costs coverage against an attacker who injects into a legitimately allowlisted process such as a browser or a scripting runtime, so review the allowlist regularly and monitor those processes for external network connections they do not normally make.",
+  "severity": "high"
+}

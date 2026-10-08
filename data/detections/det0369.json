@@ -1,0 +1,105 @@
+{
+  "id": "det0369",
+  "type": "detection",
+  "title": "Detection Strategy for Event Triggered Execution via Trap (T1546.005)",
+  "shortTitle": "Detection Strategy for Event Triggered Execution via Trap...",
+  "externalId": "DET0369",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects event triggered execution through the shell trap mechanism, where an adversary registers a handler that runs their code when a chosen signal or shell condition occurs. On Linux and macOS the trap builtin is set in a shell profile, a system wide script, or an interactive session, so the handler fires on logon, on exit, or on an error without any further action by the user. Detection combines command line auditing of shell invocations that register handlers, file integrity monitoring of shell profile files under the home directories and the system profile directories, and process creation events showing a handler program starting with a shell as its parent. The main failure is that traps are ordinary shell features used by legitimate scripts, so context about the writing account and the handler target decides whether an alert is meaningful.",
+  "tags": [
+    "linux",
+    "macos",
+    "persistence",
+    "shell",
+    "file integrity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Event Triggered Execution via Trap (T1546.005)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0369/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Event Triggered Execution via Trap (T1546.005) - EASY",
+      "path": "exercises/det0369/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution via Trap (T1546.005) - MEDIUM",
+      "path": "exercises/det0369/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution via Trap (T1546.005) - HARD",
+      "path": "exercises/det0369/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution via Trap (T1546.005) - EXTREMELY HARD",
+      "path": "exercises/det0369/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A trap is a rule you give to a command shell. It says that when a certain event happens, such as the shell closing or receiving a signal, run this other command. This detection looks for someone adding a trap that runs code they control. It catches the trap being set and the code running later.",
+    "whyItMatters": "Traps are quiet. The handler runs later, when a signal arrives, so the person who set it does not need to stay logged in. The rule also survives inside scripts and profile files, which many people read but few review. Attackers use traps to keep access after a normal logon. Reviewing them therefore closes a gap that file scans often miss.",
+    "howItWorks": [
+      "Collect process execution events for command shells, including the full command line.",
+      "Look for the trap keyword in that command line, together with a signal name or a shell event name.",
+      "Collect file change events for shell profile files in user home directories and in the system profile directories.",
+      "Link a profile file change to the next shell start on the same host and for the same account.",
+      "Raise an alert when the handler target points to a writable temporary directory or to a remote download tool.",
+      "Show the analyst the account, the file, the signal, and the command that was registered."
+    ],
+    "example": "Think of a door log in an office. Most entries show people arriving in the morning. One entry says that if the fire alarm ever rings, a named stranger should open the side gate. That instruction is the trap. It does nothing until the alarm, and then it matters a lot.",
+    "takeaways": [
+      "A trap is a delayed action that waits for a signal instead of running at once.",
+      "Profile files are the usual place to hide one, because they load on every new shell.",
+      "A handler that points at a temporary folder or a download tool is the strongest signal."
+    ]
+  },
+  "objectives": [
+    "Explain what a shell trap is and how it delays execution until an event occurs.",
+    "Identify the profile files and system scripts where traps are commonly placed.",
+    "Write a rule that finds trap registration in a shell command line.",
+    "Judge the risk of a handler by looking at what the handler command actually does.",
+    "Decide which file integrity monitoring coverage you need to see profile file changes."
+  ],
+  "techniqueId": "t1546-005",
+  "detectsTechniques": [
+    "t1546-005"
+  ],
+  "dataSources": [
+    "Linux auditd execve records for shell processes, including the full argument list and the effective user id",
+    "File integrity monitoring events for changes to etc profile and etc profile.d scripts",
+    "File integrity monitoring events for changes to user home directory bash profile and shell rc files",
+    "Process creation telemetry from an endpoint agent showing a shell as the parent of a newly started program",
+    "Shell command history records collected centrally from interactive sessions on shared hosts"
+  ],
+  "logic": "The pattern is registration of a delayed handler inside a shell environment. Telemetry shows a shell command line that contains the trap keyword together with a signal name or an exit condition, or a file change event on a profile file that adds such a line. The fields that must be correlated are the account that made the change, the file path, and the handler command, because a trap set by an administrator in an approved management script is normal while one added to a user profile pointing at a world writable directory is not. The distinguishing detail is that the handler target sits outside approved script directories, resolves to a download utility, or references an encoded payload.",
+  "pseudoQuery": "# title: Shell Trap Handler Registered or Added to Profile\n# logsource:\n#   product: linux\n# detection:\n#   selection_trap:\n#     type: 'EXECVE'\n#     command|contains: 'trap'\n#   selection_profile:\n#     type: 'FILE_MODIFY'\n#     file|endswith:\n#       - '/.bashrc'\n#       - '/.bash_profile'\n#       - '/.profile'\n#     content|contains: 'trap '\n#   filter_admin:\n#     file|startswith: '/opt/company/scripts/'\n#   condition: (selection_trap or selection_profile) and not filter_admin\n# level: medium",
+  "falsePositives": [
+    "Application startup scripts that set a cleanup trap on exit so that lock files are removed correctly",
+    "Backup and monitoring agents that install a trap in the system profile to send a completion signal",
+    "Interactive administration sessions where an engineer sets a temporary trap while debugging a job"
+  ],
+  "tuningNotes": "Filter the trap command lines that reference well known cleanup functions and lock file removal, and allow list the management directories where your configuration tooling writes profile content. Scope the profile half of the rule to hosts that accept interactive logons, because batch only servers rarely change profile files and generate most of the noise. Baseline first, so you know which profile files change on a normal patch cycle, and accept that narrowing by directory means a handler hidden inside an approved directory would be missed; add content inspection there instead of relying on the path.",
+  "severity": "medium"
+}

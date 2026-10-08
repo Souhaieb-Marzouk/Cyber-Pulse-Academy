@@ -1,0 +1,104 @@
+{
+  "id": "det0521",
+  "type": "detection",
+  "title": "Behavioral Detection of Spoofed GUI Credential Prompts",
+  "shortTitle": "Behavioral Detection of Spoofed GUI Credential Prompts",
+  "externalId": "DET0521",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy finds credential prompts that a program drew itself instead of the operating system, the pattern behind GUI input capture. An attacker who wants a password without touching the logon stack can render a fake authentication window that looks exactly like the real one, and no failed or successful logon event follows, so logon telemetry stays quiet. The strategy leans on process creation with parent and command line context, image load events that reveal dialog libraries inside processes that should never ask for a password, and window title telemetry where the platform exposes it. It fails most often because installers, remote support tools and password managers also draw credential windows, so approved prompt sources must be baselined before alerting is switched on.",
+  "tags": [
+    "credential access",
+    "input capture",
+    "endpoint",
+    "windows",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Spoofed GUI Credential Prompts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0521/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Spoofed GUI Credential Prompts - EASY",
+      "path": "exercises/det0521/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Spoofed GUI Credential Prompts - MEDIUM",
+      "path": "exercises/det0521/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Spoofed GUI Credential Prompts - HARD",
+      "path": "exercises/det0521/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Spoofed GUI Credential Prompts - EXTREMELY HARD",
+      "path": "exercises/det0521/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for password prompts that a program draws itself instead of using the normal system sign-in window. It catches software that asks for your password in a fake box. The alert fires when an unusual program shows a sign-in dialog. It also fires when a process that never needs login data loads dialog code.",
+    "whyItMatters": "A fake sign-in box is a quiet way to steal a password. The real system logon asks Windows to check the password, so it leaves a record. A program-made prompt does not create that record. The stolen password never reaches the server, so no alert appears there either. Many people type into any box that looks correct. If you only watch failed sign-in events, you will miss this theft.",
+    "howItWorks": [
+      "Endpoint agents record every new process with its full command line and its parent process. Examples are Sysmon event 1 and Windows Security event 4688.",
+      "The rule keeps processes that are not part of the operating system. These often run from a user profile folder or a temporary folder.",
+      "For those processes, the rule checks image load events for dialog and credential libraries. A background service should never need them.",
+      "Where window title data exists, the rule matches titles that copy a known sign-in prompt. Examples are a mail client or a file sharing client.",
+      "The analyst then compares the alerted process with the approved list. That list names the programs allowed to ask for credentials on the machine."
+    ],
+    "example": "Think of a night watchman at an office door. The real door has a logbook, and every visitor signs it. A thief can build a second door next to it, painted the same colour. The thief holds out a sign-in sheet that looks official. Visitors sign the fake sheet and walk away, and the real logbook stays clean. The watchman must look at the door itself, not only at the logbook, to notice the copy.",
+    "takeaways": [
+      "A program-made prompt leaves no sign-in record, so watch the process and the log together.",
+      "Baselining the approved programs that may ask for credentials is the first tuning step.",
+      "Correlate process creation with image load events to tell a real dialog from normal program output."
+    ]
+  },
+  "objectives": [
+    "Explain why a spoofed credential prompt leaves no failed logon event behind",
+    "Identify the process creation and image load fields that show a program drew its own sign-in window",
+    "Build a baseline of approved applications that are allowed to request credentials on managed endpoints",
+    "Triage an alert by checking the parent process, the file path, the signing status and the user context",
+    "Choose a severity and a scoping rule that keep approved installer prompts out of the analyst queue"
+  ],
+  "techniqueId": "t1056-002",
+  "detectsTechniques": [
+    "t1056-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with full command line, parent image and user fields",
+    "Sysmon event 7 image load showing dialog and credential user interface libraries together with the loading process",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Endpoint detection and response (EDR) telemetry for window creation and the owning process identifier"
+  ],
+  "logic": "The pattern is a non-system process that draws a credential prompt. Correlate process creation with image load or window creation records: the process should run from a user writable path such as a profile or temporary directory, and it should load a dialog or credential user interface library, or create a window whose title copies a known sign-in prompt. The benign case is an approved installer, management agent or password manager that prompts from a signed binary under a familiar parent. The malicious case usually shows an unsigned binary started by a script host, an office document or a mail client.",
+  "pseudoQuery": "# title: Credential Prompt Drawn by Non-System Process\n# logsource:\n#   product: windows\ndetection:\n  selection_proc:\n    EventID: 1\n    Image|startswith:\n      - 'C:\\Users\\'\n      - 'C:\\ProgramData\\'\n  selection_ui:\n    EventID: 7\n    ImageLoaded|endswith:\n      - '\\credui.dll'\n      - '\\comctl32.dll'\n  filter:\n    Image|endswith: '\\approved_password_manager.exe'\n  condition: selection_proc and selection_ui and not filter\nlevel: medium",
+  "falsePositives": [
+    "Approved password managers that unlock their vault from a user profile directory",
+    "Software installers that request a service account password while running from a temporary folder",
+    "Remote support tools that draw their own sign-in window during an attended session",
+    "Line of business applications that reuse the system credential dialog library for their own login screen"
+  ],
+  "tuningNotes": "Start by building an inventory of the signed binaries that legitimately show a credential prompt on each asset group, then filter those paths and publishers. Scope the rule to servers and administrative workstations first, because installers on general user laptops create most of the noise. Keep the image load condition rather than the command line alone, because the dialog library is what proves a prompt was drawn. Narrowing to signed binaries removes coverage of unsigned droppers that steal credentials through the same fake prompt pattern.",
+  "severity": "high"
+}

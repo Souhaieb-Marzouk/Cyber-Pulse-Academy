@@ -1,0 +1,106 @@
+{
+  "id": "det0162",
+  "type": "detection",
+  "title": "Socket-filter trigger → on-host raw-socket activity → reverse connection (T1205.002)",
+  "shortTitle": "Socket-filter trigger → on-host raw-socket activity → rev...",
+  "externalId": "DET0162",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the narrow chain in which a host first attaches a socket filter, then creates a raw or packet socket, and finally opens an outbound connection to a remote peer that did not initiate contact. The covered technique matters because a socket filter or firewall hook is legitimate administration tooling until it is used to hide a listener or to steer inbound packets to a covert service, and the reverse connection that follows is the part that delivers control. Host audit telemetry makes it possible because syscall auditing records the socket creation, the filter program that was loaded and the execve that ran the tool, while flow and connection logs record the outbound session. The main failure mode is false correlation: packet capture tools, container networking and host firewalls legitimately create raw sockets and load filter programs, so the rule must bind the events to one process tree and one short window rather than matching each event on its own.",
+  "tags": [
+    "linux",
+    "network",
+    "command and control",
+    "defense evasion",
+    "socket"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Socket-filter trigger → on-host raw-socket activity → reverse connection (T1205.002)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0162/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Socket-filter trigger → on-host raw-socket activity → reverse connection (T1205.002) - EASY",
+      "path": "exercises/det0162/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Socket-filter trigger → on-host raw-socket activity → reverse connection (T1205.002) - MEDIUM",
+      "path": "exercises/det0162/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Socket-filter trigger → on-host raw-socket activity → reverse connection (T1205.002) - HARD",
+      "path": "exercises/det0162/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Socket-filter trigger → on-host raw-socket activity → reverse connection (T1205.002) - EXTREMELY HARD",
+      "path": "exercises/det0162/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection follows three steps on one machine. First, a program attaches a rule that filters network packets. Then the same program opens a raw network socket that sees traffic directly. Finally, it calls out to a remote address on its own.",
+    "whyItMatters": "Firewall rules and packet filters are normal on servers. When they are combined with a raw socket, however, they can hide an open service from the tools that list listening ports. The final outbound call is how an attacker keeps control. Because every single step is common on its own, only the chain tells the story.",
+    "howItWorks": [
+      "The audit system records each system call that creates a network socket, with the address family.",
+      "It also records when a program loads a filter or changes the host firewall rules.",
+      "The endpoint records outbound connections with the process that made them.",
+      "The detection links all three events by process identifier and parent process within a short window.",
+      "An outbound connection from a process that just changed filtering is the alert condition.",
+      "An analyst checks whether the binary is a known administration tool with a change record."
+    ],
+    "example": "Picture a warehouse where staff may add shelves and may also open a side door for deliveries. One worker adds a shelf that hides the side door from the floor plan, then props the door open and waits. Each action alone is allowed, but the sequence is not.",
+    "takeaways": [
+      "Correlate by process and time, because no single step is suspicious by itself.",
+      "Raw socket creation should be rare on ordinary servers and normal on capture hosts.",
+      "The outbound connection after a filter change is the part that proves control."
+    ]
+  },
+  "objectives": [
+    "Describe how a socket filter can hide a listening service from standard port listings.",
+    "Identify the syscall audit fields that record socket family, filter loading and process identity.",
+    "Link a filter change, a raw socket and an outbound connection into one process timeline.",
+    "Separate packet capture and container networking hosts from general purpose servers.",
+    "Explain why the reverse direction of the final connection indicates attacker control."
+  ],
+  "techniqueId": "t1205-002",
+  "detectsTechniques": [
+    "t1205-002"
+  ],
+  "dataSources": [
+    "Linux auditd socket syscall records showing address family values for raw and packet socket creation with the process identifier and executable path",
+    "Linux auditd execve records for firewall and filter tooling such as iptables, nft and bpftool with the full argument vector",
+    "Endpoint connection logs showing outbound connections with the owning process identifier, destination address, destination port and direction",
+    "Host configuration monitoring for reads or writes of firewall rule files and loaded filter programs"
+  ],
+  "logic": "The pattern is a single process tree that loads or modifies a packet filter, creates a raw or packet socket, and then initiates an outbound connection to a remote address in a short window. The telemetry is the auditd socket and execve records plus the endpoint connection log, and the fields that must be correlated are the process identifier and parent process identifier, the executable path, the socket address family, the filter program or firewall rule that was changed, the destination address and port, and the timestamps that prove the order of events. Benign behaviour is a packet capture or intrusion detection sensor that creates packet sockets continuously and never opens a new outbound session, a container runtime that manages host rules as part of normal pod networking, or an administrator adding a documented firewall rule from a change ticket who then connects to the host they are configuring. Malicious behaviour is an unusual binary, or a script interpreter, creating a raw socket shortly after a filter or firewall change and then connecting outward to an address that the host has never contacted, particularly when the destination is a virtual private server or a residential address rather than a business service. The ordering and the shared process identity are what separate this chain from the thousands of harmless filter and socket events on a busy host.",
+  "pseudoQuery": "# title: Socket filter change with raw socket and reverse connection\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection_filter:\n#     type: EXECVE\n#     a0|contains:\n#       - 'iptables'\n#       - 'nft'\n#       - 'bpftool'\n#   selection_socket:\n#     type: SYSCALL\n#     syscall: socket\n#     a0:\n#       - 'AF_PACKET'\n#       - 'AF_INET'\n#   selection_reverse:\n#     type: SYSCALL\n#     syscall: connect\n#   filter_sensors:\n#     exe|endswith: '/tcpdump'\n#   condition: selection_filter and selection_socket and selection_reverse and not filter_sensors\n# level: medium",
+  "falsePositives": [
+    "Packet capture and network monitoring agents that create packet sockets and maintain firewall exceptions on sensor hosts",
+    "Container runtime and orchestration agents that rewrite host firewall rules and then connect to the cluster control plane",
+    "Host based intrusion detection or endpoint agents that install their own filter and call home to a management server",
+    "Network troubleshooting by an engineer who adds a temporary rule and then opens a session to test it",
+    "Virtual private network clients that adjust host routing and filtering before connecting to the corporate gateway"
+  ],
+  "tuningNotes": "Begin by collecting thirty days of raw socket and filter events and recording which executables and parent processes produce them on each host group, then exclude sensor and orchestration agents by executable path with their hash. Require all three stages inside a five minute window and bind the alert to the process identifier so unrelated activity on a busy host cannot be joined together. Scope the highest severity to ordinary application and file servers where raw sockets are rare, and use lower severity on jump hosts, capture nodes and container workers. The coverage you give up is a slow attacker who separates the stages by hours, so run a second correlation over a longer window at low severity, and keep an alert for any new outbound destination contacted by a process that has modified firewall rules in the past day.",
+  "severity": "medium"
+}

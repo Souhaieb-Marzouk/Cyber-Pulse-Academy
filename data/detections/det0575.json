@@ -1,0 +1,107 @@
+{
+  "id": "det0575",
+  "type": "detection",
+  "title": "Detection Strategy for Netsh Helper DLL Persistence via Registry and Child Process Monitoring (Windows)",
+  "shortTitle": "Detection Strategy for Netsh Helper DLL Persistence via R...",
+  "externalId": "DET0575",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Netsh Helper DLL persistence on Windows, tracked as T1546.007, where an adversary registers a library as a helper for the network configuration utility so that the library is loaded whenever that utility runs. It matters because the trigger is a signed, built in Microsoft binary that administrators and management tools run routinely, so the load blends into normal administration and survives reboots as long as the registry entry remains. Detection rests on registry monitoring of the helper list key, process creation records showing the network utility starting from an unusual parent, image load events that expose the resolved path of the library, and file creation events for a newly written library in a user writable directory. In practice it fails because the helper registry key is written by legitimate network software during installation and updates, and because image load telemetry is often not collected at all.",
+  "tags": [
+    "persistence",
+    "privilege-escalation",
+    "netsh",
+    "registry",
+    "windows",
+    "t1546.007"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Netsh Helper DLL Persistence via Registry and Child Process Monitoring (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0575/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Netsh Helper DLL Persistence via Registry and Child Process Monitoring (Windows) - EASY",
+      "path": "exercises/det0575/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Netsh Helper DLL Persistence via Registry and Child Process Monitoring (Windows) - MEDIUM",
+      "path": "exercises/det0575/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Netsh Helper DLL Persistence via Registry and Child Process Monitoring (Windows) - HARD",
+      "path": "exercises/det0575/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Netsh Helper DLL Persistence via Registry and Child Process Monitoring (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0575/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for a library that is added to a Windows network tool. The library then loads every time that tool runs. A library is a file of code that other programs can load. The technique is persistence because the code runs again and again.",
+    "whyItMatters": "The tool that loads the library is a normal part of Windows, so nothing looks unusual. It can be started by a scheduled task or by an administrator without any warning. The attacker gains execution under a trusted program name. Many networks never monitor this registry area at all.",
+    "howItWorks": [
+      "The agent watches the registry key that lists helper libraries for the network tool.",
+      "It records each new library path that is added, together with the process that made the change.",
+      "The agent also records when the network tool starts, including the parent process.",
+      "Image load events show which library files were loaded from which folder.",
+      "The platform compares the library folder with the normal Windows folder.",
+      "An alert fires when a library outside the normal folder is registered or loaded by the tool."
+    ],
+    "example": "Think of a maintenance key that opens every storage room. Staff add a new lock to one door, and the key now opens it too. Nobody changed the key, and the key still looks the same. The new lock on the register is the only evidence, so you have to read the register.",
+    "takeaways": [
+      "The trigger is a trusted Windows tool, so process names alone will not help.",
+      "The registry helper list is the key evidence and must be monitored.",
+      "A library loaded from outside the system folder is a strong signal."
+    ]
+  },
+  "objectives": [
+    "Explain how a helper library is registered for a Windows network tool.",
+    "Name the registry key and events that record the registration and the load.",
+    "Describe why a signed trigger process makes this technique hard to spot.",
+    "Correlate a registry change with a later image load from the same path.",
+    "List legitimate network software that writes the same registry key."
+  ],
+  "techniqueId": "t1546-007",
+  "detectsTechniques": [
+    "t1546-007"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set events for the network utility helper library list key",
+    "Sysmon event 1 process creation for the network configuration utility including parent image and command line",
+    "Sysmon event 7 image load events showing the resolved path of libraries loaded by that utility",
+    "Sysmon event 11 file creation events for library files written to user writable directories",
+    "Windows Security event 4657 registry value modification records when registry auditing is configured"
+  ],
+  "logic": "The pattern is a write to the helper library list key that adds a path outside the standard system directory, followed by the network utility loading a library from that same path. You must correlate the registry key path, the value written, the process that performed the write, the utility process that loads it, and the loaded module path, because network management software and virtual private network clients legitimately register helpers from their own installation folders while a library in a temporary directory registered by a script host is not legitimate. The malicious case is distinguished by the combination of three facts: the library is newly created, it sits in a user writable location, and the registry write was made by a process that is not a signed installer.",
+  "pseudoQuery": "# title: Netsh Helper DLL Registered Outside System Directory\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains: 'Netsh\\\\Helpers'\n#   filter_system:\n#     Details|startswith: 'C:\\\\Windows\\\\System32\\\\'\n#   condition: selection and not filter_system\n# level: high",
+  "falsePositives": [
+    "Virtual private network and network filter drivers that register a helper library from their own program folder",
+    "Network monitoring agents installed by the infrastructure team through a documented deployment package",
+    "Application packaging or imaging tools that restore a previously approved helper entry after a rebuild",
+    "Administrators manually restoring a helper registration as part of troubleshooting a network fault"
+  ],
+  "tuningNotes": "Baseline the helper library list on a clean image and on each server group, then allow list the signed vendor libraries that are already present, so that the rule alerts only on additions outside the approved set. Require both the registry write and a subsequent load from the same path within a short window, which removes most installer noise, and enable image load telemetry if it is missing. Requiring the load reduces false positives but delays the alert until the utility actually runs, so keep a separate lower severity rule on the registry write alone and review those entries daily instead of ignoring them.",
+  "severity": "high"
+}

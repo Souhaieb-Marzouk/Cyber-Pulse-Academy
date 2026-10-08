@@ -1,0 +1,109 @@
+{
+  "id": "det0517",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow through the AppDomainManager on Windows.",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow through the ...",
+  "externalId": "DET0517",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers hijacking the execution flow of a .NET application through the AppDomainManager, the sub technique tracked as T1574.014. A .NET process reads an application configuration file or a user level registry setting at startup, and those settings can name an assembly that the runtime loads and initialises before the application own code runs, which gives an attacker reliable execution whenever the trusted program starts. The telemetry that makes it visible is file creation and modification events for application configuration files next to an executable, registry writes to the runtime configuration keys, image load records showing a managed assembly loading from an unexpected directory, and the parent child relationship between the process that writes the file and the process that starts later. The strategy fails in practice because configuration files and installation writes are everyday events on managed endpoints, so the rule only works when the assembly path or the writing process is unusual for the host.",
+  "tags": [
+    "execution flow",
+    "t1574.014",
+    "dotnet",
+    "persistence",
+    "registry",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow through the AppDomainManager on Windows.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0517/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through the AppDomainManager on Windows. - EASY",
+      "path": "exercises/det0517/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through the AppDomainManager on Windows. - MEDIUM",
+      "path": "exercises/det0517/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through the AppDomainManager on Windows. - HARD",
+      "path": "exercises/det0517/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through the AppDomainManager on Windows. - EXTREMELY HARD",
+      "path": "exercises/det0517/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks at a small settings file that many programs read when they start. That file can tell the program to load an extra piece of code first. An attacker can edit the file so their code runs before the real program does. The rule watches for changes to those settings files and for code loading from an unexpected folder.",
+    "whyItMatters": "The extra code runs inside a program that users and security tools already trust. It also runs every time that program starts, so the attacker does not need to break in again. The change is small: one settings file or one registry entry. Small changes like this are easy to overlook unless you collect the right events.",
+    "howItWorks": [
+      "A file monitoring agent records every new or changed settings file, with its full path.",
+      "The rule keeps files that sit next to an executable and end with the configuration file extension.",
+      "It also watches the registry keys where the runtime setting for the loadable component is stored.",
+      "A write that comes from a user folder, a temporary folder or an unsigned program scores higher.",
+      "Image load records show which code file the program actually loaded and from which folder.",
+      "A settings change followed by a start of the program that loads code outside the program folder is the alert."
+    ],
+    "example": "Picture a hotel front desk with a card of emergency contacts. The card tells the night receptionist whose name to call first. A stranger rewrites the card so the receptionist calls the stranger first, every night. The card is small and easy to change, and nobody checks whether the name is right.",
+    "takeaways": [
+      "A configuration file can decide which code runs before the real program.",
+      "The write is quiet, but the effect repeats on every start of that program.",
+      "Monitoring both the file and the registry form of this setting closes the easy gap."
+    ]
+  },
+  "objectives": [
+    "Explain how a .NET application configuration file can direct the runtime to load extra code.",
+    "Identify the file creation and registry events that record this change on Windows.",
+    "Recognise which directories are legitimate homes for application assemblies.",
+    "Correlate a configuration write with the later start of the affected application.",
+    "Describe how to verify a suspicious assembly using its signer and hash rather than its name.",
+    "Plan a response that restores the original configuration file and rebuilds the host if needed."
+  ],
+  "techniqueId": "t1574-014",
+  "detectsTechniques": [
+    "t1574-014"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation and file modification events for application configuration files",
+    "Sysmon event 13 registry value set for runtime and application configuration keys",
+    "Sysmon event 7 image load recording the loaded assembly path and its digital signer",
+    "Sysmon event 1 process creation showing the application start and its parent process",
+    "Read only file integrity monitoring baseline of configuration files next to signed executables"
+  ],
+  "logic": "The pattern is a write to an application configuration file or runtime registry setting that names a component outside the application own installation directory, followed by the start of that application and the load of an assembly from a user writable or temporary location. The fields that must be correlated are the configuration file path and the assembly path it names, the process image and user that performed the write, and the image load record for the assembly with its signer, joined on host within a window from minutes to hours. The malicious case usually shows a configuration file written by a script host or an unsigned binary, an assembly path under a user profile or temporary directory, and a component with no valid signature. The benign case is a managed software deployment that rewrites vendor configuration files from a signed installer in a management share, where the referenced assembly sits inside the program directory and is signed.",
+  "pseudoQuery": "# title: Application Config File Naming Assembly Outside Program Directory\n# logsource:\n#   product: windows\n# detection:\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.exe.config'\n#       - '.dll.config'\n#   selection_reg:\n#     EventID: 13\n#     TargetObject|contains: 'AppDomainManager'\n#   filter_installer:\n#     Image|endswith:\n#       - '\\msiexec.exe'\n#       - '\\ConfigMgrAgent.exe'\n#   condition: (selection_file or selection_reg) and not filter_installer\n# level: high",
+  "falsePositives": [
+    "Managed software deployment that rewrites vendor configuration files from a signed installer or management agent",
+    "Internal development teams that ship a configuration file alongside a build during a release window",
+    "Diagnostic and profiling products that register their own component to instrument an application at startup",
+    "Legacy line of business applications whose installer places a component in a shared folder outside the program directory",
+    "Backup and restore operations that recreate configuration files with their original content after a failure"
+  ],
+  "tuningNotes": "Require that the referenced component path sits outside the application directory, or that the writing process is unsigned or runs from a user writable directory, before alerting, because configuration file writes are constant on managed fleets. Scope the rule to hosts that run applications holding privileged credentials, such as administrative consoles and financial clients. Baseline the configuration files present next to signed executables per host role so that new files stand out. The coverage you lose is a component that is copied into the trusted program directory, and registry based abuse where the registry auditing for that user hive is not enabled.",
+  "severity": "high"
+}

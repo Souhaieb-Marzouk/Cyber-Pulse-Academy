@@ -1,0 +1,107 @@
+{
+  "id": "det0097",
+  "type": "detection",
+  "title": "Detection of Application Window Enumeration via API or Scripting",
+  "shortTitle": "Detection of Application Window Enumeration via API or Sc...",
+  "externalId": "DET0097",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects enumeration of open application windows, which actors use to learn which programs and documents are in front of the user before deciding what to capture or act on. The technique matters because window titles reveal high value targets such as mail clients, administration consoles and password vaults, and it is a common step before screen capture or session hijacking. Detection relies on process creation that shows window title queries through scripting interfaces, on library load telemetry for the user interface components those scripts pull in, and on process context. The main failure is that automation and remote support tooling also list windows, so a rule keyed only on a command fragment produces noise. This is educational content and not an authoritative control.",
+  "tags": [
+    "discovery",
+    "window enumeration",
+    "scripting",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Application Window Enumeration via API or Scripting",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0097/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Application Window Enumeration via API or Scripting - EASY",
+      "path": "exercises/det0097/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Application Window Enumeration via API or Scripting - MEDIUM",
+      "path": "exercises/det0097/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Application Window Enumeration via API or Scripting - HARD",
+      "path": "exercises/det0097/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Application Window Enumeration via API or Scripting - EXTREMELY HARD",
+      "path": "exercises/det0097/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that ask the operating system which windows are open. Each open window has a title, such as the name of a document or a chat with a client. An attacker can read those titles to learn what the user is doing. The detection watches the tools that ask the question and the programs that run them.",
+    "whyItMatters": "A window title can reveal a great deal, including which bank portal or admin console is open. That knowledge helps an attacker pick the right moment and the right screen to capture. Reading window titles is also quiet, because it changes nothing on the system. Normal users never notice it happening. Detecting it gives you a rare early signal about a hands on attacker.",
+    "howItWorks": [
+      "The endpoint agent records each new process and the full command line used to start it.",
+      "The rule looks for scripting commands that list processes together with their window titles.",
+      "It records which user interface libraries a process loads, because scripting hosts rarely need them otherwise.",
+      "It checks the parent process, because a document viewer or a chat client spawning a script is unusual.",
+      "The rule groups repeated queries from one process, since listing windows once is common in automation.",
+      "When a script lists many window titles and then starts a capture or input library, the alert is raised."
+    ],
+    "example": "Imagine a librarian who can see which books people are reading without opening them, simply from the spines on the desk. Knowing the spines is not stealing the books, but it tells a great deal about the readers. If a stranger walks in, reads every spine on every desk in a minute and then leaves, the librarian will remember the visit. Window title enumeration is that walk through the reading room, and the pattern and speed are what give it away.",
+    "takeaways": [
+      "Window titles reveal which applications and documents are in active use.",
+      "The enumeration leaves few traces, so detect the asking process and its command line.",
+      "Remote support and automation legitimately list windows, so use volume and parent context."
+    ]
+  },
+  "objectives": [
+    "Explain what information a window title exposes to an observer.",
+    "Identify the command line and module load signals that reveal window enumeration.",
+    "Set a repetition threshold that separates automation from a hands on sweep.",
+    "Check whether your endpoint agents capture command lines and module loads at all.",
+    "Describe how to triage a window enumeration alert on an executive workstation."
+  ],
+  "techniqueId": "t1010",
+  "detectsTechniques": [
+    "t1010"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including image, parent image and full command line",
+    "Sysmon event 7 image load showing user interface libraries loaded by scripting hosts",
+    "Sysmon event 10 process access showing one process opening another for query rights",
+    "Windows Security event 4624 logon context for the interactive session that ran the query"
+  ],
+  "logic": "The pattern is a script or utility that asks the operating system for the list of open windows, especially when it does so repeatedly or asks about every process at once. The correlated fields are the process image and parent, the command line, the count of window title queries per process per minute, the user interface libraries loaded by that host process, and the interactive account behind the session. Legitimate cases are remote support and screen sharing products, automated user interface testing, and inventory agents that record the foreground application for productivity reporting; these run from signed program folders on a schedule or during a support session. Suspicious cases show a command line that combines process listing with a window title property, a parent such as a document reader, mail client or chat application, an unsigned or renamed scripting host, and a follow on action such as loading a capture or input library. Volume, parentage and the follow on behaviour are what make the alert defensible.",
+  "pseudoQuery": "# title: Scripted Enumeration of Window Titles by Unusual Parent\n# logsource:\n#   product: windows\n# detection:\n#   sel_cmd:\n#     EventID: 1\n#     CommandLine|contains: ['MainWindowTitle', 'GetForegroundWindow', 'EnumWindows', 'GetWindowText']\n#     Image|endswith: ['\\\\powershell.exe', '\\\\pwsh.exe', '\\\\wscript.exe', '\\\\mshta.exe']\n#   filter:\n#     ParentImage|contains: ['Program Files\\\\RemoteSupport', 'Program Files\\\\TestAutomation']\n#   condition: sel_cmd and not filter\n# level: medium",
+  "falsePositives": [
+    "Automated user interface testing frameworks that inspect window titles as part of a test run",
+    "Remote support sessions where the agent enumerates windows to share the correct one with the technician",
+    "Productivity monitoring agents that record the active window title for time tracking",
+    "Desktop automation scripts written by staff to fill forms in a legacy business application",
+    "Accessibility tools that read window titles in order to describe the screen to a user"
+  ],
+  "tuningNotes": "Confirm that command line and module load auditing are enabled everywhere before you rely on this rule, since many estates only log process names. Allowlist the signed support and testing tools by signer and program path, then add a repetition threshold so a single query does not alert. Scope the strict version to executive, finance and administration workstations, and run a low severity version elsewhere. Narrowing this way loses detection of a patient actor who queries one window at a time over hours, so keep a weekly count of window title queries per host and review the hosts whose count changes sharply.",
+  "severity": "medium"
+}

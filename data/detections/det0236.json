@@ -1,0 +1,108 @@
+{
+  "id": "det0236",
+  "type": "detection",
+  "title": "Detection Strategy for Spearphishing Attachment across OS Platforms",
+  "shortTitle": "Detection Strategy for Spearphishing Attachment across OS...",
+  "externalId": "DET0236",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects spearphishing attachments, tracked as ATT&CK T1566.001, by correlating inbound mail with the attachment file that lands on the endpoint and the process that opens it. It matters because the attachment is the delivery step that turns a message into code execution, and the compromise usually becomes visible only when a document or archive spawns a scripting host, which may be several minutes after the mail arrives and on a different log source entirely. The telemetry that makes it detectable is mail gateway or mail server records of the attachment name, type and hash, endpoint file creation events in mail cache and download directories, and process creation events showing an office application or archive tool as the parent of a script interpreter. The main failure mode is that the correlation window and file naming differ across platforms, and legitimate macro enabled documents sent by finance, legal, and operations teams produce the same parent and child process pattern, so the rule needs both a mail context signal and a suspicious child process to stay useful.",
+  "tags": [
+    "email",
+    "phishing",
+    "initial access",
+    "attachments",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Spearphishing Attachment across OS Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0236/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Spearphishing Attachment across OS Platforms - EASY",
+      "path": "exercises/det0236/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Spearphishing Attachment across OS Platforms - MEDIUM",
+      "path": "exercises/det0236/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Spearphishing Attachment across OS Platforms - HARD",
+      "path": "exercises/det0236/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Spearphishing Attachment across OS Platforms - EXTREMELY HARD",
+      "path": "exercises/det0236/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for harmful files that arrive as email attachments. An attachment is a file sent along with a message. The message may look trustworthy, which is why people open the file. This detection connects three things. It looks at the mail that arrived and the file saved on the computer. It also looks at the program that started when that file was opened.",
+    "whyItMatters": "Email reaches everyone in the company and bypasses many technical controls. A single opened attachment can give an attacker a foothold on a workstation. The harmful action often happens seconds after the file is opened, in a different program. Joining the mail record to the computer record is what turns a vague warning into a clear alert.",
+    "howItWorks": [
+      "The mail gateway records each message, including the attachment name, type, and a file fingerprint.",
+      "The endpoint agent records every new file, with the folder it was saved into.",
+      "The rule matches a file on the computer with the attachment from the message.",
+      "It then watches for a program starting from that file.",
+      "It looks for risky pairings, such as a document reader starting a scripting engine.",
+      "An alert opens with the sender, the attachment, and the command that ran."
+    ],
+    "example": "Think of a parcel delivered to an office reception. Reception logs the sender and the box. Then a colleague carries the box upstairs and opens it. Only by joining the reception log to the person who opened the box can you trace the parcel.",
+    "takeaways": [
+      "Join the mail record to the endpoint record, because neither side is convincing alone.",
+      "Watch the risky pairing of a document program starting a scripting engine.",
+      "Tell users what to do with a suspicious attachment, since they are part of the defence."
+    ]
+  },
+  "objectives": [
+    "Describe the delivery chain from inbound mail to attachment execution on the endpoint",
+    "Collect mail gateway metadata including attachment name, type, hash and recipient",
+    "Identify endpoint file creation in mail cache, download and temporary directories",
+    "Detect suspicious parent and child process relationships after an attachment is opened",
+    "Reduce false positives from legitimate macro enabled business documents",
+    "Define user reporting and containment steps for a confirmed malicious attachment"
+  ],
+  "techniqueId": "t1566-001",
+  "detectsTechniques": [
+    "t1566-001"
+  ],
+  "dataSources": [
+    "Mail gateway or mail server records with sender, recipient, attachment file name, declared type and file hash",
+    "Sysmon event 11 file create in mail cache, downloads and temporary directories during working hours",
+    "Sysmon event 1 process creation with parent image and full command line for office and archive tools",
+    "Linux auditd execve records for mail client attachment saves and document viewer launches",
+    "Windows Security event 4688 process creation with command line auditing enabled on endpoints"
+  ],
+  "logic": "The detection matches an inbound message carrying an attachment to a file created on an endpoint within a short window, then looks for a process created from that file or from the application that opened it where the child process is a scripting host, a shell, a remote access tool, or a signed system binary used as a proxy. The fields that must be correlated are the sender address and domain reputation, the attachment name and true file type, the file hash, the recipient mailbox and endpoint, the file path on the endpoint, the parent image, and the child process command line. Benign cases show a document from a known internal sender, a file type that matches its name, a user who regularly exchanges these files, and child processes limited to normal printing or editing helpers, while malicious activity often shows a display name that mismatches the sending domain, an archive or document containing a second executable type, a file opened from a compressed container, and a child process that downloads content or starts from a temporary directory.",
+  "pseudoQuery": "# title: Office Application Spawning a Script Host\n# logsource:\n#   product: windows\n# detection:\n#   selection_parent:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\winword.exe'\n#       - '\\excel.exe'\n#       - '\\outlook.exe'\n#   selection_child:\n#     Image|endswith:\n#       - '\\powershell.exe'\n#       - '\\wscript.exe'\n#       - '\\mshta.exe'\n#       - '\\rundll32.exe'\n#       - '\\regsvr32.exe'\n#       - '\\certutil.exe'\n#   condition: selection_parent and selection_child\n# level: high",
+  "falsePositives": [
+    "Finance and operations teams using macro enabled spreadsheets that call a signed automation script on a shared drive",
+    "Document management systems that open a template and launch a helper process to render a preview or merge fields",
+    "Accessibility or translation add ins that start a scripting host from within an office application on every document open",
+    "Signature and certificate signing workflows that invoke a system utility from a document viewer during a legitimate approval step",
+    "Software vendors who deliver licence files or reports by email and expect the recipient to open them with macros enabled"
+  ],
+  "tuningNotes": "Correlate the process event with a matching inbound mail record and only alert when both exist, which removes the bulk of noise from documents that were created locally or opened from a file share. Add the attachment file type and the sender domain reputation as conditions, and allowlist specific signing certificates for the macro automation your finance and legal teams actually use, rather than allowlisting the whole office application. Baseline which child processes normally follow each document application in your estate over two weeks, because the normal set is usually small and stable. The coverage you lose by requiring the mail correlation is an attachment opened from a webmail session or a personal account that never touches your gateway, so keep a lower severity rule on the parent and child process pattern alone and use it for hunting rather than paging.",
+  "severity": "high"
+}

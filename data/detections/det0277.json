@@ -1,0 +1,107 @@
+{
+  "id": "det0277",
+  "type": "detection",
+  "title": "Detection Strategy for Role Addition to Cloud Accounts",
+  "shortTitle": "Detection Strategy for Role Addition to Cloud Accounts",
+  "externalId": "DET0277",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the addition of roles or permissions to a cloud account, which is how an adversary converts a foothold into durable, high privilege access in a cloud tenant. T1098.003 covers both directory role membership changes in an identity provider and permission policy changes attached to cloud identities, and it matters because a single role assignment can grant tenant wide control or access to every secret in a subscription. Detection is strong because cloud providers log the actor, the target identity, the role definition and often the before and after values of the assignment. The practical difficulty is entitlement: healthy cloud environments place large numbers of role assignments through automation and access review processes, so the rule must anchor on who can normally grant a role, which role was granted, and whether the grant was paired with a new credential.",
+  "tags": [
+    "cloud",
+    "identity",
+    "role assignment",
+    "privilege escalation",
+    "persistence",
+    "t1098.003"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Role Addition to Cloud Accounts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0277/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Role Addition to Cloud Accounts - EASY",
+      "path": "exercises/det0277/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Role Addition to Cloud Accounts - MEDIUM",
+      "path": "exercises/det0277/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Role Addition to Cloud Accounts - HARD",
+      "path": "exercises/det0277/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Role Addition to Cloud Accounts - EXTREMELY HARD",
+      "path": "exercises/det0277/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for extra powers being given to a cloud account. A role is a bundle of permissions, such as the right to read all files or to manage users. Adding a role to an account can turn a small foothold into full control of the cloud tenant.",
+    "whyItMatters": "Cloud accounts often start with very little power. An attacker needs more before they can steal data or lock you out. Adding a role is the shortest path to that power. It is also easy to do quietly, because role changes are everyday administration. Watching who grants which role, and to whom, is one of the strongest controls you have in a cloud environment.",
+    "howItWorks": [
+      "The cloud provider writes an audit record each time a role is granted or a permission policy is attached.",
+      "The detection collects those records and keeps the ones that add a privileged role or a broad permission policy.",
+      "It records the actor account, the target identity, the role name and the source address.",
+      "It compares the actor with a baseline of accounts that normally grant roles in that tenant.",
+      "It looks for a credential created for the same target identity shortly afterwards, since that pairs access with a way to use it.",
+      "The alert shows the grant, the grantor and the follow-up credential so the analyst can judge it in one view."
+    ],
+    "example": "Think of a new security guard who can only open the front door. One night a manager quietly adds the master key to the guard's badge. Nothing is stolen yet, and the badge record looks like a routine update. The change of powers is the event you need to see, not the theft that may follow.",
+    "takeaways": [
+      "A role assignment is a change of power, so it deserves the same review as a new administrator account.",
+      "Cloud audit logs usually name the actor, the target and the role, which makes attribution practical.",
+      "Pairing a role grant with a new credential or key is a strong sign of preparation for persistence."
+    ]
+  },
+  "objectives": [
+    "Explain how adding a role or permission policy to a cloud identity creates durable privileged access.",
+    "Read cloud audit records for role assignments and identify the actor, target identity and role definition fields.",
+    "Distinguish privileged or broadly scoped role grants from low risk role additions.",
+    "Correlate a role assignment with credential, key or service principal creation in the same session.",
+    "Build a baseline of accounts that normally grant roles and investigate grants from outside that set."
+  ],
+  "techniqueId": "t1098-003",
+  "detectsTechniques": [
+    "t1098-003"
+  ],
+  "dataSources": [
+    "Cloud identity provider audit logs for role assignment operations, recording the actor, target identity, role definition name and result",
+    "Cloud provider management event logs for permission policy attachment or update on an identity, including the policy document before and after",
+    "Cloud provider management event logs for access key or credential creation for the same target identity",
+    "Cloud provider management event logs for service principal or application credential additions that follow a role change",
+    "Single sign-on and conditional access sign-in logs that record the source address and client used by the actor performing the change"
+  ],
+  "logic": "The pattern is a role assignment or permission policy attachment that grants privileged or broadly scoped access, especially when the target identity is a user account rather than an approved group, and when it is performed by an actor that does not normally manage roles. The fields that must be correlated are the actor identity and source address, the target identity, the role definition or policy document, the timestamp, and any credential creation event for the same target within a short window. The benign case follows entitlement process shapes: role grants come from a small set of automation service principals and identity administrators, are applied to groups, and occur during business hours with an access review reference. The malicious case shows a grant from an unexpected actor or address, a grant of a highly privileged role directly to a single user, or a grant immediately followed by the creation of an access key, application password or additional service principal credential, which together indicate the attacker is building a durable way back in.",
+  "pseudoQuery": "# title: Privileged Cloud Role Assigned to Identity Outside Approved Actors\n# logsource:\n#   product: azure\n#   service: auditlogs\n# detection:\n#   selection_role:\n#     operationName|contains:\n#       - Add member to role\n#       - Add role assignment\n#       - Attach policy\n#   selection_priv:\n#     roleDefinition|contains:\n#       - Global Administrator\n#       - Owner\n#       - Privileged Role Administrator\n#   filter_automation:\n#     initiatedBy|contains: svc-identity-automation\n#   condition: selection_role and selection_priv and not filter_automation\n# level: high",
+  "falsePositives": [
+    "Identity governance platform that grants roles automatically when a user joins a department or a standing access review completes",
+    "Break glass or emergency access procedure used by the on call administrator during a documented outage",
+    "Cloud infrastructure automation that attaches a permission policy while deploying a new application service principal",
+    "Managed service provider staff performing a contracted administration task from their own documented tenant and address range"
+  ],
+  "tuningNotes": "Narrow the rule first by role definition, keeping only roles that grant broad control, and second by actor, allowing the small set of service principals and administrators that perform entitlements automatically. Baseline the normal volume and timing of role grants per tenant so that a burst outside business hours stands out even if the actor looks legitimate. The coverage you give up is high volume, low privilege role churn, which is rarely how an intrusion escalates, so accept that loss and instead maintain a high water mark count per role that alerts on any grant to a role that has not been assigned in the past ninety days.",
+  "severity": "high"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0555",
+  "type": "detection",
+  "title": "Detection Strategy for Event Triggered Execution via emond on macOS",
+  "shortTitle": "Detection Strategy for Event Triggered Execution via emon...",
+  "externalId": "DET0555",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Event Triggered Execution: emond, the macOS event monitor daemon that runs a program when a watched condition occurs, such as a file appearing in a folder or a system state change. It matters because emond gives an attacker durable local persistence that runs as root, survives reboots and produces no obvious scheduled task or login item for a reviewer to find. The telemetry that makes it visible is file creation or modification events on the emond configuration and rule directories, process creation showing the emond daemon reading its rule set, process creation of the action programs that emond launches, and the parent child relationship that ties those programs back to emond. It fails in practice because emond rules are legitimate on managed fleets, the daemon starts at boot so the initial load is normal, and many endpoint agents collect process events on macOS without recording the parent that would prove the link.",
+  "tags": [
+    "persistence",
+    "macos",
+    "event-triggered-execution",
+    "endpoint",
+    "file-monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Event Triggered Execution via emond on macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0555/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Event Triggered Execution via emond on macOS - EASY",
+      "path": "exercises/det0555/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution via emond on macOS - MEDIUM",
+      "path": "exercises/det0555/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution via emond on macOS - HARD",
+      "path": "exercises/det0555/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution via emond on macOS - EXTREMELY HARD",
+      "path": "exercises/det0555/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "emond is a background service on macOS that watches for events, such as a file arriving in a folder. When an event happens, it runs a command that a rule tells it to run. This detection looks for new or changed rules, and for the programs those rules start.",
+    "whyItMatters": "Attacks often need to survive a restart. A rule book that runs a command at boot gives exactly that. Because the rules live in system folders, they are easy to overlook in a normal review. Finding a changed rule early stops the attacker from returning.",
+    "howItWorks": [
+      "A file monitoring tool on the Mac records when files are created or changed in system folders.",
+      "The emond service reads its rules from a configuration folder, and the file events show when those files change.",
+      "A SIEM, which is a central system that collects and searches log events, collects file and process events from the Mac.",
+      "The rule looks for changes in the emond rule folders, and for commands started by the emond service.",
+      "It compares what it sees with a baseline of approved rules that the fleet management team maintains.",
+      "Any rule or launched program outside that baseline is sent to the endpoint team, with the rule file attached."
+    ],
+    "example": "Think of a hotel wake up call service. Guests may schedule a call, which is normal. A call scheduled to a room that has no guest, by someone who never checked in, is the thing you want to spot. This detection reads the wake up call book and asks who wrote each entry.",
+    "takeaways": [
+      "emond is legitimate macOS software, so the signal is the rule content and the program it launches, not the service itself.",
+      "Process parentage is the strongest evidence, because it shows the program was started by the event monitor.",
+      "Baseline the rules your fleet management tool deploys, or every managed Mac will look suspicious."
+    ]
+  },
+  "objectives": [
+    "Describe what the emond daemon does and why it provides durable persistence on macOS.",
+    "Identify the file and process events that record emond rule creation and command execution.",
+    "Use process parentage to attribute a launched program to the event monitor service.",
+    "Compare emond rule files against a fleet baseline to find unauthorised rules.",
+    "Explain the limits of macOS endpoint telemetry without a full process auditing agent.",
+    "List the containment steps for a suspicious emond rule, including rule review and file collection."
+  ],
+  "techniqueId": "t1546-014",
+  "detectsTechniques": [
+    "t1546-014"
+  ],
+  "dataSources": [
+    "macOS endpoint agent file events recording creation or modification of files under the emond configuration and rule directories",
+    "Process creation events on macOS showing the emond daemon starting, with the full path of the rule file it loads",
+    "Process creation events showing a script interpreter or binary whose parent process is the emond daemon",
+    "Configuration management inventory listing the emond rules deployed by the fleet management tool, used as a comparison baseline",
+    "macOS unified log entries from the event monitor service recording rule load and action execution with the rule name"
+  ],
+  "logic": "The pattern is either a write to the emond rule directory by a process that is not the fleet management agent, or a program whose parent process is the emond daemon and which is not part of the approved rule set. You correlate the file modification event, which gives the rule path and the writing process, with process creation events for the emond daemon loading that rule, and then with the child process it launches. The malicious case shows a rule written by a shell, a downloaded installer or an office application, a rule that executes from a temporary or user profile directory, or a command that reads credentials or opens a reverse connection. The benign case is a signed configuration management agent writing the same rule set it always writes, on a documented schedule, with action programs stored in a managed system path.",
+  "pseudoQuery": "# title: emond Rule Modified by Unexpected Process\n# logsource:\n#   product: macos\n# detection:\n#   selection:\n#     TargetFilename|startswith: '/etc/emond.d/rules/'\n#   filter_mgmt:\n#     Image|endswith: '/usr/local/bin/fleetagent'\n#   condition: selection and not filter_mgmt\n# level: high",
+  "falsePositives": [
+    "Configuration management tools that deploy or refresh approved emond rules during a normal fleet policy update",
+    "Software installers that register an event rule to run a first launch or repair action after installation",
+    "Administrators manually testing an emond rule on a development Mac before it is added to the fleet baseline",
+    "Monitoring agents that place a rule to collect a diagnostic file when a specific error appears",
+    "Backup or imaging software that writes an action script into the rule directory as part of a device rebuild"
+  ],
+  "tuningNotes": "Build the allow list from the signed configuration management agent path and the exact set of rule files it deploys, then alert on any write by a different process and on any rule file whose contents fall outside that set. Add the launched child process as a second condition so a rule change alone is informational while a rule that runs an interpreter from a temporary folder is high severity. Scope the rule to managed macOS fleets where you can maintain a baseline, and keep a copy of the alert for unmanaged Macs at a higher severity because there is no legitimate rule deployment there. The coverage you lose by trusting the management agent is a compromised management server pushing a malicious rule, so also diff the deployed rule set against the approved one weekly.",
+  "severity": "high"
+}

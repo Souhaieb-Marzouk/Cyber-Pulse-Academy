@@ -1,0 +1,109 @@
+{
+  "id": "det0011",
+  "type": "detection",
+  "title": "Detecting Junk Data in C2 Channels via Behavioral Analysis",
+  "shortTitle": "Detecting Junk Data in C2 Channels via Behavioral Analysis",
+  "externalId": "DET0011",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects junk data padding inside command and control channels (T1001.001, Data Obfuscation: Junk Data). The adversary mixes meaningless bytes into their traffic so that content inspection, size based rules and traffic classifiers see noise instead of a clear pattern. Because the channel is usually encrypted, detection has to work from metadata rather than content: packet size distribution, padding behaviour, entropy measured after decryption at the proxy, and the regularity of the session. The value of this detection is that it targets the evasion layer itself, so it survives changes to the payload. It fails most often in environments where the proxy cannot decrypt traffic, where the analyst has no baseline for normal padding, and where large media transfers produce the same statistical shape.",
+  "tags": [
+    "command and control",
+    "data obfuscation",
+    "junk data",
+    "t1001.001",
+    "network",
+    "metadata"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Junk Data in C2 Channels via Behavioral Analysis",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0011/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Junk Data in C2 Channels via Behavioral Analysis - EASY",
+      "path": "exercises/det0011/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Junk Data in C2 Channels via Behavioral Analysis - MEDIUM",
+      "path": "exercises/det0011/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Junk Data in C2 Channels via Behavioral Analysis - HARD",
+      "path": "exercises/det0011/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Junk Data in C2 Channels via Behavioral Analysis - EXTREMELY HARD",
+      "path": "exercises/det0011/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Junk data means adding useless bytes to a message so that it looks different from what it really is. Attackers do this to hide their traffic from tools that look for known patterns. This detection studies traffic shape instead of content. It asks whether the padding looks normal for that kind of connection.",
+    "whyItMatters": "Most detection rules look for something recognisable inside traffic. If the traffic carries extra random bytes, those rules may not match. Attackers also use padding to control the size of each message, which can hide a small command inside a large transfer. The padding costs them bandwidth and time, which is a weakness you can measure. You cannot read the payload, but you can still describe the shape of the conversation.",
+    "howItWorks": [
+      "Your network sensors record the size and direction of each packet in a connection, without needing to read the contents.",
+      "Your secure web gateway, where it can decrypt, reports padding and body entropy for each request and response.",
+      "The detection builds a profile of normal sizes and padding for each destination and application.",
+      "It compares each session with that profile and flags sessions whose padding or entropy is far outside it.",
+      "It also measures timing, because padding often produces very regular small exchanges.",
+      "Sessions that combine odd padding, high entropy and regular timing are grouped into one alert for review."
+    ],
+    "example": "Imagine parcels arriving at an office. You may not open them, but you can weigh them. A box that is almost all packing material, arriving every night at the same minute from the same sender, tells you something even without opening it. The padding is the message.",
+    "takeaways": [
+      "Padding hides content, so detection must use shape, size and timing.",
+      "You need a baseline of normal padding before you can spot unusual padding.",
+      "Very regular small exchanges with heavy padding are the strongest combination."
+    ]
+  },
+  "objectives": [
+    "Explain what junk data padding is and why it defeats content based detection.",
+    "Identify the metadata fields available when payload inspection is not possible.",
+    "Describe how to profile normal packet sizes and padding for common destinations.",
+    "Recognise the combination of high entropy, unusual padding and regular timing.",
+    "Explain the limits of statistical detection and how to reduce false positives.",
+    "Decide where to place sensors so that this detection has enough coverage."
+  ],
+  "techniqueId": "t1001-001",
+  "detectsTechniques": [
+    "t1001-001"
+  ],
+  "dataSources": [
+    "Network flow records with packet count, byte count and duration per session",
+    "Secure web gateway logs recording request and response body size, padding and compression ratio for decrypted traffic",
+    "Transport layer security metadata including record sizes and client fingerprint values from the network sensor",
+    "Domain name system query logs for the destination hostnames used by the session",
+    "Proxy or firewall logs recording user agent strings and header sizes for the connection"
+  ],
+  "logic": "The rule looks for the statistical fingerprint that padding creates rather than for any known malicious value. The primary selection is an outbound session to an external destination, enriched with packet count, byte counts in each direction, padding volume and body entropy where decryption is available. Fields that must be correlated are the source host, the destination address and name, the application or user agent, the packet size distribution, the ratio of padding to meaningful bytes, and the interval between messages. The malicious case is a session that carries a high proportion of padding or high entropy with very regular message intervals and a nearly constant message size, talking to a destination the host has not contacted before. The benign case is video streaming, software updates and large file transfers, which have high volume but irregular and large message sizes, and legitimate protocols that always pad to a block size, so the padding ratio must be measured against a normal baseline for the same destination type.",
+  "pseudoQuery": "# title: Outbound Session With Abnormal Padding and Regular Beacons\n# logsource:\n#   product: network\n# detection:\n#   selection_flow:\n#     direction: 'outbound'\n#     bytes_out: < 5000\n#   selection_shape:\n#     packet_size_variance: < 5\n#     beacon_interval_jitter: < 0.1\n#   selection_padding:\n#     padding_ratio: '> 0.6'\n#   filter_media:\n#     destination.category:\n#       - 'streaming'\n#       - 'software-update'\n#   condition: selection_flow and selection_shape and selection_padding and not filter_media\n# level: medium",
+  "falsePositives": [
+    "Video conferencing clients that send small regular keep alive packets with fixed size payloads",
+    "Heartbeat messages from monitoring agents to a cloud service at a fixed interval",
+    "Virtual private network clients with a constant packet size setting to avoid fragmentation",
+    "Applications that pad every message to a fixed block size as part of their protocol design",
+    "Backup and replication tools sending encrypted chunks of equal size on a schedule"
+  ],
+  "tuningNotes": "Establish a baseline of padding ratio, packet size variance and interval jitter per destination category before enabling alerts, because the numbers differ widely between protocols. Filter by destination category for streaming, update and backup services rather than by individual addresses. Add a requirement that the destination is new for the source host, which removes most recurring noise. Scope the rule to segments where this behaviour is genuinely rare, such as server subnets and administrative workstations. Narrowing this way loses coverage of beaconing from a segmented user network, so summarise that traffic weekly and hunt for new destination and host pairs instead of alerting on it in real time.",
+  "severity": "medium"
+}

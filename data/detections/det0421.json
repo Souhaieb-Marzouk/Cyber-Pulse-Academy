@@ -1,0 +1,108 @@
+{
+  "id": "det0421",
+  "type": "detection",
+  "title": "Detection Strategy for System Services Service Execution",
+  "shortTitle": "Detection Strategy for System Services Service Execution",
+  "externalId": "DET0421",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers service execution through the Windows service control manager, tracked as T1569.002, where an adversary creates or starts a service so that the service host runs their code with high privilege and often with persistence. It matters because service creation is a documented, supported administrative action that grants system level execution, and because remote service creation was a classic lateral movement step in well known intrusions. The telemetry that makes detection possible is service installation records, system log service state changes, process creation where the parent is the service host, and registry writes under the service control manager keys. The main way it fails is that software installation creates services constantly, so the rule must look at the binary path, the account the service runs as, the parent process that triggered the installation and whether the image lives outside the program directories.",
+  "tags": [
+    "windows",
+    "execution",
+    "persistence",
+    "services",
+    "lateral movement"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for System Services Service Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0421/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for System Services Service Execution - EASY",
+      "path": "exercises/det0421/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for System Services Service Execution - MEDIUM",
+      "path": "exercises/det0421/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for System Services Service Execution - HARD",
+      "path": "exercises/det0421/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for System Services Service Execution - EXTREMELY HARD",
+      "path": "exercises/det0421/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A Windows service is a program that runs in the background, often with high rights and before anyone signs in. An attacker can create a service that points at their own program. This detection looks for new or changed services, especially ones whose program sits in a strange folder. It watches the setup record and the program that made the change.",
+    "whyItMatters": "Services run with the highest rights on the computer. They can also survive a restart, which gives an attacker lasting access. Creating a service is a normal administration task, so it raises no alarm by itself. Attackers can create one on a remote computer to move sideways. Matching the service program to the person who made it is what exposes the abuse.",
+    "howItWorks": [
+      "Windows writes a record when a new service is installed. It holds the service name, the program path and the account.",
+      "The system log also records when a service is started, stopped or changed.",
+      "The rule takes those records and reads the program path and the account from each one.",
+      "It compares the path with the normal places where installed software lives.",
+      "It looks at what started the change, because an installer and a remote shell are very different parents.",
+      "A service that points to a temporary folder and was made by a shell raises the alert."
+    ],
+    "example": "Think of a building where the maintenance crew has a master key and works at night without signing in. A new worker is added to the crew list and given a key. Nobody questions a crew member entering at night. The clerk only notices because a person who is not a supervisor added the name.",
+    "takeaways": [
+      "A new service is a normal event, so judge the program path, the account and the parent process.",
+      "Services are a favourite way to keep access after a restart.",
+      "Look outside the usual program folders for service binaries."
+    ]
+  },
+  "objectives": [
+    "Explain what a Windows service is and why service execution is valuable to an adversary.",
+    "Identify the event that records service installation and the fields it provides.",
+    "Read the service binary path and account and compare them with normal install locations.",
+    "Correlate a service installation with the process and session that requested it.",
+    "Recognise remote service creation as a lateral movement step.",
+    "Describe how to respond to a suspicious service without breaking the host."
+  ],
+  "techniqueId": "t1569-002",
+  "detectsTechniques": [
+    "t1569-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4697 a service was installed in the system, including service name, image path and service account",
+    "Windows System log service control manager events for service start, stop and configuration change",
+    "Windows Security event 4688 process creation with command line for service configuration utilities and for the service host",
+    "Sysmon event 1 process creation with parent image and command line, including children of the service host process",
+    "Sysmon event 13 registry value set under the service control manager keys with the image path value"
+  ],
+  "logic": "The pattern is a service installation or modification where the configured binary path is outside the standard program directories or points into a temporary, user profile or share path, the service account is a highly privileged built in account for a service that does not need it, and the installation was requested by a shell, a script host or a remote session rather than an installer package. The fields to correlate are the service name, the image path and the service account from the installation record, the parent process and account from process creation, the registry value written under the service keys, and any process that the service host starts shortly afterwards. Legitimate installations come from a signed installer running in an interactive administrative session, reference a path under the program directories and match a software deployment record. The distinguishing factor is an unexpected binary location combined with a parent process that is not an installer.",
+  "pseudoQuery": "# title: Service installed with binary outside program directories\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4697\n#   filter_paths:\n#     ServiceFileName|startswith: ['C:\\Program Files\\', 'C:\\Windows\\System32\\']\n#   filter_installer:\n#     ParentImage|endswith: ['\\msiexec.exe', '\\services.exe']\n#   condition: selection and not filter_paths and not filter_installer\n# level: high",
+  "falsePositives": [
+    "Endpoint and monitoring agents that install a service from a management share as part of a rollout",
+    "Software that updates itself by registering a new service pointing at a versioned folder in the program data directory",
+    "Administrators troubleshooting a faulty service by creating a test service with a script path in a temporary folder",
+    "Virtualisation and container tools that create helper services with binaries under a user profile during installation",
+    "Vendor support engineers who install a diagnostic service from a downloaded package during a support case"
+  ],
+  "tuningNotes": "Filter on the parent image first, because a signed installer or the deployment platform accounts for most legitimate service creation, and require a human owner to re confirm those filters each quarter. Add a path filter for the approved program data and application directories where your managed agents live, rather than allowing all of the program files tree. Scope the first version to servers and to workstations that hold privileged credentials, where a new service is rare and where the impact is highest. Baseline the service account used by each product on your estate, so a service that suddenly runs as the local system account when it normally runs as a low privileged account becomes a signal. The coverage you lose by filtering installers is a service created by a compromised deployment account, so watch for deployment tooling that runs outside its normal schedule and from an unusual host.",
+  "severity": "high"
+}

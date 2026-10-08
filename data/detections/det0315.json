@@ -1,0 +1,108 @@
+{
+  "id": "det0315",
+  "type": "detection",
+  "title": "Detect Persistence via Office Test Registry DLL Injection",
+  "shortTitle": "Detect Persistence via Office Test Registry DLL Injection",
+  "externalId": "DET0315",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence registered through the Office test registry key, the technique recorded in the assignment as t1137-002, in which a value under the Office test path names a library that Microsoft Office loads whenever any Office application starts. The value sits in the machine configuration store, so it applies to every user on the host and re-arms itself each time Word, Excel or Outlook opens, which makes it durable and quiet. Detection rests on registry value modification for that key path joined to image load events for the named library, so the rule can confirm the library was actually loaded rather than merely written. The main failure mode is that the key is obscure enough that many teams never baseline it, so a single unremarkable registry event is the only visible trace.",
+  "tags": [
+    "office persistence",
+    "registry",
+    "dll injection",
+    "windows",
+    "boot or logon autostart",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Persistence via Office Test Registry DLL Injection",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0315/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Persistence via Office Test Registry DLL Injection - EASY",
+      "path": "exercises/det0315/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Persistence via Office Test Registry DLL Injection - MEDIUM",
+      "path": "exercises/det0315/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Persistence via Office Test Registry DLL Injection - HARD",
+      "path": "exercises/det0315/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Persistence via Office Test Registry DLL Injection - EXTREMELY HARD",
+      "path": "exercises/det0315/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Microsoft Office can load an extra library file when it starts. The name of that file sits in a registry key used for testing. A registry is a settings database on Windows. An attacker can put their own file name there so Office loads it every time.",
+    "whyItMatters": "Persistence means access survives a restart. Because Office loads the file automatically, the attacker does not need to run anything again. The setting applies to all users on the computer, so one change affects everyone. Few teams watch this key, which makes quiet abuse more likely.",
+    "howItWorks": [
+      "Office reads a machine registry value during startup to find out whether a test library is configured.",
+      "If a file name is present, Office loads that library into its own process.",
+      "The endpoint agent records the registry change, including the value data and the process that wrote it.",
+      "It also records library load events, which show the full path of every loaded file.",
+      "The rule looks for a write to the Office test key whose value points outside the normal Office program folder.",
+      "It then confirms that the same file appears in a library load event from an Office program, and alerts."
+    ],
+    "example": "Think of a workshop with a note on the wall. The note tells the morning team to warm up a machine before work starts. A stranger rewrites the note to name a machine of their own. Every morning the team dutifully starts it. Nobody broke in, because the wall note was edited during the day.",
+    "takeaways": [
+      "The Office test key loads a library for every Office start and every user.",
+      "Registry writes plus library load events together prove the technique.",
+      "Value data outside the Office program folder is the strongest sign of abuse."
+    ]
+  },
+  "objectives": [
+    "Explain how the Office test registry key causes a library to load at Office startup",
+    "Identify the registry event fields that reveal the value data and the writing process",
+    "Describe how image load telemetry confirms the library was executed",
+    "Write a detection that excludes libraries loaded from the Office program directory",
+    "Recognise why this key is often missing from baseline configuration checks",
+    "Plan a validated test using a harmless library in a laboratory image"
+  ],
+  "techniqueId": "t1137-002",
+  "detectsTechniques": [
+    "t1137-002"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for the Office test key path, including target object, details and the writing image",
+    "Sysmon event 7 image load capturing the loaded image path and the signing status for the loading process",
+    "Microsoft Office application startup events from the endpoint agent showing which Office program launched the load",
+    "Windows Security event 4688 process creation for the Office process when a full endpoint agent is not deployed"
+  ],
+  "logic": "The detection first selects registry value writes under the Office test key path, then examines the value data: a legitimate configuration points into the Office installation directory and usually names a Microsoft signed library, while the malicious case points at a user writable folder, a temporary directory, or a file with a name that does not match a Microsoft component. The second half of the rule joins that value to an image load event where the same path is loaded by an Office executable, which confirms execution rather than intent. This join is what keeps false positives low, because patching, repair installs and third party add-in registration can all touch nearby registry locations without ever causing an unexpected library to be loaded.",
+  "pseudoQuery": "# title: Office Test Registry Persistence with Library Load\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_registry:\n#     EventID: 13\n#     TargetObject|contains: \\Office\\test\\\n#   filter_office_dir:\n#     Details|contains: \\Program Files\\Microsoft Office\\\n#   selection_load:\n#     EventID: 7\n#     Image|endswith:\n#       - WINWORD.EXE\n#       - EXCEL.EXE\n#       - OUTLOOK.EXE\n#   condition: selection_registry and selection_load and not filter_office_dir\n# level: high",
+  "falsePositives": [
+    "Vendor add-in installers that register a test library path during development or quality assurance builds",
+    "Office repair operations that rewrite the test key while restoring a damaged installation",
+    "Laboratory or training images that intentionally configure a test library to demonstrate the technique",
+    "Legacy enterprise macros that load a helper library from a mapped departmental share at startup",
+    "Application compatibility shims deployed by desktop engineering that reference a redirected Office component path"
+  ],
+  "tuningNotes": "Baseline the Office test key on a sample of workstations and servers, including its absence, so you know what normal looks like before you alert. Keep the allowlist narrow: an exact file path in the Office program directory signed by Microsoft, rather than a whole directory tree, since attackers often choose a plausible looking name inside a trusted folder. Raising severity when the loading library is unsigned or located under a user profile costs you little coverage, but excluding servers entirely would lose detection on shared terminal servers where this key affects many users, so retain server coverage and route it to a separate queue.",
+  "severity": "high"
+}

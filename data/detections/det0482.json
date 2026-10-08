@@ -1,0 +1,106 @@
+{
+  "id": "det0482",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1134.001 Access Token Manipulation: Token Impersonation/Theft on Windows",
+  "shortTitle": "Behavior-chain detection for T1134.001 Access Token Manip...",
+  "externalId": "DET0482",
+  "theme": "Detection Strategy",
+  "summary": "Token impersonation and theft abuse legitimate Windows logon and process access interfaces so that a running thread adopts the security context of another user, usually a higher privileged one, without ever knowing that user's password. The behaviour chain this strategy watches for is process access to a privileged process with access rights that allow handle duplication, followed by the creation of a new process or the use of a network logon under a different identity on the same host. The hard part is that administrative tooling, backup agents and remote management software perform similar calls, so the rule needs granted access masks, source process paths and the resulting logon events correlated before it can be trusted.",
+  "tags": [
+    "windows",
+    "privilege escalation",
+    "defense evasion",
+    "token",
+    "process access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1134.001 Access Token Manipulation: Token Impersonation/Theft on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0482/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1134.001 Access Token Manipulation: Token Impersonation/Theft on Windows - EASY",
+      "path": "exercises/det0482/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.001 Access Token Manipulation: Token Impersonation/Theft on Windows - MEDIUM",
+      "path": "exercises/det0482/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.001 Access Token Manipulation: Token Impersonation/Theft on Windows - HARD",
+      "path": "exercises/det0482/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.001 Access Token Manipulation: Token Impersonation/Theft on Windows - EXTREMELY HARD",
+      "path": "exercises/det0482/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Every Windows program runs with a security token that describes who it is. This plan looks for programs that borrow or copy the token of another user. Borrowing a token lets a low privilege program act as a powerful user. The detection follows the events that happen when a token is taken and then used.",
+    "whyItMatters": "Attackers who already have a small foothold want a bigger one. Copying a token is a quiet way to gain administrator rights without a password. It leaves few traces compared with guessing credentials. If you only watch failed logons, you will miss this step completely. Watching token use helps you catch privilege escalation while it happens.",
+    "howItWorks": [
+      "The endpoint agent records process access events, which show one program opening another with a set of access rights.",
+      "The rule looks for access rights that allow a handle to be duplicated, because that is what token theft needs.",
+      "It checks whether the target process holds high privilege, such as a system process or a security service.",
+      "Windows then logs a new logon, either an explicit credential logon or a network logon, under a new identity.",
+      "The detection joins the access event and the later logon event on the same host inside a short time window.",
+      "A chain that does not match known administration software is raised as a high priority alert."
+    ],
+    "example": "Think of a staff canteen where each worker wears a coloured badge. One worker slips a manager badge out of an unlocked drawer and clips it to their own coat. The kitchen staff serve them the manager meal because they only look at the badge. The theft is noticed later by comparing the badge list with who actually ordered. In the same way, a stolen token is accepted by Windows because the token looks genuine.",
+    "takeaways": [
+      "A token is the proof of identity that Windows trusts for a running program.",
+      "Copying a token avoids the need for a password or a failed logon.",
+      "Process access rights plus a resulting logon event are the key pair of clues."
+    ]
+  },
+  "objectives": [
+    "Describe how a Windows security token identifies a running process.",
+    "Identify the access rights that allow a process handle to be duplicated.",
+    "Correlate a process access event with a later logon under a different identity.",
+    "List the administrative tools that legitimately perform this pattern.",
+    "Explain why failed logon monitoring alone will not find token theft."
+  ],
+  "techniqueId": "t1134-001",
+  "detectsTechniques": [
+    "t1134-001"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access recording source image, target image and the granted access mask",
+    "Windows Security event 4624 logon with logon type 9 (NewCredentials) or type 3 (network)",
+    "Windows Security event 4648 logon using explicitly provided credentials",
+    "Windows Security event 4672 special privileges assigned to a new logon",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The chain begins with a process access event in which a non administrative executable opens a privileged target process with access rights that permit handle duplication, for example masks containing the duplicate handle and query information bits. Shortly afterwards the same host records a logon under a new identity, most tellingly a logon type 9 explicit credential logon or a network logon that produces event 4672 special privileges for an account that should not hold them, and then a child process created with command lines the original user never ran. Legitimate management and backup agents generate process access, but they run from stable installation paths, repeat the same targets on a schedule, and are signed. The malicious case shows a user writable or temporary source image, a privileged target process, and a resulting privileged logon, which is why source image path, target image, access mask, logon type and account name must all be correlated on the same host within minutes.",
+  "pseudoQuery": "# title: Process Access With Handle Duplication Followed By Privileged Logon\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 10\n#     TargetImage|endswith:\n#       - '\\lsass.exe'\n#       - '\\winlogon.exe'\n#     GrantedAccess|contains:\n#       - '0x40'\n#       - '0x1000'\n#   filter:\n#     SourceImage|startswith:\n#       - 'C:\\Program Files\\'\n#       - 'C:\\Windows\\System32\\'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Endpoint detection agents and backup software that open privileged processes from their signed installation folder",
+    "Remote management platforms that perform administrative work under a delegated service account",
+    "Password vault products that start a process under an elevated identity after the user authenticates",
+    "Software distribution tools that install patches as the local system account on a schedule"
+  ],
+  "tuningNotes": "Build the filter from your own inventory: exclude the signed binaries of endpoint agents, backup products and configuration management tools, and exclude the service accounts they use. Baseline which processes normally open privileged targets on a server group before enabling the rule there. Narrowing with these exclusions keeps the queue short but hides genuine abuse when an attacker runs a copy of an allowed tool from another folder, so keep the path check strict and alert whenever an allowed binary name runs from outside its usual directory.",
+  "severity": "high"
+}

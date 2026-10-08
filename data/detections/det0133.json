@@ -1,0 +1,107 @@
+{
+  "id": "det0133",
+  "type": "detection",
+  "title": "IDE Tunneling Detection via Process, File, and Network Behaviors",
+  "shortTitle": "IDE Tunneling Detection via Process, File, and Network Be...",
+  "externalId": "DET0133",
+  "theme": "Detection Strategy",
+  "summary": "IDE tunneling (T1219.001) covers the abuse of legitimate remote development features, such as a command line tunnel client or a hosted remote development gateway, to give an external operator interactive access to a host that never had to accept an inbound connection. It matters because the tooling is signed, vendor hosted, and encrypted, so signature checks and inbound firewall rules raise no objection, and the resulting session looks exactly like an ordinary outbound connection. The detection strategy therefore joins three individually weak signals: a tunnel client binary being downloaded or installed into a user profile, the child processes that client spawns such as shells, script hosts, and build tools, and long lived outbound encrypted or WebSocket sessions from developer tooling to the vendor service. It fails often because developers legitimately use these features daily, because sanctioned and unsanctioned use of the same product are byte for byte identical on the wire, and because the client may arrive through an approved software package rather than a download.",
+  "tags": [
+    "command and control",
+    "t1219.001",
+    "remote access",
+    "developer tooling",
+    "network connection",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: IDE Tunneling Detection via Process, File, and Network Behaviors",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0133/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "IDE Tunneling Detection via Process, File, and Network Behaviors - EASY",
+      "path": "exercises/det0133/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "IDE Tunneling Detection via Process, File, and Network Behaviors - MEDIUM",
+      "path": "exercises/det0133/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "IDE Tunneling Detection via Process, File, and Network Behaviors - HARD",
+      "path": "exercises/det0133/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "IDE Tunneling Detection via Process, File, and Network Behaviors - EXTREMELY HARD",
+      "path": "exercises/det0133/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Remote development means working on a computer that is not in front of you. A developer uses a tool that opens a connection from that computer out to a service. The service then sends commands back through the same connection. Attackers abuse the same feature to reach inside a network. This detection looks for those tunnels and for what they run.",
+    "whyItMatters": "Many networks block incoming connections but allow almost anything to leave. A tunnel uses an outgoing connection, so it passes those controls. The tool is usually well known and signed, so it does not look suspicious. An attacker can then run commands on that machine as if sitting at it. This detection helps you spot interactive access that your firewall rules were meant to stop.",
+    "howItWorks": [
+      "The rule watches for a tunnel client binary being written into a user folder.",
+      "It records the process that starts that binary and the arguments it uses.",
+      "It looks for child processes such as shells, script hosts, or build tools.",
+      "Network records show one long lived encrypted connection to the vendor service.",
+      "Domain name queries to the tunnel service are counted for each host and user.",
+      "An analyst then checks whether the user is a known developer on a managed device."
+    ],
+    "example": "Picture an office where the front door is locked and guarded. Nobody can walk in from the street, and the company feels safe. Now imagine an employee opens a window and drops a rope. A stranger outside climbs the rope and stands in the corridor. The front door was never touched. A development tunnel is that rope. It leaves from the inside, so the guards at the front door never see anyone enter.",
+    "takeaways": [
+      "A tunnel starts from inside, so inbound firewall rules cannot stop it.",
+      "Join the binary, the child processes, and the long lived connection.",
+      "Developers use these tools for real work, so identity and device health matter."
+    ]
+  },
+  "objectives": [
+    "Explain how remote development tunnels provide interactive access without inbound ports.",
+    "Identify the file, process, and network events that a tunnel session leaves behind.",
+    "Correlate a tunnel session with the child processes that it spawns.",
+    "Separate sanctioned developer use from an operator on an unmanaged or non developer host.",
+    "Describe the containment steps for an unauthorized tunnel session."
+  ],
+  "techniqueId": "t1219-001",
+  "detectsTechniques": [
+    "t1219-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image path, parent image, and command line arguments such as a tunnel or remote development flag",
+    "Sysmon event 11 file creation for tunnel client binaries written into user profile or download directories",
+    "Sysmon event 3 network connection records showing long lived outbound encrypted connections from developer tooling",
+    "Proxy logs recording WebSocket upgrade requests and session duration to remote development endpoints",
+    "DNS server query logs for remote development tunnel hostnames counted per source host"
+  ],
+  "logic": "The detection joins one file fact, one process fact, and one network fact. The file fact is a tunnel client binary appearing in a user writeable directory, either downloaded through a browser or fetched by a package manager. The process fact is that binary starting and then spawning an unusual set of children, typically a command shell or a script interpreter, which is unremarkable on an engineering laptop and alarming on a finance workstation or a server. The network fact is a single long lived encrypted session from that process to the vendor service, often with a WebSocket upgrade visible at the proxy and a very small number of destination hostnames. The fields to correlate are the user account, the device name and its management state, the binary path and hash, the parent process, and the destination hostname. The benign case is a managed developer workstation whose owner is in the engineering group and whose destination is the approved service endpoint. The malicious case is a first seen binary on a host outside that group, or a tunnel started by a service or a scheduled task instead of an interactive user.",
+  "pseudoQuery": "# title: Developer tunnel client started outside the developer group\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'code tunnel'\n#       - ' tunnel '\n#       - '--remote'\n#   filter_developers:\n#     User|endswith: '-dev'\n#   condition: selection and not filter_developers\n# level: medium",
+  "falsePositives": [
+    "Backend and platform engineers who use a remote development tunnel to work on a shared build server",
+    "A vendor support engineer invited into a session by an administrator through an approved remote development tool",
+    "Training or workshop environments where participants connect to a shared lab host through a tunnel",
+    "Continuous integration runners that use the vendor tunnel client to register with a hosted build service"
+  ],
+  "tuningNotes": "Scope the rule to assets where interactive development is not expected, such as finance workstations, servers, and directory servers, and pair it with device management state so that unmanaged hosts score higher. Allow established engineering users by group membership, and allow the destination hostnames of your sanctioned remote development service rather than disabling the rule for a whole subnet. Baseline both the client binaries and the destination hostnames for two weeks so approved tooling does not drown the signal. Excluding the engineering group means you lose coverage of a developer account used by an intruder, so keep a separate alert for any account that starts a tunnel for the first time.",
+  "severity": "medium"
+}

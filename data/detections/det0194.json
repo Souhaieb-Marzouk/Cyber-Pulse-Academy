@@ -1,0 +1,107 @@
+{
+  "id": "det0194",
+  "type": "detection",
+  "title": "Detection of Malicious Control Panel Item Execution via control.exe or Rundll32",
+  "shortTitle": "Detection of Malicious Control Panel Item Execution via c...",
+  "externalId": "DET0194",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects execution of Control Panel items, where an adversary uses the signed control panel host or the library loader to run a dynamic library that Windows normally reserves for system settings. It matters because the technique executes code through trusted binaries with a legitimate appearance, and because malicious control panel items can be registered in the user registry hive, which means they load again after a reboot without any file in a system directory. Detection uses process creation telemetry for the loader binaries and their arguments, file creation of library files outside system directories, and registry writes that register a new control panel item. The common failure is that real vendors do install control panel applets, so the rule must key on the file location, the registration hive and the parent process rather than on the binary name.",
+  "tags": [
+    "defense evasion",
+    "system binary proxy",
+    "control panel",
+    "windows",
+    "registry",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Malicious Control Panel Item Execution via control.exe or Rundll32",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0194/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Malicious Control Panel Item Execution via control.exe or Rundll32 - EASY",
+      "path": "exercises/det0194/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Malicious Control Panel Item Execution via control.exe or Rundll32 - MEDIUM",
+      "path": "exercises/det0194/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Malicious Control Panel Item Execution via control.exe or Rundll32 - HARD",
+      "path": "exercises/det0194/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Malicious Control Panel Item Execution via control.exe or Rundll32 - EXTREMELY HARD",
+      "path": "exercises/det0194/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for code being run through the Windows Control Panel launcher. Attackers use it because that launcher is a trusted Microsoft program. The file they load is not a system file, and it often sits in a user folder. The rule checks where the file is and how it was registered.",
+    "whyItMatters": "Signed Windows programs are often allowed to run by policy. Misusing them can bypass rules that block unknown files. A control panel item can be registered for the current user, so it returns after a restart. That makes it useful for keeping a foothold. Watching the loader arguments and file locations gives you a reliable way to spot it.",
+    "howItWorks": [
+      "A control panel item file is written to a folder such as a temporary or user directory.",
+      "A program launches it through the control panel host or the library loader.",
+      "Windows records the process, the argument, and the file that was loaded.",
+      "The rule checks whether the file sits in a system directory or elsewhere.",
+      "It also checks the registry for a newly registered control panel item.",
+      "A non system path or a user hive registration raises the alert."
+    ],
+    "example": "Think of a building where only staff with a master key may enter the server room. A visitor cannot get a key. So they hand a box to a member of staff. They ask that person to carry it inside. The staff member has every right to enter. What the security desk checks is the box, and the fact that it was not on the delivery list.",
+    "takeaways": [
+      "The trusted launcher is expected on the network, so judge the file it loads.",
+      "User hive registration means the item can survive a reboot, so check the registry too.",
+      "A control panel item running from a temporary folder is almost never legitimate."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries load libraries through signed system binaries.",
+    "Identify process creation arguments that indicate a control panel item was launched.",
+    "Recognise file locations that are normal and abnormal for control panel items.",
+    "Detect registry registration of a new control panel item in the user hive.",
+    "Correlate the loader process, the loaded file and the parent process chain.",
+    "Describe why blocking one loader binary leaves the technique partly uncovered."
+  ],
+  "techniqueId": "t1218-002",
+  "detectsTechniques": [
+    "t1218-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including full command line and parent image for control and library loader binaries",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 11 file creation recording library files written outside system directories",
+    "Sysmon event 13 registry value set recording control panel item registration under the user hive"
+  ],
+  "logic": "The pattern is a signed system loader process started with an argument that points to a library file, combined with that file living outside the system directories or being newly written, and optionally with a registry value that registers the file as a control panel item. The fields that must be correlated are the loader image and full command line, the loaded file path and its creation time, the parent process image, the executing account, and the registry key path with its value data. The malicious case loads a file from a temporary, public or user profile directory, uses a library file created in the same session, is started by a scripting host, an office application or a mail client, and often registers itself under the current user hive so that it reloads at sign in. The benign case is a vendor installed applet launched from the system directory by explorer as part of normal user interaction, registered in the machine hive during application installation.",
+  "pseudoQuery": "# title: Control Panel Item Loaded From Non System Directory\n# logsource:\n#   product: windows\n# detection:\n#   selection_loader:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\control.exe'\n#       - '\\\\rundll32.exe'\n#       - '\\\\dllhost.exe'\n#     CommandLine|contains: '.cpl'\n#   selection_registration:\n#     EventID: 13\n#     TargetObject|contains: 'CurrentVersion\\\\Control Panel\\\\CPLs'\n#   filter_system_path:\n#     CommandLine|contains: '\\\\Windows\\\\System32\\\\'\n#   condition: (selection_loader and not filter_system_path) or selection_registration\n# level: high",
+  "falsePositives": [
+    "Graphics or audio driver applets that install a control panel item into the vendor folder and launch it on first use",
+    "Remote management tools that present a control panel style settings applet to administrators",
+    "Legacy internal applications distributed as a control panel item and registered per user by the installer",
+    "Software packaging and testing on developer machines where applets are compiled and launched from a build folder"
+  ],
+  "tuningNotes": "Filter on the specific vendor directories and the machine hive registration path that your standard image already contains, then keep every launch from a user profile, temporary directory or share unfiltered because that combination has almost no legitimate use. Baseline your golden image and rebuild the approved applet list after each image update, since new drivers add applets and a stale list creates noise. Scope the production alert to servers, domain controllers and finance workstations, and give developer and engineering workstations a lower severity path. The coverage you lose by approving known machine hive applets is a malicious applet that overwrites an approved library, so also alert when an approved applet file changes hash and when any control panel item is loaded by a parent process that is a scripting host or an office application.",
+  "severity": "high"
+}

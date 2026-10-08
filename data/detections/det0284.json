@@ -1,0 +1,105 @@
+{
+  "id": "det0284",
+  "type": "detection",
+  "title": "Detection Strategy for Exfiltration to Text Storage Sites",
+  "shortTitle": "Detection Strategy for Exfiltration to Text Storage Sites",
+  "externalId": "DET0284",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the movement of collected data to public text and paste style storage services, which adversaries favour because the destination is a legitimate, well known website that rarely looks hostile in a proxy log. The distinguishing evidence is not the domain alone but the shape of the request: an outbound POST with a large request body relative to the response, from a host or user with no history of using that service, often minutes after archive creation or a burst of document reads on the endpoint. Detection depends on web proxy or secure web gateway logs with full URLs and byte counts, DNS query telemetry, and network flow volume. It fails most often where transport layer security inspection is absent, so the rule sees only a host name and a byte count and can never read the payload.",
+  "tags": [
+    "exfiltration",
+    "web proxy",
+    "data loss prevention",
+    "network traffic",
+    "cloud services"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exfiltration to Text Storage Sites",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0284/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exfiltration to Text Storage Sites - EASY",
+      "path": "exercises/det0284/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Text Storage Sites - MEDIUM",
+      "path": "exercises/det0284/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Text Storage Sites - HARD",
+      "path": "exercises/det0284/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Text Storage Sites - EXTREMELY HARD",
+      "path": "exercises/det0284/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Text storage sites are public web pages where people paste text and get a short link back. They are useful and legal, and many developers use them daily. Attackers sometimes copy stolen data into such a page so they can collect it later from somewhere else. This detection looks for uploads to those services that do not match normal business use.",
+    "whyItMatters": "The destination is an ordinary website, so a block list of known names leaves many similar services open. An attacker can replace a blocked domain with another free text host in minutes. The upload is often small enough to slip under a normal data volume alarm. Watching the pattern of uploads gives you a chance to spot the loss while the data is still fresh.",
+    "howItWorks": [
+      "Your web proxy keeps a record of each request that passes through it. That record holds the host name, the full path, the method and the bytes sent.",
+      "The rule selects requests that use the POST method. That method is how a browser or a tool sends a body of data.",
+      "It compares the request body size with the size of the reply. An upload is large in one direction and small in the other.",
+      "A DNS record or a flow record confirms that the same host contacted the service at about the same time.",
+      "The rule then checks whether this user or this computer has ever used this kind of service before.",
+      "Alerts that follow a sharp rise in file reads or a new archive file are ranked higher for review."
+    ],
+    "example": "Picture a courier who leaves your building with a small envelope every day. Nobody minds, because small envelopes are normal and the courier is well known. One afternoon the same courier walks out with twenty large boxes and no delivery note. A good guard notices the size of the load, not only the door that was used.",
+    "takeaways": [
+      "The size and direction of the request matter more than the name of the website.",
+      "Baseline who uses text and paste services, so that first time use stands out.",
+      "Without content inspection you can still detect volume and timing, but never the data itself."
+    ]
+  },
+  "objectives": [
+    "Explain why public text storage services are attractive exfiltration destinations.",
+    "Read proxy logs well enough to separate an upload from a normal page visit.",
+    "Correlate outbound upload volume with endpoint file access around the same time.",
+    "Rank alerts using first time service use for a given user or host.",
+    "Describe the visibility limits that encrypted traffic places on this detection."
+  ],
+  "techniqueId": "t1567-003",
+  "detectsTechniques": [
+    "t1567-003"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway logs with the requested host, full URL path, HTTP method, user identity and request body size",
+    "Sysmon DNS query records showing the queried host name and the process that asked for it",
+    "Network flow records with source host, destination host, destination port and total bytes uploaded per session",
+    "Endpoint file access and archive creation events showing a data file read shortly before a large outbound upload"
+  ],
+  "logic": "The pattern is an outbound upload to a public text or paste style service whose volume and timing do not match the normal behaviour of that host or user. The fields to correlate are the proxy request method, the request body size compared with the response size, the requesting user or host, and the first seen time of that destination for that identity, supported by flow records that confirm the byte volume and endpoint events that show what was collected. The benign case is a developer or support engineer who routinely posts build logs to such a service, sends small text bodies, and has done so from the same host for months. The malicious case is a large one directional body from a host that never used the service, frequently following a burst of file reads or the creation of an archive in a temporary directory.",
+  "pseudoQuery": "# title: Large Upload to Public Text Storage Service\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     http_method: 'POST'\n#     url|contains:\n#       - 'paste'\n#       - 'gist'\n#       - 'bin/'\n#     bytes_out: >1000000\n#   filter:\n#     user_agent|contains: 'internal-log-shipper'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Developers pasting long build logs or configuration snippets into a text service while debugging a production issue.",
+    "Support engineers uploading diagnostic bundles to a paste service because an external vendor asked for them.",
+    "Automated scripts that post small status documents to a text service from an approved host on a fixed schedule.",
+    "Security staff sharing threat hunting notes with an external partner through a public paste link."
+  ],
+  "tuningNotes": "Start by listing the text and paste services your organisation genuinely approves, and treat those as exclusions only when the volume and the requesting host are also normal. Baseline upload volumes per user and per host for two weeks so a large body stands out from routine traffic. Scope the high severity rule to hosts that hold sensitive data, such as file servers and database jump boxes, plus user devices in sensitive teams, and leave general browsing at low severity. Keep first time use alerts unfiltered, because that signal is cheap and survives domain rotation. Narrowing by volume means slow, small exfiltration spread across many requests falls below the threshold, so add a companion rule that counts repeated small uploads to the same service within one hour.",
+  "severity": "high"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0552",
+  "type": "detection",
+  "title": "Detection of Windows Service Creation or Modification",
+  "shortTitle": "Detection of Windows Service Creation or Modification",
+  "externalId": "DET0552",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Create or Modify System Process: Windows Service, the abuse of the Windows service control manager to install a persistent or privileged process. It matters because a service runs with high privilege and starts automatically, so the technique gives an attacker both persistence and often system level rights. The telemetry that catches it is Windows Security event 4697 for service installation, the system log entry written when a new service is registered, Sysmon event 13 registry value set against the services registry key, Sysmon event 1 for the service control tool, and the later process creation of the installed binary. The main failure mode is that legitimate software deploys services constantly, so the useful signal is not the creation itself but the binary path, the account it runs as, the signer and the parent process that registered it, and many organisations do not enable the audit policy that produces 4697 at all.",
+  "tags": [
+    "persistence",
+    "privilege-escalation",
+    "windows",
+    "service",
+    "registry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Windows Service Creation or Modification",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0552/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Windows Service Creation or Modification - EASY",
+      "path": "exercises/det0552/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Windows Service Creation or Modification - MEDIUM",
+      "path": "exercises/det0552/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Windows Service Creation or Modification - HARD",
+      "path": "exercises/det0552/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Windows Service Creation or Modification - EXTREMELY HARD",
+      "path": "exercises/det0552/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A Windows service is a program that runs in the background, often with high rights, and can start by itself at boot. This detection looks for new services being added or existing services being pointed at a different program. Attackers do this to keep a foothold on a machine.",
+    "whyItMatters": "A service survives a reboot, which means the attacker does not need to break in again. Services often run as the system account, so a service gives away the highest rights on the host. Noticing the change early is much cheaper than rebuilding the machine later.",
+    "howItWorks": [
+      "Windows writes an event when a program registers a new service, and the system log records the same registration.",
+      "Sysmon, a monitoring tool that records detailed system activity, also logs writes to the services registry key.",
+      "A SIEM, which is a central system that collects and searches log events, gathers these events from every host.",
+      "The rule checks the service binary path and flags programs running from temporary or user writable folders.",
+      "It also checks the account the service will use, and the process that performed the registration.",
+      "Stored patterns are compared with a baseline of approved services, and anything outside that baseline is sent for review."
+    ],
+    "example": "Think of a building where cleaners are given master keys. Adding a new name to the cleaner list is a quiet act, but it means that person can enter every room forever. This detection is the guard checking the cleaner list against the people the building manager actually hired.",
+    "takeaways": [
+      "A service is valuable to an attacker mostly because it survives reboots and runs with high rights.",
+      "The interesting detail is the binary path, the service account and the parent process, not the fact that a service was created.",
+      "Turn on the service creation audit policy, or you will only see the registry half of this technique."
+    ]
+  },
+  "objectives": [
+    "Explain why Windows services are used for persistence and privilege retention.",
+    "Identify the events that record service installation and service configuration changes.",
+    "Evaluate a new service by its binary path, signer, start type, service account and parent process.",
+    "Build a baseline of approved services per host role and alert on deviations.",
+    "Detect modification of an existing service rather than creation of a new one.",
+    "Describe the containment steps for a suspicious service, including recovery of the binary for analysis."
+  ],
+  "techniqueId": "t1543-003",
+  "detectsTechniques": [
+    "t1543-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4697 service installed in the system log, including service name, image path and service account",
+    "Windows system log service control manager entry recording that a new service was registered with its start type",
+    "Sysmon event 13 registry value set where the target object is under the services registry key",
+    "Sysmon event 1 process creation for the service control tool or the installer that registered the service, including parent image and command line",
+    "Sysmon event 1 process creation of the installed service binary itself, showing the path it actually executes from"
+  ],
+  "logic": "The pattern is a service registration or service configuration change whose binary lives somewhere that legitimate software does not use, or which is performed by a process that has no business managing services. You correlate the installation event, which gives the service name, image path and account, with Sysmon registry writes to the services key for the same service name, with the process creation event for the registering parent, and later with the process creation of the binary itself. The malicious case usually shows an image path in a temporary, public or user profile directory, an unquoted path with spaces, a binary that is unsigned or signed by an unknown publisher, or a parent process such as a scripting host or an office application. The benign case is a signed installer running from a package management directory, deploying a known vendor service during a documented change window, with a parent process that is a recognised installer or deployment agent.",
+  "pseudoQuery": "# title: Suspicious New Windows Service Image Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4697\n#   filter_paths:\n#     ServiceFileName|startswith:\n#       - 'C:\\\\Program Files'\n#       - 'C:\\\\Windows\\\\System32'\n#   condition: selection and not filter_paths\n# level: medium",
+  "falsePositives": [
+    "Software deployment tooling that installs a vendor agent service from a staging share during a scheduled maintenance window",
+    "Endpoint management agents that update their own service binary path during an in place upgrade",
+    "Third party application installers that register helper services in their own program folder with a signed binary",
+    "Monitoring or backup products that create a temporary service to run a job and then remove it",
+    "Development or test hosts where engineers register their own services from a local build output folder"
+  ],
+  "tuningNotes": "Build a per host role baseline of service names, image paths and signers, and filter on that baseline rather than on broad path prefixes, because a path prefix filter will hide malware that copies itself into a legitimate program folder. Add the parent image and its signature as secondary conditions so a signed installer deploying a service stays quiet while a scripting host doing the same thing alerts. Scope the high severity rule to servers and to workstations that host privileged sessions, and keep a separate rule for modification of existing services on all hosts. The coverage you lose by trusting path prefixes is fileless and path spoofing cases, so retain an alert on any service whose registered path does not match the file that later executes.",
+  "severity": "high"
+}

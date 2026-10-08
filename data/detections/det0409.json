@@ -1,0 +1,108 @@
+{
+  "id": "det0409",
+  "type": "detection",
+  "title": "Detection Strategy for T1550.002 - Pass the Hash (Windows)",
+  "shortTitle": "Detection Strategy for T1550.002 - Pass the Hash (Windows)",
+  "externalId": "DET0409",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Pass the Hash, tracked as T1550.002, where an adversary authenticates to a Windows host using a stolen password hash instead of the plaintext password. The technique matters because it lets an intruder move laterally with nothing more than credential material lifted from memory or the registry, so password rotation alone does not stop it. The telemetry that makes detection possible is Windows authentication logging paired with process creation and remote service activity: Security event 4624 logons of type 3 and type 9, logon failures in 4625, 4688 process creation, and Sysmon event 1. The main way this fails in practice is that network logons are extremely common in a Windows estate, and the malicious ones look almost identical to routine file share access, so a rule that fires on type 3 logons alone produces unusable noise and must be scoped by account, source host and hour.",
+  "tags": [
+    "windows",
+    "credential access",
+    "lateral movement",
+    "authentication",
+    "pass the hash"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1550.002 - Pass the Hash (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0409/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1550.002 - Pass the Hash (Windows) - EASY",
+      "path": "exercises/det0409/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1550.002 - Pass the Hash (Windows) - MEDIUM",
+      "path": "exercises/det0409/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1550.002 - Pass the Hash (Windows) - HARD",
+      "path": "exercises/det0409/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1550.002 - Pass the Hash (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0409/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Pass the Hash lets an attacker log in to a Windows computer without knowing the real password. Instead of the password, the attacker uses a stored value called a password hash. Windows accepts the hash for some kinds of network logon. This detection looks for that kind of logon where it should not happen.",
+    "whyItMatters": "Stealing a password hash is often easier than cracking a password. Once an attacker has the hash, they can reach other computers on your network. Changing the user password does not always stop this, because the hash still works for a while. Many organisations only look at failed logins, so a successful hash logon passes by unnoticed. Catching the behaviour early can stop an attacker from reaching your servers.",
+    "howItWorks": [
+      "Windows records every logon attempt in its Security log. The event for success is number 4624 and the event for failure is number 4625.",
+      "Each logon record has a logon type. A network logon is type 3 and a logon using explicit credentials is type 9.",
+      "The detection reads these records and keeps the ones from the local machine account or from unusual source computers.",
+      "It compares the source computer with the list of computers that normally talk to that server.",
+      "It also checks what ran soon after the logon, using process creation records such as Sysmon event 1.",
+      "When the account, the source computer and the following commands all look wrong, the system raises an alert."
+    ],
+    "example": "Think of a hotel night watchman. Every guest must sign the book at the front desk, and the watchman knows which guests are staying. Pass the Hash is like a stranger who copies a room key card instead of asking for a new one. The key card opens the door and the book shows a normal entry, so nothing looks broken. The watchman only notices because the stranger signed a room on another floor and then walked to the service corridor.",
+    "takeaways": [
+      "A successful network logon can still be an attack, so failed logons are not the whole story.",
+      "You must relate the logon record to the source computer and to what runs next.",
+      "Filtering by source computer is what keeps this rule quiet enough to use."
+    ]
+  },
+  "objectives": [
+    "Explain what a password hash is and why it can be replayed for a network logon.",
+    "Identify the Windows event and logon type that show a network logon in your environment.",
+    "Correlate an authentication record with later process creation on the same host.",
+    "Baseline which source computers normally authenticate to each server group.",
+    "Decide when a hash style logon deserves an alert rather than a note.",
+    "Document the false positives your team accepts before enabling the rule."
+  ],
+  "techniqueId": "t1550-002",
+  "detectsTechniques": [
+    "t1550-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4624 with logon type 3 or 9, including target account, source workstation and source IP address",
+    "Windows Security event 4625 failed logon with logon type and target account for the same source host",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image, user and command line",
+    "Windows Security event 4672 special privileges assigned to a new logon"
+  ],
+  "logic": "The pattern is a network or explicit credential logon to a Windows host from a workstation or server that has never authenticated to that host before, followed within minutes by remote service creation, scheduled task creation or a shell process running as the target account. The fields that must be correlated are the target user name, the logon type, the source workstation name or source IP address in the authentication record, and the parent process or service image in the process creation record. The benign case looks the same on the wire but the account is a service account that always authenticates from a fixed host list, or the source is a jump server or backup product that the server group already knows. What separates the two is whether the account to source pairing is new for that asset and whether privileged remote execution follows immediately.",
+  "pseudoQuery": "# title: Network logon from new source followed by remote execution\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_logon:\n#     EventID: 4624\n#     LogonType: [3, 9]\n#     TargetUserName|endswith: '$'\n#   filter_known:\n#     SourceWorkstation|contains: 'BACKUP-'\n#   selection_exec:\n#     EventID: 4688\n#     ParentImage|endswith: '\\services.exe'\n#     Image|endswith: '\\cmd.exe'\n#   condition: selection_logon and selection_exec and not filter_known\n# level: high",
+  "falsePositives": [
+    "Backup and anti virus products that authenticate to every server with a service account from a fixed set of management hosts",
+    "Vulnerability scanners and inventory tools that log on to many hosts in one sweep with a domain service account",
+    "Help desk staff using remote administration consoles that perform explicit credential logons to user workstations",
+    "Cluster or database failover where the passive node starts authenticating to the active node after an outage",
+    "Server migration projects where a new management host legitimately starts connecting to an older server group"
+  ],
+  "tuningNotes": "Start by building a thirty day baseline of account and source host pairings per server group, and load the known pairs into the filter list rather than trying to whitelist single events. Scope the rule first to tier zero and tier one assets, which are domain controllers, identity servers and database servers, because that is where the impact is highest and where the source host list is smallest and most stable. Exclude the machine account suffix only after you confirm that local system logons are expected on that asset class. Then add a time window so the authentication and the follow on execution must occur within the same short period, which removes most of the true noise. The coverage you give up is hash style logons between ordinary workstations, which are lower impact but can still mark an attacker spreading through the estate, so keep a weekly report on that population instead of an alert.",
+  "severity": "critical"
+}

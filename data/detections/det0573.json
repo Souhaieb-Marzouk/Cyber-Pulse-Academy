@@ -1,0 +1,107 @@
+{
+  "id": "det0573",
+  "type": "detection",
+  "title": "Cross-Platform Detection of Data Transfer to Cloud Account",
+  "shortTitle": "Cross-Platform Detection of Data Transfer to Cloud Account",
+  "externalId": "DET0573",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the transfer of data to a cloud account, tracked as T1537, where an adversary uses legitimate cloud interfaces to copy data into storage or an account they control instead of sending it to an external destination over the network. It matters because the copy often happens inside the provider network, so it may never cross a monitored egress point, and because a single permission change can expose an entire bucket or disk snapshot. Detection relies on cloud management event logs showing snapshot sharing, cross account role assumption, bucket policy changes and new storage access points, together with object level read and write events for the resources involved and identity logs for the principal performing the change. The weakness is that legitimate cross account sharing, backup replication and migration projects produce almost identical entries, so the rule must weigh the principal, the destination account and whether that destination has ever been used before.",
+  "tags": [
+    "exfiltration",
+    "cloud",
+    "aws",
+    "identity",
+    "data-transfer",
+    "t1537"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cross-Platform Detection of Data Transfer to Cloud Account",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0573/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cross-Platform Detection of Data Transfer to Cloud Account - EASY",
+      "path": "exercises/det0573/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cross-Platform Detection of Data Transfer to Cloud Account - MEDIUM",
+      "path": "exercises/det0573/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cross-Platform Detection of Data Transfer to Cloud Account - HARD",
+      "path": "exercises/det0573/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cross-Platform Detection of Data Transfer to Cloud Account - EXTREMELY HARD",
+      "path": "exercises/det0573/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for data being copied to a cloud account. A cloud account is the space a customer rents from a cloud provider. The copy may go to a different account, or even a different provider. The technique is transfer because the data moves to a place the attacker can reach.",
+    "whyItMatters": "Cloud providers offer copying tools that are fast and reliable. The copy can stay inside the provider network, so your network monitors may see nothing. Permissions are the only barrier, and one wrong setting removes it. This makes the cloud side of your logs essential.",
+    "howItWorks": [
+      "The platform collects management events from the cloud account, which record permission and sharing changes.",
+      "A filter keeps actions that share a snapshot, change a storage policy, or assume a role in another account.",
+      "The platform reads object level events to see how much data was read or copied afterwards.",
+      "It records the identity that performed the action and the account that received the access.",
+      "Each destination account is checked against the list of accounts your organisation uses.",
+      "An alert fires when a first time destination receives access, or when the volume is unusual."
+    ],
+    "example": "Think of an office with a shared filing room. Staff may copy a file to another branch, which is allowed. But imagine an employee copying the entire archive to a branch nobody has ever used. The copy is legal and the file room looks unchanged. The new branch name on the label is the clue.",
+    "takeaways": [
+      "Cloud copies can bypass your network monitoring, so use cloud logs.",
+      "A destination account that has never been used before is a strong warning sign.",
+      "Permissions come before the copy, so watch permission changes closely."
+    ]
+  },
+  "objectives": [
+    "Explain how data can leave through cloud provider interfaces rather than the network.",
+    "Identify the management events that record snapshot sharing and policy changes.",
+    "Describe how to track destination accounts and mark new ones as unusual.",
+    "Correlate a permission change with the object read volume that follows it.",
+    "Explain why backup and migration projects require separate handling."
+  ],
+  "techniqueId": "t1537",
+  "detectsTechniques": [
+    "t1537"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for snapshot modification, bucket policy changes and cross account role assumption",
+    "AWS CloudTrail data events for object level read and write operations with the requesting principal and object size",
+    "Azure activity log entries for shared access signature creation and storage account key operations",
+    "Cloud identity logs showing role assumption by an external account principal identifier",
+    "Cloud provider network flow logs showing large transfers between storage and compute resources inside the provider network"
+  ],
+  "logic": "The pattern is a permission change that exposes data to another account, such as modifying a disk snapshot to be shareable, editing a bucket policy to allow an external principal, or creating a storage access token, followed by bulk reads of the affected objects by that external principal. You must correlate the acting identity, the resource identifier, the destination account, the permission granted and the subsequent data access volume, because a documented backup replication job sharing a snapshot with the company backup account is expected while a developer identity sharing a production snapshot with an unknown account number is not. The malicious case is distinguished by a destination account that has never appeared in your environment, by the change being made interactively rather than by automation, and by the data volume that follows within minutes.",
+  "pseudoQuery": "# title: Snapshot Shared to External Cloud Account\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     eventName:\n#       - ModifySnapshotAttribute\n#       - PutBucketPolicy\n#       - AssumeRole\n#     requestParameters.createVolumePermission.add.items.accountId: '*'\n#   filter_known:\n#     recipientAccountId|contains:\n#       - '111122223333'\n#   condition: selection and not filter_known\n# level: high",
+  "falsePositives": [
+    "A backup product that replicates snapshots to a separate disaster recovery account owned by the same company",
+    "A migration project that temporarily shares storage with a partner or a new landing zone account",
+    "A data analytics team granted cross account read only access to a curated dataset by a documented request",
+    "Centralised log archiving that copies objects into a security account for long term retention"
+  ],
+  "tuningNotes": "Inventory every account number your organisation owns and every partner account that legitimately receives data, then allow list those identifiers explicitly rather than tuning on the action name, and alert on any first time destination. Baseline the identities that normally perform these operations, and require the action to be interactive rather than from a known automation role before raising severity. Allow listing known accounts does mean a shared snapshot to a partner account that has been compromised would not alert, so combine this rule with monitoring of the partner account usage pattern and review the destination list each quarter.",
+  "severity": "high"
+}

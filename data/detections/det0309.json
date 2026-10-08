@@ -1,0 +1,108 @@
+{
+  "id": "det0309",
+  "type": "detection",
+  "title": "Compromised software/update chain (installer/write → first-run/child → egress/signature anomaly)",
+  "shortTitle": "Compromised software/update chain (installer/write → firs...",
+  "externalId": "DET0309",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers compromise of the software update and installation chain, mapped to T1195.002, where an adversary inserts malicious code into a legitimate product, installer or updater so that trusted software delivers it to customers. It matters because the delivery is signed, expected and already approved by users: the installer runs with administrative rights, the update arrives over an approved channel, and no user made a risky decision, which removes most of the behavioural cues defenders rely on. Detection is a chain rather than an event, built from process creation showing an installer or updater writing and launching content, image load and code signing records that reveal a signature or hash that does not match the expected publisher build, and network connection and Domain Name System, or DNS, records showing traffic to new or unusual destinations from the updated process. The main way it fails is baseline drift and volume: installations are constant, so the rule needs the vendor's expected signature, hash and destination profile for every managed product, and any product missing that baseline is effectively unmonitored.",
+  "tags": [
+    "mitre t1195.002",
+    "supply chain",
+    "software update",
+    "code signing",
+    "egress anomaly"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Compromised software/update chain (installer/write → first-run/child → egress/signature anomaly)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0309/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Compromised software/update chain (installer/write → first-run/child → egress/signature anomaly) - EASY",
+      "path": "exercises/det0309/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Compromised software/update chain (installer/write → first-run/child → egress/signature anomaly) - MEDIUM",
+      "path": "exercises/det0309/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Compromised software/update chain (installer/write → first-run/child → egress/signature anomaly) - HARD",
+      "path": "exercises/det0309/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Compromised software/update chain (installer/write → first-run/child → egress/signature anomaly) - EXTREMELY HARD",
+      "path": "exercises/det0309/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Software often updates itself. This rule looks for a rare case. An update or installer carries something extra, such as code that contacts an unknown server. The rule watches the update from the first written file. It then watches the first time the new program talks to the network. A chain of small clues is stronger than one clue.",
+    "whyItMatters": "You trust software you already own, so you give its installer high rights and let its updates through your defences. If the maker's build process is compromised, that trust becomes the attacker's way in. Users did nothing wrong, so user behaviour will not help you detect it. Comparing what actually ran and where it connected against what the vendor normally does is the only reliable way.",
+    "howItWorks": [
+      "The endpoint agent records the installer or updater process, the files it creates and the programs it starts.",
+      "The rule collects the digital signature, the signing certificate and the file hash of the new program.",
+      "It compares that signature and hash with the known good build records kept for that product.",
+      "It watches the new program's first network activity, including the domain names it looks up and the addresses it contacts.",
+      "It flags destinations that are new for that product or that are only days old as domain registrations.",
+      "If the file, the signature and the destination all look wrong, the system raises a high priority alert."
+    ],
+    "example": "Imagine a trusted bakery that delivers bread to your shop every morning. One day the van arrives as usual, but the driver takes a different route and stops at an empty warehouse. The bread may be fine. Even so, the routine changed in two ways at once. A shopkeeper who knows the normal route notices at once.",
+    "takeaways": [
+      "A supply chain compromise beats defences by using software you already trust.",
+      "Watch the whole chain: the installer write, the first run of the new code and the first outbound connection.",
+      "You cannot judge this without a known good profile of signature, hash and destination for each managed product."
+    ]
+  },
+  "objectives": [
+    "Explain how compromising a software update or installer chain differs from ordinary malicious file delivery.",
+    "Identify the process, file, signature and network telemetry that together reveal a compromised update.",
+    "Build a known good baseline of signer, hash and destination for each managed product in the estate.",
+    "Interpret code signing anomalies, including unexpected signers and signatures that do not chain to a trusted issuer.",
+    "Correlate the first execution of an updated binary with the network destinations it contacts.",
+    "Assess which software in your estate has no baseline and is therefore effectively unmonitored."
+  ],
+  "techniqueId": "t1195-002",
+  "detectsTechniques": [
+    "t1195-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing installer, updater and patching processes, with parent image, image path and command line",
+    "Sysmon event 11 file creation for binaries and libraries written by installer or updater processes that are subsequently executed",
+    "Sysmon event 7 image load records and the file signature and hash metadata captured by the endpoint agent for newly written executables and libraries",
+    "Sysmon event 22 DNS query records and Sysmon event 3 network connection records from a recently updated process, including the queried domain and destination address",
+    "Proxy or secure web gateway logs recording the destination domain, request size and user agent of update traffic outbound from managed hosts"
+  ],
+  "logic": "The pattern is a short sequence on one host: an installer or updater process writes or replaces executables or libraries, those files are then launched, the launcher or the written file presents a code signing or hash value that does not match the expected publisher build for that product, and the new process makes its first outbound connection to a destination that the product has never used before. The fields that must be correlated are the installing process and its command line, the written file path and hash, the signer and signature validity, the child process that results, the queried domain and the connection destination. Correlating all four stages is what makes the detection credible, because any one of them alone is common: installers write files, programs run, and software contacts the internet. The benign case is a genuine vendor update, where the signer matches the vendor certificate, the hash matches the release metadata, and the destinations resolve to the vendor's own published infrastructure in the usual regions. The malicious case often shows a valid but unexpected signer, such as a certificate issued to a downstream build partner, a destination domain registered very recently, a signed binary that loads an unsigned library, or update traffic that contacts an address with no relationship to the vendor at all.",
+  "pseudoQuery": "# title: Updated Binary First Run with Signer Mismatch and New Egress Destination\n# logsource:\n#   product: windows\n# detection:\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.exe'\n#       - '.dll'\n#   selection_run:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\\\msiexec.exe'\n#       - '\\\\setup.exe'\n#   selection_egress:\n#     EventID: 22\n#     QueryName|endswith: '.top'\n#   filter_vendor:\n#     SignatureStatus: 'Valid'\n#   condition: selection_write and selection_run and selection_egress and not filter_vendor\n# level: critical",
+  "falsePositives": [
+    "A legitimate vendor update that changes its content delivery network provider, producing a new destination domain for a few days",
+    "Third party software that bundles an installer which writes helper components from a subcontractor with a different code signing certificate",
+    "Automatic update frameworks that download from a region specific mirror during a network or routing change",
+    "A rebranded or repackaged enterprise build of a product that is signed by the reseller rather than the original vendor",
+    "First run telemetry and licensing checks that contact a vendor service the product only reaches once after installation"
+  ],
+  "tuningNotes": "Maintain a baseline per managed product that lists the expected signer certificate, the approved hashes, the normal parent installers and the vendor's published destination domains and address ranges, and refresh it whenever a product is updated through the approved process. Filter on the combination of a known vendor signer with a known destination, rather than filtering installers wholesale, so that an unexpected signer on a trusted product still alerts. Raise severity when a newly written binary runs as a child of an installer and contacts a destination with no historical relationship to that product, and add a domain age check so that recently registered domains carry more weight. Narrowing to managed products loses coverage of unmanaged or shadow software, so report regularly on hosts running software that is not in the baseline, and treat those as the first places to extend coverage.",
+  "severity": "critical"
+}

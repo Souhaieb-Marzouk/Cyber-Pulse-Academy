@@ -1,0 +1,107 @@
+{
+  "id": "det0359",
+  "type": "detection",
+  "title": "Multi-hop Proxy Behavior via Relay Node Chaining, Onion Routing, and Network Tunneling",
+  "shortTitle": "Multi-hop Proxy Behavior via Relay Node Chaining, Onion R...",
+  "externalId": "DET0359",
+  "theme": "Detection Strategy",
+  "summary": "This strategy targets T1090.003, multi-hop proxy use through relay chaining, onion routing and network tunnelling such as Tor, Shadowsocks, WireGuard over a non-standard port or a chain of compromised hosts. The purpose is to hide the true origin of command and control, so the observable signal is rarely a single event: it is a host making long-lived encrypted connections to an unusual port, followed by traffic that leaves through a second host or a public relay network, and often a proxy-aware client setting or a bundled proxy module on disk. Useful telemetry includes firewall and proxy session records, Zeek or NetFlow connection summaries with byte counts and durations, Sysmon network and DNS events, and proxy configuration values on the host. It fails when the environment only inspects web traffic on the standard secure port, because tunnelled and chained traffic on other ports never reaches the inspection device at all.",
+  "tags": [
+    "network",
+    "command and control",
+    "proxy",
+    "tunneling",
+    "netflow",
+    "egress"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-hop Proxy Behavior via Relay Node Chaining, Onion Routing, and Network Tunneling",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0359/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-hop Proxy Behavior via Relay Node Chaining, Onion Routing, and Network Tunneling - EASY",
+      "path": "exercises/det0359/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-hop Proxy Behavior via Relay Node Chaining, Onion Routing, and Network Tunneling - MEDIUM",
+      "path": "exercises/det0359/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-hop Proxy Behavior via Relay Node Chaining, Onion Routing, and Network Tunneling - HARD",
+      "path": "exercises/det0359/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-hop Proxy Behavior via Relay Node Chaining, Onion Routing, and Network Tunneling - EXTREMELY HARD",
+      "path": "exercises/det0359/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for traffic that is sent through several other computers to hide where it really came from. This is called a multi-hop proxy or a chain. The traffic may also pass through a public relay network such as Tor.",
+    "whyItMatters": "Hiding the origin lets an intruder keep control of a machine after it is found. Blocking one address does not help, because the chain has many others. It also makes it hard to tell which company network the attacker is really in.",
+    "howItWorks": [
+      "The firewall and proxy record each connection with its addresses, port, duration and byte count.",
+      "Flow records summarise long sessions that carry steady traffic in both directions.",
+      "A rule looks for repeated long sessions to unusual ports on public addresses.",
+      "It checks the host for proxy settings or a bundled proxy program in a temporary folder.",
+      "When a long encrypted session, an unusual port and proxy tooling appear together, the rule alerts."
+    ],
+    "example": "Think of a letter passed through several post offices in different towns before it reaches you. The envelope on your doorstep shows only the last office. You cannot tell where the letter was really written.",
+    "takeaways": [
+      "Chained or tunnelled traffic often looks like ordinary encrypted sessions until you study its shape.",
+      "Long duration and steady byte counts on unusual ports matter more than the address itself.",
+      "Blocking a relay address is temporary; finding the host that starts the chain is what counts."
+    ]
+  },
+  "objectives": [
+    "Explain how relay chaining and onion routing conceal the true source of traffic",
+    "Describe the flow level features that separate tunnelled traffic from ordinary encrypted sessions",
+    "Correlate long-lived outbound sessions with host proxy configuration and proxy tooling on disk",
+    "Explain why encrypted traffic on unusual ports challenges web inspection appliances",
+    "Define an escalation path from a flow alert to host based triage",
+    "Recognise the trade-off between blocking relay networks and losing remote access for staff"
+  ],
+  "techniqueId": "t1090-003",
+  "detectsTechniques": [
+    "t1090-003"
+  ],
+  "dataSources": [
+    "Firewall or proxy session logs containing source and destination address, destination port, session duration and transferred bytes",
+    "Zeek or NetFlow connection summaries with connection state, byte counters and duration for internal to external flows",
+    "Sysmon event 3 network connection records with owning process and destination port",
+    "Sysmon event 22 DNS query records for known relay bootstrap or exit node directory hostnames",
+    "Endpoint registry or file system inventory showing SOCKS proxy settings and proxy client binaries outside approved paths"
+  ],
+  "logic": "The detection scores outbound sessions on shape rather than reputation. Analysts group connection records by internal host and look for repeated sessions to external addresses on unusual ports that last far longer than the host baseline, carry comparable bytes in both directions, and recur on a regular interval. They then correlate those flows with host evidence: a proxy setting in the browser or system configuration, a proxy client binary in a temporary or user profile path, or a DNS query for a relay network directory. The benign case is an approved virtual private network client, a video conference or a software update channel that behaves consistently every day from every similar host; the malicious case is one or two hosts with long tunnelled sessions to rotating external addresses that no business application owns, especially when the same host also shows discovery or credential access activity.",
+  "pseudoQuery": "# title: Long lived outbound tunnel on unusual port\n# logsource:\n#   product: network\n#   service: firewall\n# detection:\n#   selection_flow:\n#     direction: outbound\n#     duration: '> 1800'\n#     bytes_out: '> 1000000'\n#     destination_port|not_in:\n#       - 443\n#       - 80\n#   filter_approved:\n#     destination_ip|contains: 'approved relay and vpn ranges'\n#   condition: selection_flow and not filter_approved\n# level: medium",
+  "falsePositives": [
+    "Approved virtual private network and secure shell clients that maintain long sessions to company gateways",
+    "Remote support and video conferencing tools that keep persistent encrypted channels open all day",
+    "Software update services and container registries that stream large downloads from cloud addresses",
+    "Backup or replication traffic between sites that runs on custom ports with matching byte counts"
+  ],
+  "tuningNotes": "Baseline the top outbound flows by host role and exclude the destinations that own them, because tunnelled traffic hides in whatever ports are already allowed. Restrict the rule to ports that no approved application uses, and require at least two of the three traits: long duration, unusual port and a proxy artifact on disk. Add a filter for business travel periods when staff legitimately use personal proxy tools. The coverage you lose by filtering on ports is tunnelling over the standard secure web port, so pair this rule with periodic inspection of secure socket layer certificates and server name indications for relay concentrations and with host level proxy artifact scans.",
+  "severity": "high"
+}

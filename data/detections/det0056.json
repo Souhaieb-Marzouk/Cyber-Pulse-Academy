@@ -1,0 +1,107 @@
+{
+  "id": "det0056",
+  "type": "detection",
+  "title": "Detection Strategy for Subvert Trust Controls via Install Root Certificate.",
+  "shortTitle": "Detection Strategy for Subvert Trust Controls via Install...",
+  "externalId": "DET0056",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1553.004, Install Root Certificate, where an adversary adds a certificate to the trusted root store so that traffic signed by their own authority is accepted by the host, which enables interception, spoofed internal services, and code signing that the platform will trust. It matters because trust store changes weaken every later protection that depends on certificates, including transport security, driver and application trust, and internal service authentication. The telemetry that reveals it is configuration level: the output of the certificate utility in process creation records, image loads of the certificate library inside the utility process, and registry writes to the certificate store keys under the local machine hive. The main failure is that enterprise provisioning, inspection appliances, and internal public key infrastructure deploy root certificates by design, so the rule is only useful when it can tell an approved deployment path from an interactive user or an unusual parent process.",
+  "tags": [
+    "mitre t1553.004",
+    "defense evasion",
+    "certificates",
+    "registry",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Subvert Trust Controls via Install Root Certificate.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0056/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Subvert Trust Controls via Install Root Certificate. - EASY",
+      "path": "exercises/det0056/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Subvert Trust Controls via Install Root Certificate. - MEDIUM",
+      "path": "exercises/det0056/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Subvert Trust Controls via Install Root Certificate. - HARD",
+      "path": "exercises/det0056/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Subvert Trust Controls via Install Root Certificate. - EXTREMELY HARD",
+      "path": "exercises/det0056/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new trusted certificates added to a computer. A trusted certificate tells the system that certain traffic or software is genuine. Attackers add their own so the system trusts things it should not. This rule watches the certificate tools and the certificate store.",
+    "whyItMatters": "Trust is the base of most protection on a computer. A false trust anchor can make harmful traffic look safe. It can also let harmful software look properly signed. Removing the anchor later is easy, but the damage during that window is not. Enterprises do install their own certificates, so the approval path is what decides if a change is normal.",
+    "howItWorks": [
+      "The agent records process creation, including the command line and the parent program.",
+      "The rule looks for certificate utility commands that add a file to the trusted root store.",
+      "It also watches the registry keys where the root store keeps its certificates.",
+      "It links the new store entry with the file the command referenced.",
+      "Approved deployment paths, service accounts, and signed management agents are filtered out.",
+      "An interactive user account adding a root certificate from a temporary folder raises the alert."
+    ],
+    "example": "Think of a building where the doorman accepts any parcel with the company stamp. A person who copies the stamp can bring in anything and the doorman will smile. Installing a root certificate is copying the stamp. The doorman is the operating system. Once the stamp exists, every parcel with that mark passes. Finding the copy is far easier than inspecting every parcel later.",
+    "takeaways": [
+      "A false root certificate breaks trust for many protections at once, so treat it as a high impact change.",
+      "The certificate utility is the main evidence, together with the registry keys that store the trusted roots.",
+      "Enterprises deploy roots on purpose, so the approval path and the parent process decide whether a change is normal."
+    ]
+  },
+  "objectives": [
+    "Explain what the trusted root certificate store is and why an attacker would add an entry to it.",
+    "Identify the process creation, image load, and registry telemetry that records a root store change.",
+    "Describe how to distinguish approved certificate deployment from unauthorised installation.",
+    "Write a pseudo rule that flags a root store addition outside the management agent path.",
+    "Explain how a rogue root enables interception of encrypted traffic.",
+    "Recommend a response that removes the certificate and protects affected credentials."
+  ],
+  "techniqueId": "t1553-004",
+  "detectsTechniques": [
+    "t1553-004"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including command line for the certificate utility with an add store argument",
+    "Sysmon event 13 registry value set for the trusted root certificate store keys under the local machine hive",
+    "Sysmon event 7 image load events showing the certificate library loaded into the utility process",
+    "Windows Security event 4688 process creation with command line auditing for command interpreters that install certificates",
+    "Windows Security event 4657 registry value modification auditing for the certificate store keys"
+  ],
+  "logic": "The rule links the tool that added a certificate with the store entry it created. It joins process creation records for the certificate utility carrying an add store argument with image load events for the certificate library inside that same process, and with registry value set events under the trusted root store keys, using the thumbprint or the subject recorded in the command output. The malicious case is an interactive user account, a scripting host, or an office application parent adding a root certificate that came from a temporary folder, a download folder, or a network share, especially when the issuing authority is unfamiliar and appears at the same time as new outbound connections. The benign case is the internal public key infrastructure deployment through a signed management agent, an inspection appliance pushing its root by policy, or helpdesk staff installing a certificate during a documented call. The parent process, the account type, the certificate source path, and the issuing authority are the fields that separate them.",
+  "pseudoQuery": "# title: Trusted Root Certificate Added Outside Management Agent\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains: certutil -addstore, -addstore root, Import-Certificate\n#   root:\n#     CommandLine|contains: Root, TrustedPublisher\n#   filter:\n#     ParentImage|endswith: \\CCMExec.exe, \\MicrosoftIntuneManagementExtension.exe\n#   condition: selection and root and not filter\n# level: high",
+  "falsePositives": [
+    "Internal public key infrastructure or inspection appliance roots deployed by the approved management agent",
+    "Helpdesk engineers installing a public root certificate with a documented ticket to fix a browser trust error",
+    "Developer and lab machines where a test authority certificate is added and removed inside a change window",
+    "Virtual private network and wireless clients that install their vendor root on first connection"
+  ],
+  "tuningNotes": "Inventory the trusted root store on a representative sample of hosts and allowlist the issuing authorities and thumbprints that come from the approved management channel, not just the tool name. Escalate only when the parent process is not the management agent or the certificate source path is user writable. Keep a separate high severity rule for any root certificate added to a domain controller or to a certificate services host, where the impact is much wider. The coverage you give up is a management agent abused to push a hostile root, so verify the integrity of the agent and review root store diffs monthly across the estate.",
+  "severity": "high"
+}

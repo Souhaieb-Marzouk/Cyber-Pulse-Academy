@@ -1,0 +1,106 @@
+{
+  "id": "det0496",
+  "type": "detection",
+  "title": "Behavior-Chain Detection for Remote Access Tools (Tool-Agnostic)",
+  "shortTitle": "Behavior-Chain Detection for Remote Access Tools (Tool-Ag...",
+  "externalId": "DET0496",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects remote access tools by behaviour rather than by file name, because remote monitoring and management software is legitimate, widely used by support teams and renamed with almost every release. The chain begins with an unusual installer or a portable executable arriving in a user writable path, continues with a service or scheduled task created for persistence, and ends with a stable outbound connection to a small set of external addresses. Telemetry comes from process creation with parent image and command line, service and scheduled task creation records, file creation events and network connection events with destination reputation. It fails in practice because help desk staff deploy approved tools constantly, so the rule must compare the installer source and the requesting user against the change record.",
+  "tags": [
+    "remote access",
+    "rmm tool",
+    "behaviour chain",
+    "persistence",
+    "network connection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-Chain Detection for Remote Access Tools (Tool-Agnostic)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0496/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-Chain Detection for Remote Access Tools (Tool-Agnostic) - EASY",
+      "path": "exercises/det0496/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-Chain Detection for Remote Access Tools (Tool-Agnostic) - MEDIUM",
+      "path": "exercises/det0496/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-Chain Detection for Remote Access Tools (Tool-Agnostic) - HARD",
+      "path": "exercises/det0496/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-Chain Detection for Remote Access Tools (Tool-Agnostic) - EXTREMELY HARD",
+      "path": "exercises/det0496/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A remote access tool lets one person control another computer over the network. Many of these tools are legal and are used every day by support teams. This detection looks for the behaviour of such a tool, not for its name. It catches an unknown tool that is installed quietly and then keeps a connection open.",
+    "whyItMatters": "Attackers rarely write their own remote control software. They download a free tool and use it, because it is signed and rarely blocked. The very same tool may sit on your approved list for support staff. Blocking by file name fails, because one update changes the name. You need to look at what the tool does once it is on the host.",
+    "howItWorks": [
+      "The endpoint agent records each new process, with its parent and its full command line.",
+      "It records service creation, scheduled task creation and new outbound network connections.",
+      "The rule links these events to one host inside a short time window.",
+      "A portable tool that starts, persists and then talks to one external address forms a chain.",
+      "The destination address is checked against threat intelligence and against your allow list.",
+      "An unknown chain raises an alert that names the user and the file path."
+    ],
+    "example": "Think of a hospital sign in sheet. A visitor writes a name, and the receptionist hands over a badge. Anyone can write a false name, so the sheet alone proves very little. What matters is that the visitor then walks to the pharmacy, stays for hours and leaves with a box. This detection watches the whole visit, not just the name on the sheet.",
+    "takeaways": [
+      "Detect remote access tools by their behaviour chain, not by their file names.",
+      "Compare the installer source and the requesting user with the change record.",
+      "One clean external address is not proof, so always check the whole chain."
+    ]
+  },
+  "objectives": [
+    "Explain why name based detection fails for remote access tools.",
+    "List the process, persistence and network events that make up the chain.",
+    "Correlate events from one host inside a defined time window.",
+    "Distinguish an approved support tool from an unapproved installation.",
+    "Write a pseudo-rule with a filter for the approved support tool path."
+  ],
+  "techniqueId": "t1219",
+  "detectsTechniques": [
+    "t1219"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, original file name and full command line",
+    "Windows Security event 4697 recording installation of a service, with service name and image path",
+    "Sysmon event 11 file creation in user profile and temporary directories",
+    "Sysmon event 3 network connection with destination address, port and owning process image",
+    "Scheduled task creation records from the Windows task scheduler operational log"
+  ],
+  "logic": "The pattern is a short behavioural chain on a single host: a portable executable or installer runs from a user writable path, creates a service or a scheduled task for persistence, and then the host makes repeated outbound connections to a small set of external addresses. Analysts correlate the process identifier and the image path across process creation, persistence and network connection records inside a thirty minute window. Approved support tools show an installation source on a management share, a signed publisher, a change ticket and an internal relay address. Unapproved use shows a download from web mail or a file sharing domain, an unsigned or renamed binary, and a direct connection to a hosting provider address.",
+  "pseudoQuery": "# title: Portable Remote Access Tool Installed From User Writable Path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_process:\n#     EventID: 1\n#     Image|contains:\n#       - '\\Users\\'\n#       - '\\ProgramData\\'\n#   selection_persist:\n#     EventID: 11\n#   selection_net:\n#     EventID: 3\n#     Initiated: 'true'\n#   filter_approved:\n#     Image|contains: '\\Program Files\\ApprovedSupport\\'\n#   condition: selection_process and selection_persist and selection_net and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Approved remote support tool installed by the help desk outside the change window during a major incident",
+    "Developer installing a screen sharing utility to demonstrate a problem to a colleague",
+    "Software packaging tool that drops an agent into the user profile before moving it to Program Files",
+    "Application streaming client that caches a remote desktop module under the user profile"
+  ],
+  "tuningNotes": "Baseline the remote access tools your organisation owns, then allow list their signed publishers and installation source paths instead of their file names. Scope the rule to servers and endpoints that hold sensitive data, and exclude build and lab networks where temporary remote tools are common. Require the network connection stage before alerting, because a lone installer generates too many benign hits. This raises fidelity, but you lose coverage of tools that never make an outbound connection from the host, for example tools used only across an internal jump host.",
+  "severity": "high"
+}

@@ -1,0 +1,109 @@
+{
+  "id": "det0516",
+  "type": "detection",
+  "title": "Behavioral Detection of Command and Scripting Interpreter Abuse",
+  "shortTitle": "Behavioral Detection of Command and Scripting Interpreter...",
+  "externalId": "DET0516",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers abuse of command and scripting interpreters, the technique tracked as T1059 with its sub techniques for shells, PowerShell, JavaScript, Python and the Unix shell. Interpreters are already installed, already signed and already allowed by application control, so an attacker who reaches one turns a text string into execution without bringing a single tool of their own. The telemetry that makes it visible is process creation with command line arguments, interpreter script block and module logging, parent child relationships that show a document or web server spawning a shell, and network creation events from an interpreter process. The strategy fails because interpreters run constantly in legitimate administration and automation, so a rule that alerts on PowerShell or bash alone is useless and the useful detection comes from argument shape, parent context and the novelty of the combination.",
+  "tags": [
+    "scripting",
+    "t1059",
+    "execution",
+    "powershell",
+    "command line",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Command and Scripting Interpreter Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0516/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Command and Scripting Interpreter Abuse - EASY",
+      "path": "exercises/det0516/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Command and Scripting Interpreter Abuse - MEDIUM",
+      "path": "exercises/det0516/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Command and Scripting Interpreter Abuse - HARD",
+      "path": "exercises/det0516/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Command and Scripting Interpreter Abuse - EXTREMELY HARD",
+      "path": "exercises/det0516/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks at the built in command tools that every computer already has. On Windows the main one is PowerShell, and on Linux it is the shell called bash. Attackers use these tools because they are trusted and already installed. The rule does not block them. It looks at how they are called, by whom, and what their parent program was.",
+    "whyItMatters": "Almost every intrusion uses a command tool at some point, so coverage here catches many different attacks. The tools themselves are legitimate. The alert therefore has to come from context rather than from the program name. Getting this wrong in either direction is costly. Too broad and nobody reads the alerts, too narrow and the attack passes unseen.",
+    "howItWorks": [
+      "The agent records every process start, with the program name, the full arguments and the parent program.",
+      "The rule spots calls to an interpreter, such as a shell, PowerShell or a scripting host.",
+      "It looks at the arguments for encoded content, hidden windows or download and execute patterns.",
+      "It then checks the parent: office documents, web servers and database engines are unusual parents for a shell.",
+      "Interpreter logging adds the actual script text, which helps confirm what the arguments were doing.",
+      "A suspicious argument plus an unusual parent, or a network connection right after, raises the alert."
+    ],
+    "example": "Think of a hospital sign in sheet at the staff entrance. Every nurse, cleaner and doctor signs the same sheet, so the sheet itself proves nothing. What matters is who signed, at what time, and whether the signature looks copied. This rule reads the sheet the same way, looking at the pattern and not at the pen.",
+    "takeaways": [
+      "Interpreters are trusted tools, so detection must use arguments, parents and timing.",
+      "An encoded argument hides the real command from a human reader and deserves attention.",
+      "A shell started by a document or a web server is unusual on almost every network."
+    ]
+  },
+  "objectives": [
+    "List the command and scripting interpreters present on Windows, Linux and macOS hosts.",
+    "Read process creation telemetry to separate an interactive human shell from an automated one.",
+    "Recognise argument patterns such as encoded commands, hidden windows and remote download and execute.",
+    "Identify parent processes that should never start a shell in your environment.",
+    "Use interpreter script logging to reconstruct what a suspicious command line actually ran.",
+    "Tune the rule with an allow list of approved automation accounts and scheduled tasks."
+  ],
+  "techniqueId": "t1059",
+  "detectsTechniques": [
+    "t1059"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including Image, ParentImage, CommandLine and User",
+    "PowerShell script block logging and module logging records with the decoded script text",
+    "Sysmon event 3 network connection showing a scripting interpreter opening an outbound session",
+    "Linux auditd execve records with the full argument list for shell and interpreter execution"
+  ],
+  "logic": "The pattern is an interpreter process whose arguments show concealment or remote retrieval, or whose parent process has no legitimate reason to start a shell, in a context where that combination is rare for the host. The fields that must be correlated are the image path of the interpreter, the full command line, the parent image and the user or logon identifier, together with any network connection created by the same process soon after it started. The malicious case usually shows base64 encoded arguments, execution policy bypass flags, hidden window options, a working directory in a temporary folder, or a parent such as a spreadsheet application, a web server or a database engine. The benign case is a configuration management agent, a backup tool or a monitoring product that runs the same interpreter segment on a schedule from a service account, with arguments that match a documented job.",
+  "pseudoQuery": "# title: Interpreter With Encoded Arguments or Unusual Parent\n# logsource:\n#   product: windows\n# detection:\n#   selection_interp:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\powershell.exe'\n#       - '\\cmd.exe'\n#       - '\\wscript.exe'\n#       - '\\bash'\n#   selection_susp:\n#     CommandLine|contains:\n#       - ' -enc '\n#       - 'FromBase64String'\n#       - ' -w hidden'\n#       - 'ExecutionPolicy Bypass'\n#   filter_mgmt:\n#     ParentImage|endswith:\n#       - '\\ConfigMgrAgent.exe'\n#   condition: selection_interp and selection_susp and not filter_mgmt\n# level: high",
+  "falsePositives": [
+    "Configuration management and patching platforms that run encoded command blocks on a fixed schedule from a service account",
+    "Software installers and uninstallers that call a shell wrapper to complete a step during a deployment window",
+    "Monitoring and inventory agents that collect data with short scripts and write the output to a management server",
+    "Administrators who use an interactive scripting session to troubleshoot a reported problem with a change ticket",
+    "Build and continuous integration jobs that run shell steps inside an approved pipeline on a build server"
+  ],
+  "tuningNotes": "Treat the argument pattern as the primary selector and the parent process as the scoring signal rather than requiring both, then allow list the exact command line fragments used by your configuration management and backup platforms. Scope interactive shell alerting to user workstations and keep servers on a separate lower priority rule, because servers run legitimate automation all day. Baseline the interpreters, their parents and their argument shapes per host role for a month. The coverage you lose is a plain unencoded command run from an unusual parent, which looks like ordinary administration, and any interpreter you excluded from the selector.",
+  "severity": "high"
+}

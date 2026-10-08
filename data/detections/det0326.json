@@ -1,0 +1,107 @@
+{
+  "id": "det0326",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1132.002 Data Encoding: Non-Standard Encoding across Windows, Linux, macOS, ESXi",
+  "shortTitle": "Behavior-chain detection for T1132.002 Data Encoding: Non...",
+  "externalId": "DET0326",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects non-standard data encoding (T1132.002), where an adversary transforms command output, staged files or command and control payloads with a custom or uncommon encoding rather than a plain well-known one such as base64. Because the technique spans Windows, Linux, macOS and ESXi, the detection is a behaviour chain: it looks for encoding or decoding utilities invoked with piped input, then for the encoded output leaving the host or being written to disk. Useful telemetry includes process creation with full command lines, script block logging, file integrity monitoring and proxy request bodies. It fails most often because legitimate administration, packaging and automation also encode data, so the rule must weight direction, volume and rarity of the encoder rather than the mere presence of the tool.",
+  "tags": [
+    "mitre t1132.002",
+    "data encoding",
+    "command line",
+    "file integrity",
+    "cross platform"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1132.002 Data Encoding: Non-Standard Encoding across Windows, Linux, macOS, ESXi",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0326/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1132.002 Data Encoding: Non-Standard Encoding across Windows, Linux, macOS, ESXi - EASY",
+      "path": "exercises/det0326/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1132.002 Data Encoding: Non-Standard Encoding across Windows, Linux, macOS, ESXi - MEDIUM",
+      "path": "exercises/det0326/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1132.002 Data Encoding: Non-Standard Encoding across Windows, Linux, macOS, ESXi - HARD",
+      "path": "exercises/det0326/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1132.002 Data Encoding: Non-Standard Encoding across Windows, Linux, macOS, ESXi - EXTREMELY HARD",
+      "path": "exercises/det0326/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that scramble data into a secret format. Scrambling here means changing text so it no longer looks like normal words. Attackers do this so security tools cannot read their commands or stolen files.",
+    "whyItMatters": "Scrambled data hides what is really happening on a computer. You cannot read a command that has been changed into a strange alphabet. This detection does not need to read the data, because it watches the tool that does the scrambling. That gives you a chance to react before data leaves.",
+    "howItWorks": [
+      "The computer records every program that starts, together with the full command line used to start it.",
+      "The detection looks for encoding tools such as certutil, base64 or openssl used in a pipe or with a redirect.",
+      "It checks whether the input or output is a sensitive path, a temporary folder or a network connection.",
+      "It measures the size of the encoded data, because stolen files change the pattern a great deal.",
+      "A second event is required, such as a file written or an outbound connection, before an alert is raised.",
+      "Matching events from one host inside a short window are combined into a single alert for the analyst."
+    ],
+    "example": "Imagine a hospital sign-in sheet written in a made-up alphabet. The receptionist cannot read the names, but she notices that somebody used a special stamp that only one department owns. The stamp tells her which desk to call, even though the writing stays unreadable.",
+    "takeaways": [
+      "You can detect scrambled data by watching the tool, not the content.",
+      "Encoding alone is normal, so pair it with a second event such as a write or a network connection.",
+      "Volume matters: large encoded output suggests a file, not a simple command."
+    ]
+  },
+  "objectives": [
+    "Describe what non-standard encoding means and how it differs from common base64 use",
+    "List the process, script and file telemetry needed to see encoding behaviour across operating systems",
+    "Build a two-event chain that requires encoded output to be written or transmitted",
+    "Recognise the benign automation that produces the same encoding pattern",
+    "Explain why content inspection is not required for this detection to work"
+  ],
+  "techniqueId": "t1132-002",
+  "detectsTechniques": [
+    "t1132-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "Linux auditd execve records with arguments and the user identifier",
+    "Sysmon event 11 file create events for temporary and staging directories",
+    "Forward proxy request metadata including request body size and destination host"
+  ],
+  "logic": "The detection chain starts with process creation for an encoding or decoding utility invoked with piped, redirected or inlined data, and only alerts when a second event from the same host confirms the encoded result was either written to disk in a staging path or sent to an external destination. The fields that must be correlated are the host, the user or parent process, the tool path, the input and output arguments, and the size of what was produced. The benign case is a scheduled script that encodes a known configuration file to a fixed internal destination under a service account; the malicious case shows an interactive user or a shell spawned by an office or web server process, an unusual encoder, and encoded output flowing to a public address or a temporary folder shortly before exfiltration.",
+  "pseudoQuery": "# title: Encoding Utility Producing Staged or Transmitted Data\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: ['\\\\certutil.exe', '\\\\base64.exe', '\\\\openssl.exe', '\\\\certutil']\n#     CommandLine|contains: ['-encode', '--base64', 'b64encode', '-enc']\n#   filter_admin:\n#     ParentImage|endswith: ['\\\\taskeng.exe', '\\\\services.exe']\n#   condition: selection and not filter_admin | timeframe 5m | group by ComputerName | count() >= 2\n# level: medium",
+  "falsePositives": [
+    "Configuration management agents that encode certificate bundles before uploading them to an internal repository",
+    "Build pipelines running in containers that base64 encode artefacts as part of normal packaging steps",
+    "Administrators transferring binary files between hosts using an encoding utility over a terminal session",
+    "Mail gateway or log shipping scripts that encode attachments and reports before sending them to a central collector",
+    "Backup software that encodes metadata blobs into a database or object store on a nightly schedule"
+  ],
+  "tuningNotes": "First baseline which encoding utilities exist on each operating system family and who normally runs them, then filter the known-good pairs of parent process and destination that your own automation uses. Require the second event before alerting, which alone removes most noise from interactive administrators and keeps coverage of genuine staging. Scope the rule to server subnets and to hosts that hold regulated data, where encoded output leaving the host is meaningful. Narrowing this way loses visibility into encoding performed by an attacker on ordinary user laptops and into encoders you never baselined, so keep a low-severity variant of the rule running across the whole fleet for hunting.",
+  "severity": "medium"
+}

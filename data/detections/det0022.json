@@ -1,0 +1,106 @@
+{
+  "id": "det0022",
+  "type": "detection",
+  "title": "Detect Forced SMB/WebDAV Authentication via lure files and outbound NTLM",
+  "shortTitle": "Detect Forced SMB/WebDAV Authentication via lure files an...",
+  "externalId": "DET0022",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects forced authentication, mapped to ATT&CK technique T1187, where an adversary places a file in a location the victim browses so that merely viewing the folder makes the operating system authenticate outward, sending the user NTLM response to a server the attacker controls. The stolen material is then cracked offline or relayed to another service. Detection has two halves that must be joined: a file write creating a lure, typically a shell link, shortcut or search connector file whose target points at a remote universal naming convention or WebDAV path, and the authentication telemetry that follows, showing an outbound SMB or WebDAV session or an NTLM logon to an address that is not a known file server. The correlating fields are the host, the user, the destination address and the short interval between the file appearing and the logon attempt. The strategy fails mainly because legitimate shortcut files point at remote shares all the time, so the rule needs an inventory of approved file servers and a focus on destinations outside the normal server population.",
+  "tags": [
+    "mitre t1187",
+    "forced authentication",
+    "credential access",
+    "windows",
+    "ntlm",
+    "smb"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Forced SMB/WebDAV Authentication via lure files and outbound NTLM",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0022/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Forced SMB/WebDAV Authentication via lure files and outbound NTLM - EASY",
+      "path": "exercises/det0022/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Forced SMB/WebDAV Authentication via lure files and outbound NTLM - MEDIUM",
+      "path": "exercises/det0022/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Forced SMB/WebDAV Authentication via lure files and outbound NTLM - HARD",
+      "path": "exercises/det0022/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Forced SMB/WebDAV Authentication via lure files and outbound NTLM - EXTREMELY HARD",
+      "path": "exercises/det0022/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A lure file is a harmless looking file, such as a shortcut, that points at another computer. When you open the folder and view it, your computer tries to log in to that other machine. This detection watches for such files and the login they cause. It catches a trick that steals a password hash instead of a password.",
+    "whyItMatters": "You do not need to open the file or click anything. Just viewing the folder is enough to send your login material. The stolen value is not your password but a hash, a scrambled form of it. An attacker can crack it later or use it to reach other systems. This makes a simple file share a path to a much larger compromise.",
+    "howItWorks": [
+      "The sensor records files created on disk, including their names, paths and, where possible, their contents.",
+      "The rule looks for shortcut and link file types commonly used as lures in shared or user writable folders.",
+      "It reads the target address inside the file and checks whether that address is outside your approved file servers.",
+      "Separately it collects authentication events that show a session or logon going out to a remote address.",
+      "Both events are joined by host and user inside a short window. A lure file with no follow up login is only a lead.",
+      "The resulting alert names the file, the account and the remote address so the analyst can block the destination."
+    ],
+    "example": "Think of a sign that offers free coffee in room 12. Room 12 is in another building you do not control. To get in, the receptionist hands over your company badge details. You never drank the coffee. Forced authentication detection is the door log that shows your badge details going to a building you do not own.",
+    "takeaways": [
+      "The trigger is viewing a folder, not opening or running a file.",
+      "What leaves the host is a hash, which an attacker can crack or relay.",
+      "Compare the destination against your approved file servers before you alert."
+    ]
+  },
+  "objectives": [
+    "Explain how a shortcut or connector file can trigger outbound authentication",
+    "Identify lure file types and the file creation telemetry that reveals them",
+    "Read outbound SMB and WebDAV session or logon events and pick out unusual destinations",
+    "Correlate a lure file write with the authentication attempt that follows it",
+    "Maintain an approved file server inventory used to judge destination addresses"
+  ],
+  "techniqueId": "t1187",
+  "detectsTechniques": [
+    "t1187"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create events for shortcut, library and search connector file types in shared directories",
+    "Windows Security event 4624 network logon records with source workstation and target address fields",
+    "Windows Security event 4648 logon attempts using explicit credentials including the target server name",
+    "Network flow or proxy logs recording outbound SMB and WebDAV sessions from workstation subnets"
+  ],
+  "logic": "The detection joins a file write with an authentication attempt. The first half is a file with a shortcut, library or search connector extension, written into a shared, temporary or user writable directory, whose embedded target resolves to a remote host name or address rather than a local path or an approved file server. The second half is a network logon or explicit credential logon, or an outbound file sharing session, from the same host and user to that same remote address within roughly the following ten minutes. Approved file servers and content delivery addresses are excluded by inventory. The benign case is a published shortcut to a legitimate departmental share, which points at an allow listed server and appears once during deployment. The malicious case points at a workstation, a public address or an unexpected port, and is followed by authentication traffic that your file server inventory cannot explain.",
+  "pseudoQuery": "# title: Shortcut Lure File Followed by Outbound Authentication\n# logsource:\n#   product: windows\n# detection:\n#   selection_lure:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.lnk'\n#       - '.scf'\n#       - '.searchConnector-ms'\n#     TargetFilename|contains:\n#       - '\\\\Public\\\\'\n#       - '\\\\Users\\\\Public\\\\'\n#   selection_auth:\n#     EventID: 4624\n#     LogonType: 3\n#   filter_fileservers:\n#     WorkstationName|endswith: '.corp.local'\n#   condition: selection_lure and selection_auth and not filter_fileservers\n# level: high",
+  "falsePositives": [
+    "Departmental shortcut files published to a public folder that point at an approved but not yet inventoried file server",
+    "Remote access portals that place a connection shortcut in a user profile which authenticates to a gateway address",
+    "Document management clients that write library definition files pointing at a hosted collaboration endpoint",
+    "Software deployment shares that distribute shortcuts to internal file servers during a migration project"
+  ],
+  "tuningNotes": "Build and maintain the approved file server list first, because it removes the bulk of legitimate shortcut authentication. Then restrict the lure file half of the rule to folders that are broadly accessible, such as public and temporary paths, and add a filter for shortcuts signed or distributed by your deployment tooling. If you have no outbound file sharing telemetry, keep the rule but drop severity to medium, since a lure file alone is only circumstantial. Excluding all address ranges that are not in your approved list is the narrowest useful form, but it will miss an attacker who hosts the lure target on an internal compromised host.",
+  "severity": "high"
+}

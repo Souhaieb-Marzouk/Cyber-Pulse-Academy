@@ -1,0 +1,105 @@
+{
+  "id": "det0216",
+  "type": "detection",
+  "title": "Detection Strategy for LC_LOAD_DYLIB Modification in Mach-O Binaries on macOS",
+  "shortTitle": "Detection Strategy for LC_LOAD_DYLIB Modification in Mach...",
+  "externalId": "DET0216",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1546.006, LC_LOAD_DYLIB addition, where an actor edits a Mach-O binary's load commands so that macOS loads an attacker-controlled dynamic library every time that binary runs. Detection works from endpoint telemetry that records writes to application bundles and system binaries, library load events with resolved paths, and the resulting code signing or notarisation status. The practical failure is that legitimate application updates legitimately rewrite load commands, so a change must be tied to signature validity and to a library path the binary never used before.",
+  "tags": [
+    "macos",
+    "persistence",
+    "code signing",
+    "binary integrity",
+    "dylib"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for LC_LOAD_DYLIB Modification in Mach-O Binaries on macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0216/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for LC_LOAD_DYLIB Modification in Mach-O Binaries on macOS - EASY",
+      "path": "exercises/det0216/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for LC_LOAD_DYLIB Modification in Mach-O Binaries on macOS - MEDIUM",
+      "path": "exercises/det0216/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for LC_LOAD_DYLIB Modification in Mach-O Binaries on macOS - HARD",
+      "path": "exercises/det0216/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for LC_LOAD_DYLIB Modification in Mach-O Binaries on macOS - EXTREMELY HARD",
+      "path": "exercises/det0216/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at how a program on a Mac finds the shared code it needs. An attacker can edit the program so that it loads their own shared code instead. That change hides inside the program file itself. The rule watches for the edit and for shared code loaded from an unusual folder.",
+    "whyItMatters": "macOS trusts programs that carry a valid signature. Editing a program breaks that trust, but the broken state is not always checked. The added shared code runs with the same rights as the original program. It starts again every time that program runs. This makes the change quiet and long lasting.",
+    "howItWorks": [
+      "Endpoint monitoring records file writes to application bundles and to system binaries.",
+      "It also records which shared libraries each running process loads, together with the full path.",
+      "The rule keeps libraries that were loaded from user folders or temporary directories.",
+      "It then checks whether the host binary still matches its original code signature.",
+      "A broken signature on a vendor or system binary plus an unusual library path raises the alert.",
+      "The alert names the binary, the added library, and the account that made the change."
+    ],
+    "example": "Think of a bus route board at a stop. Someone swaps the card for one stop so the bus turns down a different street. The bus and the driver look completely normal. Only the board changed. Editing a program's load command is that swapped card.",
+    "takeaways": [
+      "This attack edits the program file, not a separate configuration item.",
+      "A library loaded from a user writable folder is a strong warning sign.",
+      "A broken code signature on a vendor binary is reliable supporting evidence."
+    ]
+  },
+  "objectives": [
+    "Explain what a Mach-O load command is and how it decides which libraries a program loads.",
+    "Identify endpoint telemetry that records writes to application bundles and library load events on macOS.",
+    "Explain why code signing status and notarisation data strengthen this detection.",
+    "Differentiate a legitimate application update from an unauthorised edit to a signed binary.",
+    "Build a rule that combines a binary integrity change with an unusual library load path."
+  ],
+  "techniqueId": "t1546-006",
+  "detectsTechniques": [
+    "t1546-006"
+  ],
+  "dataSources": [
+    "macOS endpoint detection agent file write events for application bundles and system binary paths",
+    "Process library load telemetry showing the resolved library path and the process that loaded it",
+    "Code signature verification results for system and vendor binaries, including signature identifier and team identifier",
+    "Unified logging or process execution records showing the account and parent process that wrote the file"
+  ],
+  "logic": "The detection compares a binary's current state with its expected state. The signals are an unauthorised write to a Mach-O binary or application bundle, a resulting signature mismatch or lost notarisation, and a later library load from a path the binary never used before, such as a user home directory or a temporary folder. The fields to correlate are the writing process, the account, the target binary path, the loaded library path, and the time window. Legitimate updates come from signed installer processes, keep the signature valid, and load libraries from inside their own bundle.",
+  "pseudoQuery": "# title: Signed Mach-O Binary Loads Library From User Writable Path\n# logsource:\n#   product: macos\n#   category: process_creation\n# detection:\n#   selection:\n#     Image|startswith: '/Applications/'\n#     LoadedLibrary|startswith:\n#       - '/Users/'\n#       - '/tmp/'\n#       - '/private/var/folders/'\n#   filter_dev:\n#     LoadedLibrary|contains: '/build/'\n#   condition: selection and not filter_dev\n# level: high",
+  "falsePositives": [
+    "Developer builds that link against libraries in the user's home directory and then run the resulting binary locally",
+    "Third party package managers that install helper libraries under a user profile and load them into bundled applications",
+    "Security research and reverse engineering tools that load instrumented copies of system libraries",
+    "Application plug-in frameworks that load plug-ins from a per-user support directory"
+  ],
+  "tuningNotes": "Start by inventorying which binaries in your fleet load libraries from outside their own bundle, and treat that inventory as an exception list with an owner and a review date. Scope the first rule to system and vendor signed binaries, where an unusual load path is rare, before extending it to third party applications. Validate against a known-good endpoint image so developer machines do not dominate the queue. Narrowing to vendor binaries loses coverage of an attacker who modifies a widely used third party application, so keep a second rule keyed on signature mismatch regardless of path.",
+  "severity": "high"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0033",
+  "type": "detection",
+  "title": "Detection Strategy for Accessibility Feature Hijacking via Binary Replacement or Registry Modification",
+  "shortTitle": "Detection Strategy for Accessibility Feature Hijacking vi...",
+  "externalId": "DET0033",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of Windows accessibility features, where a sticky keys or on screen keyboard binary is replaced or redirected to a command interpreter so it can be launched from the sign in screen, the behaviour tracked as T1546.008. The value to an attacker is pre authentication: the accessibility shortcut runs as a highly privileged account before any user session exists, which turns a stolen laptop or a remote console into an administrative shell. The telemetry that makes it visible is registry modification under the image file execution options area, file creation or modification of the accessibility binaries in the system directory, and process creation showing one of those binaries spawning a shell. It fails in practice when registry auditing is not enabled on the endpoint or when the payload is deleted again within seconds, leaving only the short lived parent and child processes.",
+  "tags": [
+    "persistence",
+    "privilege escalation",
+    "t1546.008",
+    "registry",
+    "windows",
+    "ifeo"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Accessibility Feature Hijacking via Binary Replacement or Registry Modification",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0033/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Accessibility Feature Hijacking via Binary Replacement or Registry Modification - EASY",
+      "path": "exercises/det0033/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Accessibility Feature Hijacking via Binary Replacement or Registry Modification - MEDIUM",
+      "path": "exercises/det0033/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Accessibility Feature Hijacking via Binary Replacement or Registry Modification - HARD",
+      "path": "exercises/det0033/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Accessibility Feature Hijacking via Binary Replacement or Registry Modification - EXTREMELY HARD",
+      "path": "exercises/det0033/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows has helpers for users who cannot use a keyboard or mouse easily. Sticky keys and the on screen keyboard start from the sign in screen. This detection looks for changes that make those helpers start a command shell instead.",
+    "whyItMatters": "The sign in screen runs with high rights. If an attacker can make a helper start a shell there, they can act as an administrator without a password. This also works on a stolen laptop with no network access, so it is a real risk for remote workers.",
+    "howItWorks": [
+      "The endpoint agent records every registry change and every new file in the system directory.",
+      "The rule watches the image file execution options area, which can redirect a program to another one.",
+      "It looks for a debugger value added for a helper such as sticky keys or the on screen keyboard.",
+      "It also watches for those binaries being replaced by a new file.",
+      "A separate event check looks for a helper starting a command shell or script host.",
+      "Any hit is scored high, because the sign in screen should never start a shell."
+    ],
+    "example": "Think of a hospital side entrance for staff who carry equipment. Anyone can press the button, but only staff should walk through. This rule watches for someone changing the door so it opens into the pharmacy instead of the corridor.",
+    "takeaways": [
+      "The sign in screen is high value, so treat any shell started from it as serious.",
+      "Watch the redirect option and the file replacement, not only the shell process.",
+      "Enable registry auditing, or you will only see the trick after it runs."
+    ]
+  },
+  "objectives": [
+    "Name the accessibility features that can be launched before a user signs in.",
+    "Identify the registry area used to redirect a program to another binary.",
+    "Detect a helper binary spawning a command interpreter as its child process.",
+    "Explain why registry auditing is required for early detection of this trick.",
+    "Write a containment step that restores the correct binaries and registry values.",
+    "Decide which hosts, such as kiosks and laptops, need this rule most."
+  ],
+  "techniqueId": "t1546-008",
+  "detectsTechniques": [
+    "t1546-008"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set recording TargetObject and Details for image file execution options keys",
+    "Sysmon event 1 process creation including parent image and child command line for accessibility binaries",
+    "Sysmon event 11 file creation or modification inside the Windows system directory for accessibility executables",
+    "File hash baseline of the accessibility binaries taken from a known good installation media"
+  ],
+  "logic": "The pattern is either a registry write that adds a debugger redirect for an accessibility binary, or a legitimate accessibility binary that starts a command interpreter or script host instead of showing its normal interface. The fields that must be correlated are the registry key path, the value name and data, the image and parent image of the resulting process, and the user context. The malicious case is a debugger value pointing to a shell or script host, or a helper process whose child is a shell, especially when the parent runs as a system level account outside a normal user session. The benign case is a vendor compatibility shim, which also uses the image file execution options area, but points to another signed application rather than an interpreter, and runs during a normal user session. An interactive sign in with remote desktop alone is not suspicious, because it does not spawn a shell as a child of a helper.",
+  "pseudoQuery": "# title: Accessibility Binary Redirected or Spawning a Shell\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains: 'Image File Execution Options'\n#     Details|contains:\n#       - 'cmd.exe'\n#       - 'powershell'\n#       - 'wscript'\n#   helper_spawn:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\sethc.exe'\n#       - '\\utilman.exe'\n#       - '\\osk.exe'\n#     Image|endswith:\n#       - '\\cmd.exe'\n#       - '\\powershell.exe'\n#   condition: selection or helper_spawn\n# level: critical",
+  "falsePositives": [
+    "Application compatibility shims installed by a vendor package that redirect a legacy executable to its new signed replacement",
+    "Accessibility testing performed by a desktop engineering team using documented debug settings on a lab machine",
+    "Assistive technology suites that start a scripting host to load speech or magnification profiles for a user with a documented need",
+    "Forensic or recovery tooling run from installation media by an administrator that starts a shell in the recovery environment"
+  ],
+  "tuningNotes": "Keep the shell spawn condition tight: require the parent to be a named accessibility binary and the child to be an interpreter, and do not alert on remote desktop logons by themselves. For the registry condition, allow list the compatibility shim paths your desktop team documents, keyed on the value data rather than the key, because the key itself is legitimate. Baseline the hashes of the accessibility binaries so you can alert on replacement instead of on every touch. If you restrict the rule to the four best known helpers, you lose coverage of less common accessibility and utility binaries that can also be launched from the sign in screen.",
+  "severity": "critical"
+}

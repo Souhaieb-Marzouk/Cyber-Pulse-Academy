@@ -1,0 +1,108 @@
+{
+  "id": "det0311",
+  "type": "detection",
+  "title": "Detection for Spoofing Tool UI across OS Platforms",
+  "shortTitle": "Detection for Spoofing Tool UI across OS Platforms",
+  "externalId": "DET0311",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects spoofing of a trusted user interface, mapped to the user interface spoofing technique area and recorded in the assignment as t1685-003. In UI spoofing the attacker does not break the login system, they copy its appearance so the victim types credentials or approves a prompt inside a window that belongs to the attacker. Detection is difficult because the visible window is legitimate to the user and no vulnerability is exploited, so the useful telemetry is process creation for the prompting program, the window title it presents, the parent process that launched it, and the network destination where the captured input is sent. The common failure is over-reliance on visual similarity, which rules cannot see; correlating the process and its destination is what raises fidelity.",
+  "tags": [
+    "user interface spoofing",
+    "credential access",
+    "phishing",
+    "process creation",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection for Spoofing Tool UI across OS Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0311/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection for Spoofing Tool UI across OS Platforms - EASY",
+      "path": "exercises/det0311/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection for Spoofing Tool UI across OS Platforms - MEDIUM",
+      "path": "exercises/det0311/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection for Spoofing Tool UI across OS Platforms - HARD",
+      "path": "exercises/det0311/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection for Spoofing Tool UI across OS Platforms - EXTREMELY HARD",
+      "path": "exercises/det0311/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "User interface spoofing means showing a fake window that looks like a real one. The fake window asks for a password, a code or a permission click. The person believes the real system is asking, so they answer.",
+    "whyItMatters": "Your users trust login screens, so a good copy collects passwords without any software bug being used. Multi-factor prompts can also be faked, which weakens a control you rely on. The theft is quiet, and the user may not report it because nothing looked wrong. Detecting the fake window gives you a chance to reset credentials before they are used.",
+    "howItWorks": [
+      "The endpoint agent, called endpoint detection and response, records every program that starts on a computer.",
+      "It also stores the command line and the parent program, which is the program that started it.",
+      "Your central logging platform collects these records from all computers.",
+      "The rule looks for programs that show a login or approval window. The real login process is not one of them.",
+      "It then checks where that program sends network traffic, and whether the destination is new or untrusted.",
+      "If both parts match, an analyst gets an alert with the process, its parent and its destination."
+    ],
+    "example": "Picture a fairground ticket booth. A real booth has the park logo, a till and a queue rope. Someone builds a nearly identical booth next to it and collects the money. Visitors cannot tell the difference. The park learns about the fake booth only when someone notices a booth that nobody ordered. The rule is that missing work order, not the paint on the sign.",
+    "takeaways": [
+      "A convincing fake window can steal a password without any software flaw.",
+      "Process creation records plus network destinations are the evidence you can search.",
+      "Alerts are strongest when the prompting program is unsigned and unexpected for that user."
+    ]
+  },
+  "objectives": [
+    "Describe how user interface spoofing harvests credentials without exploiting a vulnerability",
+    "List the endpoint and network telemetry needed to spot a fake credential prompt",
+    "Explain why window titles alone are a weak detection signal",
+    "Correlate a prompting process with its parent process and outbound destination",
+    "Tune the rule against legitimate password managers and single sign-on agents",
+    "Recognise the limits of rule based detection for visually convincing fakes"
+  ],
+  "techniqueId": "t1685-003",
+  "detectsTechniques": [
+    "t1685-003"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, command line and process image path",
+    "Sysmon event 3 network connection recording the image, destination address and destination port",
+    "Windows Security event 4688 process creation with command line auditing enabled for hosts without a Sysmon deployment",
+    "Proxy or secure web gateway logs with full URL, referrer and user agent for login pages reached from managed endpoints",
+    "DNS resolver query logs for first-seen domains resolved by endpoints immediately before a credential prompt appears"
+  ],
+  "logic": "The rule looks for a process that presents a credential or consent prompt while the process image is outside the expected operating system or browser paths, and then joins that process to a network connection made within the same short window. The correlation of image path, parent image and destination is what separates an attacker controlled prompt from a legitimate one: the real sign-in component runs from a system directory and is started by a signed system process, while a spoofing tool is usually an unsigned executable in a user writable directory started by an office document, a script host or a download folder. When the same binary also fails a signature check, the alert is high confidence even if the window text looks perfect, because rules cannot judge visual similarity.",
+  "pseudoQuery": "# title: Unexpected Process Presenting a Credential Prompt\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_proc:\n#     EventID: 1\n#     Image|endswith: .exe\n#     CurrentDirectory|contains:\n#       - \\Users\\\n#       - \\Temp\\\n#       - \\Downloads\\\n#   selection_net:\n#     EventID: 3\n#     DestinationPort:\n#       - 80\n#       - 443\n#   filter_signed_system:\n#     Image|startswith: C:\\Windows\\System32\\\n#   condition: selection_proc and selection_net and not filter_signed_system\n# level: medium",
+  "falsePositives": [
+    "Password manager browser extensions that draw their own credential prompt over a web page",
+    "Corporate single sign-on agents that show a fresh authentication window after a session timeout",
+    "Remote support tools that display a consent prompt to the end user before the technician connects",
+    "Software updaters that ask for administrative credentials through a custom window in a temporary directory",
+    "Internal training simulators that display a realistic login page during a security awareness exercise"
+  ],
+  "tuningNotes": "Baseline the signed binaries that are allowed to draw prompts on each operating system image, then allowlist them by hash rather than by path so an attacker cannot reuse the same location. Scope the first version to endpoints that handle finance or administrative work, where a stolen credential has the most impact, and raise severity only when the prompting process is unsigned or was launched by an office or script host. Exclude your awareness training platform by name and by scheduled campaign window, understanding that any attacker who reuses that tooling would hide inside the exclusion, which is why the exclusion should be time bound and reviewed after each campaign.",
+  "severity": "high"
+}

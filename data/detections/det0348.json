@@ -1,0 +1,107 @@
+{
+  "id": "det0348",
+  "type": "detection",
+  "title": "Detection Strategy for Exfiltration Over C2 Channel",
+  "shortTitle": "Detection Strategy for Exfiltration Over C2 Channel",
+  "externalId": "DET0348",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Exfiltration Over a Command and Control Channel (T1041), where an adversary sends collected data out through the same channel already used to control an implant. The technique matters because it blends collection and theft with normal command traffic, so the transfer often uses a common port and protocol and avoids any new network path that a firewall would question. Detection depends on proxy logs that record request and response sizes, flow records that show outbound byte counts per internal host, process to connection mapping from endpoint telemetry, and domain reputation for the destination. It fails most often because cloud storage, patch distribution and backup traffic produce the same shape as a legitimate large upload.",
+  "tags": [
+    "exfiltration",
+    "command and control",
+    "network flow",
+    "proxy logs",
+    "t1041"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exfiltration Over C2 Channel",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0348/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exfiltration Over C2 Channel - EASY",
+      "path": "exercises/det0348/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration Over C2 Channel - MEDIUM",
+      "path": "exercises/det0348/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration Over C2 Channel - HARD",
+      "path": "exercises/det0348/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration Over C2 Channel - EXTREMELY HARD",
+      "path": "exercises/det0348/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for data leaving your network through a channel that an attacker already controls. The channel may look like normal web traffic. The rule watches how much data goes out, to whom, and from which program.",
+    "whyItMatters": "Stealing data is often the main goal of an intrusion. Attackers prefer to reuse the connection they already have, so they do not open a new and obvious path. That reuse makes the theft blend with routine traffic. Size, timing and destination are what separate normal uploads from stolen data. Catching the transfer while it is happening gives you a chance to cut the channel.",
+    "howItWorks": [
+      "Network devices and proxies record each outbound conversation, including bytes sent and the destination.",
+      "The rule groups those records by the internal host and the external destination.",
+      "It compares the volume with what that host normally sends to that destination.",
+      "It then uses endpoint records to find which program opened the connection.",
+      "The rule adds a reputation check, because a new or rarely seen destination is more interesting.",
+      "A host that sends far more than usual, through an unexpected program, raises an alert."
+    ],
+    "example": "Think of a warehouse where vans leave all day with goods. Nobody checks every van. But a small van that always carries one box and leaves full is easy to spot. The byte count is the load, and the destination is where the van goes.",
+    "takeaways": [
+      "Look at volume and destination together, not at either one alone.",
+      "The program behind the connection tells you if the transfer makes sense.",
+      "Baseline each host, because servers and workstations behave differently."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries reuse an existing control channel for data theft",
+    "Identify proxy, flow and endpoint telemetry that reveals an outbound transfer",
+    "Build per host and per destination volume baselines that separate routine uploads from theft",
+    "Write a rule that joins byte volume, destination reputation and the responsible process",
+    "Triage a match by confirming with the application owner and checking the data that was sent",
+    "Assess the coverage lost when encrypted traffic metadata is the only available telemetry"
+  ],
+  "techniqueId": "t1041",
+  "detectsTechniques": [
+    "t1041"
+  ],
+  "dataSources": [
+    "Web proxy logs recording requested host, user agent, request size and response size per internal host",
+    "NetFlow or IPFIX records showing outbound byte and packet counts per internal host and external destination",
+    "Sysmon event 3 network connection records linking a process image to a destination address and port",
+    "Transport layer security handshake metadata from a network sensor including server name and certificate issuer",
+    "Domain name system query logs used to score how often the destination is contacted across the estate"
+  ],
+  "logic": "The pattern is a sustained or unusually large outbound transfer from an internal host to an external destination that is rarely contacted, carried over a common port by a process that does not normally upload data. The fields that must be correlated are the internal host, the process image and user, the external destination, the bytes sent, the session duration and the regularity of the connections. The benign case is a backup, telemetry or software update flow to a known provider, usually from a server role, at a predictable time and with a destination category already seen in the estate. The malicious case is a workstation or server sending far more than its baseline to a newly registered domain, in repeating equal sized chunks, through a scripting host or a system process that has no business making that connection.",
+  "pseudoQuery": "# title: Large Sustained Outbound Transfer To Rare External Host\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     direction: outbound\n#     bytes_out: '>50000000'\n#   filter_known:\n#     destination_category: approved_cloud\n#   condition: selection and not filter_known\n# level: high",
+  "falsePositives": [
+    "Endpoint agents and log shippers that upload large batches of telemetry to a vendor cloud service",
+    "Backup or database replication jobs that push full snapshots from a server to offsite storage",
+    "Developer workstations uploading container images or build artefacts to a package registry",
+    "Video conferencing clients and cloud file sync tools that upload recordings or large documents"
+  ],
+  "tuningNotes": "Baseline outbound volume per host role for several weeks, then filter destinations that already appear in your approved category list and exclude server roles whose job is bulk upload. Keep the rule sensitive to scripting hosts, system processes with no network role, and destinations first seen in the past thirty days. Where decryption is not possible, add session duration, connection regularity and the number of equal sized transfers to the logic instead of content inspection. Narrowing to known destinations reduces noise sharply, but an adversary who tunnels data through an approved cloud service will be invisible, so pair this rule with per user volume anomaly scoring.",
+  "severity": "high"
+}

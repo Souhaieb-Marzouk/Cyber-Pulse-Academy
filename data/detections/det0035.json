@@ -1,0 +1,107 @@
+{
+  "id": "det0035",
+  "type": "detection",
+  "title": "Detect Bidirectional Web Service C2 Channels via Process & Network Correlation",
+  "shortTitle": "Detect Bidirectional Web Service C2 Channels via Process ...",
+  "externalId": "DET0035",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects command and control that uses legitimate web services as the channel, the bidirectional web service pattern tracked as T1102.002. The attacker does not stand up new infrastructure; they post and read through a public paste service, code repository, or social platform that the organisation already trusts and rarely blocks, so simple domain blocking loses its value. The telemetry that makes it visible is network flow and proxy data joined to process creation: which process opened the connection, how many bytes went each way, how regular the timing is, and whether the same unusual process appears on several hosts. It fails in practice because these destinations are genuinely used by business software, so a domain based rule is unusable; the detection has to be built on the process making the call, its rarity on that host, and the unusual size and timing of the exchanges.",
+  "tags": [
+    "command and control",
+    "t1102.002",
+    "network",
+    "proxy",
+    "beaconing",
+    "web service"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Bidirectional Web Service C2 Channels via Process & Network Correlation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0035/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Bidirectional Web Service C2 Channels via Process & Network Correlation - EASY",
+      "path": "exercises/det0035/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Bidirectional Web Service C2 Channels via Process & Network Correlation - MEDIUM",
+      "path": "exercises/det0035/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Bidirectional Web Service C2 Channels via Process & Network Correlation - HARD",
+      "path": "exercises/det0035/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Bidirectional Web Service C2 Channels via Process & Network Correlation - EXTREMELY HARD",
+      "path": "exercises/det0035/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Attackers sometimes hide their control traffic inside normal websites. They leave instructions in a public note or repository and read the reply there. This detection looks for a program on your network talking to such a site when it has no reason to.",
+    "whyItMatters": "Your block lists trust these websites, so the traffic is allowed. The attacker looks like a normal user. Blocking the whole site would break real work. The better answer is to check which program makes the call.",
+    "howItWorks": [
+      "The proxy and firewall record each connection, including the destination and the bytes in each direction.",
+      "The endpoint agent records which program opened the connection.",
+      "The rule matches destinations that are public web services used for notes, code, or social posts.",
+      "It removes browsers, update services, and approved business applications.",
+      "It then looks for a small, repeating exchange with regular timing, which looks like a heartbeat.",
+      "Connections from the same unusual program on several hosts raise the score."
+    ],
+    "example": "Think of a school where students may use the public notice board. A note addressed to one student is fine. A note that appears every hour with strange text, posted by the caretaker at night, is worth reading.",
+    "takeaways": [
+      "Trusted websites make poor block list entries, so watch the process instead.",
+      "Regular timing and small two way exchanges are the strongest clues.",
+      "One host is a maybe; the same odd program on ten hosts is an incident."
+    ]
+  },
+  "objectives": [
+    "Explain how a legitimate web service can carry command and control traffic.",
+    "Join network flow records with process creation to attribute a connection.",
+    "Recognise beacon characteristics such as regular timing and small payloads.",
+    "Build an allow list of approved applications that call public web services.",
+    "Describe why domain blocking alone cannot solve this problem.",
+    "Decide which rarity threshold across hosts should raise the alert score."
+  ],
+  "techniqueId": "t1102-002",
+  "detectsTechniques": [
+    "t1102-002"
+  ],
+  "dataSources": [
+    "Web proxy logs recording destination host, URL path, user agent, and bytes sent and received per request",
+    "Sysmon event 3 network connection including the image that opened the connection and the remote address and port",
+    "Sysmon event 1 process creation giving the command line and parent image for the process that made the connection",
+    "DNS query logs showing lookups of public paste, code, or social platform domains by internal hosts"
+  ],
+  "logic": "The pattern is a non browser process making repeated small connections to a public web service that offers user generated content, where the same pattern appears on several hosts or repeats on a fixed schedule. The fields that must be correlated are the connection owner process image and hash, the destination host and URL path, the bytes sent and received, the request interval, and the host count. The malicious case shows a process that normally never reaches the internet, such as a document editor, a database service, or a signed helper utility, opening an outbound connection to a paste or repository site, with request sizes that are small and nearly identical, intervals that cluster tightly around a fixed value, and encoded or long opaque strings in the URL path. The benign case is a developer workstation or build server that legitimately clones repositories, an application updater that polls a release endpoint, or a browser extension that syncs notes, all of which have stable user agents and are expected on those host roles. Rarity of the process on the host, and of the destination across the estate, is what makes the alert actionable.",
+  "pseudoQuery": "# title: Non Browser Process Beaconing to Public Web Service\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     dst_domain|endswith:\n#       - 'pastebin.com'\n#       - 'githubusercontent.com'\n#       - 't.me'\n#   proc:\n#     image|endswith:\n#       - '\\\\winword.exe'\n#       - '\\\\sqlservr.exe'\n#       - '\\\\rundll32.exe'\n#   filter:\n#     dst_domain|endswith: 'update.example.com'\n#   condition: selection and proc and not filter\n# level: high",
+  "falsePositives": [
+    "Developer workstations and build servers that clone code repositories or fetch release artifacts on a schedule",
+    "Business applications and browser extensions that legitimately store notes, forms, or configuration in a public cloud service",
+    "Security tooling and threat intelligence collectors that query public repositories for indicators on a fixed interval",
+    "Content management and marketing tools that post scheduled messages to social platforms through their official interfaces"
+  ],
+  "tuningNotes": "Reduce false positives by allow listing the exact process hashes and destinations that your developer and marketing teams use, and by scoping the enforced rule to host roles where those processes should never appear, such as servers. Baseline connection counts and interval regularity per process for a week so a threshold reflects your own traffic. Add the user agent and the URL length to the logic, because a browser-like user agent from a command line tool is a strong discriminator. The coverage you lose by scoping to servers is the compromised workstation, which you should cover with the lower severity estate wide version of the same rule.",
+  "severity": "high"
+}

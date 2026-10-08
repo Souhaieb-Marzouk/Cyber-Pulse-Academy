@@ -1,0 +1,106 @@
+{
+  "id": "det0832",
+  "type": "detection",
+  "title": "Detection of WHOIS",
+  "shortTitle": "Detection of WHOIS",
+  "externalId": "DET0832",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the WHOIS search technique, in which an adversary queries public registration records to learn who owns a domain, when it was registered, which name servers it uses, and which contact details are listed. It matters because registration data exposes ownership links, hosting providers, and newly created infrastructure that an attacker can imitate or target, and because bulk WHOIS lookups from inside your network are a strong indicator that someone is mapping your brand or your suppliers. Detection relies on web proxy and DNS logs for queries to registration lookup services, registrar and record lookup application programming interface calls in cloud logs, and volume baselining per host. It fails often because marketing, legal, and brand protection teams legitimately perform the same lookups, so severity should stay low unless volume or target selection is unusual.",
+  "tags": [
+    "reconnaissance",
+    "mitre attack",
+    "whois",
+    "domain intelligence",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of WHOIS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0832/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of WHOIS - EASY",
+      "path": "exercises/det0832/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of WHOIS - MEDIUM",
+      "path": "exercises/det0832/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of WHOIS - HARD",
+      "path": "exercises/det0832/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of WHOIS - EXTREMELY HARD",
+      "path": "exercises/det0832/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for people checking public domain ownership records. A domain is a website name, such as example dot com. WHOIS is the public record that says who registered it and when. The detection watches for many such lookups coming from your network.",
+    "whyItMatters": "Registration records show who owns a name and which servers host it. Attackers use them to find your suppliers and to copy your brand with a similar name. A single lookup is normal and harmless. Hundreds of lookups from one computer is not normal. That pattern suggests someone is building a target list, and it is worth a look.",
+    "howItWorks": [
+      "A web proxy logs each request, including the site name and the user account.",
+      "The rule watches for requests to registration lookup services and related interfaces.",
+      "It counts lookups per host and per user inside a rolling time window.",
+      "Lookups aimed at your own brand names or at your suppliers raise the score.",
+      "Known brand protection and legal research hosts are removed from the count.",
+      "Remaining bursts are sent to an analyst together with the domain list."
+    ],
+    "example": "Imagine a receptionist who keeps a visitor book. One visitor asking for the manager's name is normal. One visitor asking for the names of every supplier, every delivery driver, and every partner firm in one afternoon is planning something. The book still records it, and the pattern of questions is what alerts the receptionist, not any single question.",
+    "takeaways": [
+      "WHOIS records are public, so the lookup itself is not an attack and cannot be blocked outright.",
+      "Volume and target choice, not the lookup itself, separate research from reconnaissance.",
+      "Brand protection and legal teams create very similar patterns and must be filtered by identity."
+    ]
+  },
+  "objectives": [
+    "Explain what WHOIS registration data contains and how it helps an adversary",
+    "Identify proxy, DNS, and cloud logs that record registration lookups",
+    "Threshold lookup volume per host and per user over a rolling window",
+    "Recognise legitimate brand protection and legal research patterns",
+    "Explain why severity stays low unless lookups are combined with active scanning"
+  ],
+  "techniqueId": "t1596-002",
+  "detectsTechniques": [
+    "t1596-002"
+  ],
+  "dataSources": [
+    "Web proxy request logs showing URLs for registration lookup services with the authenticated user",
+    "DNS resolver query logs for whois service names and registration record lookups",
+    "Cloud application logs for registrar or domain record lookup interface calls",
+    "Command line process creation telemetry for whois and related lookup utilities on Linux hosts",
+    "Network flow records showing repeated short connections to registration service addresses"
+  ],
+  "logic": "The pattern is repeated registration record lookups from a single host or user within a short window, especially when the requested domains share a theme such as your brand, your suppliers, or your competitors. The fields to correlate are the requesting user, the source host, the queried domain name, the lookup service destination, and the count within the window. Benign activity comes from brand protection analysts, legal teams handling disputes, and engineers troubleshooting a domain transfer, and it usually targets a small, explainable set of names. The malicious case is broad enumeration of many unrelated domains, often immediately followed by active scanning or certificate issuance for a typosquat name.",
+  "pseudoQuery": "# title: High Volume Domain Registration Lookups\n# logsource:\n#   product: network\n#   category: proxy\n# detection:\n#   selection:\n#     Url|contains:\n#       - 'whois'\n#       - 'whoisxmlapi'\n#       - 'domaintools'\n#   filter:\n#     User|contains:\n#       - 'svc-brandprotection'\n#       - 'legal-research'\n#   condition: selection and not filter | count() by src_ip > 50\n# level: low",
+  "falsePositives": [
+    "Brand protection analysts running a bulk domain watchlist check as part of routine monitoring",
+    "Legal teams gathering registration evidence for a trademark dispute or takedown request",
+    "Network engineers verifying domain registration before a mail or DNS migration",
+    "Automated security tooling that enriches alerts by looking up the registration details of suspicious domains"
+  ],
+  "tuningNotes": "Baseline the normal lookup volume per team and per tool, then filter on service accounts and known research workstations rather than on domain names, because the target list changes constantly. Set the threshold above the busiest legitimate day you observe, and require at least two lookups per minute for sustained activity before alerting. Enrich remaining hits with whether the queried domains resolve to your infrastructure. Lowering the threshold catches more reconnaissance but floods analysts with marketing and engineering noise, and raising it hides a patient attacker who spreads lookups across many hosts.",
+  "severity": "low"
+}

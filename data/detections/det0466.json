@@ -1,0 +1,106 @@
+{
+  "id": "det0466",
+  "type": "detection",
+  "title": "Detection of Script-Based Proxy Execution via Signed Microsoft Utilities",
+  "shortTitle": "Detection of Script-Based Proxy Execution via Signed Micr...",
+  "externalId": "DET0466",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of signed Microsoft script hosts and similar trusted utilities to run attacker-controlled code, which maps to the system script proxies technique. The idea is that a binary already trusted by the operating system and possibly by application allowlisting loads and executes a script file, so the malicious logic lives in the script rather than in the executable. Detection depends on process creation telemetry that keeps the full command line and the parent process, plus script block or script file content logging where it is enabled. It fails most often because legitimate administrators use the same script hosts for logon scripts, software deployment and scheduled maintenance, so a rule that simply names the binary will drown the analyst in known-good automation.",
+  "tags": [
+    "mitre t1216",
+    "system script proxy",
+    "lolbin",
+    "process creation",
+    "windows",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Script-Based Proxy Execution via Signed Microsoft Utilities",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0466/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Script-Based Proxy Execution via Signed Microsoft Utilities - EASY",
+      "path": "exercises/det0466/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Script-Based Proxy Execution via Signed Microsoft Utilities - MEDIUM",
+      "path": "exercises/det0466/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Script-Based Proxy Execution via Signed Microsoft Utilities - HARD",
+      "path": "exercises/det0466/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Script-Based Proxy Execution via Signed Microsoft Utilities - EXTREMELY HARD",
+      "path": "exercises/det0466/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches trusted Microsoft script engines. Two common ones are the console script host and the Windows script host. An attacker can put harmful code in a script file. They then ask a signed, trusted program to run that file. The trusted program looks innocent in a list of running processes.",
+    "whyItMatters": "Many security tools trust programs that carry a valid Microsoft signature. If an attacker can make such a program run their script, the activity may pass unnoticed. This turns ordinary administration tools into a disguise. Detecting it means watching what the trusted program was asked to do, not only its name.",
+    "howItWorks": [
+      "The endpoint records every new process, including the full command line and the parent process that started it.",
+      "The detection selects events where the running image is a known script host.",
+      "It reads the command line and the script file path from the event and checks whether the location is expected.",
+      "It compares the parent process to a list of approved parents, such as the software deployment agent.",
+      "A scoring step raises the alert when the script sits in a user folder or a mail attachment.",
+      "The analyst opens the script file and the parent process history to decide whether the run was approved."
+    ],
+    "example": "Picture a building where only staff with a company badge may enter. A visitor cannot get through the front door. But a staff member can carry a parcel inside for the visitor. The door log only records the staff member. The script host is that staff member, and the script file is the parcel. This detection reads the parcel label.",
+    "takeaways": [
+      "Signed system utilities are tempting because their signature is trusted.",
+      "Command line and parent process are the fields that show what the trusted binary was asked to do.",
+      "A trusted binary running a script from a user-writable folder deserves a look."
+    ]
+  },
+  "objectives": [
+    "Name common signed Windows script hosts and explain why an attacker would use them.",
+    "Explain which process creation fields are needed to spot script proxy execution.",
+    "Write a rule that keys on the script path and parent process rather than only the binary name.",
+    "List the benign administrative patterns that produce the same process shape.",
+    "Describe how script content logging adds evidence after an alert fires."
+  ],
+  "techniqueId": "t1216",
+  "detectsTechniques": [
+    "t1216"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image, parent image and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows PowerShell script block logging recording script text executed by the host",
+    "Sysmon event 11 file creation capturing new script files written under user profile or temporary directories"
+  ],
+  "logic": "The pattern is a signed Microsoft script host executing a script file whose location, parent process or content does not match normal administration. Correlate the image name with the file path argument in the command line, the parent image, the user account and the integrity level. The benign case is a management server running a signed deployment script from a shared software repository with a management agent as the parent, usually on a schedule. The malicious case typically shows a document reader, a mail client, a browser or an archive tool as the parent, a script written seconds earlier in a temporary or download folder, and arguments that decode or fetch further content. Each of those fields alone is weak, but the combination is a strong signal.",
+  "pseudoQuery": "# title: Signed Script Host Executing Script from User Writable Path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\wscript.exe'\n#       - '\\\\cscript.exe'\n#     CommandLine|contains:\n#       - '\\\\Users\\\\'\n#       - '\\\\Temp\\\\'\n#       - '\\\\Downloads\\\\'\n#   filter_mgmt:\n#     ParentImage|endswith:\n#       - '\\\\sccmexec.exe'\n#       - '\\\\intune\\\\.*agent.*'\n#   condition: selection and not filter_mgmt\n# level: medium",
+  "falsePositives": [
+    "Logon scripts assigned by group policy that run from a user profile or redirected folder at every sign in",
+    "Software deployment and configuration management agents that stage installers in temporary folders before running them",
+    "Business automation that executes Excel or VBA helper scripts from user home directories on a fixed schedule",
+    "Help desk tooling that runs short diagnostic scripts from a technician download folder"
+  ],
+  "tuningNotes": "The highest-value first step is to enumerate the parent images and script paths your deployment and logon script infrastructure normally uses, then convert them into filter entries so the rule survives. Scope the rule to endpoints where the script host is not part of normal daily work, such as servers and kiosks, and keep a lower-severity copy for user workstations so you still see unusual script execution. Baseline the count of script host executions per host per day and alert on outliers instead of every single event. Narrowing by parent image and path costs you visibility into attackers who reuse a legitimate deployment path, so review the filter list each quarter and keep content logging enabled on the endpoints you exclude.",
+  "severity": "medium"
+}

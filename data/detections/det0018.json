@@ -1,0 +1,106 @@
+{
+  "id": "det0018",
+  "type": "detection",
+  "title": "Behavior-chain, platform-aware detection strategy for T1129 Shared Modules",
+  "shortTitle": "Behavior-chain, platform-aware detection strategy for T11...",
+  "externalId": "DET0018",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of shared modules, mapped to ATT&CK technique T1129, the general behaviour where a process loads code from a shared library, DLL or shared object that it should not be loading. The technique is broad on purpose: it covers loading a module from a user writable directory, planting a library where a trusted program searches first, and injecting a module into an already running process. Because legitimate software loads thousands of modules, the detection cannot alert on module loads alone; it has to be behaviour chained. A practical rule correlates a file write event that creates a module in a non standard directory with a later module load event for that same path into a different, usually trusted, process, and adds the process lineage of whoever wrote the file. The main failure mode is volume and baseline drift, since patch cycles legitimately introduce new modules from new paths, so the rule needs per host baselines and a tight allow list of vendor directories rather than a global one.",
+  "tags": [
+    "mitre t1129",
+    "shared modules",
+    "defense evasion",
+    "windows",
+    "linux",
+    "image load"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain, platform-aware detection strategy for T1129 Shared Modules",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0018/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1129 Shared Modules - EASY",
+      "path": "exercises/det0018/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1129 Shared Modules - MEDIUM",
+      "path": "exercises/det0018/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1129 Shared Modules - HARD",
+      "path": "exercises/det0018/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1129 Shared Modules - EXTREMELY HARD",
+      "path": "exercises/det0018/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A shared module is a file of reusable code that many programs load when they start. On Windows these files are called DLLs. This detection looks for a program loading a module from a place it should not, such as a temporary folder. It catches code being slipped into a trusted process.",
+    "whyItMatters": "When a trusted program loads a strange module, that module runs with the trust of the program. It can hide inside a signed process and avoid simple checks. This is a common way to run code without a new visible program. It also lets an attacker keep running after other tools are removed. The behaviour is hard to spot without module level logging.",
+    "howItWorks": [
+      "The sensor writes an event when a new file appears, and another event each time a process loads a module.",
+      "The rule first collects module files that were created outside the normal system and program folders.",
+      "It then looks for load events that name exactly those file paths.",
+      "The loading process must be one that normally only loads signed modules from vendor directories.",
+      "The two events are joined by host and path inside a time window. A plain file copy is therefore not enough to alert.",
+      "The alert lists the writer process, the loading process and the module path so an analyst can judge the intent."
+    ],
+    "example": "Imagine a hospital where staff wear official badges. A visitor prints a badge that looks the same and walks into the pharmacy. Nothing about the badge is obviously fake, but nobody checked where it was made. Shared module detection is the log of a badge printed outside the badge office. It shows that badge used at a restricted door.",
+    "takeaways": [
+      "Module loads happen constantly, so pair them with a file creation event to stay usable.",
+      "The path of the module and the identity of the loading process are the key facts.",
+      "Baseline the vendor module paths on your hosts, because patching changes them."
+    ]
+  },
+  "objectives": [
+    "Describe how loading a shared module can run code inside a trusted process",
+    "Identify file creation and module load telemetry that together reveal shared module abuse",
+    "Use process lineage to attribute a planted module to an account and a parent program",
+    "Explain why module load events alone are too common to alert on",
+    "Plan host level baselines of legitimate module directories and signing status"
+  ],
+  "techniqueId": "t1129",
+  "detectsTechniques": [
+    "t1129"
+  ],
+  "dataSources": [
+    "Sysmon event 7 image load events including image path, hash and signature status",
+    "Sysmon event 11 file create events showing module files written to non standard directories",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Linux auditd execve and openat records showing shared object files written then mapped by a process"
+  ],
+  "logic": "The rule chains two behaviours on one host. First, a module file with a library extension is written by a process, or appears, in a location that is not a system, program files or application vendor directory, and the writer is an unusual parent such as an office document handler, a script interpreter or a browser. Second, within a short window, a different and normally trusted process loads that exact path as a module, and the module is unsigned or signed by an unexpected publisher. The correlated fields are the host, the resolved file path, the writing process, the loading process and the signature state. Benign cases come from application installers and updaters that write a module and immediately load it from their own installation directory under the program files tree; the malicious case is a write by a script interpreter or document reader followed by a load into a long running signed system process.",
+  "pseudoQuery": "# title: Unsigned Module Written to User Path then Loaded by System Process\n# logsource:\n#   product: windows\n# detection:\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|endswith: '.dll'\n#     TargetFilename|contains: '\\\\Users\\\\'\n#   selection_load:\n#     EventID: 7\n#     ImageLoaded|contains: '\\\\Users\\\\'\n#     Signed: 'false'\n#   filter_vendor:\n#     ImageLoaded|contains: '\\\\AppData\\\\Local\\\\Programs\\\\'\n#   condition: selection_write and selection_load and not filter_vendor\n# level: high",
+  "falsePositives": [
+    "Application installers running from a user profile that write their own modules and then load them during first launch",
+    "Software updaters that stage a new library in a temporary folder and load it once to complete the upgrade",
+    "Development workstations where a programmer builds and runs code that loads libraries from a project directory",
+    "Virtual desktop and remote application platforms that mount modules from a per user package cache"
+  ],
+  "tuningNotes": "Build the allow list from observed behaviour rather than from vendor names alone: record which processes on each host tier normally load modules from user profile paths and how often, then filter those specific process and path pairs. Keep the signature check, because unsigned modules outside vendor directories are the smallest reliable slice. If your estate relies on per user application packages, scope the rule to servers and administrative workstations first, and accept that you lose coverage of developer and knowledge worker endpoints where this technique is often first attempted.",
+  "severity": "high"
+}

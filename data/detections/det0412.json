@@ -1,0 +1,108 @@
+{
+  "id": "det0412",
+  "type": "detection",
+  "title": "Detect Access or Search for Unsecured Credentials Across Platforms",
+  "shortTitle": "Detect Access or Search for Unsecured Credentials Across ...",
+  "externalId": "DET0412",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers the search for and access of unsecured credentials, tracked as T1552, where an adversary reads plaintext secrets that were left in files, shell history, environment variables, container definitions or cloud configuration stores instead of attacking the credential store directly. It matters because this is the cheapest path to privilege escalation in most estates, and it leaves almost no artefact beyond a file read or a configuration interface call. The telemetry that makes detection possible spans platforms: Windows Security event 4663 object access on registry and file paths, Sysmon event 1 process creation for command line reads of secret files, Linux audit records for reads of shell history and configuration files, cloud audit logs for secret retrieval interfaces, and container runtime logs for environment variable access. The main way it fails is that reading a configuration file is also what half of your administrative scripts do all day, so the rule must be anchored on the location, the privileged account and the process that has no business reading it.",
+  "tags": [
+    "credentials",
+    "windows",
+    "linux",
+    "cloud",
+    "discovery"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Access or Search for Unsecured Credentials Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0412/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Access or Search for Unsecured Credentials Across Platforms - EASY",
+      "path": "exercises/det0412/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Access or Search for Unsecured Credentials Across Platforms - MEDIUM",
+      "path": "exercises/det0412/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Access or Search for Unsecured Credentials Across Platforms - HARD",
+      "path": "exercises/det0412/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Access or Search for Unsecured Credentials Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0412/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Unsecured credentials are passwords, keys and tokens saved as plain text where they should not be. Examples are a password written in a script or a settings file with a database password. This detection looks for someone reading those places on purpose. It catches the search, not the login that follows.",
+    "whyItMatters": "Attackers prefer the easiest route to more access. A saved password is easier than cracking one. Files like these sit on servers and laptops for years and nobody tracks them. When they are read, nothing breaks and no alarm is normal. Catching the reading gives you a chance to rotate the secret before it is used elsewhere.",
+    "howItWorks": [
+      "The operating system can record when a file is opened and by which process. This works only if auditing is switched on for that folder.",
+      "The rule watches a short list of well known places where people leave secrets. Examples are history files and settings files.",
+      "It checks the process that opened the file. A text editor or an administrator tool is normal. A shell or script host is not.",
+      "It also looks at the account. A low privileged service account reading a root owned settings file is unusual.",
+      "Cloud logs are checked for calls that read stored secrets from a management interface by a new or unusual identity.",
+      "Events are grouped by account and by computer so repeated searching by one identity raises the alert quickly."
+    ],
+    "example": "Think of a hospital sign in sheet again, but this time the desk drawer. Staff sometimes leave a spare key in the drawer instead of the locked cabinet. A thief who checks the drawer is not breaking anything, just looking where keys are often forgotten. The record of who opened the drawer, and whether that person ever needed it, is the clue the supervisor uses.",
+    "takeaways": [
+      "Credential searching looks like ordinary file reading, so you must judge the place and the process.",
+      "Log the same three things every time: who, which file, and which program opened it.",
+      "Finding the secret early lets you rotate it before it is used somewhere else."
+    ]
+  },
+  "objectives": [
+    "List the locations on Windows and Linux where plaintext credentials are commonly stored.",
+    "Enable object access auditing for those locations without flooding the log platform.",
+    "Interpret a file access record and identify the process and account involved.",
+    "Recognise the cloud interfaces that return stored secrets and what a normal caller looks like.",
+    "Correlate a credential read with a later authentication attempt by the same account.",
+    "Recommend a remediation step such as secret rotation after a confirmed read."
+  ],
+  "techniqueId": "t1552",
+  "detectsTechniques": [
+    "t1552"
+  ],
+  "dataSources": [
+    "Windows Security event 4663 object access with object name, process name, subject account and access mask on secret bearing paths",
+    "Sysmon event 1 process creation showing commands that read configuration files, environment variables or history files",
+    "Linux audit subsystem file watch records for reads of shell history and application configuration files",
+    "Cloud provider audit log entries for secret retrieval interfaces such as a managed secret store or parameter store",
+    "Container runtime or orchestrator audit records for environment variable and mounted secret access"
+  ],
+  "logic": "The pattern is a process reading one or more files that are known to hold credentials, where the reading process is a shell, script host or unsigned binary and the reading account is not the owner of the file and does not normally touch that path. The fields to correlate are the object path, the access mask, the process image and the subject account in the file access record, and the parent process in the process creation record that explains how the reader was launched. Legitimate reads come from the owning service account, use the application binary itself, and repeat on a known schedule, while credential searching is broad, touches several secret bearing paths in one session and comes from a process that is not associated with those files. The distinguishing factor is the mismatch between the process identity and the set of paths it reads.",
+  "pseudoQuery": "# title: Non owner process reads multiple credential bearing files\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4663\n#     ObjectName|contains: ['\\unattend.xml', '\\web.config', '.git-credentials', '\\sysprep.inf']\n#   filter_app:\n#     ProcessName|endswith: ['\\services.exe', '\\MsMpEng.exe']\n#   condition: selection and not filter_app | count(ObjectName) by SubjectUserName, Computer > 3 in 10m\n# level: medium",
+  "falsePositives": [
+    "Configuration management agents that read application settings files on a schedule with a dedicated service account",
+    "Deployment scripts run by administrators that read a build or settings file as part of a release",
+    "Backup software that opens configuration files inside application folders to copy them",
+    "Developer workstations where the owner reads their own project settings and environment files during normal work",
+    "Vulnerability scanners that inspect configuration files for insecure settings as part of an authorised assessment"
+  ],
+  "tuningNotes": "Begin by narrowing auditing object access to an explicit list of secret bearing paths rather than a whole drive, because a broad audit policy will bury the signal and slow the endpoint. Build a filter of the approved service accounts and binaries for each path, and require that the reading account is neither the file owner nor on that list. Add a count threshold so a single read is recorded but only several reads in a short window alert, which removes most script noise. Scope the first release to servers holding privileged secrets and to administrator jump hosts. The coverage you lose is credential searching by an administrator using their own workstation, which is a real gap, so combine this rule with a periodic review of who can read those paths and rely on the rotation process to limit the value of a single stolen file.",
+  "severity": "high"
+}

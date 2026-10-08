@@ -1,0 +1,105 @@
+{
+  "id": "det0223",
+  "type": "detection",
+  "title": "Detection of Adversary Abuse of Software Deployment Tools",
+  "shortTitle": "Detection of Adversary Abuse of Software Deployment Tools",
+  "externalId": "DET0223",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1072, Software Deployment Tools, where an actor abuses the same management platforms that administrators use to push software, so their commands execute with high privilege across many hosts at once. Detection is built on the deployment server's own audit records, joined with endpoint execution telemetry: job creation, operator account, target collection, and the command that actually ran. The hard part is that these platforms exist to run arbitrary commands, so only the ownership of the account, the timing against the change window, and the content of the command separate abuse from routine operations.",
+  "tags": [
+    "execution",
+    "lateral movement",
+    "deployment",
+    "privileged access",
+    "audit log"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Adversary Abuse of Software Deployment Tools",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0223/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Adversary Abuse of Software Deployment Tools - EASY",
+      "path": "exercises/det0223/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Adversary Abuse of Software Deployment Tools - MEDIUM",
+      "path": "exercises/det0223/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Adversary Abuse of Software Deployment Tools - HARD",
+      "path": "exercises/det0223/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Adversary Abuse of Software Deployment Tools - EXTREMELY HARD",
+      "path": "exercises/det0223/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the tools that push software to many computers at once. These tools can run commands as an administrator. An attacker who reaches one of them can act on thousands of machines. The rule looks for jobs that nobody planned or approved.",
+    "whyItMatters": "One deployment server often controls every computer in the company. Its rights are very high. It is also part of daily work, so its activity rarely looks wrong. Attackers use it because it saves them effort and hides their actions inside normal traffic. Watching job creation is the only practical way to see the abuse.",
+    "howItWorks": [
+      "The deployment platform writes an audit record when an administrator creates a job or a package.",
+      "That record names the account, the target group, the command, and the time of the job.",
+      "The rule compares the account with the list of people and services allowed to deploy.",
+      "It checks the command for interpreters, remote access tools, or scripts that are not part of a signed package.",
+      "It joins the job record with endpoint execution logs to confirm the command really ran.",
+      "A job from an unusual account, or a job that runs a shell command, raises the alert."
+    ],
+    "example": "Think of a building master key that is kept in the manager's office. Staff use it every day for real work. The log then shows the key used at three in the morning. Somebody who does not work there used it, so you have a question to ask.",
+    "takeaways": [
+      "Deployment tools run commands with high rights across many hosts.",
+      "The job audit log names the account, the target, and the command.",
+      "Compare every deployment job with the change record that approved it."
+    ]
+  },
+  "objectives": [
+    "Explain why software deployment tools are valuable to an attacker.",
+    "Identify the audit records a deployment platform produces for job creation and execution.",
+    "Build a list of accounts and services that are authorised to deploy software.",
+    "Correlate a deployment job with endpoint process execution to confirm the action took place.",
+    "Describe how to link deployment activity to change management records."
+  ],
+  "techniqueId": "t1072",
+  "detectsTechniques": [
+    "t1072"
+  ],
+  "dataSources": [
+    "Deployment platform audit logs recording job or package creation with the operator account, target collection, and command line",
+    "Windows Security event 4688 process creation on the target host showing the deployment agent as the parent process",
+    "Sysmon event 1 process creation on managed endpoints with the parent image set to the deployment agent",
+    "Change management or ticketing records used to confirm that a deployment was approved and scheduled"
+  ],
+  "logic": "The pattern is a deployment job that runs across many hosts, created by an account that does not normally deploy, containing a general purpose interpreter, a remote access utility, or a script outside any signed package, and often scheduled outside the change window. The fields to correlate are the operator account, the target collection, the job command line, the job start time, and the resulting child process on the endpoints. Legitimate deployments repeat known accounts and package identifiers inside scheduled windows, while abuse shows a new or borrowed account, an ad hoc command, and a wide target group chosen in a hurry.",
+  "pseudoQuery": "# title: Deployment Agent Running Interpreter Command From Ad Hoc Job\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\ccmexec.exe'\n#       - '\\sccmexec.exe'\n#     Image|endswith:\n#       - '\\powershell.exe'\n#       - '\\cmd.exe'\n#       - '\\wmic.exe'\n#   filter_packages:\n#     CommandLine|contains: '\\ProgramData\\ApprovedPackages\\'\n#   condition: selection and not filter_packages\n# level: high",
+  "falsePositives": [
+    "Emergency patching run by the platform team outside the normal change window during an active vulnerability response",
+    "Help desk staff deploying a diagnostic script to a single device at a user's request",
+    "Automated compliance tooling that pushes a baseline script to newly enrolled devices",
+    "A software vendor running an approved remote upgrade through the deployment platform under a support contract"
+  ],
+  "tuningNotes": "Start by enumerating the accounts, service principals, and automation identities that may create deployment jobs, and allowlist them explicitly. Filter known package directories and signed package identifiers so that only ad hoc commands remain. Scope the first rule to jobs that target more than a small number of devices, because single device jobs are routine. Keep an unfiltered record of all job creation so you can baseline new accounts as they appear. Narrowing by account loses coverage of stolen administrator credentials, so pair this rule with an alert on deployment logins from new source addresses.",
+  "severity": "high"
+}

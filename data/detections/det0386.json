@@ -1,0 +1,107 @@
+{
+  "id": "det0386",
+  "type": "detection",
+  "title": "Cloud Account Enumeration via API, CLI, and Scripting Interfaces",
+  "shortTitle": "Cloud Account Enumeration via API, CLI, and Scripting Int...",
+  "externalId": "DET0386",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers account enumeration in cloud environments, where an adversary who holds a valid principal lists users, groups, roles, and policies to learn how the tenant is organised and where privilege concentrates. The activity is made visible by control plane audit logs on each provider, by the user agent string that identifies a command line interface or software development kit, and by the sequence of distinct list operations issued by one identity. Correlation matters more than any single call, because each list request on its own is a documented feature that almost every tenant uses. The strategy fails in practice because the same application programming interface calls are made constantly by deployment pipelines, security tools, inventory agents, and cost reporting, so a rule that alerts on any listing operation produces noise instead of signal.",
+  "tags": [
+    "discovery",
+    "cloud",
+    "aws",
+    "azure",
+    "gcp",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cloud Account Enumeration via API, CLI, and Scripting Interfaces",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0386/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cloud Account Enumeration via API, CLI, and Scripting Interfaces - EASY",
+      "path": "exercises/det0386/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cloud Account Enumeration via API, CLI, and Scripting Interfaces - MEDIUM",
+      "path": "exercises/det0386/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cloud Account Enumeration via API, CLI, and Scripting Interfaces - HARD",
+      "path": "exercises/det0386/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cloud Account Enumeration via API, CLI, and Scripting Interfaces - EXTREMELY HARD",
+      "path": "exercises/det0386/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud providers have records of the accounts, groups, and roles inside a tenant. An attacker with a stolen key can ask the provider to list all of them. This detection looks for one identity asking for many different lists in a short time.",
+    "whyItMatters": "The list of roles shows an attacker which keys are worth stealing next. A single listing is normal and cannot be blocked. The shape of many listings from one identity is the useful clue, because real automation follows a pattern while a curious intruder wanders.",
+    "howItWorks": [
+      "Each provider writes an audit record for every control plane call, including the caller and the action name.",
+      "The rule keeps calls whose action names describe listing or describing accounts, groups, roles, and policies.",
+      "Records are grouped by the calling identity and filtered to one short window of time.",
+      "The rule counts how many different listing actions that identity used, not how many calls it made.",
+      "A high count of different listing actions from one identity raises an alert with the call list attached."
+    ],
+    "example": "Think of a hotel reception desk. Asking for one room number is ordinary. A visitor who asks for the guest list, the staff list, the key cabinet inventory, and the shift roster in ten minutes is not a normal guest. Each question is allowed, the set of questions is the tell.",
+    "takeaways": [
+      "No single listing call is suspicious, so count distinct listing actions per identity instead.",
+      "Know which pipeline and security tool identities list accounts so you can exclude them by name.",
+      "Store the caller identity and source address with every finding so you can trace the session."
+    ]
+  },
+  "objectives": [
+    "Name the cloud audit log that records control plane calls on each major provider",
+    "List the account, group, role, and policy listing actions that enumeration typically uses",
+    "Group audit events by calling identity and count distinct listing actions in a window",
+    "Describe how user agent strings separate command line and script use from console use",
+    "Use an allow list of automation principals without losing visibility of new identities",
+    "Explain how enumeration feeds later privilege escalation and how to prioritise response"
+  ],
+  "techniqueId": "t1087-004",
+  "detectsTechniques": [
+    "t1087-004"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events recording the caller identity, user agent, source address, and action name",
+    "Microsoft Entra ID audit logs and Azure activity logs for directory role and account read operations",
+    "Google Cloud audit logs for identity and access management policy read and list operations",
+    "Cloud provider command line interface telemetry or managed endpoint records showing scripted interface use",
+    "The cloud identity inventory that lists approved automation principals, roles, and service accounts"
+  ],
+  "logic": "The pattern is one identity touching many different account and permission listing actions in a short period. The rule matches control plane audit events whose action name contains a list, describe, or get operation against users, groups, roles, or policies, extracts the caller identity, the user agent, and the source address, and then groups events per identity over a rolling window. It counts the number of distinct actions rather than the number of calls, because automation tends to repeat the same few calls while enumeration sweeps across many. The benign case is a deployment pipeline, a security posture tool, or an inventory agent that lists a stable set of resources on a schedule from a known identity and user agent. The malicious case is an identity that has never made these calls before, or that uses one of the provider software development kits from an unexpected address, and that sweeps many distinct listing actions within minutes and then moves on to policy or key operations.",
+  "pseudoQuery": "# title: Cloud Account Enumeration By Single Identity\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     eventName|contains:\n#       - 'ListUsers'\n#       - 'ListRoles'\n#       - 'ListPolicies'\n#       - 'DescribeInstances'\n#       - 'GetAccountAuthorizationDetails'\n#   filter_automation:\n#     userIdentity.arn|contains:\n#       - 'role/deploy-pipeline'\n#       - 'role/inventory-agent'\n#   condition: selection and not filter_automation | count() by userIdentity.arn > 8\n# level: medium",
+  "falsePositives": [
+    "Continuous integration and deployment pipelines that list roles and policies at the start of every run",
+    "Cloud security posture tools and inventory agents that enumerate the whole tenant on a fixed schedule",
+    "Cost, compliance, and asset reporting jobs that read account and resource metadata each night",
+    "A new platform engineer using the command line interface interactively while orienting in the tenant"
+  ],
+  "tuningNotes": "Build the allow list from principal identifiers and user agent strings that you have seen perform broad listing for at least two weeks, then exclude those and keep everything else. Set the distinct action threshold from a measured baseline of your quietest identities rather than from a guess, because tenants differ widely in normal listing volume. Add a second tier that ignores the allow list but raises severity when the sweeping identity later performs a policy change, a key creation, or a role assumption. Narrowing to known automation loses coverage of a compromised automation identity, so alert separately when an allow listed principal lists accounts from a new source address or at an unusual hour.",
+  "severity": "medium"
+}

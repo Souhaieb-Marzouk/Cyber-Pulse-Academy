@@ -1,0 +1,107 @@
+{
+  "id": "det0167",
+  "type": "detection",
+  "title": "Firmware Modification via Flash Tool or Corrupted Firmware Upload",
+  "shortTitle": "Firmware Modification via Flash Tool or Corrupted Firmwar...",
+  "externalId": "DET0167",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects modification of platform firmware, either by running a flash utility that writes the firmware store or by uploading a firmware image that has been altered or corrupted. The covered technique matters because firmware runs before the operating system and sits below every agent, so a modified image can persist across reinstalls, disable secure boot verification and hide code where standard endpoint tools cannot see it. Firmware update tooling, device access auditing and platform integrity measurements make this possible, because a flash write requires a user space process with access to the firmware device and often changes the measurement recorded at boot. The main failure mode is that legitimate vendor updates use the same tools and produce the same writes, so the rule must baseline update windows, expected tooling and the models in the estate, and treat any write outside that baseline as an incident rather than a change.",
+  "tags": [
+    "firmware",
+    "persistence",
+    "defense evasion",
+    "hardware",
+    "integrity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Firmware Modification via Flash Tool or Corrupted Firmware Upload",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0167/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Firmware Modification via Flash Tool or Corrupted Firmware Upload - EASY",
+      "path": "exercises/det0167/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Firmware Modification via Flash Tool or Corrupted Firmware Upload - MEDIUM",
+      "path": "exercises/det0167/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Firmware Modification via Flash Tool or Corrupted Firmware Upload - HARD",
+      "path": "exercises/det0167/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Firmware Modification via Flash Tool or Corrupted Firmware Upload - EXTREMELY HARD",
+      "path": "exercises/det0167/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for changes to the software built into the hardware itself, known as firmware. Attackers can flash a modified firmware image onto a machine. This code runs before the operating system starts.",
+    "whyItMatters": "Firmware sits underneath the operating system, so reinstalling the system does not remove a firmware implant. Security features such as secure boot may be turned off in the same change. Ordinary security agents often cannot inspect it. The tool used to write firmware is not secret, which means the defence has to be detecting the write itself.",
+    "howItWorks": [
+      "Firmware is updated by a program that opens the firmware device and writes a new image.",
+      "The operating system records that the program ran and which account started it.",
+      "Device level auditing records access to the firmware or memory device files.",
+      "The platform records measurements of the firmware early in the boot process.",
+      "The detection links the write to a change in that measurement or to secure boot settings.",
+      "An analyst confirms whether an approved update was scheduled for that machine."
+    ],
+    "example": "Think of a building where every tenant changes the locks on their own flat door. One tenant also replaces the lock on the main entrance, which the landlord controls. All the flat keys still work, but someone now has control of the building itself.",
+    "takeaways": [
+      "Firmware writes survive operating system reinstallation, so treat them as high impact.",
+      "Allow updates only in scheduled windows, from approved tools, on approved hardware models.",
+      "A changed boot measurement with no change record is a strong sign of tampering."
+    ]
+  },
+  "objectives": [
+    "Explain why firmware modification persists across operating system reinstallation and agent removal.",
+    "Identify the processes and device access patterns that indicate a firmware flash or dump.",
+    "Use boot time integrity measurements to find firmware changes that occurred outside an update.",
+    "Build an approved baseline of update tools, hardware models and maintenance windows.",
+    "Describe why physical access and privileged drivers are usually required for this technique."
+  ],
+  "techniqueId": "t1495",
+  "detectsTechniques": [
+    "t1495"
+  ],
+  "dataSources": [
+    "Process creation telemetry for firmware update and flash utilities including the full command line, parent process and account",
+    "Linux auditd syscall records showing open and write operations against firmware, memory and flash memory device nodes",
+    "Windows event records for firmware or basic input output system configuration changes and for secure boot state changes",
+    "Platform integrity measurements such as measured boot or trusted platform module event logs recorded at startup",
+    "Endpoint management records of approved firmware update packages, target hardware models and their scheduled deployment windows"
+  ],
+  "logic": "The pattern is a write to the firmware store that does not come from an approved update mechanism, or a firmware write that produces an unexpected change in the boot measurement. The telemetry is process creation for update tooling, the auditd device access records, the firmware change or secure boot state events, and the measured boot log, and the fields that must be correlated are the executing process and its signer, the command line and the image source path, the account, the hardware model, the device node or firmware interface accessed, the measurement value before and after, and whether a deployment record covers that host and time. Benign behaviour is a vendor update delivered by the endpoint management platform in a scheduled window, a fleet wide update that affects many identical models at once, or a servicing event during a hardware repair performed by an authorised technician with a work order. Malicious behaviour is a standalone flash utility run from a temporary folder, an image read from a user writable path or a network location, a write on a model that the estate does not approve for that tool, or a measurement change on a host with no deployment record. The combination of an unexpected write and a changed measurement is far stronger than either observation alone, and a read of the firmware store followed by a write of a modified image is the classic destructive case.",
+  "pseudoQuery": "# title: Firmware flash write outside an approved update window\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'flashrom'\n#       - 'BiosUpdate'\n#       - 'fwupd'\n#       - '-w '\n#   filter_deployment:\n#     ParentImage|endswith:\n#       - '\\ccmexec.exe'\n#       - '\\fwupdmgr'\n#   condition: selection and not filter_deployment\n# level: high",
+  "falsePositives": [
+    "Scheduled vendor firmware updates delivered by the endpoint management platform to a whole hardware model family",
+    "Hardware repair or motherboard replacement where a technician flashes the current approved image on site",
+    "Server lifecycle tooling that updates baseboard management controller firmware during a maintenance window",
+    "Batch flashing in a staging area for newly purchased devices before they are issued to users",
+    "Diagnostic utilities that read the firmware image to report version and health without writing to it"
+  ],
+  "tuningNotes": "Inventory the firmware update tools and hardware models in the estate, record the deployment calendar for each model, and exclude writes that match a deployment record for that host within the window; everything else should alert. Watch reads separately from writes, because a dump is reconnaissance while a write is an implant, and raise severity when a read is followed by a write of an image from an untrusted path. Scope the rule to servers, hypervisors and executive or engineering laptops first, since those carry the highest impact. The coverage you lose by trusting the management platform is abuse of that platform, so monitor its credentials and alert on firmware deployments to hosts outside their assigned pilot rings. Keep a monthly comparison of boot measurements per model, because a slow or partial tamper may never trigger a tool based rule.",
+  "severity": "high"
+}

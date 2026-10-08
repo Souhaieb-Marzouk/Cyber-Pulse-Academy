@@ -1,0 +1,107 @@
+{
+  "id": "det0104",
+  "type": "detection",
+  "title": "Detect Modification of Authentication Processes Across Platforms",
+  "shortTitle": "Detect Modification of Authentication Processes Across Pl...",
+  "externalId": "DET0104",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1556, modification of authentication processes, where an adversary changes how a host, an application or a directory service decides whether a login is valid. On Windows this includes registry changes to authentication packages and password filter dynamic link libraries, on Linux it includes edits to the pluggable authentication modules stack, and in cloud identity it includes changes to federation trust or token signing configuration. It matters because this technique converts a one time compromise into a durable, low noise credential of its own: valid accounts keep working, and the attacker no longer needs a remote access tool. The telemetry that makes detection possible is registry modification events for authentication related keys, file change auditing on authentication module directories, cloud identity audit logs for federation and authentication method changes, and the service restart that usually follows. It fails in practice because many of these paths are changed by legitimate software installs and vendor upgrades, so the rule has to look at who made the change, the signer of the new component and the process that wrote it.",
+  "tags": [
+    "credential-access",
+    "persistence",
+    "authentication",
+    "identity",
+    "configuration-change"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Modification of Authentication Processes Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0104/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Modification of Authentication Processes Across Platforms - EASY",
+      "path": "exercises/det0104/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Modification of Authentication Processes Across Platforms - MEDIUM",
+      "path": "exercises/det0104/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Modification of Authentication Processes Across Platforms - HARD",
+      "path": "exercises/det0104/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Modification of Authentication Processes Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0104/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the parts of a system that check passwords and logins. The rule looks for changes to those parts. A change made quietly can let an attacker log in without a valid password.",
+    "whyItMatters": "If you control the login check, you control who gets in. Attackers who change it can create a hidden way in and stop using noisy tools. The change often survives reboots and password resets. Because normal password checks still work, users and helpdesk staff may notice nothing at all.",
+    "howItWorks": [
+      "The endpoint records changes to the system settings and files that handle logins.",
+      "Identity platforms record administrative actions such as adding a federation trust or changing token settings.",
+      "These records are forwarded to the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule matches the changed path or setting against a list of authentication locations that should rarely change.",
+      "It then checks the process and account that made the change. It also checks whether the new file is signed by a known vendor.",
+      "When a protected location changes without a matching change ticket or signed update, the rule alerts the identity team."
+    ],
+    "example": "Think of a building where the front desk checks every visitor's pass. Someone replaces the desk staff with their own person, who waves in whoever says the right phrase. The door still opens normally, cameras still record, and no alarm sounds. This detection is the manager who keeps a photo of the official desk staff. The manager then notices a new face behind the counter.",
+    "takeaways": [
+      "Controlling the login check gives an attacker their own accounts and quiet access.",
+      "The strongest signals are changes to authentication files, registry keys and federation settings.",
+      "Signature and author of the change matter more than the change itself."
+    ]
+  },
+  "objectives": [
+    "Explain why modifying authentication logic gives durable access without extra tooling",
+    "Name the Windows, Linux and cloud identity locations that implement authentication",
+    "Identify which audit events capture registry, file and federation trust changes",
+    "Describe how to distinguish a vendor upgrade from an unauthorised authentication change",
+    "List the accounts and roles that should be the only ones able to change these settings",
+    "Explain why password resets and reboots do not remove this kind of access"
+  ],
+  "techniqueId": "t1556",
+  "detectsTechniques": [
+    "t1556"
+  ],
+  "dataSources": [
+    "Windows registry modification events for authentication package and credential provider keys, captured by Sysmon event 13 registry value set",
+    "File change auditing on the Windows system directory for authentication related libraries, with the writing process recorded",
+    "Linux auditd records for writes to the pluggable authentication modules configuration files",
+    "Cloud identity provider audit logs for federation trust, single sign on and authentication method changes",
+    "Sysmon event 1 process creation showing installation or registration commands run against authentication components"
+  ],
+  "logic": "The pattern is a write to a location that implements authentication, paired with the process and account responsible and the trust status of any new component registered there. The fields that must be correlated are the modified registry key or file path, the image and command line of the process that performed the write, the user account and its role, the digital signature of any library being registered, and the service restart or configuration reload that follows. The benign case is a signed vendor upgrade or an administrator change covered by a change record from a privileged access workstation, so an unsigned or newly dropped library, a write by a non administrative account, or a federation change made from an unexpected address is what makes the case suspicious.",
+  "pseudoQuery": "# title: Authentication Component Or Federation Trust Modification\n# logsource:\n#   product: windows\n# detection:\n#   selection_registry:\n#     EventType: 'registry_value_set'\n#     TargetObject|contains: ['\\\\Lsa\\\\Authentication Packages', '\\\\Control\\\\Lsa\\\\Notification Packages', '\\\\Credential Providers']\n#   selection_file:\n#     TargetFilename|contains: ['\\\\system32\\\\lsa\\\\', '\\\\system32\\\\security\\\\']\n#   filter_vendor:\n#     Image|contains: '\\\\Program Files\\\\'\n#     SignatureStatus: 'valid'\n#   condition: (selection_registry or selection_file) and not filter_vendor\n# level: critical",
+  "falsePositives": [
+    "Installation of a multi factor authentication agent that registers a new credential provider during its setup",
+    "Antivirus or endpoint protection software that registers a password filter library as part of an upgrade",
+    "Planned identity provider maintenance that updates certificate or federation settings during a change window",
+    "Operating system feature updates that legitimately rewrite authentication related files under the system directory"
+  ],
+  "tuningNotes": "Baseline the authentication keys and files that change during patching in your environment, then filter those writes by signed vendor image and by the management server that performs them. Restrict alerting to the accounts that hold identity administrator roles, and route the cloud identity variant to the identity team rather than the general queue. Keep the rule unconditional for any write from a user writable path or from a process with an unsigned image, because that combination has no legitimate explanation. Narrowing to privileged accounts loses visibility of an attacker who first escalates on a workstation, so retain a lower severity version across all hosts for retro hunting.",
+  "severity": "critical"
+}

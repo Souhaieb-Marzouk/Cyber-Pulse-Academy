@@ -1,0 +1,106 @@
+{
+  "id": "det0027",
+  "type": "detection",
+  "title": "Detection of Web Protocol-Based C2 Over HTTP, HTTPS, or WebSockets",
+  "shortTitle": "Detection of Web Protocol-Based C2 Over HTTP, HTTPS, or W...",
+  "externalId": "DET0027",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects command and control over web protocols, mapped to ATT&CK technique T1071.001, where an adversary blends beacon traffic into ordinary HTTP, HTTPS or WebSocket sessions so that blocking outbound web access is not an option. Because the traffic is encrypted and shares ports with normal browsing, detection depends on the metadata that survives encryption: request cadence and consistency, uniform resource locator structure and length, user agent strings, server certificate and address reputation, upload and download volume asymmetry, and the process on the endpoint that owns the connection. The strongest correlations join proxy or web gateway records with endpoint network connection telemetry, so a periodic request can be tied to a specific process rather than to a browser in general. The practical failure is that thousands of legitimate applications beacon on timers to software as a service endpoints, so the rule is only workable once you baseline normal destinations per host group and score behaviour such as fixed intervals, rare user agents and connections from processes that should not use the web.",
+  "tags": [
+    "mitre t1071.001",
+    "command and control",
+    "web protocols",
+    "network",
+    "proxy logs",
+    "beaconing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Web Protocol-Based C2 Over HTTP, HTTPS, or WebSockets",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0027/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Web Protocol-Based C2 Over HTTP, HTTPS, or WebSockets - EASY",
+      "path": "exercises/det0027/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Web Protocol-Based C2 Over HTTP, HTTPS, or WebSockets - MEDIUM",
+      "path": "exercises/det0027/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Web Protocol-Based C2 Over HTTP, HTTPS, or WebSockets - HARD",
+      "path": "exercises/det0027/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Web Protocol-Based C2 Over HTTP, HTTPS, or WebSockets - EXTREMELY HARD",
+      "path": "exercises/det0027/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Command and control is how an attacker keeps in touch with a program running on your network. This detection looks for that contact when it hides inside normal web traffic. It catches the regular, machine like requests that a person would not make. The traffic itself is often encrypted, so the pattern matters more than the content.",
+    "whyItMatters": "Almost every network allows web traffic, so an attacker does not need a strange port or protocol. Encryption means you cannot simply read the messages. However, a program checking in on a timer behaves differently from a person browsing. That difference is visible in timing, size and destination. Finding it can reveal a foothold that has been quietly present for weeks.",
+    "howItWorks": [
+      "The web gateway or proxy records each request, including the destination, the size, the user agent and the time.",
+      "The endpoint agent records which program opened each network connection and to which address.",
+      "The rule groups requests by host, destination and user agent, then measures the gaps between them.",
+      "It flags groups with very steady gaps, small repeated responses and a user agent rarely seen elsewhere.",
+      "It joins those groups to the process that made the connection. A browser is then treated differently from a background tool.",
+      "The alert shows the destination, the interval, the process and the request shape. The analyst can confirm or dismiss it."
+    ],
+    "example": "Imagine a warehouse where staff walk in and out all day at random times. One delivery van arrives every thirty minutes on the dot, takes nothing and leaves. Nobody reads the van's paperwork, but the timetable gives it away. Web protocol command and control detection watches for that van's timetable.",
+    "takeaways": [
+      "Encryption hides content, so judge timing, size, destination and the owning process.",
+      "Regular intervals from a background process are the clearest sign of automated check in.",
+      "Baseline normal destinations first or the rule will flag your own business software."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers choose web protocols for command and control",
+    "Identify the metadata fields that remain useful when traffic is encrypted",
+    "Measure request interval consistency and response size to spot beacon behaviour",
+    "Correlate proxy records with endpoint network connections to find the owning process",
+    "Baseline legitimate beaconing applications so the rule can be tuned by host group"
+  ],
+  "techniqueId": "t1071-001",
+  "detectsTechniques": [
+    "t1071-001"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway logs recording destination, request path, user agent, bytes in and out, and timestamp",
+    "Sysmon event 3 network connection events including the owning process image and destination address",
+    "Endpoint detection and response network telemetry linking outbound connections to process identifiers",
+    "TLS inspection or certificate metadata records showing server certificate issuer and validity for outbound sessions"
+  ],
+  "logic": "The detection scores outbound web sessions for machine like regularity rather than for content. It groups connections by source host, destination and user agent, then computes the spread of the intervals between requests. A group with a low spread over many requests, a small and consistent response size, a destination that is rare across the estate, and an owning process that is not a browser or a known software as a service client is suspicious. The fields that must be correlated are the source host, the destination host or address, the user agent, the request path shape, the bytes transferred and the process image from endpoint telemetry. Benign beaconing comes from update clients, monitoring agents, backup tools and collaboration applications, which use signed binaries from program directories and destinations seen on many hosts; the malicious case pairs a scripting host, an office application or an unsigned binary with a destination unique to one or two hosts and intervals that do not drift with working hours.",
+  "pseudoQuery": "# title: Periodic Web Beacon From Non Browser Process\n# logsource:\n#   product: network\n# detection:\n#   selection_http:\n#     method: GET\n#     dest_port: 443\n#   selection_process:\n#     process_name|endswith:\n#       - 'rundll32.exe'\n#       - 'regsvr32.exe'\n#       - 'wscript.exe'\n#       - 'curl'\n#   filter_known:\n#     dest_host|endswith:\n#       - '.windowsupdate.com'\n#       - '.office365.com'\n#   condition: selection_http and selection_process and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Software as a service clients and update agents that poll a vendor endpoint on a fixed timer from every workstation",
+    "Monitoring and inventory agents that send a small heartbeat to a management server on a regular schedule",
+    "Backup and file synchronisation clients that check an object storage endpoint at short intervals during a sync window",
+    "Security testing tools and attack simulation platforms that deliberately generate scheduled outbound requests"
+  ],
+  "tuningNotes": "Start by enriching destinations with host counts across the estate and allow list any destination reached by a large number of hosts with a known signed process, because that removes most business traffic. Then require either an interval spread below a few seconds over at least twenty requests, or an owning process outside the browser and updater population. Narrowing to rare destinations is the single biggest noise reduction, but it also hides an attacker who uses a popular cloud service as a relay, so keep a secondary lower severity rule for unusual user agents and unusual processes reaching common destinations.",
+  "severity": "high"
+}

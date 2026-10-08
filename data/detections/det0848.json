@@ -1,0 +1,104 @@
+{
+  "id": "det0848",
+  "type": "detection",
+  "title": "Detection of Digital Certificates",
+  "shortTitle": "Detection of Digital Certificates",
+  "externalId": "DET0848",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the resource development technique of obtaining digital certificates, where an adversary buys or steals a certificate to sign its own code and appear trustworthy. It matters because a stolen or fraudulently issued certificate lets a payload pass signature checks that would otherwise stop it, and the same certificate can be reused across many victims. The telemetry that makes detection possible is certificate transparency logs, internal certificate authority issuance records, and endpoint records of signature validation and certificate store changes. The main failure mode is that public transparency logs only cover publicly trusted certificates, so a private or stolen key leaves almost no trace until the signed file is analysed.",
+  "tags": [
+    "certificate",
+    "code signing",
+    "resource development",
+    "brand protection",
+    "detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Digital Certificates",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0848/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Digital Certificates - EASY",
+      "path": "exercises/det0848/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Digital Certificates - MEDIUM",
+      "path": "exercises/det0848/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Digital Certificates - HARD",
+      "path": "exercises/det0848/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Digital Certificates - EXTREMELY HARD",
+      "path": "exercises/det0848/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for digital certificates that an attacker has obtained to sign harmful files. A digital certificate is proof that software comes from a named publisher. The rule watches public certificate records and the certificate stores on your computers. It also watches for signed files whose publisher does not match the file contents.",
+    "whyItMatters": "A signed file looks trustworthy to the operating system and to users. Attackers want this because it helps their program run without a warning. They can also sign many different harmful files with one certificate. If you spot the certificate early, you can block every file that uses it.",
+    "howItWorks": [
+      "Certificate transparency logs publish every certificate issued by a public authority.",
+      "The SIEM collects those records and compares the names with your own domains and brands.",
+      "Endpoint records show when a certificate is written into a local certificate store.",
+      "Signature checks report files that are signed but whose publisher looks wrong for the file.",
+      "The rule links a new certificate to any file signed with the same thumbprint.",
+      "One alert comes from a certificate issued for a copy of your brand. A second alert comes from a set of files that share one new signer."
+    ],
+    "example": "Think of a door log at a hospital ward. Every person who enters shows a badge, and the log records the badge number. One badge opens many different doors in a single night. Another badge number is not in the staff list at all. Security checks both of them. The certificate is the badge, and the signed files are the doors.",
+    "takeaways": [
+      "Public certificate transparency records are the strongest available signal.",
+      "One obtained certificate can sign many payloads, so blocking it has wide value.",
+      "Private or stolen keys are nearly invisible, so pair this rule with file reputation checks."
+    ]
+  },
+  "objectives": [
+    "Explain how an obtained certificate helps an attacker.",
+    "Identify transparency log and endpoint records that reveal certificate use.",
+    "Write a rule that flags certificates copying organization brands.",
+    "Describe how to link a signer thumbprint to signed files.",
+    "Explain why private and stolen certificates reduce coverage."
+  ],
+  "techniqueId": "t1588-004",
+  "detectsTechniques": [
+    "t1588-004"
+  ],
+  "dataSources": [
+    "Certificate transparency logs recording publicly trusted issuance with subject, issuer and validity dates",
+    "Sysmon event 13 registry value set for certificate store locations on Windows endpoints",
+    "Endpoint detection and response signature validation records for newly executed signed binaries",
+    "Antivirus records showing a file that is signed with a certificate not previously seen in the estate"
+  ],
+  "logic": "The pattern is a newly issued or newly observed certificate whose subject copies an organization or trusted vendor name, or a group of unrelated files that suddenly share one new signer. The fields that must be correlated are the certificate subject, issuer, serial number and thumbprint, the file hash and path of signed binaries, the host that executed them, and the first seen time of the certificate. The malicious case is a signer with no prior history in your estate signing files across many hosts, or a certificate issued for a name that is a close variant of a real brand. The benign case is a software vendor that rotated its signing certificate, which affects only files from that vendor on a scheduled update cycle.",
+  "pseudoQuery": "# title: Signed Executable Using a Certificate With No Estate History\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     SignatureStatus: 'Valid'\n#   filter_known_signers:\n#     Signature|contains:\n#       - 'Microsoft Corporation'\n#       - 'Approved Vendor Name'\n#   condition: selection and not filter_known_signers\n# level: medium",
+  "falsePositives": [
+    "Software vendors that rotate their code signing certificate during a normal product update",
+    "Information technology teams that sign internal scripts and installers with a newly issued internal certificate",
+    "Line of business applications that are re signed after a rebuild by the same development team"
+  ],
+  "tuningNotes": "Build a signer inventory from the estate first, with the count of hosts per signer, then filter publishers that appear on many hosts with a long history and alert only on new signers with a small host footprint or on signers whose names resemble a brand you protect. Scope the rule to executable file types that matter, such as portable executables and dynamic libraries, and review new signers weekly rather than continuously. The coverage you lose is a stolen certificate that already has estate history, so keep a change record for every observed signer and watch for signing after a reported vendor compromise.",
+  "severity": "medium"
+}

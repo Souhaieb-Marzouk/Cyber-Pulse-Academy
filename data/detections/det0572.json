@@ -1,0 +1,107 @@
+{
+  "id": "det0572",
+  "type": "detection",
+  "title": "Suspicious RoleBinding or ClusterRoleBinding Assignment in Kubernetes",
+  "shortTitle": "Suspicious RoleBinding or ClusterRoleBinding Assignment i...",
+  "externalId": "DET0572",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses suspicious RoleBinding and ClusterRoleBinding assignments in Kubernetes, tracked as T1098.006, where an adversary grants a user, group or service account rights it should not hold, often by binding an existing powerful role to a new subject. It matters because a single binding can turn a compromised workload identity into cluster administrator, and because bindings persist quietly and are rarely reviewed after creation. Detection rests on the Kubernetes API audit log, which records the binding create and update requests together with the requesting identity, the source address and the user agent, plus admission controller records and role definition changes that show which permissions the binding actually confers. It fails in practice for two reasons: platform teams, GitOps pipelines and managed operators create bindings constantly, and a binding that grants an existing role through a legitimate looking subject name may never be reviewed.",
+  "tags": [
+    "persistence",
+    "privilege-escalation",
+    "kubernetes",
+    "cloud-audit",
+    "rbac",
+    "t1098.006"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Suspicious RoleBinding or ClusterRoleBinding Assignment in Kubernetes",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0572/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Suspicious RoleBinding or ClusterRoleBinding Assignment in Kubernetes - EASY",
+      "path": "exercises/det0572/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Suspicious RoleBinding or ClusterRoleBinding Assignment in Kubernetes - MEDIUM",
+      "path": "exercises/det0572/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Suspicious RoleBinding or ClusterRoleBinding Assignment in Kubernetes - HARD",
+      "path": "exercises/det0572/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Suspicious RoleBinding or ClusterRoleBinding Assignment in Kubernetes - EXTREMELY HARD",
+      "path": "exercises/det0572/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for new permission grants in a Kubernetes cluster. Kubernetes is a system that runs container workloads across many machines. A binding is the record that links a person or program to a set of permissions.",
+    "whyItMatters": "Permissions in a cluster decide what a workload can read, change or delete. One extra binding can give an attacker control of every workload. The change is small and easy to hide among normal platform work. Reviewing it early can stop a small foothold from becoming full control.",
+    "howItWorks": [
+      "The platform collects the cluster audit log, which records every request to the programming interface.",
+      "A filter keeps requests that create or change a role binding.",
+      "The platform reads which role the binding points to, and how powerful that role is.",
+      "It records who made the request, from which address and with which client tool.",
+      "Each request is compared with the normal pattern for that cluster and that account.",
+      "An alert fires when a powerful role is bound outside the normal deployment pipeline."
+    ],
+    "example": "Think of a hotel where each key card opens certain rooms. A manager may add a new card to the system, which is normal. Now imagine a card that opens every room. It was added at night, using a contractor account. That is worth a call to the manager before the guest checks out.",
+    "takeaways": [
+      "Permissions move through bindings, so watch binding creation closely.",
+      "The power of the bound role decides how serious the finding is.",
+      "Hidden workload identities need watching too, not just human accounts."
+    ]
+  },
+  "objectives": [
+    "Explain what a RoleBinding and a ClusterRoleBinding do in a cluster.",
+    "Identify the audit log fields that record a binding request.",
+    "Describe how to score a binding by the permissions of the referenced role.",
+    "Explain why service accounts are a favourite target for permission grants.",
+    "List the automation that legitimately creates bindings and how to allow list it."
+  ],
+  "techniqueId": "t1098-006",
+  "detectsTechniques": [
+    "t1098-006"
+  ],
+  "dataSources": [
+    "Kubernetes API server audit log records for rolebinding and clusterrolebinding create and update requests",
+    "Kubernetes audit records including the requesting user, user groups, source address and client user agent",
+    "Kubernetes role and clusterrole definition change records showing which verbs and resources a role grants",
+    "Admission controller or policy engine decision logs for binding requests that were denied or warned",
+    "Cloud provider managed cluster audit logs for identity and access changes made through the provider console"
+  ],
+  "logic": "The pattern is a create or update request against a role binding resource, where the referenced role carries broad permissions such as cluster wide administrator rights, and where the requesting identity or user agent does not match the normal deployment pipeline for that cluster. You must correlate the binding name, the referenced role, the subject being granted, the requesting user, the source address and the user agent, because a GitOps controller adding a namespaced read only binding is routine while an interactive kubectl session from a new address binding cluster administrator rights is not. The malicious case also frequently targets an existing service account rather than a person, so the subject kind matters as much as the role name.",
+  "pseudoQuery": "# title: Cluster Wide Privileged Role Binding Created\n# logsource:\n#   product: kubernetes\n#   service: audit\n# detection:\n#   selection:\n#     verb: create\n#     objectRef.resource: clusterrolebindings\n#     objectRef.name|contains: 'cluster-admin'\n#   filter_gitops:\n#     user.username|endswith: 'deployment-pipeline'\n#   condition: selection and not filter_gitops\n# level: high",
+  "falsePositives": [
+    "The platform team granting a new engineer temporary elevated access during an incident",
+    "A GitOps pipeline applying a namespace binding that was already reviewed and merged in code",
+    "A managed service operator creating a binding during installation or upgrade of an add-on",
+    "A test cluster where engineers create and delete bindings while validating a deployment"
+  ],
+  "tuningNotes": "Start by collecting at least two weeks of binding activity to establish who creates bindings in each cluster, then allow list the pipeline service accounts and the change management tool by both user agent and source address, and require the referenced role to be privileged rather than alerting on every binding. Scope the rule to production clusters first, because development clusters change constantly. Requiring a privileged role reduces noise but means a quiet escalation through many small namespaced permissions will not alert, so add a separate low-severity rule for first time binding creation by any identity and watch it as a trend.",
+  "severity": "high"
+}

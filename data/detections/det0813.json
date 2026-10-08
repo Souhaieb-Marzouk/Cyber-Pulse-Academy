@@ -1,0 +1,106 @@
+{
+  "id": "det0813",
+  "type": "detection",
+  "title": "Detection of Credentials",
+  "shortTitle": "Detection of Credentials",
+  "externalId": "DET0813",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the collection of credentials by an adversary, matching the technique where an attacker gathers account names and passwords for the target organisation from public breaches, paste sites, marketplace listings and exposed repositories rather than by breaking in. It matters because the defender cannot see the collection itself, so the workable signals are on the victim side: authentication attempts that use real but slightly wrong passwords, sign ins from addresses that match known breach infrastructure ranges, spikes in failed logins across many accounts from one source, and monitoring of public paste and code hosting sites for the corporate domain. The telemetry that makes it possible is identity provider sign in logs, Windows Security event 4625 failed logon records, cloud audit logs for credential changes, and external leak monitoring feeds. Detection fails in practice because credential stuffing and ordinary user typos look almost identical in a single event, so the rule has to work on counts, source reputation and account spread.",
+  "tags": [
+    "reconnaissance",
+    "credentials",
+    "mitre t1589.001",
+    "identity monitoring",
+    "failed logon"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Credentials",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0813/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Credentials - EASY",
+      "path": "exercises/det0813/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Credentials - MEDIUM",
+      "path": "exercises/det0813/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Credentials - HARD",
+      "path": "exercises/det0813/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Credentials - EXTREMELY HARD",
+      "path": "exercises/det0813/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for use of stolen account details. Attackers often buy or find lists of passwords for a company. The rule watches for many failed sign in attempts that share one source. It also watches for sign ins that use a real name with a wrong password.",
+    "whyItMatters": "A leaked password list lets an attacker try thousands of accounts in minutes. Valid accounts are hard to spot, because the login looks normal. Most breaches start with a stolen password rather than with software. Finding the list in use early stops the attacker from getting in.",
+    "howItWorks": [
+      "Every sign in is recorded by the identity provider. Windows also records failures as event 4625 and successes as event 4624.",
+      "Those records reach the security monitoring platform with the account name, the source address and the client application.",
+      "The rule groups sign in attempts by source address and counts how many different accounts were tried.",
+      "It also compares the failed to successful ratio for each account in a short window.",
+      "Addresses that appear in breach and abuse feeds raise the score further.",
+      "The alert lists the source, the accounts touched and whether any attempt succeeded."
+    ],
+    "example": "Think of a thief holding a copied key ring from an old office. The thief walks the corridor trying each key in each door. Most keys fail, but one may open something. The door log shows many failures from the same person in a few minutes. This detection reads that door log.",
+    "takeaways": [
+      "Stolen passwords give no malware and no strange process, only unusual logins.",
+      "Count how many accounts one source tries, not just how many times one account fails.",
+      "Check whether any attempt succeeded before you close the alert."
+    ]
+  },
+  "objectives": [
+    "Define credential collection and describe where leaked credentials come from.",
+    "Identify the logon event fields needed to attribute attempts to a source and client.",
+    "Build a rule that counts distinct accounts tried per source address in a window.",
+    "Explain the difference between password spraying and credential stuffing patterns.",
+    "Describe how to confirm whether a leaked credential was used successfully."
+  ],
+  "techniqueId": "t1589-001",
+  "detectsTechniques": [
+    "t1589-001"
+  ],
+  "dataSources": [
+    "Identity provider sign in logs with account name, source address, client application and result code",
+    "Windows Security event 4625 failed logon records and event 4624 successful logon records on domain controllers",
+    "Web application and remote access portal authentication logs for externally reachable sign in pages",
+    "Cloud audit logs recording password changes and new authentication method registrations",
+    "External leak and paste monitoring feeds that report corporate email addresses and password hashes"
+  ],
+  "logic": "The pattern is one source address, address range or autonomous system generating failed authentication attempts against many distinct account names in a short window, with a very low success ratio and repeated attempts against the same account using small variations, which is the fingerprint of a leaked credential list being tested. The fields that must be correlated are the source address and its reputation data, the list of distinct account names tried, the count of attempts per account and per source, the user agent or client application, and any successful logon from the same source shortly afterwards. The benign case is a person mistyping a password a few times, or a misconfigured service account retrying on a short interval from a known host; the malicious case is broad account coverage from one address, often a hosting or proxy range, with a success that comes from a brand new device for that user.",
+  "pseudoQuery": "# title: Distributed Failed Logons Against Many Accounts From One Source\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     event_id: 4625\n#     logon_type: 3\n#   filter_internal:\n#     source_ip|cidr:\n#       - '10[.]0[.]0[.]0/8'\n#   condition: selection and not filter_internal | count(distinct user) by source_ip > 15 within 10m\n# level: high",
+  "falsePositives": [
+    "A password manager or mail client that retries with an old cached password after a password change",
+    "Employees returning from holiday who mistype their password several times in one morning",
+    "A vulnerability scanner or monitoring agent that performs authenticated checks with stale credentials",
+    "Shared network address translation egress where many genuine users share one public address"
+  ],
+  "tuningNotes": "Exclude internal address ranges, known scanner hosts and any service account that legitimately retries, and require at least fifteen distinct account names before alerting so a single user with a stale password does not page anyone. Baseline the normal failed logon volume per hour for each externally reachable portal, then scope the rule to those portals and to remote access gateways. Correlate any 4625 followed by a 4624 within ten minutes from the same source and raise severity for those cases. Narrowing by address range is useful but it removes coverage for an attacker who spreads attempts across a large proxy pool, so keep a second lower threshold rule that counts total failures across all sources per hour.",
+  "severity": "high"
+}

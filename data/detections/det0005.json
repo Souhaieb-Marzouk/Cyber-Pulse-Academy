@@ -1,0 +1,109 @@
+{
+  "id": "det0005",
+  "type": "detection",
+  "title": "Renamed Legitimate Utility Execution with Metadata Mismatch and Suspicious Path",
+  "shortTitle": "Renamed Legitimate Utility Execution with Metadata Mismat...",
+  "externalId": "DET0005",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects renamed system utilities, a form of masquerading (T1036.003, Masquerading: Rename System Utilities). Adversaries copy a signed tool such as a command shell or scripting host to a new name so that allow lists and analyst habits do not recognise it. Detection works because the binary cannot change its embedded version information or its cryptographic signature, so a mismatch between the file name on disk and the internal product or original file name is strong evidence. The rule combines that mismatch with a non standard directory and with network or child process activity. It fails when file metadata is not collected by default, when legitimate application vendors ship deliberately renamed copies, and when attackers rename unsigned tooling where no metadata mismatch exists.",
+  "tags": [
+    "defense evasion",
+    "masquerading",
+    "file metadata",
+    "t1036.003",
+    "endpoint",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Renamed Legitimate Utility Execution with Metadata Mismatch and Suspicious Path",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0005/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Renamed Legitimate Utility Execution with Metadata Mismatch and Suspicious Path - EASY",
+      "path": "exercises/det0005/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Renamed Legitimate Utility Execution with Metadata Mismatch and Suspicious Path - MEDIUM",
+      "path": "exercises/det0005/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Renamed Legitimate Utility Execution with Metadata Mismatch and Suspicious Path - HARD",
+      "path": "exercises/det0005/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Renamed Legitimate Utility Execution with Metadata Mismatch and Suspicious Path - EXTREMELY HARD",
+      "path": "exercises/det0005/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Many useful Windows programs are signed by their maker and carry a description inside the file. An attacker can copy one of these programs and give it a new name. The outside name changes, but the inside information does not. This detection compares the two and flags the difference.",
+    "whyItMatters": "Security tools often decide whether a program is safe by its name or its folder. A renamed copy walks past those checks. An analyst who sees an unfamiliar name may not realise it is a well known tool. The mismatch is hard for the attacker to remove, because editing the inside details breaks the signature. That makes this a reliable clue when you collect the right data.",
+    "howItWorks": [
+      "The endpoint agent records every process start, and it can also read the file details of the program that started.",
+      "Those details include the original file name, the product name, the company and the signing state.",
+      "The detection compares the name on disk with the original file name stored inside the file.",
+      "It also checks the folder, because system tools normally live in the system directory.",
+      "A mismatch plus an unusual folder raises a suspicion score for that process.",
+      "The tool then looks at what the process did, such as starting other programs or opening a network connection."
+    ],
+    "example": "Think of a passport check at an airport. A traveller can write any name on a luggage tag. The passport inside still shows the real name. The officer compares the tag with the passport. If they disagree, the officer asks more questions.",
+    "takeaways": [
+      "A renamed binary keeps its internal product and original file name details.",
+      "Collecting file metadata at process start makes this detection possible.",
+      "The mismatch is a clue, not proof, so pair it with what the process does next."
+    ]
+  },
+  "objectives": [
+    "Explain what masquerading is and why renaming a signed tool defeats name based controls.",
+    "Identify the file metadata fields that reveal a renamed binary, such as the original file name and signature state.",
+    "Describe why the internal details of a signed file cannot easily be changed by an attacker.",
+    "Correlate a metadata mismatch with the directory the process runs from and its child processes.",
+    "List legitimate products in your environment that intentionally ship renamed executables.",
+    "Choose a rule threshold that catches renamed system tools without flooding analysts."
+  ],
+  "techniqueId": "t1036-003",
+  "detectsTechniques": [
+    "t1036-003"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including Image, OriginalFileName, Product, Company and Description fields",
+    "Processor architecture and signature verification output for the binary that started, if your agent records it",
+    "Sysmon event 11 file creation showing the copy operation that placed the renamed binary on disk",
+    "Sysmon event 3 network connection made by the renamed process",
+    "Windows Security event 4688 process creation with the account and parent process that launched the renamed binary"
+  ],
+  "logic": "The detection compares what a process claims to be on the outside with what is recorded inside the file. The primary selection is a process start where the image file name and the internal original file name disagree, which is the signature of a copy. Fields that must be correlated are the image path, the internal original file name and product name, the signer, the parent image, the account, and the directory the file was written to. The malicious case is a system tool name appearing inside a user profile, temporary or public folder, with a mismatched internal name, and then either spawning other processes or opening an outbound connection, which is typical of a renamed command shell used by an operator. The benign case is vendor software that ships a renamed copy in its own program directory with a valid signature from the same vendor, or an installer's temporary copy, so requiring an unsigned file or a writable directory is what keeps the rule clean.",
+  "pseudoQuery": "# title: Renamed System Utility With Metadata Mismatch\n# logsource:\n#   product: windows\n# detection:\n#   selection_proc:\n#     EventID: 1\n#     OriginalFileName|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\powershell.exe'\n#       - '\\\\rundll32.exe'\n#       - '\\\\net.exe'\n#     Image|endswith: '.exe'\n#   filter_match:\n#     Image|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\powershell.exe'\n#       - '\\\\rundll32.exe'\n#   filter_system:\n#     Image|startswith: 'C:\\\\Windows\\\\'\n#   condition: selection_proc and not filter_match and not filter_system\n# level: high",
+  "falsePositives": [
+    "Application vendors that ship a renamed copy of a system tool inside their own program folder",
+    "Software installers that extract a temporary helper binary into a user profile folder",
+    "Third party backup and monitoring agents that bundle a renamed scripting host",
+    "Packaging tools that run a renamed copy of a command interpreter under a build account",
+    "Legacy line of business software that stores its own launcher under a non standard name"
+  ],
+  "tuningNotes": "Start by inventorying binaries whose file name differs from their internal original name across your fleet, and allow list the signed ones by hash or signer. Add a filter requiring the file to be unsigned or signed by an unexpected publisher, which removes most vendor noise. Scope the high severity rule to server roles and administrative jump hosts, and keep a lower severity version for user endpoints. Baseline which directories your own tooling writes to so that program data and application folders can be excluded. The coverage you lose is an attacker who renames an unsigned tool or repacks a signed one, so pair this rule with parent and child process chain detections rather than relying on metadata alone.",
+  "severity": "medium"
+}

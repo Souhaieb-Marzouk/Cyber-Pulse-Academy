@@ -1,0 +1,108 @@
+{
+  "id": "det0308",
+  "type": "detection",
+  "title": "Detection Strategy for Modify Cloud Compute Infrastructure",
+  "shortTitle": "Detection Strategy for Modify Cloud Compute Infrastructure",
+  "externalId": "DET0308",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers modification of cloud compute infrastructure, mapped to T1578, where an adversary changes the compute layer of a cloud account to gain a foothold, hide activity or clean up after themselves. It matters because compute changes are dual use: creating an instance can be an attacker establishing a new launch point, deleting an instance can destroy evidence or disrupt a service, and creating a snapshot or image can quietly copy an entire disk for offline review or exfiltration. The telemetry that makes it detectable is the cloud provider management event stream, which records the identity, source address, user agent and parameters of each create, modify and delete action against instances, images and snapshots, together with the associated instance metadata service and key pair activity. The main way it fails in practice is that infrastructure as a service automation produces enormous volumes of legitimate compute changes, so the rule must be scoped by identity, by region and by the specific actions that are rare in normal operations.",
+  "tags": [
+    "mitre t1578",
+    "cloud compute",
+    "cloud audit logs",
+    "defence evasion",
+    "resource hijacking"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Modify Cloud Compute Infrastructure",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0308/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure - EASY",
+      "path": "exercises/det0308/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure - MEDIUM",
+      "path": "exercises/det0308/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure - HARD",
+      "path": "exercises/det0308/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure - EXTREMELY HARD",
+      "path": "exercises/det0308/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud compute means the virtual machines and disk images that run your workloads. This rule looks for management actions on those machines and their saved disk copies. The actions include creating, changing and deleting. Each action is recorded with the identity and the source behind it. The rule can then tell who did what and from where.",
+    "whyItMatters": "A cloud account can be changed in seconds. An attacker does not need to touch a single server to cause harm. They can build a new machine to work from. They can copy a disk image and read it elsewhere. They can delete a machine to cover their tracks. Automation also creates and destroys machines all the time, so knowing what is normal is essential.",
+    "howItWorks": [
+      "Every management action in the cloud account is written to an audit log with the identity that made the request.",
+      "The rule reads that log and picks out actions that create, modify, stop or delete compute resources.",
+      "It compares the requesting identity, the source address and the tool used with what that identity normally does.",
+      "It gives extra weight to actions in an unused region and to snapshots.",
+      "It links related actions, such as a new key pair followed by a new machine using that key.",
+      "If the activity does not match a known pipeline, the system alerts an analyst. The alert includes the action history of that identity."
+    ],
+    "example": "Think of a shared workshop where anyone with a pass can borrow tools. The storekeeper writes down every borrow, who took it and which door they used. Borrowing a screwdriver is normal. Now a person who has never used the workshop enters through the back door and copies a master key pattern. The log shows the whole story.",
+    "takeaways": [
+      "Cloud compute changes are fully logged, so the challenge is context rather than visibility.",
+      "A new machine, a copied disk image or a deletion outside the deployment pipeline all deserve review.",
+      "You must know your automation identities and their normal regions and tools first."
+    ]
+  },
+  "objectives": [
+    "Describe the compute actions an adversary can take in a cloud account and the impact of each.",
+    "Identify the cloud audit log fields that attribute a compute action to an identity, source and tool.",
+    "Establish a baseline of automation identities, their normal regions, tools and schedules.",
+    "Recognise high risk actions such as image sharing outside the account and snapshot creation for later access.",
+    "Correlate a compute action with surrounding identity, network or key management activity.",
+    "Explain why deletion of a compute resource is often a defence evasion or impact step rather than a mistake."
+  ],
+  "techniqueId": "t1578",
+  "detectsTechniques": [
+    "t1578"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for instance, image, snapshot and key pair actions, including the identity, source address, user agent and request parameters",
+    "Azure Activity log records for virtual machine and managed disk create, modify, deallocate and delete operations, including the caller and correlation identifier",
+    "GCP Cloud Audit Logs for compute instance and image operations, including the principal, the calling service and the resource hierarchy path",
+    "Cloud provider inventory and configuration snapshots that show what compute resources exist, so that newly created resources can be compared with change records",
+    "Cloud provider network flow or firewall logs showing traffic from a compute resource that was created outside the deployment pipeline"
+  ],
+  "logic": "The pattern is a compute management action, or a short cluster of them, performed by an identity whose baseline does not include that action, that region or that tool, with the greatest interest in image and snapshot creation, image sharing outside the account, instances in an unused region, and deletion of production instances. The fields that must be correlated are the caller identity and role, the action name, the resource identifier, the region, the source address and the user agent. Correlation across services matters, because the strongest cases combine actions, such as a new access key followed by a new instance that immediately authenticates elsewhere. The benign case is a deployment pipeline or autoscaling group in known regions using the infrastructure tool user agent, with a documented create and destroy window. The malicious case shows console or command line user agents, unusual source addresses, quiet hours, and resources never registered with monitoring.",
+  "pseudoQuery": "# title: Cloud Compute Resource Created or Deleted Outside Deployment Pipeline\n# logsource:\n#   product: aws\n# detection:\n#   selection_compute:\n#     eventName:\n#       - 'RunInstances'\n#       - 'CreateImage'\n#       - 'CreateSnapshot'\n#       - 'TerminateInstances'\n#   filter_pipeline:\n#     userIdentity.arn|contains:\n#       - 'role/deploy'\n#       - 'role/autoscaling'\n#   condition: selection_compute and not filter_pipeline\n# level: high",
+  "falsePositives": [
+    "Autoscaling groups that create and terminate instances continuously with the infrastructure tool user agent",
+    "Backup and disaster recovery services that create snapshots on a fixed schedule across many volumes",
+    "Engineers building temporary test machines in a sandbox account during working hours",
+    "Cost optimisation tooling that stops idle instances automatically at the end of the day",
+    "A migration project that creates images from existing servers as part of a planned data centre exit"
+  ],
+  "tuningNotes": "Build a baseline per identity: the actions it performs, the regions it uses, the user agents it presents and the hours it works, then filter by those combinations rather than by action name, because almost every compute action is legitimate somewhere. Allowlist the roles used by deployment, autoscaling and backup services, and treat any action by a human identity in an unusual region as high severity. Aggregate related actions per identity over a short window so that a create, configure and connect sequence becomes one alert rather than three, and add a comparison against the current resource inventory so that unregistered resources stand out. Narrowing to known regions and automation roles loses coverage of an attacker who uses a stolen automation role or spins up resources inside an approved region, so monitor those roles for new source addresses and review the inventory difference every day.",
+  "severity": "high"
+}

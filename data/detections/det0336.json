@@ -1,0 +1,107 @@
+{
+  "id": "det0336",
+  "type": "detection",
+  "title": "Detect Compromise of Host Software Binaries",
+  "shortTitle": "Detect Compromise of Host Software Binaries",
+  "externalId": "DET0336",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects compromise of host software binaries (T1554), where an adversary modifies, replaces or hijacks a legitimate service binary, plugin or agent so their code runs under the identity and trust of that program. The signal is not a new program running but an existing one behaving differently: a changed hash or signature on a binary that should be immutable, an unexpected dependency loaded at startup, a service restart outside change windows, or a known binary executing from a non-standard path. Detection combines file integrity monitoring, image load telemetry and service state changes. It fails when baselines are stale, when patching changes hashes legitimately, and when the attacker modifies a binary that no baseline covers, so asset coverage matters as much as rule logic.",
+  "tags": [
+    "mitre t1554",
+    "binary integrity",
+    "file integrity monitoring",
+    "persistence",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Compromise of Host Software Binaries",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0336/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Compromise of Host Software Binaries - EASY",
+      "path": "exercises/det0336/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Compromise of Host Software Binaries - MEDIUM",
+      "path": "exercises/det0336/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Compromise of Host Software Binaries - HARD",
+      "path": "exercises/det0336/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Compromise of Host Software Binaries - EXTREMELY HARD",
+      "path": "exercises/det0336/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the programs that are part of the operating system or of your security tools. Attackers change one of these programs so their own code runs inside it. The program keeps its normal name, so it still looks familiar.",
+    "whyItMatters": "If a trusted program carries attacker code, it inherits that program's permissions. It may keep running after a restart and stay hidden from simple checks. This is how attackers survive cleanup and disable defences. Noticing a changed file early limits the damage to one machine.",
+    "howItWorks": [
+      "You record a fingerprint of every important program file when the machine is known to be healthy.",
+      "The detection compares the current file with the recorded fingerprint on a schedule or on change.",
+      "It also watches the libraries that a program loads when it starts, because those can be swapped instead.",
+      "It notes when a system service restarts outside an approved maintenance window.",
+      "It checks whether the program is running from a path other than the one you recorded.",
+      "A changed file, a new library or an odd path creates an alert with the host and the earlier fingerprint."
+    ],
+    "example": "Think of a school that checks teachers' identity badges at the gate. Attackers do not print a new badge; they copy the details of a real teacher onto a fake one. The badge reader says the person is a teacher, so nobody asks more questions. Comparing the badge with the official record is the only way to catch it.",
+    "takeaways": [
+      "You cannot spot a modified trusted program without a known-good baseline.",
+      "Libraries and plugins are common swap targets, so watch what loads at startup.",
+      "Keep baselines current, or you will miss real changes in a flood of update alerts."
+    ]
+  },
+  "objectives": [
+    "Explain why modifying a trusted binary is more valuable than writing a new one",
+    "Describe what a file integrity baseline contains and how it is maintained",
+    "Correlate a binary change with service restarts and image load events",
+    "Detect a known binary running from an unexpected path",
+    "Explain how baseline drift creates both false positives and blind spots"
+  ],
+  "techniqueId": "t1554",
+  "detectsTechniques": [
+    "t1554"
+  ],
+  "dataSources": [
+    "File integrity monitoring hashes and signature status for system binaries, agents and service executables",
+    "Sysmon event 7 image load events recording modules loaded into a service process at startup",
+    "Windows System log service control manager events showing service start, stop and restart actions",
+    "Sysmon event 1 process creation showing a known binary name executed from a non-standard directory",
+    "Software inventory or patch management records listing expected versions for each managed host"
+  ],
+  "logic": "The pattern is a file change, a signature validation failure or an unexpected module load affecting a binary that is expected to be stable, correlated with a service restart or a process start outside an approved change window. The fields to correlate are the host, the file path, the previous and current cryptographic hash, the validating signature status, the responsible service and the account that caused the change. The benign case is a scheduled patch or an agent upgrade applied by the management tool inside a maintenance window, with a version that matches the inventory record. The malicious case is a hash change with no corresponding change ticket, a signature that no longer validates, a binary running from a temporary or user directory, and a service restart at an unusual hour, often followed by defence tooling failing to start.",
+  "pseudoQuery": "# title: Service Binary Hash Changed Without Patch Record\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: [1, 7]\n#     Image|startswith: 'C:\\\\Windows\\\\System32\\\\'\n#     SignatureStatus: 'Unavailable'\n#   filter_patch:\n#     User|endswith: '$'\n#     ParentImage|endswith: ['\\\\TiWorker.exe', '\\\\msiexec.exe']\n#   condition: selection and not filter_patch\n# level: high",
+  "falsePositives": [
+    "Operating system patching that legitimately replaces service binaries and updates their hashes",
+    "Security agent auto-upgrades that swap a running binary and restart the service at night",
+    "Application installers that update bundled libraries inside an existing product directory",
+    "Software developers compiling and testing their own service binaries on engineering workstations",
+    "Third-party plugin updates that replace library files inside an approved application folder"
+  ],
+  "tuningNotes": "Maintain a verified baseline for a defined set of critical paths rather than the whole disk, and exclude directories that change with every patch cycle, or you will drown in update noise. Feed patch and change records into the rule so a matching change ticket or management tool parent suppresses the alert. Require signature validation failure or a non-standard execution path before escalating to high severity, which keeps real tampering near the top. The coverage you lose by excluding frequently updated directories is tampering in exactly those directories, so compensate with periodic full-path hash reviews and monitoring of signature status across the fleet.",
+  "severity": "high"
+}

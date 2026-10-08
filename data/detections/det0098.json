@@ -1,0 +1,107 @@
+{
+  "id": "det0098",
+  "type": "detection",
+  "title": "Detect abuse of Windows BITS Jobs for download, execution and persistence",
+  "shortTitle": "Detect abuse of Windows BITS Jobs for download, execution...",
+  "externalId": "DET0098",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects misuse of the Windows Background Intelligent Transfer Service, a built in file transfer component, to download payloads, run commands when a transfer completes and survive reboots. The technique matters because the service is signed and trusted, it can reach the internet from hosts that block other tools, and a notification command gives it an execution path. Detection combines process creation showing command line job management, the service operational log that records job creation and completion, and the network connections the service makes. The typical failure is that patching and update platforms use the same service constantly, so job creation alone is meaningless and the command line and job owner must decide. This is study material, not an authoritative reference.",
+  "tags": [
+    "defense evasion",
+    "bits jobs",
+    "persistence",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect abuse of Windows BITS Jobs for download, execution and persistence",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0098/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect abuse of Windows BITS Jobs for download, execution and persistence - EASY",
+      "path": "exercises/det0098/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect abuse of Windows BITS Jobs for download, execution and persistence - MEDIUM",
+      "path": "exercises/det0098/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect abuse of Windows BITS Jobs for download, execution and persistence - HARD",
+      "path": "exercises/det0098/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect abuse of Windows BITS Jobs for download, execution and persistence - EXTREMELY HARD",
+      "path": "exercises/det0098/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for misuse of a Windows service that downloads files in the background. The service is called the Background Intelligent Transfer Service, or BITS. Programs use it to fetch updates, and attackers use it because it is trusted and always available. The detection watches the commands that create transfer jobs, the service log and the files that arrive.",
+    "whyItMatters": "Security tools often allow this service because Windows and update systems depend on it. That trust makes it a useful path for an attacker who wants to fetch a file quietly. A job can also be set to run a command when the transfer finishes, which turns a download into execution. Jobs can persist across restarts, so access can outlive the original session. Watching job creation and its arguments closes this gap.",
+    "howItWorks": [
+      "The endpoint agent records process creation, including the command line for job management tools.",
+      "The rule looks for the command line interface and the scripting command that create transfer jobs.",
+      "It reads the arguments, because a remote address, a notification command or a high priority flag changes the risk.",
+      "The service operational log records the job identifier, the owner, the file path and the completion state.",
+      "The rule links the job to any process that starts soon after the transfer finishes.",
+      "Jobs created by ordinary user accounts that write to a temporary folder and run a command when done are the priority case."
+    ],
+    "example": "Imagine a building with a trusted courier who is allowed through the gate without a search. Every department uses the courier for real deliveries, so the guard waves the van through each time. If someone starts sending the courier to collect a package from a strange address and to drop it in a back room on arrival, the guard would still wave the van through. The courier log and the delivery addresses are what reveal the misuse, just as the job log does here.",
+    "takeaways": [
+      "BITS is a signed, trusted transfer service, so allowlists rarely block it.",
+      "A transfer job can run a command when it completes, which turns a download into execution.",
+      "Always read the job arguments and the owner, because normal patching uses the same service."
+    ]
+  },
+  "objectives": [
+    "Describe what BITS does and why attackers prefer a trusted transfer service.",
+    "Identify the command line, service log and network telemetry that reveal BITS jobs.",
+    "Recognise the notification command line argument as an execution path.",
+    "Baseline the software and accounts that legitimately create BITS jobs in your estate.",
+    "Triage a BITS job alert by checking the remote address, the file path and the owner."
+  ],
+  "techniqueId": "t1197",
+  "detectsTechniques": [
+    "t1197"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation for bitsadmin.exe and scripting hosts with BITS transfer commands",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows BITS client operational log entries that record job creation, transfer start, completion and owner",
+    "Sysmon event 3 network connection made by the BITS service process to a remote address",
+    "Sysmon event 11 file creation for the downloaded payload in a user writable or temporary folder"
+  ],
+  "logic": "The pattern is a BITS transfer job created by an account or tool that does not normally manage updates, especially when the job carries a notification command or writes into a user writable path. The fields that must be correlated are the process image and parent that created the job, the command line arguments including the remote address and any notification command, the job owner recorded by the service, the local file path, and any process started shortly after completion. Legitimate activity comes from update platforms, software distribution agents and management tooling, which create many jobs under service accounts, target vendor addresses, and write into program or update cache directories. Malicious activity usually shows a single job created by an interactive user or by a scripting host, a remote address that is new to the environment, a destination under a temporary or user profile path, and a completion command that launches a script interpreter. The owner, the arguments and the destination separate the two.",
+  "pseudoQuery": "# title: BITS Job With Notify Command or User Writable Destination\n# logsource:\n#   product: windows\n# detection:\n#   sel_tool:\n#     EventID: 1\n#     Image|endswith: ['\\\\bitsadmin.exe', '\\\\powershell.exe']\n#     CommandLine|contains: ['/transfer', 'Start-BitsTransfer', '/setnotifycmdline', '/addfile']\n#   sel_net:\n#     EventID: 3\n#     Image|endswith: '\\\\svchost.exe'\n#     DestinationPort: [80, 443]\n#   filter:\n#     User|endswith: ['svc_patching', 'svc_software_dist']\n#   condition: (sel_tool or sel_net) and not filter\n# level: high",
+  "falsePositives": [
+    "Patch management platforms that use BITS to deliver updates to thousands of endpoints",
+    "Software distribution tools that stage installers in a cache folder before running them",
+    "Endpoint agents that fetch signature or content updates through the background transfer service",
+    "Administrators who use a BITS job to copy a large log file from a remote server for troubleshooting",
+    "Content delivery software that resumes a large download after a laptop returns from sleep"
+  ],
+  "tuningNotes": "Baseline the service accounts, vendor update endpoints and destination directories that legitimate job creation uses, then allowlist those combinations instead of excluding the whole service, which would blind you. Keep the notification command check active for all assets, since that is the execution path, and add a filter for jobs whose destination sits inside a managed update cache. Scope the strict version to workstations used by privileged users and to servers, where background transfers from the internet should be rare. The coverage you lose is a job that hides inside an approved update address or destination, so retain a weekly report of job counts per host and per owner to spot slow drift.",
+  "severity": "high"
+}

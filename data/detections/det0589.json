@@ -1,0 +1,106 @@
+{
+  "id": "det0589",
+  "type": "detection",
+  "title": "Detect Modification of Authentication Process via Reversible Encryption",
+  "shortTitle": "Detect Modification of Authentication Process via Reversi...",
+  "externalId": "DET0589",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects T1556.005, Modify Authentication Process through reversible encryption, where an adversary changes account policy so that passwords are stored in a form the directory service can decrypt rather than only in a one-way hash. Once that setting is enabled, reading the stored value yields a usable password for offline cracking or direct replay, which turns a directory read into full credential compromise. Detection is configuration-centric: it watches directory policy change events, the resulting account attribute changes on individual users, and the group policy or directory tooling that applied them. The main difficulty is that the same policy legitimately exists for a few protocols that require it, so host, scope, and change record correlation decide whether an alert is real.",
+  "tags": [
+    "credential access",
+    "persistence",
+    "active directory",
+    "policy change",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Modification of Authentication Process via Reversible Encryption",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0589/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Modification of Authentication Process via Reversible Encryption - EASY",
+      "path": "exercises/det0589/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Modification of Authentication Process via Reversible Encryption - MEDIUM",
+      "path": "exercises/det0589/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Modification of Authentication Process via Reversible Encryption - HARD",
+      "path": "exercises/det0589/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Modification of Authentication Process via Reversible Encryption - EXTREMELY HARD",
+      "path": "exercises/det0589/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Normally a system stores a scrambled form of your password that cannot be turned back into the original. A special setting makes the password recoverable instead. This detection looks for that setting being switched on or applied to user accounts.",
+    "whyItMatters": "If passwords become recoverable, a stolen system file gives the intruder real passwords, not just scrambled ones. Real passwords can be reused on other systems that share the same login. The change is a quiet configuration edit and does not break anything the user notices. Watching this setting protects every account in the directory at once.",
+    "howItWorks": [
+      "The directory service records policy changes and changes to individual account settings.",
+      "Those records reach your security information and event management (SIEM) platform.",
+      "The rule finds a change that turns on the recoverable password setting at domain level.",
+      "It also finds account level changes that turn the setting on for a person or a group.",
+      "It records who made the change, from which host, and at what time.",
+      "Any change without an approved request is escalated to an analyst."
+    ],
+    "example": "Think of a staff locker room where each locker holds a sealed envelope with the key inside. The rule says the envelope must be sealed and never opened. Someone quietly changes the rule so that envelopes may be opened at any time. Nothing looks broken, and every locker still works. Yet from that moment, any person who walks in can take every key.",
+    "takeaways": [
+      "Reversible storage turns a scrambled password into a usable one.",
+      "The change can happen at domain level or on a single account, so watch both.",
+      "Very few legitimate systems need this setting, so any change deserves a review."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between a one-way password hash and reversible encryption",
+    "Identify the directory and group policy events that record this setting being changed",
+    "Correlate a policy change with the accounts that inherit it",
+    "Judge whether a business application genuinely requires reversible storage",
+    "Plan remediation that resets affected credentials rather than only reverting the setting"
+  ],
+  "techniqueId": "t1556-005",
+  "detectsTechniques": [
+    "t1556-005"
+  ],
+  "dataSources": [
+    "Windows Security event 4739 recording changes to domain policy settings including password storage configuration",
+    "Directory service change auditing events recording modification of the user account attribute that controls reversible password storage",
+    "Windows Security event 4688 process creation with command line auditing for directory administration commandlets and utilities",
+    "Group policy operational log events recording the application of a modified policy object to domain controllers",
+    "Microsoft Entra ID audit logs for directory policy and authentication method configuration changes"
+  ],
+  "logic": "The pattern is a change that makes stored credentials recoverable, at either domain or account scope, made outside an approved change. The rule selects domain policy change events and account attribute modification events, extracts the acting account, the source host, the object changed, and the new value, and then joins them to directory administration process creation records on the same host within a short window. The malicious case shows a single account being modified for reversible storage shortly after an unexpected administrative logon, or a domain wide policy change applied at an unusual hour with no matching change ticket. The benign case shows a documented rollout for a legacy authentication dependent application, normally applied to a narrow group rather than the whole domain.",
+  "pseudoQuery": "# title: Reversible Password Storage Enabled on Account or Domain Policy\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_policy:\n#     EventID: 4739\n#     PolicyName|contains: 'Reversible Encryption'\n#   selection_account:\n#     EventType: 'DirectoryServiceChange'\n#     AttributeName: 'UserAccountControl'\n#     AttributeValue|contains: 'ENCRYPTED_TEXT_PASSWORD_ALLOWED'\n#   filter_change:\n#     SubjectUserName|endswith: 'svc-identity-release'\n#   condition: (selection_policy or selection_account) and not filter_change\n# level: critical",
+  "falsePositives": [
+    "Legacy applications that authenticate with a protocol requiring the directory to hold a recoverable copy of the password",
+    "Migration projects copying accounts between forests where the setting is carried over temporarily under change control",
+    "Test and development domains built from production templates that inherit the setting without review",
+    "Recovery scenarios where an administrator follows a documented break glass procedure that toggles the policy"
+  ],
+  "tuningNotes": "Allowlist the release and identity engineering accounts by exact name, and require a matching approved change record before downgrading an alert, which keeps the rule strict without silencing planned work. Baseline the current state of the setting across all domains so that any new occurrence is genuinely new, since an inherited setting will otherwise look like a fresh change. Scope the strict alert to production domains and route lab domains to review. The coverage you lose is an intruder who modifies the setting using an allowlisted account, so alert separately on that account authenticating from a new host.",
+  "severity": "critical"
+}

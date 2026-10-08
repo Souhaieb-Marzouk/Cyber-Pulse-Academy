@@ -1,0 +1,108 @@
+{
+  "id": "det0231",
+  "type": "detection",
+  "title": "Behavioral Detection of Systemd Timer Abuse for Scheduled Execution",
+  "shortTitle": "Behavioral Detection of Systemd Timer Abuse for Scheduled...",
+  "externalId": "DET0231",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of systemd timers for scheduled execution, tracked as ATT&CK T1053.006, where an adversary creates a timer unit and a matching service unit so that a payload runs on a schedule and restarts itself. It matters because systemd timers are the modern replacement for cron on Linux, they run as root by default when placed in the system unit directory, and they are frequently absent from cron focused monitoring and from host integrity baselines. The telemetry that makes it detectable is auditd file watches on the systemd unit directories, process creation events for systemctl and the unit files it acts on, and service manager logs recording unit load and start activity. The main failure mode is that package managers, configuration management agents, and container platforms create and reload units constantly, so the rule must separate deployment tooling writing units from an interactive shell or a web process doing the same thing.",
+  "tags": [
+    "linux",
+    "persistence",
+    "systemd",
+    "scheduled task",
+    "auditd"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Systemd Timer Abuse for Scheduled Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0231/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Systemd Timer Abuse for Scheduled Execution - EASY",
+      "path": "exercises/det0231/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Systemd Timer Abuse for Scheduled Execution - MEDIUM",
+      "path": "exercises/det0231/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Systemd Timer Abuse for Scheduled Execution - HARD",
+      "path": "exercises/det0231/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Systemd Timer Abuse for Scheduled Execution - EXTREMELY HARD",
+      "path": "exercises/det0231/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new scheduled tasks on Linux systems. A scheduled task is a job the computer runs on its own at set times. On modern Linux, these jobs are described in small text files called unit files. An attacker can add such a file so their program runs again and again. This detection watches the folder that holds those files and the command used to turn them on.",
+    "whyItMatters": "A scheduled job keeps working after a restart, so access survives reboots. Jobs placed in the system folder usually run with the highest rights on the machine. Many teams monitor the older scheduling tool and forget the newer one. Finding the new job early lets you remove the file before it runs again.",
+    "howItWorks": [
+      "The system audit service records when files are added or changed in the scheduling folders.",
+      "The rule checks whether the new file ends with the timer or service suffix.",
+      "It records the user and program that created the file, such as a shell or a web server.",
+      "The rule also watches the command that reloads the task list and enables a task.",
+      "Files created by the package manager or a management agent are treated as normal.",
+      "An alert fires when a task appears from an interactive session or an unusual program."
+    ],
+    "example": "Think of a cleaner who is given a key to an office and told to visit every night. Once the key is handed over, nobody checks again. An attacker who files the paperwork for a nightly visit gets the same quiet access. The door log shows nothing unusual.",
+    "takeaways": [
+      "Systemd timers are scheduled tasks that often escape cron based monitoring.",
+      "The user and program that created the unit file matter as much as the file itself.",
+      "A timer paired with a service unit that runs a script from a temporary folder is a strong signal."
+    ]
+  },
+  "objectives": [
+    "Explain how systemd timer and service units combine to schedule recurring execution",
+    "Configure auditd file watches on the system and user unit directories",
+    "Identify process creation events for systemctl actions that load or enable a unit",
+    "Distinguish units created by package managers and configuration tools from those created interactively",
+    "Read unit contents to judge whether an ExecStart path is legitimate",
+    "Respond to a confirmed malicious timer without breaking scheduled maintenance jobs"
+  ],
+  "techniqueId": "t1053-006",
+  "detectsTechniques": [
+    "t1053-006"
+  ],
+  "dataSources": [
+    "Linux auditd file watch events on /etc/systemd/system and /etc/systemd/user recording create and write operations",
+    "Linux auditd execve records capturing systemctl, systemd-run and daemon-reload command lines",
+    "systemd journal entries for unit load, start and failed states with the unit name",
+    "File integrity monitoring baseline of unit file paths, content hash and owning package",
+    "Linux process creation telemetry showing the parent process of the command that wrote the unit file"
+  ],
+  "logic": "The detection looks for a new or modified unit file under the systemd unit directories whose name ends in timer or service and whose parent process, owning user, or session context does not match a package manager or an approved configuration tool, combined with a subsequent reload or start of that unit. The fields that must be correlated are the file path, the unit name, the file contents including the ExecStart path and user directive, the creating process and its parent, the effective user identifier, and the systemctl action that followed. Benign cases are rpm or dpkg installing a vendor timer, an orchestration agent writing a unit from its own directory, and one file changing at the same moment as a package upgrade in the logs, whereas malicious use shows a unit with a random or system sounding name, an ExecStart pointing at a path under /tmp, /var/tmp, a home directory, or a container writable layer, and creation from a shell, a script interpreter, or a network facing service account.",
+  "pseudoQuery": "# title: Suspicious systemd Timer Unit Created Outside Package Management\n# logsource:\n#   product: linux\n# detection:\n#   selection_file:\n#     type: 'CREATE'\n#     name|endswith:\n#       - '.timer'\n#       - '.service'\n#     key: 'systemd_units'\n#   filter_pkg:\n#     exe|endswith:\n#       - '/dpkg'\n#       - '/rpm'\n#       - '/apt'\n#       - '/yum'\n#       - '/dnf'\n#   selection_exec:\n#     exe|endswith: '/systemctl'\n#     a0|contains:\n#       - 'enable'\n#       - 'daemon-reload'\n#       - 'start'\n#   condition: (selection_file or selection_exec) and not filter_pkg\n# level: medium",
+  "falsePositives": [
+    "Configuration management agents such as automated provisioning tools that install timers for their own scheduled checks",
+    "Container runtime or orchestration components that register units for kubelet or node level services",
+    "Operations teams creating a custom timer for log rotation or certificate renewal from an interactive session",
+    "Database or application installers that ship their own systemd units and run as root during setup",
+    "Backup software upgrades that rewrite an existing timer unit and then reload the service manager"
+  ],
+  "tuningNotes": "The highest value filter is the creating process: allowlist the package manager binaries and your configuration management agent, and keep everything else, rather than allowlisting whole directories, because attackers deliberately write into legitimate looking paths. Baseline the unit files present on your server images, record their package ownership, and alert on any unit whose path is not owned by a package, which removes almost all deployment noise while keeping the interesting cases. Add a check on the ExecStart target so that a unit pointing to /tmp, /dev/shm, or a home directory raises severity, and scope to servers rather than developer workstations where legitimate experimentation is common. The coverage you lose by trusting package ownership is a real attacker who is able to install a package or abuse a legitimate package's timer, so also monitor systemctl actions performed by interactive users on production hosts.",
+  "severity": "high"
+}

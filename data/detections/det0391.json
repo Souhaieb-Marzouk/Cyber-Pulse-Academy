@@ -1,0 +1,107 @@
+{
+  "id": "det0391",
+  "type": "detection",
+  "title": "Detection Strategy for Runtime Data Manipulation.",
+  "shortTitle": "Detection Strategy for Runtime Data Manipulation.",
+  "externalId": "DET0391",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers manipulation of data while a system is running, where an adversary changes or deletes information that is held in memory or in a live data store so that the change is not visible in the stored record afterwards. The goal is usually to hide activity, break a control decision, or corrupt a result, and the affected data may be in a log, a session, a token, or an application database. Detection depends on joining file and registry change telemetry with the process context and on comparing the value before and after the change, so the rule needs object access auditing or a file integrity baseline rather than a plain file write feed. The strategy fails often because legitimate application, patch, and backup processes write to the same files continuously, and because a change made in memory alone leaves no file event to inspect.",
+  "tags": [
+    "impact",
+    "data manipulation",
+    "file integrity",
+    "windows",
+    "linux",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Runtime Data Manipulation.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0391/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Runtime Data Manipulation. - EASY",
+      "path": "exercises/det0391/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Runtime Data Manipulation. - MEDIUM",
+      "path": "exercises/det0391/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Runtime Data Manipulation. - HARD",
+      "path": "exercises/det0391/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Runtime Data Manipulation. - EXTREMELY HARD",
+      "path": "exercises/det0391/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Runtime data manipulation means changing information while a program is using it. The change may never reach the saved copy, so later reports look normal. This detection compares what a file should contain with what it contains after a process touches it.",
+    "whyItMatters": "If an attacker can edit the record while the program runs, the record becomes unreliable. Log evidence, licence checks, and payment totals can all be altered this way. The change is invisible to anyone who only reads the final report, so the alert must focus on who touched the file and when.",
+    "howItWorks": [
+      "The monitoring agent records writes, renames, and deletes on important files and registry values.",
+      "The rule keeps changes to files that hold records the business relies on, such as logs or databases.",
+      "It notes which process made the change and whether that process normally writes there.",
+      "A comparison of the file before and after shows whether content was changed in place.",
+      "A change by an unusual process, outside a change window, raises an alert for investigation."
+    ],
+    "example": "Think of a till receipt that is printed at the end of each sale. If a cashier can edit the running total on the screen before the receipt prints, the receipt will agree with the screen even though the drawer is short. The paper trail is honest and the numbers are still wrong.",
+    "takeaways": [
+      "Look for who changed the data and when, not only for what the data says now.",
+      "A single write is normal, so compare the writer with the process that normally owns the file.",
+      "Data changed only in memory leaves no file event, so keep memory integrity telemetry too."
+    ]
+  },
+  "objectives": [
+    "Explain how a change made at run time can be invisible in the stored record",
+    "Identify the file, registry, and database telemetry that can show a mid operation change",
+    "Use file integrity baselines and object access auditing to capture before and after state",
+    "Distinguish routine application writes from writes by unrelated processes",
+    "Scope a rule to data stores whose integrity the business depends on",
+    "State the residual risk of changes that occur only inside process memory"
+  ],
+  "techniqueId": "t1565-003",
+  "detectsTechniques": [
+    "t1565-003"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create and overwrite events for watched data and log directories",
+    "Sysmon event 13 registry value set events for application and audit configuration keys",
+    "Windows Security event 4663 object access records for write and delete rights on protected data files",
+    "File integrity monitoring baseline comparisons that report content change with the responsible process",
+    "Application or database audit logs that record in place modification of business records"
+  ],
+  "logic": "The pattern is a write to a data store by a process that does not own that store. The rule matches file and registry change events against a list of protected paths, then compares the writing process with the small set of processes that normally write there, and checks whether the change falls inside an approved change window. It adds weight when the same event shows a truncate, an in place overwrite of an existing file, or a change to an audit or logging configuration value, because those shapes aim at integrity rather than at adding new data. The benign case is the application service account writing its own database file, a patch process updating binaries, or a log rotation job renaming and recreating a log, all of which follow a stable process and path pairing. The malicious case is a script host, a command shell, or a remote management tool writing to a database, log, or licence store it never touches, particularly when the write is followed by a deletion of the earlier record.",
+  "pseudoQuery": "# title: Protected Data Store Modified By Unexpected Process\n# logsource:\n#   product: windows\n#   service: file_event\n# detection:\n#   selection_path:\n#     TargetFilename|contains:\n#       - '\\\\ProgramData\\\\' \n#       - '\\\\inetpub\\\\logs\\\\'\n#       - '\\\\Windows\\\\System32\\\\winevt\\\\Logs\\\\'\n#   selection_writer:\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\cmd.exe'\n#       - '\\\\wmic.exe'\n#   filter_service:\n#     Image|endswith: '\\\\sqlservr.exe'\n#   condition: selection_path and selection_writer and not filter_service\n# level: medium",
+  "falsePositives": [
+    "Log rotation and archiving jobs that rename, truncate, and recreate log files on a fixed schedule",
+    "Application patching that updates configuration or data files under a program data directory",
+    "Database maintenance and repair utilities run by a database administrator during a change window",
+    "Monitoring scripts that clear or rotate agent buffers inside a watched directory"
+  ],
+  "tuningNotes": "Build the expected writer list per protected path from at least one month of history, then alert only on writers outside that list, so routine service accounts stop generating events. Add a change window filter for paths that are updated during maintenance, and keep an out of hours exception for any write to a logging or audit configuration value, because those should never change with a running system. Count repeated modifications rather than alerting on each one, since a single write is rarely meaningful and a burst of in place edits is. The coverage you give up is a manipulation performed by a compromised application service account, which will look authorized, so pair this rule with file integrity hashing of the same paths.",
+  "severity": "medium"
+}

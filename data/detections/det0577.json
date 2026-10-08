@@ -1,0 +1,106 @@
+{
+  "id": "det0577",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow through the KernelCallbackTable on Windows.",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow through the ...",
+  "externalId": "DET0577",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1574.013, Hijack Execution Flow through the KernelCallbackTable, a Windows defence-evasion technique in which an attacker rewrites the user32.dll callback table pointer inside a running process so that ordinary window messages reach attacker-controlled code. Because the abused table already lives in a legitimately signed system library, the payload never has to be written to disk and file-based antivirus sees nothing. Detection therefore depends on memory telemetry and process behaviour; the realistic failure mode is cost and noise, since continuous callback table comparison across all processes is expensive and low-prevalence line-of-business applications can legitimately alter these structures.",
+  "tags": [
+    "defense evasion",
+    "process injection",
+    "windows",
+    "memory analysis",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow through the KernelCallbackTable on Windows.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0577/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through the KernelCallbackTable on Windows. - EASY",
+      "path": "exercises/det0577/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through the KernelCallbackTable on Windows. - MEDIUM",
+      "path": "exercises/det0577/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through the KernelCallbackTable on Windows. - HARD",
+      "path": "exercises/det0577/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through the KernelCallbackTable on Windows. - EXTREMELY HARD",
+      "path": "exercises/det0577/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "The KernelCallbackTable is an internal list inside a Windows process that tells the system which function handles certain window messages. This detection looks for a process whose list has been changed to point at unexpected code. It catches software that hides inside a trusted process instead of running as its own program.",
+    "whyItMatters": "A program that runs inside another trusted process is hard to spot, because the trusted process is allowed to run. No new file appears on disk, so file scanning alone will miss it. This detection gives you a memory-based view of the same event. It is one of the few ways to see this kind of hiding while it is happening.",
+    "howItWorks": [
+      "A monitoring agent reads the in-memory address of the KernelCallbackTable for each process.",
+      "It compares the callback entries against the normal values expected for that Windows version.",
+      "An entry that points into unbacked memory or an unusual module is flagged as suspicious.",
+      "The agent also records which process made the change and when, if that data is available.",
+      "The sensor sends the finding to your security information and event management (SIEM) platform.",
+      "An analyst reviews the alert together with recent process and network activity for that host."
+    ],
+    "example": "Think of a hospital sign-in sheet. Visitors must write their name at the front desk, and staff check the sheet to see who is inside. An intruder does not sign in at all. Instead, they erase a trusted doctor's name and write their own in its place. Anyone reading the sheet sees a familiar name and lets them pass. This detection is the clerk who compares the handwriting on the sheet against the real staff records, and notices that the entry was altered.",
+    "takeaways": [
+      "The callback table lives in a signed Windows library, so file scanning alone will not see the change.",
+      "Detection depends on memory inspection, not on files written to disk.",
+      "Legitimate software can also change this area, so analyst review is still needed."
+    ]
+  },
+  "objectives": [
+    "Explain what the KernelCallbackTable is and why attackers target it",
+    "Describe which telemetry sources can reveal in-memory callback table changes",
+    "Correlate a memory alert with recent process creation and network activity on the same host",
+    "Distinguish a suspicious callback entry from a legitimate vendor hook",
+    "Plan a baseline of approved callback table behaviour for the estate"
+  ],
+  "techniqueId": "t1574-013",
+  "detectsTechniques": [
+    "t1574-013"
+  ],
+  "dataSources": [
+    "Endpoint detection and response process memory scan events reporting KernelCallbackTable pointer values",
+    "Sysmon event 1 process creation including parent image and command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Endpoint agent module load events listing modules loaded into a process after start",
+    "Sysmon event 3 network connection events for the affected process"
+  ],
+  "logic": "The pattern is a divergence between the callback table a process should hold and the one it actually holds in memory. The sensor reads the address stored at the known offset inside the process environment block, walks the callback entries, and checks whether each entry resolves to a module that is loaded and signed, or instead to unbacked, private, or recently written memory. The malicious case shows one or more entries pointing outside any loaded image, often shortly after a remote thread or section mapping into the process. The benign case shows entries pointing into a signed library that was loaded normally, which is typical of accessibility and input-method software.",
+  "pseudoQuery": "# title: Suspicious KernelCallbackTable Callback Target in Live Process\n# logsource:\n#   product: windows\n#   service: edr_memory\n# detection:\n#   selection:\n#     EventType: 'MemoryScan'\n#     Structure: 'KernelCallbackTable'\n#   filter_signed:\n#     CallbackTargetModuleSigned: 'true'\n#     CallbackTargetModuleLoaded: 'true'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Accessibility and input-method software that legitimately hooks window callbacks inside its own host process",
+    "Application compatibility shims injected by the operating system at process start",
+    "Security agents and endpoint protection drivers that install their own message hooks into every process",
+    "Legacy line-of-business applications compiled against older user32.dll versions with different table layouts"
+  ],
+  "tuningNotes": "Start by building a baseline of which processes on which Windows build versions legitimately show non-standard callback entries, then filter those process and publisher pairs by name. Scope the rule to server and workstation tiers that hold valuable data rather than every host, since memory scanning has real cost. Add a filter for entries resolving to signed and already-loaded modules, and require the pointer to map to unbacked memory before alerting. Narrowing this way removes most vendor noise, but you lose visibility into callback hijacks that deliberately reuse a second signed library as their target.",
+  "severity": "high"
+}

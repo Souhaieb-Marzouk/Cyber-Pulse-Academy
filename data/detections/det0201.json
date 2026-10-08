@@ -1,0 +1,106 @@
+{
+  "id": "det0201",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow for DLLs",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow for DLLs",
+  "externalId": "DET0201",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the planting of a dynamic link library so that a trusted program loads attacker code, covering T1574.001 DLL Search Order Hijacking. The technique matters because the loading program is a signed, expected binary, so process creation records look clean and the only visible signal is which file on disk satisfied the import. The telemetry that makes it detectable is file creation in directories that are searched before the legitimate library location, combined with image load events that record the full path of every module a process maps. The usual failure is noise: many applications ship their own libraries beside their executable, so the rule must compare the loaded path against the expected path for that specific binary instead of alerting on any write into a program directory.",
+  "tags": [
+    "mitre t1574.001",
+    "persistence",
+    "dll hijacking",
+    "windows",
+    "image load"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow for DLLs",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0201/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow for DLLs - EASY",
+      "path": "exercises/det0201/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow for DLLs - MEDIUM",
+      "path": "exercises/det0201/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow for DLLs - HARD",
+      "path": "exercises/det0201/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow for DLLs - EXTREMELY HARD",
+      "path": "exercises/det0201/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a fake library file placed near a trusted program. A library file holds code that a program uses while it runs. Windows loads the first matching file it finds in a fixed list of folders. An attacker puts a bad file early in that list. The rule watches new files and the paths a program really loads.",
+    "whyItMatters": "The program that loads the bad library is genuine and signed. Security tools that check only the program name see nothing wrong. The malicious code then runs with the trust of that program. This often survives a reboot and can slip past application control lists. You need file telemetry and load telemetry together to see it.",
+    "howItWorks": [
+      "The endpoint agent records file creation events with the full folder path.",
+      "It also records image load events, which name every module that a process uses.",
+      "The detection keeps a list of library names that trusted programs commonly request.",
+      "It flags a new file in a folder that is searched before the proper install folder.",
+      "It confirms the finding when the trusted program loads that newly created file.",
+      "Signed libraries that match a vendor install path are filtered by signature and location."
+    ],
+    "example": "Imagine a hospital sign in sheet with a strict rule. Staff members sign in, then take the key for the ward they need. If two people share the same name, the first one on the list receives the key. A clever visitor writes his own name at the top of the sheet under a staff member's name. The clerk hands him the key without a second look. Library hijacking is that trick. The program asks for a name, and the attacker's file answers first.",
+    "takeaways": [
+      "The trusted program is not the suspect; the loaded file path is.",
+      "A new library in an early search folder is the key signal.",
+      "Signature and path checks remove most of the noise."
+    ]
+  },
+  "objectives": [
+    "Describe how the Windows library search order can be abused by a planted file.",
+    "Correlate file creation events with image load events on the same host.",
+    "Identify directories that are searched before a program's own install folder.",
+    "Use signature and path checks to separate vendor libraries from planted ones.",
+    "Explain why application control does not always stop this technique."
+  ],
+  "techniqueId": "t1574-001",
+  "detectsTechniques": [
+    "t1574-001"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create with target filename and creating process image",
+    "Sysmon event 7 image load recording the loaded module path and signature status",
+    "Windows Security event 4688 process creation for the process that loads the module",
+    "File integrity monitoring records for changes in application install directories"
+  ],
+  "logic": "The pattern is a library file that appears in a location ahead of the legitimate one in the search order and is then mapped by the trusted program that requests it. The fields that must be correlated are the target filename and directory from the file create event, the creating process and its parent, the image loaded path from the load event, and the signature status of that module. The malicious case differs from the benign one by expectation: a vendor installer placing a library in the program's own directory with a valid signature is routine, while an unsigned library in a user writable or shared directory that is loaded by a binary whose baseline never loads from there is a hijack. The creating process is the strongest discriminator, because browsers, archive tools, and document readers writing a library file into a program directory have no legitimate reason to do so.",
+  "pseudoQuery": "# title: Planted Library Loaded by Trusted Program\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     event_type: image_load\n#     image_loaded|endswith: '.dll'\n#     image_loaded|startswith:\n#       - 'C:\\Users\\Public\\'\n#       - 'C:\\ProgramData\\'\n#   filter_signed:\n#     signature_status: 'Valid'\n#   condition: selection and not filter_signed\n# level: high",
+  "falsePositives": [
+    "Applications that install their own libraries in a shared data folder by design",
+    "Portable software unpacked by a user into a public folder before first run",
+    "Software updates that briefly place a new library beside the executable during install",
+    "Third party plug ins loaded from a shared content directory on a file server",
+    "Development tools that load a freshly compiled library from a working folder"
+  ],
+  "tuningNotes": "Build the allow list from your image load baseline rather than writing folder exclusions by hand, because almost every host loads something unusual during its first week. Restrict the strict rule to user writable directories such as public, temporary, and download folders, and require that the creating process is not the signed installer for that application. Narrowing to user writable paths loses detection of a hijack inside a vendor folder, so keep a second rule that alerts when a known program loads a library from a path other than its install directory.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0258",
+  "type": "detection",
+  "title": "Linux Python Startup Hook Persistence via .pth and Customize Files (T1546.018)",
+  "shortTitle": "Linux Python Startup Hook Persistence via .pth and Custom...",
+  "externalId": "DET0258",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Python startup hook persistence, tracked as T1546.018, where an adversary places code that the interpreter loads automatically at startup. Two mechanisms matter most: the path configuration file, which can execute any line that begins with import, and the customization module that Python imports on every launch. Neither needs a service, a scheduled task, or a registry autorun entry, so common persistence checks miss both. The telemetry is file creation and modification inside the interpreter library directories, plus environment variable writes. It fails when hosts lack file monitoring on those paths, which is the usual case because administrators treat them as application files rather than operating system files.",
+  "tags": [
+    "python",
+    "persistence",
+    "t1546.018",
+    "startup hook",
+    "file integrity",
+    "linux"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Linux Python Startup Hook Persistence via .pth and Customize Files (T1546.018)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0258/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Linux Python Startup Hook Persistence via .pth and Customize Files (T1546.018) - EASY",
+      "path": "exercises/det0258/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Linux Python Startup Hook Persistence via .pth and Customize Files (T1546.018) - MEDIUM",
+      "path": "exercises/det0258/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Linux Python Startup Hook Persistence via .pth and Customize Files (T1546.018) - HARD",
+      "path": "exercises/det0258/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Linux Python Startup Hook Persistence via .pth and Customize Files (T1546.018) - EXTREMELY HARD",
+      "path": "exercises/det0258/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Python is a programming language used by many tools and servers. It can be told to run extra code every time it starts. A startup hook is a file that holds that extra code. Attackers like hooks because the code runs again after every reboot. This detection watches the folders where Python keeps those special files.",
+    "whyItMatters": "Servers often run Python tools that nobody reinstalls or reviews. A startup hook hides inside those folders and looks like part of the program. There is no new service and no new scheduled job, so the usual persistence checks find nothing. The code runs with the same rights as the tool that starts it, which is often a service account. Watching these folders gives you one of the few chances to catch it.",
+    "howItWorks": [
+      "A file monitor watches the interpreter library folders, such as the site packages and distribution packages directories, for new files.",
+      "The rule selects files with a path configuration extension and the known startup module names.",
+      "It compares the new file with the software package list that should own that folder.",
+      "A file that no installed package claims is treated as suspicious and given a score.",
+      "The alert includes the writing process, so an analyst can see what created the hook."
+    ],
+    "example": "Think of a staff notice board in an office kitchen. Anyone who pins a note there reaches every employee who walks past. A person who wants to influence the whole office does not need to meet anyone. They only need to pin one note. A Python startup hook is that notice board. The interpreter reads it on every launch, and the note is easy to overlook.",
+    "takeaways": [
+      "Startup hooks run automatically without any service or scheduled task.",
+      "The folder that holds them is often left out of system file monitoring.",
+      "Comparing each new file against the installed package list is the key check."
+    ]
+  },
+  "objectives": [
+    "Name the Python startup mechanisms that execute code when the interpreter launches",
+    "Configure file monitoring for interpreter library directories on servers",
+    "Distinguish package owned files from unclaimed files in those directories",
+    "Correlate a hook file with the process that created it",
+    "Explain why environment variable changes such as the startup module setting also matter"
+  ],
+  "techniqueId": "t1546-018",
+  "detectsTechniques": [
+    "t1546-018"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation for new or modified files with a path configuration extension under Python library directories",
+    "Linux auditd file watches on site packages and distribution packages directories recording write and rename operations",
+    "Sysmon event 13 registry value set for Python environment variables in user or machine environment keys",
+    "Sysmon event 1 process creation showing the interpreter started with an unusual working directory or script path",
+    "File integrity monitoring baselines that hash the customization modules on production servers"
+  ],
+  "logic": "The pattern is a write to a Python library directory that no package manager claims, or a change to an environment variable that makes the interpreter load extra code. The rule takes file creation and modification events under the site packages, distribution packages, and interpreter home directories, selects the path configuration extension and the customization module names, then checks the writer process and compares the result with package ownership records. Benign cases are package installations and updates, which are performed by a package manager process and appear in the ownership database, plus developer virtual environments inside user home directories. Malicious cases are writes by office tools, shells, or scripts that have no reason to change interpreter state.",
+  "pseudoQuery": "# title: Python startup hook written outside package management\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     event_type: 'file_write'\n#     file_path|contains:\n#       - '/site-packages/'\n#       - '/dist-packages/'\n#     file_name|endswith: '.pth'\n#   filter:\n#     process_name:\n#       - 'pip'\n#       - 'pip3'\n#       - 'dpkg'\n#       - 'rpm'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Legitimate package installers that create a path configuration file to register a new library",
+    "Developers creating a virtual environment, which writes path configuration files inside the project folder",
+    "Build pipelines that refresh the library directory during application deployment",
+    "Compliance or hardening scripts that add the same configuration file across many hosts at once"
+  ],
+  "tuningNotes": "Scope the rule to production servers and exclude user home directories and build agents, where path configuration files change as part of normal work. Allowlist the package manager process names and the deployment automation account rather than the whole directory, so that an attacker using a different writer still fires the rule. Baseline the file list and hashes for each host role before enabling alerts, and treat any unexplained difference as suspicious. Narrowing this way loses coverage on developer workstations and inside virtual environments, where the same technique also works.",
+  "severity": "high"
+}

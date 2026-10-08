@@ -1,0 +1,106 @@
+{
+  "id": "det0211",
+  "type": "detection",
+  "title": "Detection of Direct VM Console Access via Cloud-Native Methods",
+  "shortTitle": "Detection of Direct VM Console Access via Cloud-Native Me...",
+  "externalId": "DET0211",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1021.008, Direct Cloud VM Connections, where an actor reaches a cloud virtual machine through the provider's own console, serial port, or agent-based remote shell instead of a normal network path. Because those channels bypass host firewall rules and often leave no operating system logon record, cloud control plane audit telemetry is the only reliable evidence of the session. The main way it fails in practice is noisy administrative use of the same consoles, which pushes teams to over-filter and quietly lose coverage of the identities that matter.",
+  "tags": [
+    "cloud",
+    "remote services",
+    "lateral movement",
+    "aws",
+    "azure",
+    "gcp"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Direct VM Console Access via Cloud-Native Methods",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0211/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Direct VM Console Access via Cloud-Native Methods - EASY",
+      "path": "exercises/det0211/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Direct VM Console Access via Cloud-Native Methods - MEDIUM",
+      "path": "exercises/det0211/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Direct VM Console Access via Cloud-Native Methods - HARD",
+      "path": "exercises/det0211/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Direct VM Console Access via Cloud-Native Methods - EXTREMELY HARD",
+      "path": "exercises/det0211/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for people connecting to a cloud virtual machine using the cloud provider's own tools. Those tools include the web console, a serial console, or a remote shell agent. It catches access that never touches your normal network path. The aim is to spot a login route that attackers like because it can skip your firewalls.",
+    "whyItMatters": "An attacker who steals cloud credentials can reach a virtual machine without knowing its network position. Cloud consoles and remote shell agents often run with high privilege. They may not create the operating system logon events that your team already monitors. If you only watch inside the guest operating system, this activity can stay invisible. Watching the cloud audit log closes that gap.",
+    "howItWorks": [
+      "The cloud provider writes an audit record each time someone uses a console or agent to reach a virtual machine.",
+      "Your platform collects those records into the security information and event management system, or SIEM. A SIEM is a tool that stores and searches log data.",
+      "The rule keeps only console or agent sessions that start on a protected virtual machine.",
+      "It compares the caller identity, the source address, and the time of day with a baseline of normal administrator behaviour.",
+      "When the same identity also changed keys or firewall rules shortly before the session, the alert becomes stronger.",
+      "An analyst then asks the machine owner whether the session was planned."
+    ],
+    "example": "Think of a hospital sign-in sheet. The main door has a guard who writes down every visitor. A staff side door has its own paper list, kept in a different office. If you only ever read the main door sheet, you will miss everyone who used the side door. Cloud consoles are that side door, and their list lives in the cloud provider's audit log.",
+    "takeaways": [
+      "Cloud consoles and remote shell agents can reach a virtual machine without a normal network path.",
+      "Watch the cloud audit log, because the guest operating system may record nothing at all.",
+      "A session is suspicious when it comes from a new identity, a new address, or an unusual hour."
+    ]
+  },
+  "objectives": [
+    "Explain why direct cloud virtual machine connections can bypass host firewall rules and guest logon logging.",
+    "Identify which audit events record console, serial, and agent-based access in each cloud provider you use.",
+    "Build a baseline of normal administrator console use by identity, source address, and hour of day.",
+    "Correlate console sessions with nearby key, firewall, or identity changes to raise confidence.",
+    "Describe the main false positive sources and the filters that reduce them without hiding real abuse."
+  ],
+  "techniqueId": "t1021-008",
+  "detectsTechniques": [
+    "t1021-008"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for EC2 Instance Connect, Session Manager StartSession, and serial console key pushes",
+    "Azure Activity Log records for Run Command on virtual machines and for serial console changes",
+    "Google Cloud Audit Logs for compute instance metadata changes, SSH key additions, and OS Login activity",
+    "Cloud identity provider sign-in logs showing the caller identity, source address, and multi-factor result"
+  ],
+  "logic": "The pattern is a control plane call that opens an interactive path to a virtual machine rather than a normal authenticated network session. You must correlate the caller identity, the target instance, the access method, and the source address, then compare that combination with the identity's own history. Benign administration repeats the same identity, address, and maintenance window; abuse usually appears as a first-time identity or address touching a sensitive instance, often minutes after a key or firewall change.",
+  "pseudoQuery": "# title: Direct Cloud VM Console or Agent Session on Sensitive Instance\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     eventSource: ec2.amazonaws.com\n#     eventName:\n#       - SendSerialConsoleSSHPublicKey\n#       - StartSession\n#   filter_automation:\n#     userIdentity.arn|contains: 'approved-automation-role'\n#   condition: selection and not filter_automation\n# level: medium",
+  "falsePositives": [
+    "Break-glass administrative access during a documented incident when the normal bastion host is unreachable",
+    "Cloud operations staff using the provider's remote shell agent for patching because the guest has no reachable management network",
+    "Automation pipelines that open agent sessions to run configuration management on newly built instances",
+    "Vendor support engineers granted temporary console access for a scheduled hardware or hypervisor issue"
+  ],
+  "tuningNotes": "Start by baselining which identities and source addresses normally open console or agent sessions, and how often. Scope the rule to instances tagged as production or as holding sensitive data, and add a filter for approved automation roles and the maintenance windows you can defend. Keep an unfiltered low-severity copy that only counts events, so you can still see a new identity appear. Narrowing to production loses visibility of staging instances, which attackers sometimes use to learn your environment before moving on.",
+  "severity": "high"
+}

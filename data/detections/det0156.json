@@ -1,0 +1,106 @@
+{
+  "id": "det0156",
+  "type": "detection",
+  "title": "Detection Strategy for Resource Hijacking: SMS Pumping via SaaS Application Logs",
+  "shortTitle": "Detection Strategy for Resource Hijacking: SMS Pumping vi...",
+  "externalId": "DET0156",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects resource hijacking in the specific form of SMS pumping, where an attacker abuses a SaaS application's identity flows to send large volumes of one time passcodes to phone numbers they control. The covered technique matters because the victim pays the carrier fees while the attacker collects a share of the revenue, so the damage is a financial drain that never touches an endpoint. Application and identity provider logs make it possible because every enrolment, verification and challenge attempt is recorded with a phone number, source address and result. The main failure mode is that the malicious traffic looks like ordinary enrolment volume, so the rule depends on rate baselines and on recognising number ranges or prefixes that the business never legitimately serves.",
+  "tags": [
+    "saas",
+    "fraud",
+    "resource hijacking",
+    "identity provider",
+    "rate limiting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Resource Hijacking: SMS Pumping via SaaS Application Logs",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0156/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Resource Hijacking: SMS Pumping via SaaS Application Logs - EASY",
+      "path": "exercises/det0156/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Resource Hijacking: SMS Pumping via SaaS Application Logs - MEDIUM",
+      "path": "exercises/det0156/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Resource Hijacking: SMS Pumping via SaaS Application Logs - HARD",
+      "path": "exercises/det0156/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Resource Hijacking: SMS Pumping via SaaS Application Logs - EXTREMELY HARD",
+      "path": "exercises/det0156/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a SaaS application sending far too many text messages or automated calls. An attacker triggers the messages to phone numbers they own. The company pays for every message sent.",
+    "whyItMatters": "Sending one time passcodes costs money per message, and fraudsters share that revenue with the attacker. A single misconfigured enrolment page can be abused thousands of times overnight. Normal monitoring sees successful logins, not the bill, so this abuse can run for weeks before finance notices. The detection saves money and stops the abuse at its source.",
+    "howItWorks": [
+      "The application writes a log entry each time it sends a passcode or makes a verification call.",
+      "Each entry contains the phone number, the source address and the user account involved.",
+      "The detection counts how many codes were sent by one account, one address or one number prefix.",
+      "It compares that count with a learned baseline for normal enrolment traffic.",
+      "A count far above the baseline, or traffic to an unusual country code, raises an alert.",
+      "An analyst then checks whether the numbers belong to real customers."
+    ],
+    "example": "Imagine a hotel that lets any caller book a wake up call for free. A scammer books ten thousand wake up calls to premium numbers, and the hotel pays the phone company for each one. The guest list looks normal, but the bill tells the real story.",
+    "takeaways": [
+      "SMS and voice passcode abuse is a financial attack, not a login attack.",
+      "Count messages per account, per address and per number prefix, not just failed logins.",
+      "Talk to the finance team, because the phone bill is a reliable detection source."
+    ]
+  },
+  "objectives": [
+    "Describe how SMS pumping turns an enrolment flow into direct financial loss.",
+    "Choose the log fields that allow counting passcode sends per account and per source address.",
+    "Set a rate baseline for legitimate enrolment and verification traffic.",
+    "Recognise phone number ranges and country codes that the business never serves.",
+    "Write a query that groups passcode sends by number prefix over a rolling window."
+  ],
+  "techniqueId": "t1496-003",
+  "detectsTechniques": [
+    "t1496-003"
+  ],
+  "dataSources": [
+    "Identity provider sign-in and MFA enrolment logs including phone number, source IP address and challenge result",
+    "SaaS application audit logs for one time passcode generation and voice verification requests",
+    "SMS or telephony gateway delivery records showing recipient number, message count and cost per send",
+    "Web application firewall or API gateway request logs for the enrolment endpoint including client address and user agent"
+  ],
+  "logic": "The pattern is a burst of passcode or verification sends that is not explained by real user activity. The telemetry that carries it is the enrolment and challenge log of the identity provider or SaaS application, plus the delivery records from the telephony gateway, and the fields that must be correlated are the recipient phone number and its country or prefix, the initiating account or session, the source IP address, the user agent and the outcome of each challenge. Malicious activity shows one source address or one freshly created account cycling through many distinct numbers, often in number ranges that do not match the customer base, with repeated challenges to the same number and a low or zero rate of completed enrolment. Benign behaviour shows individual users occasionally mistyping a number, retrying a challenge two or three times, and enrolling successfully from a device and network that matches their usual pattern.",
+  "pseudoQuery": "# title: Excess one time passcode sends to a single phone prefix\n# logsource:\n#   product: saas\n# detection:\n#   selection:\n#     action: mfa.challenge.sent\n#   filter_known_prefixes:\n#     phone_prefix:\n#       - '+441'\n#       - '+442'\n#   condition: selection and not filter_known_prefixes | count() by phone_prefix, src_ip > 50\n# level: medium",
+  "falsePositives": [
+    "Customer support staff who resend a passcode repeatedly while helping one user on a long call",
+    "Mobile carriers that deliver one message several times and report each attempt separately",
+    "A marketing or product test campaign that sends verification messages to a block of test numbers",
+    "Users travelling abroad who retry enrolment because roaming delays the message",
+    "A bulk employee onboarding event where hundreds of new staff enrol on the same morning"
+  ],
+  "tuningNotes": "Baseline passcode volume per hour for at least four weeks and set the threshold above the busiest legitimate hour rather than at a round number, then group by phone prefix and source address so a single abuser cannot hide inside aggregate traffic. Exclude the internal test number blocks, the support console service account and any approved load testing ranges, and scope the rule to production tenants only. Add a second lower severity alert for first-seen country codes so slow abuse is still visible. The coverage you lose by filtering known prefixes is abuse that eventually targets those prefixes as well, so keep a monthly report of recurring low-volume outliers for manual review and re-check the baseline whenever the enrolment flow changes.",
+  "severity": "medium"
+}

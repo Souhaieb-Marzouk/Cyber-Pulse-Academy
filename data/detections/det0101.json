@@ -1,0 +1,107 @@
+{
+  "id": "det0101",
+  "type": "detection",
+  "title": "Detection Strategy for Lua Scripting Abuse",
+  "shortTitle": "Detection Strategy for Lua Scripting Abuse",
+  "externalId": "DET0101",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets T1059.011, command and scripting interpreter abuse through the Lua scripting language. Lua is a small, fast interpreter that is embedded in game clients, network appliances, web platforms, configuration management tools and penetration testing frameworks, so a Lua interpreter on a host or a Lua plugin directory is a normal and useful thing that an adversary can also use to run code with the trust of the parent application. Detection rests on process lineage, meaning which program started the Lua interpreter, the working directory and command line arguments, the paths where new script files appear, and outbound connections made by an interpreter process that has no business talking to the internet. It fails in practice because so much legitimate software embeds or ships a Lua engine, so the rule must be anchored to unexpected parents, user writable script locations and behavioural context instead of the presence of the interpreter alone.",
+  "tags": [
+    "lua",
+    "scripting",
+    "interpreter",
+    "endpoint",
+    "execution"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Lua Scripting Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0101/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Lua Scripting Abuse - EASY",
+      "path": "exercises/det0101/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Lua Scripting Abuse - MEDIUM",
+      "path": "exercises/det0101/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Lua Scripting Abuse - HARD",
+      "path": "exercises/det0101/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Lua Scripting Abuse - EXTREMELY HARD",
+      "path": "exercises/det0101/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection focuses on the Lua scripting language. Lua is a small programming language that other programs can build in to run extra instructions. The rule looks for Lua being used in places and ways that do not fit normal business work.",
+    "whyItMatters": "An attacker who runs Lua code borrows the trust of whatever program hosts it. That could be a web server, a game client or a management tool with wide access. Because Lua is a normal part of those products, an allowlist often accepts it. A script is also small and easy to change, so it can hide in plain sight.",
+    "howItWorks": [
+      "The endpoint sensor records every new process, including the program name, its parent and its full command line.",
+      "A rule checks each process for a known Lua interpreter name. Examples are lua, luajit and a product specific Lua host.",
+      "It then looks at the parent process, meaning the program that started the interpreter, along with the working folder.",
+      "It also watches file system events for new .lua files written in user folders, temporary folders or download folders.",
+      "Network records show whether the interpreter process opened a session to an external address it does not normally use.",
+      "An unusual parent, an odd script path and a new connection may line up. The rule then raises one alert with all three facts."
+    ],
+    "example": "Think of a hospital where only nurses may give medicine. A cleaner is given a nurse's badge to deliver a parcel, then uses the badge to open the drug cabinet. The badge was real and the system saw a valid entry. This detection asks a simple extra question. Why was the cleaner using a nurse's badge at all, and why at this cabinet.",
+    "takeaways": [
+      "Lua runs inside other products, so it inherits their permissions and their reputation.",
+      "Judge the parent process and the script location, not just the interpreter name.",
+      "A real interpreter reaching an unexpected external address deserves a fast look."
+    ]
+  },
+  "objectives": [
+    "Recall where Lua is commonly embedded so you can tell expected from unexpected use",
+    "Name the process, file and network telemetry needed to spot unusual Lua execution",
+    "Explain how parent process lineage separates a product plugin from a user launched script",
+    "Identify the script file paths that should never hold production Lua code",
+    "Describe how to profile a Lua host so you know its normal network destinations",
+    "Build a filter that keeps product runtimes quiet without hiding attacker scripts"
+  ],
+  "techniqueId": "t1059-011",
+  "detectsTechniques": [
+    "t1059-011"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image, parent image, working directory and command line",
+    "Sysmon event 11 file creation events filtered for .lua files written under user, temporary or download directories",
+    "Endpoint detection and response process tree records linking an interpreter process to its parent application",
+    "Proxy or firewall logs recording external connections attributed to an interpreter process name",
+    "Linux auditd execve records for interpreters started by web or database service accounts"
+  ],
+  "logic": "The pattern is a Lua interpreter or a product that embeds Lua being started by a parent that does not normally use it, executing a script from a user writable or temporary directory, or making outbound connections shortly afterwards. The fields that must be correlated are the interpreter image path, the parent image and its signature, the process working directory, the script path in the command line, the account that owns the process, and any destination address in the same time window. The benign case is the product that ships the runtime, for example a database management tool or a game client, starting its own signed interpreter from its own installation directory with a path under that directory, so a different parent, a script path outside the product folder, or an outbound connection to a new destination is what makes the case suspicious.",
+  "pseudoQuery": "# title: Lua Interpreter Execution From Unexpected Parent Or User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection_binary:\n#     Image|endswith: ['\\\\lua.exe', '\\\\luajit.exe', '\\\\lua54.exe']\n#   selection_script_path:\n#     CommandLine|contains: ['\\\\AppData\\\\', '\\\\Temp\\\\', '\\\\ProgramData\\\\', '\\\\Users\\\\Public\\\\']\n#   filter_product:\n#     ParentImage|contains: '\\\\Program Files\\\\'\n#   condition: selection_binary and (selection_script_path or not filter_product)\n# level: medium",
+  "falsePositives": [
+    "A game client or modding tool that ships its own Lua runtime and loads community scripts from the user profile",
+    "Configuration management agents that render Lua based templates from a temporary working directory during deployment",
+    "Network or security appliances managed through a local Lua console opened by an administrator for a scripted change",
+    "Developer workstations running unit tests through a package manager that invokes LuaJIT from a project folder"
+  ],
+  "tuningNotes": "First enumerate which of your business applications ship a Lua runtime and record their install paths and parent processes, then filter those exact combinations by signed image path instead of by name. Keep the rule unconditional for script paths under user profile, temporary and public folders, where no production plugin should live. Add a watchlist of expected external destinations for the remaining interpreters so that a new destination stands out. Excluding signed product runtimes means an attacker who drops a renamed standalone interpreter into a product folder may go unnoticed, so retain a hunting query for interpreter process names with no matching installation record.",
+  "severity": "medium"
+}

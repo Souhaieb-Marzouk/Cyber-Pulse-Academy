@@ -1,0 +1,105 @@
+{
+  "id": "det0370",
+  "type": "detection",
+  "title": "Recursive Enumeration of Files and Directories Across Privilege Contexts",
+  "shortTitle": "Recursive Enumeration of Files and Directories Across Pri...",
+  "externalId": "DET0370",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects broad discovery of the file system, where an adversary walks directories and files to learn what data exists before deciding what to steal. Rather than matching a single tool name, it looks at the shape of activity: a process opening or listing an unusually large number of directory paths in a short period, often across several privilege contexts on the same host, plus archive creation shortly afterwards. The telemetry that makes this possible is process creation with command lines, file and directory access auditing or endpoint file read events, and shell history. The common way it fails is volume: legitimate backup, indexing and software inventory agents also touch many paths, so the rule needs a baseline rate per host role rather than a fixed count.",
+  "tags": [
+    "discovery",
+    "file access",
+    "linux",
+    "windows",
+    "baseline"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Recursive Enumeration of Files and Directories Across Privilege Contexts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0370/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Recursive Enumeration of Files and Directories Across Privilege Contexts - EASY",
+      "path": "exercises/det0370/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Recursive Enumeration of Files and Directories Across Privilege Contexts - MEDIUM",
+      "path": "exercises/det0370/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Recursive Enumeration of Files and Directories Across Privilege Contexts - HARD",
+      "path": "exercises/det0370/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Recursive Enumeration of Files and Directories Across Privilege Contexts - EXTREMELY HARD",
+      "path": "exercises/det0370/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a program that reads through many folders quickly, which usually means someone is mapping out what is stored on a computer. It watches file and folder access, not one specific tool. It catches the search itself, before any data leaves the network.",
+    "whyItMatters": "Attackers need to know where the valuable files are before they can take them. That search step creates activity that is easier to see than the theft. Catching it early gives you time to remove access. It also shows which accounts and hosts an intruder has already reached.",
+    "howItWorks": [
+      "Collect process creation events with full command lines from servers and workstations.",
+      "Collect file and directory access events, or directory listing events, from the same hosts.",
+      "Count how many distinct paths one process touched inside a short time window.",
+      "Compare that count with the normal rate for the host role, such as a file server or a workstation.",
+      "Look for a privilege change or a second account running the same search on the same host.",
+      "Alert when a host exceeds its baseline by a wide margin, and include the top level folders that were touched."
+    ],
+    "example": "Picture a stranger in a library who does not read a book but instead walks every aisle and photographs each shelf label. Nothing has been taken yet, but the behaviour tells you what happens next. The path counter is the librarian noticing those footsteps.",
+    "takeaways": [
+      "Discovery looks like a high rate of path access from one process in a short window.",
+      "A per host baseline is the only way to keep backup and indexing tools quiet.",
+      "A broad search followed by archive creation is a much stronger signal than either alone."
+    ]
+  },
+  "objectives": [
+    "Describe why discovery of files and directories comes before collection and exfiltration.",
+    "Collect file and directory access telemetry on the platforms you run and explain its cost.",
+    "Set a realistic per host baseline for path access rates and explain how you chose it.",
+    "Correlate a broad search with a later archive creation on the same host.",
+    "Recognise the difference between a recursive search, an index rebuild and a backup walk."
+  ],
+  "techniqueId": "t1083",
+  "detectsTechniques": [
+    "t1083"
+  ],
+  "dataSources": [
+    "Linux auditd file and directory access records with the process id and the resolved path",
+    "Windows Security event 4688 process creation with command line auditing enabled for listing utilities",
+    "Sysmon event 1 process creation including parent image and full command line on servers",
+    "Endpoint agent file read or directory enumeration telemetry with a per process path count",
+    "Linux shell history files collected centrally showing recursive directory listing commands"
+  ],
+  "logic": "The pattern is a single process resolving or listing a large number of distinct paths in a short window, far above the rate that host normally shows. The telemetry sources are process creation, to identify the tool and its arguments, and file access or directory listing records, to measure the breadth of the walk. The fields to correlate are the host, the process identifier and its parent, the account, and the count of unique directories touched. What separates malicious from benign is the combination of an unexpected parent process, an account that does not normally read that data, and a narrow time window with no corresponding job schedule or change ticket.",
+  "pseudoQuery": "# title: High Rate Directory Enumeration by a Single Process\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: 'PATH'\n#     nametype: 'NORMAL'\n#   timeframe: 5m\n#   condition: selection | count(distinct file) by pid > 500\n#   filter_indexer:\n#     exe|endswith:\n#       - '/updatedb'\n#       - '/locate'\n#   condition: selection and not filter_indexer\n# level: medium",
+  "falsePositives": [
+    "Search index rebuilds such as the system locate database update that walk the whole file system on a schedule",
+    "Backup software performing an incremental scan of all mounted volumes during its nightly job",
+    "Software inventory or licence scanning agents that enumerate installed files across every host"
+  ],
+  "tuningNotes": "Raise the path count threshold until your backup and indexing jobs sit well below it, and keep a separate allow list of their process names and service accounts. Scope the rule to hosts that hold sensitive data rather than to every workstation, and baseline the ordinary access pattern of your file servers for one full weekly cycle first. Narrowing by asset group and by threshold costs you short targeted searches on lower value hosts, so keep a lower threshold rule for servers that host credential material and accept more review work there.",
+  "severity": "low"
+}

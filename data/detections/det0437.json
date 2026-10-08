@@ -1,0 +1,107 @@
+{
+  "id": "det0437",
+  "type": "detection",
+  "title": "Detection of LSA Secrets Dumping via Registry and Memory Extraction",
+  "shortTitle": "Detection of LSA Secrets Dumping via Registry and Memory ...",
+  "externalId": "DET0437",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers LSA Secrets dumping, where an adversary reads the Local Security Authority secret store to steal service account passwords, machine account secrets and cached domain credentials. It matters because those secrets often unlock lateral movement to servers that never log an interactive user. Coverage depends on registry object access auditing for the SECURITY hive, on Sysmon process access events against lsass.exe, and on the credential dumping command line patterns that appear when a tool is dropped. In practice it fails because almost every environment ships with auditing for the SECURITY key switched off, so the registry path yields nothing until an administrator enables it, and because backup and monitoring agents legitimately read process memory, which buries the real hit in noise.",
+  "tags": [
+    "credential access",
+    "lsa secrets",
+    "windows registry",
+    "sysmon",
+    "detection engineering",
+    "t1003.004"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of LSA Secrets Dumping via Registry and Memory Extraction",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0437/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of LSA Secrets Dumping via Registry and Memory Extraction - EASY",
+      "path": "exercises/det0437/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of LSA Secrets Dumping via Registry and Memory Extraction - MEDIUM",
+      "path": "exercises/det0437/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of LSA Secrets Dumping via Registry and Memory Extraction - HARD",
+      "path": "exercises/det0437/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of LSA Secrets Dumping via Registry and Memory Extraction - EXTREMELY HARD",
+      "path": "exercises/det0437/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that read the secret storage area of Windows. That area is called the Local Security Authority, or LSA. The secrets inside it include passwords for service accounts and computers. Reading them is a common step in a serious intrusion.",
+    "whyItMatters": "These secrets are not hashed user logins. They are working passwords that open other machines. One stolen service account can unlock many servers at once. Windows does not warn anyone when the secrets are read. A detection is often the only sign that credentials left the host.",
+    "howItWorks": [
+      "Windows can record when a program opens a protected registry key for reading.",
+      "The sensor keeps the name of the program, the key path and the access level it asked for.",
+      "A rule watches for a read request against the SECURITY key inside the registry.",
+      "The rule drops paths used by known backup and security agents.",
+      "If the same host also shows a suspicious process starting, the alert is raised."
+    ],
+    "example": "Think of a hotel key cabinet. The front desk logs every time the cabinet is opened and who opened it. A cleaner who says he never touched the cabinet, while the log shows his badge at 03:00, is the signal. The detection is that log, not the cabinet itself.",
+    "takeaways": [
+      "LSA secrets are live passwords, not just password hashes.",
+      "Access auditing for the SECURITY registry key must be turned on first.",
+      "Pair the access event with process activity before you alert."
+    ]
+  },
+  "objectives": [
+    "Explain what the LSA secret store holds and why its contents are valuable.",
+    "Identify the registry key path and the access mask that indicate a read of stored secrets.",
+    "Enable and verify object access auditing for the SECURITY registry key.",
+    "Correlate a registry access event with the process that opened the handle.",
+    "Separate legitimate backup or monitoring agents from credential theft tooling.",
+    "Write a tuning filter that removes known agents without hiding new programs."
+  ],
+  "techniqueId": "t1003-004",
+  "detectsTechniques": [
+    "t1003-004"
+  ],
+  "dataSources": [
+    "Windows Security event 4656 and event 4663 object access auditing for the SECURITY registry key with the read data access mask",
+    "Sysmon event 10 process access with granted access and target image for lsass.exe",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "Sysmon event 13 registry value set for hives under the SECURITY and SAM paths"
+  ],
+  "logic": "The pattern is a non standard program requesting read access to the SECURITY registry hive, or requesting memory read rights on lsass.exe, on a host that is not running an approved credential agent. The fields that must be joined are the target object name or target image, the granted access mask, and the requesting process image and its parent. The malicious case shows a short lived process with no vendor signature path, a command line naming a dump tool or an output file, and usually no repeat on that host, while the benign case is a long running signed agent that touches the same object on a schedule across the whole fleet.",
+  "pseudoQuery": "# title: LSA Secret Store Read By Non Standard Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: [4656, 4663, 10]\n#     ObjectName|contains: 'SECURITY'\n#     AccessMask|contains: '0x2'\n#   filter:\n#     Image|endswith: ['\\\\backupagent.exe', '\\\\monitoringagent.exe']\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Backup products that read the SECURITY hive as part of a full system state backup.",
+    "Endpoint agents with a documented credential guard or privileged access module.",
+    "Administrators running an approved password audit tool during a scheduled review.",
+    "Domain controller replication health scripts that read machine account secrets."
+  ],
+  "tuningNotes": "Build a baseline of which process images read the SECURITY hive on each server role before you switch the rule on. Filter by full image path and signer rather than by file name, because attackers copy names easily. Scope the highest severity to domain controllers and tier zero servers, and keep a lower severity rule for workstations to catch staging. Remember that every filter you add for a vendor agent is a gap an attacker can copy, so recheck the allow list each quarter and alert on new readers instead of silently dropping them.",
+  "severity": "critical"
+}

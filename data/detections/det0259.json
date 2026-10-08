@@ -1,0 +1,106 @@
+{
+  "id": "det0259",
+  "type": "detection",
+  "title": "Remote Desktop Software Execution and Beaconing Detection",
+  "shortTitle": "Remote Desktop Software Execution and Beaconing Detection",
+  "externalId": "DET0259",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the use of remote desktop software by an adversary, tracked as T1219.002, where an interactive remote control tool is installed on a host to keep hands-on access. The tool may be a legitimate commercial product used without approval, which is exactly why signature-only detection is weak. The useful telemetry combines process creation for the agent binary, file creation of the installer, and network connection records showing regular beaconing to a relay or vendor address. It fails when the agent is installed by a helpdesk tool that already has a trust relationship, or when the traffic is indistinguishable from other encrypted sessions to the same cloud provider.",
+  "tags": [
+    "remote access",
+    "t1219.002",
+    "command and control",
+    "beaconing",
+    "rmm abuse",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Remote Desktop Software Execution and Beaconing Detection",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0259/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Remote Desktop Software Execution and Beaconing Detection - EASY",
+      "path": "exercises/det0259/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Remote Desktop Software Execution and Beaconing Detection - MEDIUM",
+      "path": "exercises/det0259/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Remote Desktop Software Execution and Beaconing Detection - HARD",
+      "path": "exercises/det0259/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Remote Desktop Software Execution and Beaconing Detection - EXTREMELY HARD",
+      "path": "exercises/det0259/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Remote desktop software lets one person control another computer over a network. Support teams use it every day to help users. Attackers use it too, because it gives them a graphical view of the victim machine. This detection looks for remote control tools that start on a computer where they are not expected.",
+    "whyItMatters": "A remote control tool turns a stolen password into a full session that looks like normal user work. Many such tools are legitimate products, so security software often allows them. Once installed, the attacker can watch the screen, move files, and keep access for weeks. The tool also survives password changes, because the attacker no longer needs the password. Catching the install or the regular connection gives you a chance to remove it early.",
+    "howItWorks": [
+      "The endpoint records every program that starts, including its full path and the account that ran it.",
+      "The rule compares the program name against the list of remote access agents your company approves.",
+      "It selects any program in the remote access category that is not on the approved list.",
+      "A network rule then watches that program for repeated outbound connections at a steady rhythm.",
+      "A regular rhythm, often called beaconing, raises the score and produces the final alert."
+    ],
+    "example": "Imagine a night watchman who checks the doors of a building. A delivery driver with a company badge may enter at any time, and that is normal. A stranger who installs a private door is different. That stranger now enters without passing the front desk. Remote control software is that private door. It is not always forbidden, but it must be a door you know about.",
+    "takeaways": [
+      "Legitimate remote support tools are abused, so approval lists must come from your asset inventory.",
+      "The installer file, the running process, and the outbound connection are one story in three parts.",
+      "A steady connection rhythm is a beacon, and beacons deserve attention."
+    ]
+  },
+  "objectives": [
+    "Explain why remote access tools are attractive to an intruder",
+    "Build an approved list of remote support agents from your software inventory",
+    "Correlate process creation, file creation, and network connections for the same program",
+    "Identify beaconing behaviour by looking at connection intervals rather than a single flow",
+    "Describe how helpdesk tooling creates false alerts and how to filter it"
+  ],
+  "techniqueId": "t1219-002",
+  "detectsTechniques": [
+    "t1219-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing remote access agent binaries launched from user profile or temporary directories",
+    "Sysmon event 3 network connection showing a process beaconing to an external address at a steady interval",
+    "Sysmon event 11 file creation for remote access installers written to user download or temporary folders",
+    "Windows Security event 4688 process creation with command line auditing enabled for service installation arguments",
+    "Firewall or proxy connection logs recording long lived outbound sessions from workstations to unfamiliar destinations"
+  ],
+  "logic": "The pattern is a remote access agent that is not in the approved inventory, followed by periodic outbound connections from that same process. The rule keys on process creation events where the image name or signing publisher belongs to the remote access category, joins that with file creation of an installer in a user-writable path, and then correlates network connection events from the same process identifier within the next hour. The distinguishing detail is repetition at a fairly constant interval, which separates a persistent background agent from an ordinary browsing session. Benign cases are the helpdesk agent deployed by management tooling and the developer who installs a screen sharing tool for a meeting, both of which can be excluded by path, publisher, or install source.",
+  "pseudoQuery": "# title: Unapproved remote access agent beaconing to an external host\n# logsource:\n#   product: windows\n# detection:\n#   selection_proc:\n#     event_id: 1\n#     image|endswith:\n#       - '\\\\anydesk.exe'\n#       - '\\\\teamviewer.exe'\n#       - '\\\\rustdesk.exe'\n#   selection_net:\n#     event_id: 3\n#     initiated: 'true'\n#   filter:\n#     image|startswith: 'C:\\\\Program Files\\\\ApprovedSupportAgent\\\\'\n#   condition: selection_proc and selection_net and not filter\n# level: medium",
+  "falsePositives": [
+    "The approved helpdesk agent installed by the support team on a managed workstation",
+    "A user who installs a screen sharing tool for a legitimate remote meeting with an external partner",
+    "A software vendor that starts a remote support session during a scheduled maintenance window",
+    "Recruitment or training sessions where a candidate shares a desktop under supervision"
+  ],
+  "tuningNotes": "Start from your software inventory and allowlist approved agent paths together with the deployment tool that installs them, keyed on the installer parent process rather than the binary name alone. Scope the network half of the rule to hosts that have no business reason to hold a persistent outbound session, and baseline outbound destinations per department for one week. Add a beaconing condition such as more than five connections with low timing variance in thirty minutes. Narrowing in this way loses coverage when an approved agent is abused by an intruder, so keep a separate rule for unusual usage of approved agents.",
+  "severity": "medium"
+}

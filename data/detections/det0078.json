@@ -1,0 +1,108 @@
+{
+  "id": "det0078",
+  "type": "detection",
+  "title": "Behavioral Detection of Malicious Cloud API Scripting",
+  "shortTitle": "Behavioral Detection of Malicious Cloud API Scripting",
+  "externalId": "DET0078",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers programmatic use of cloud provider interfaces, where an operator drives a command line interface or software development kit from a compromised host instead of clicking through the provider console. It matters because the same interfaces that let engineers build infrastructure let an attacker enumerate an estate, create identities, read storage objects and destroy resources, and the calls are indistinguishable from automation by their mere existence. The telemetry that makes the behaviour visible is cloud audit logging for control plane operations, which records the action name, the calling identity, the source address, the user agent and the request parameters, together with authentication records for the credential that was used. The useful pattern is not a single call but a sequence from an identity that has never used those interfaces before: reconnaissance calls followed quickly by identity or permission changes, often from an address or network the identity has never used. It fails in practice because cloud estates are full of legitimate automation, so the rule only works when it is anchored to a per identity baseline of who normally calls what from where.",
+  "tags": [
+    "cloud",
+    "api",
+    "scripting",
+    "credential access",
+    "audit log",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Malicious Cloud API Scripting",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0078/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Malicious Cloud API Scripting - EASY",
+      "path": "exercises/det0078/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Malicious Cloud API Scripting - MEDIUM",
+      "path": "exercises/det0078/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Malicious Cloud API Scripting - HARD",
+      "path": "exercises/det0078/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Malicious Cloud API Scripting - EXTREMELY HARD",
+      "path": "exercises/det0078/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud providers offer a command tool that lets a person control services by typing. This detection watches those typed commands in the cloud audit log. It looks for commands that do not match the way an account normally works.",
+    "whyItMatters": "One stolen key can let an attacker do almost anything in a cloud account. Clicking through a console is slow, so attackers script the work. Scripted use looks like normal automation, which makes it easy to miss. Looking at who runs commands, and from where, is often the only clue.",
+    "howItWorks": [
+      "Every control plane request is written to a cloud audit log. The entry names the action.",
+      "The log also records the source address, the tool used and the request details.",
+      "The detection builds a profile for each identity. It covers usual actions, addresses and tools.",
+      "It looks for discovery calls from an identity with no history of that activity.",
+      "It then looks for sensitive actions, such as creating keys, soon after.",
+      "Calls from a known automation role or pipeline are filtered out as expected."
+    ],
+    "example": "Think of a company store room with a sign out book. Staff take items using the book, and the pattern is steady. One night a new name appears and walks the whole store room. That person writes down every shelf, then asks for the key cupboard. All the entries are valid, but the shape of the visit is wrong.",
+    "takeaways": [
+      "Scripted cloud activity looks like automation, so judge it by who and from where.",
+      "Discovery calls followed by permission changes are the sequence that matters most.",
+      "Never act on one odd call, because cloud estates produce odd calls constantly."
+    ]
+  },
+  "objectives": [
+    "Explain how cloud command line and software development kit access differs from console access in the audit log.",
+    "Identify the audit fields that describe the calling identity, source address, tool and action.",
+    "Build a per identity baseline of normal actions, tools and source networks.",
+    "Recognise the discovery to impact sequence that indicates a compromised cloud credential.",
+    "Describe response options including key revocation, session invalidation and review of changes made."
+  ],
+  "techniqueId": "t1059-009",
+  "detectsTechniques": [
+    "t1059-009"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events recording the action name, user identity, source address, user agent and request parameters",
+    "Azure activity log entries recording the operation, calling principal, client application and source address",
+    "Google Cloud audit logs for administrative activity including the principal, method name and caller network",
+    "Cloud identity provider sign in records linking the credential or role to an authentication event and its origin",
+    "Endpoint process creation on administrative workstations showing command line interface tools and the arguments used"
+  ],
+  "logic": "Look for a burst of control plane calls from one identity that combines broad read only discovery with at least one identity, policy or data access change, and compare the calling context against that identity history. The fields that must be correlated are the calling identity, the action or method name, the source address, the user agent or client application, the time and, where available, the request parameters. Benign automation shows a stable identity, a stable source from a build or management network, a narrow set of actions that match a pipeline, and a regular schedule. The malicious case is typically an interactive user identity or a role assumed unexpectedly, a source address outside the corporate or cloud network, a user agent that identifies a general purpose command line tool rather than a pipeline agent, and a call set that spans many unrelated services. Sequence is what justifies the alert: enumeration first, then permission changes, then data access. A single unmatched call deserves a low severity record, not a page.",
+  "pseudoQuery": "# title: Cloud Discovery Followed By Identity Change From New Source\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   discovery:\n#     eventName|startswith:\n#       - 'List'\n#       - 'Describe'\n#   identity_change:\n#     eventName|contains:\n#       - 'CreateAccessKey'\n#       - 'AttachRolePolicy'\n#   filter_pipeline:\n#     userAgent|contains: 'pipeline-agent'\n#   condition: (discovery or identity_change) and not filter_pipeline\n# level: high",
+  "falsePositives": [
+    "Engineers using a command line interface interactively during incident work or a legitimate infrastructure change",
+    "Infrastructure as code pipelines that call discovery interfaces as part of a plan step compared against real state",
+    "Cost, security and inventory platforms that read configuration across an estate with a dedicated read only role",
+    "Break glass administrative sessions from a temporary or vendor network during an approved change window",
+    "New starters in a cloud team whose first week of activity legitimately spans many services and source networks"
+  ],
+  "tuningNotes": "Anchor the rule to identity history rather than to action names, because the same actions appear in almost every estate and an action based rule cannot survive the volume. Baseline each identity normal set of actions, tools and source networks for at least thirty days, then alert on the first combination that has never been seen, weighted by whether the calls involve identity, policy or data access permissions. Exclude pipeline agents, monitoring roles and configuration management roles by identity and by user agent once you have confirmed what they are called in your environment, and keep an inventory of which identities are permitted to be used interactively. Add a requirement that discovery reaches a threshold before an identity change counts, so a single administrative action does not fire the rule. The coverage you lose by allow listing automation identities is abuse of those same identities, so pair the rule with review of what each automation role can actually do and with alerting on permission changes to those roles.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0099",
+  "type": "detection",
+  "title": "Detection Strategy for T1542.001 Pre-OS Boot: System Firmware",
+  "shortTitle": "Detection Strategy for T1542.001 Pre-OS Boot: System Firm...",
+  "externalId": "DET0099",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1542.001 Pre-OS Boot: System Firmware, where an adversary modifies the firmware of a host so that code runs before the operating system and before most endpoint security agents. It matters because firmware persistence survives disk reimaging and can hide a bootkit below the visibility of a normal endpoint sensor. The telemetry that makes detection possible is UEFI secure boot and measured boot state, Trusted Platform Module event log records, firmware integrity or configuration change events recorded by the endpoint agent, and unexpected invocations of vendor firmware update utilities seen in process creation. It fails in practice because coverage is sparse, normal firmware updates arrive from the same management tooling that attackers abuse, and a valid signed update looks identical unless the team has baselined the approved firmware versions for each hardware model.",
+  "tags": [
+    "firmware",
+    "persistence",
+    "uefi",
+    "integrity-monitoring",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1542.001 Pre-OS Boot: System Firmware",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0099/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1542.001 Pre-OS Boot: System Firmware - EASY",
+      "path": "exercises/det0099/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1542.001 Pre-OS Boot: System Firmware - MEDIUM",
+      "path": "exercises/det0099/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1542.001 Pre-OS Boot: System Firmware - HARD",
+      "path": "exercises/det0099/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1542.001 Pre-OS Boot: System Firmware - EXTREMELY HARD",
+      "path": "exercises/det0099/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the firmware of a computer. Firmware is the small program that starts the machine before the operating system loads. The rule looks for signs that this early program was changed or replaced.",
+    "whyItMatters": "Firmware runs first, so any security tool on the disk starts later. An attacker who changes firmware can stay on the machine even after the disk is erased and rebuilt. These events are rare, so a single alert is worth a careful look. Most teams also have thin logging here, which makes the alert valuable and easy to miss.",
+    "howItWorks": [
+      "The endpoint agent records the secure boot state and the firmware measurements taken during startup.",
+      "The agent also logs the version and checksum of the firmware it sees on each host.",
+      "These records are sent to the central log platform, often called a SIEM, which means Security Information and Event Management.",
+      "A rule compares the recorded firmware version and checksum against the approved baseline for that hardware model.",
+      "Process creation events are checked for firmware update tools that were not started by your own management system.",
+      "When a value does not match, the rule raises an alert. An update tool from an odd location does the same."
+    ],
+    "example": "Think of a building where the locks are chosen by the architect before anyone moves in. A guard checks the doors every evening, but nobody ever checks the blueprint. If someone quietly redraws the blueprint, every later guard check still passes. This detection is the clerk who compares today's blueprint with the approved copy. It cannot stop the change, but it tells you the plan was altered. That is the moment when you still have choices.",
+    "takeaways": [
+      "Firmware runs before the operating system, so it can survive a full disk rebuild.",
+      "Detecting it means comparing what a host reports now with an approved baseline.",
+      "These alerts are rare, so treat each one as a real investigation until you prove otherwise."
+    ]
+  },
+  "objectives": [
+    "Explain why firmware level persistence survives disk reimaging and most host security agents",
+    "Name the telemetry that can reveal a firmware change and where each source comes from",
+    "Describe how baseline comparison turns a raw firmware version into a defensible alert",
+    "Explain why a legitimate signed firmware update can look identical to a malicious one",
+    "Prioritize firmware integrity monitoring for high value hosts when coverage is limited",
+    "Write a tuning plan that reduces false alerts without dropping real firmware tampering"
+  ],
+  "techniqueId": "t1542-001",
+  "detectsTechniques": [
+    "t1542-001"
+  ],
+  "dataSources": [
+    "Endpoint agent firmware integrity events reporting UEFI secure boot state and firmware version per host",
+    "TPM measured boot log records exported from the host and correlated to a boot session",
+    "Windows Security event 4688 process creation with command line auditing enabled, filtered for firmware update utilities",
+    "Hardware inventory records from the asset management platform listing the approved firmware version for each model"
+  ],
+  "logic": "The pattern is a mismatch between the firmware identity a host reports at boot and the approved baseline for that hardware model, or a firmware update utility executing outside the change window and outside the management tooling that normally performs updates. The fields that must be correlated are the host identifier, the reported firmware version or measurement digest, the boot session time, and the process image, parent image and command line of any update utility. The benign case is a scheduled update launched by the vendor or management agent during a maintenance window, which is why the parent process, the digital signature and the change record all matter more than the version number alone.",
+  "pseudoQuery": "# title: Firmware Version Mismatch Or Unmanaged Firmware Update Tool\n# logsource:\n#   product: windows\n# detection:\n#   selection_utility:\n#     Image|endswith: ['\\\\fwuPDater.exe', '\\\\WinFlash64.exe', '\\\\flashrom.exe']\n#   selection_integrity:\n#     EventType: 'firmware_integrity_check'\n#     Status: 'failed'\n#   filter_mgmt:\n#     ParentImage|endswith: '\\\\CcmExec.exe'\n#   condition: (selection_utility and not filter_mgmt) or selection_integrity\n# level: medium",
+  "falsePositives": [
+    "Scheduled vendor firmware updates pushed by the hardware management agent during a maintenance window",
+    "A technician reinstalling the same firmware version on a repaired mainboard, which changes the reported timestamp",
+    "Virtual machines whose reported firmware identity changes after a hypervisor upgrade or a clone operation",
+    "Secure boot being disabled on purpose for a signed driver compatibility test approved by change management"
+  ],
+  "tuningNotes": "Start by baselining the firmware version and signature for every hardware model you own, then alert only on deviations from that list rather than on any firmware event. Add a filter for the parent process of your approved update tooling and for hosts inside an active change window. Scope the rule to servers, executive laptops and any host with privileged access, because full coverage of every workstation is usually noisy and low value. Narrowing to those groups means you may miss a bootkit planted on an ordinary desktop, so keep the unfiltered version running as a low severity hunting query instead of an alert.",
+  "severity": "high"
+}

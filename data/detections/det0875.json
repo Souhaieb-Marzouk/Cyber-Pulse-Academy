@@ -1,0 +1,104 @@
+{
+  "id": "det0875",
+  "type": "detection",
+  "title": "Detection of Code Signing Certificates",
+  "shortTitle": "Detection of Code Signing Certificates",
+  "externalId": "DET0875",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the acquisition of code signing certificates, where an adversary obtains a valid signature so their payload is trusted by the operating system and by users. It matters because a signature removes the most common warning a user sees and defeats many default security controls, and because the acquisition itself leaves records in certificate transparency logs, provider audit trails and certificate store operations. The telemetry that makes it possible includes certificate transparency feed entries, cloud provider audit events for certificate issuance, and endpoint events for private key import and signature validation. It fails in practice because organisations issue signing certificates routinely, so the rule must focus on identity proofing, on certificates issued outside your approved authority list, and on the first use of a new certificate.",
+  "tags": [
+    "mitre t1588.003",
+    "resource development",
+    "code signing",
+    "certificate transparency",
+    "supply chain"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Code Signing Certificates",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0875/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Code Signing Certificates - EASY",
+      "path": "exercises/det0875/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Code Signing Certificates - MEDIUM",
+      "path": "exercises/det0875/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Code Signing Certificates - HARD",
+      "path": "exercises/det0875/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Code Signing Certificates - EXTREMELY HARD",
+      "path": "exercises/det0875/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A code signing certificate is a digital stamp that proves software came from a named publisher. Attackers try to get one so their harmful program looks trusted. This detection looks for the moment a new signing certificate is created or used.",
+    "whyItMatters": "Users and operating systems treat signed programs as safe. That trust is the attacker's goal. A signed harmful program can pass checks that stop unsigned ones. Certificate records are public and timestamps are exact. That makes the acquisition stage easier to spot than the later damage.",
+    "howItWorks": [
+      "When a certificate is issued, a public record is created. Some issuers also publish these records in a public feed.",
+      "Your security information and event management system, called SIEM for short, collects those feed entries and your cloud certificate audit events.",
+      "The rule looks at the publisher name and organisation details in the new certificate and compares them with your approved list.",
+      "On endpoints, the agent reports when a new private key is imported or when a program with a fresh signature runs.",
+      "Together these events form a case: a certificate the organisation never asked for, followed by a program signed with it."
+    ],
+    "example": "Think of a hospital sign in sheet. Staff badges are issued at one desk, with a photo and a manager's approval. A badge printed at a different desk, for a name that is not on the staff list, is a problem even before that person enters a ward. The register proves the badge exists. The list proves it should not.",
+    "takeaways": [
+      "The acquisition of a signing certificate is publicly logged, which is rare and useful for defenders.",
+      "Compare every new certificate against your approved issuer and publisher list.",
+      "Watch for the first signature, because that is when the trust is actually used."
+    ]
+  },
+  "objectives": [
+    "Explain what a code signing certificate proves and why attackers want one",
+    "Identify which feeds and audit logs record certificate issuance and use",
+    "Build an inventory of your organisation's approved signing identities and issuers",
+    "Write a rule that alerts on a new signing certificate that lacks an approved publisher",
+    "Describe the response steps for a suspected fraudulent certificate, including revocation"
+  ],
+  "techniqueId": "t1588-003",
+  "detectsTechniques": [
+    "t1588-003"
+  ],
+  "dataSources": [
+    "Certificate transparency feed entries for new code signing certificates matching your brand or publisher names",
+    "Provider audit logs for certificate issuance, renewal and private key import operations",
+    "Endpoint or agent telemetry reporting Authenticode signature values and certificate thumbprints on executed files",
+    "Software deployment and release records listing which publisher names the organisation legitimately signs with"
+  ],
+  "logic": "The pattern is the appearance of a new code signing certificate that claims to represent your organisation or a trusted partner but was not requested through your known issuance process, followed by executables signed with that certificate appearing on hosts. The fields to correlate are the certificate subject and organisation, the issuer, the serial number and thumbprint, the not before date, and the file hash and path of the first signed binary. The benign case is a certificate issued by your approved authority with a known serial and a matching release ticket, while the malicious case shows an unknown issuer, a lookalike subject, a very recent issuance date and first use on hosts outside your deployment system.",
+  "pseudoQuery": "# title: New signing certificate for our brand followed by signed binary use\n# logsource:\n#   product: windows\n#   service: code_integrity\n# detection:\n#   selection:\n#     event_type: image_loaded\n#     signature_status: valid\n#     signer_subject|contains: 'our-company-name'\n#   filter:\n#     certificate_thumbprint|in: approved_signing_thumbprints\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "A developer signing test builds with a self signed certificate during local debugging",
+    "A vendor that signs updates with a newly rotated certificate before your inventory of thumbprints is refreshed",
+    "An open source project that shares a publisher name similar to a legitimate software supplier",
+    "A laboratory or training environment that deliberately signs samples as part of an exercise"
+  ],
+  "tuningNotes": "Publish the list of approved signing thumbprints to the rule rather than matching on publisher names alone, and refresh that list whenever a renewal happens. Scope the endpoint portion of the rule to production hosts and exclude software build and test systems. You lose coverage for certificates issued to organisations that merely resemble your brand, so keep a separate monitored watchlist for lookalike publisher names and review new entries weekly.",
+  "severity": "high"
+}

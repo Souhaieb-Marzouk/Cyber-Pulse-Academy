@@ -1,0 +1,108 @@
+{
+  "id": "det0431",
+  "type": "detection",
+  "title": "Detection Strategy for Email Spoofing",
+  "shortTitle": "Detection Strategy for Email Spoofing",
+  "externalId": "DET0431",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects email that claims to come from your organisation or from a trusted partner but fails sender authentication or arrives from an unauthorised sending source. It matters because a spoofed message is the first step in invoice fraud, credential phishing and executive impersonation, and because the message body itself is often clean, so the headers are the only reliable evidence. Detection depends on mail gateway and email security telemetry that records authentication results, envelope and header sender addresses, reply to addresses and any domain alignment mismatch. The main way it fails in practice is third party senders and mailing lists, which legitimately fail strict authentication checks, so a rule that alerts on every failure produces a constant low value stream and the real spoof is lost in it.",
+  "tags": [
+    "email security",
+    "spoofing",
+    "t1684-002",
+    "phishing",
+    "mail gateway"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Email Spoofing",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0431/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Email Spoofing - EASY",
+      "path": "exercises/det0431/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Email Spoofing - MEDIUM",
+      "path": "exercises/det0431/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Email Spoofing - HARD",
+      "path": "exercises/det0431/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Email Spoofing - EXTREMELY HARD",
+      "path": "exercises/det0431/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for email that pretends to come from your company but was not sent by your company. The rule reads the message headers, which are the technical notes attached to every email. It reports the messages where those notes do not agree.",
+    "whyItMatters": "A fake message from a known name is very convincing. Staff may pay a false invoice or enter a password on a fake page. The email text itself can look perfect, so you cannot judge by reading it. The headers carry proof of where the message came from. Checking them is the reliable way to spot a forgery.",
+    "howItWorks": [
+      "An email arrives at your mail gateway from somewhere on the internet.",
+      "The gateway checks the sending server against the domain records that list allowed senders.",
+      "It writes the results into the message headers as pass, fail or none.",
+      "The rule reads the claimed sender domain, the envelope sender and the reply to address.",
+      "If the claimed domain is yours but the check failed, the message is a candidate.",
+      "Volume and recipient count decide whether the analyst sees an alert or only a report entry."
+    ],
+    "example": "Think of a bank clerk checking a withdrawal slip. The signature may look perfect, but the clerk also checks the account number against the identification card. If the slip says one account and the card says another, the clerk stops. The slip is the email header. The mismatch is the reason to stop and ask a question.",
+    "takeaways": [
+      "Spoofed mail usually passes a quick visual check, so read the headers instead.",
+      "Authentication failures alone are normal for third party senders and mailing lists.",
+      "Combine a failed check, a claimed internal domain and a high recipient count."
+    ]
+  },
+  "objectives": [
+    "Explain how sender authentication checks such as SPF, DKIM and DMARC prove message origin.",
+    "Identify the header fields that record authentication results and the envelope sender.",
+    "Recognise a display name that claims an internal identity while the domain does not match.",
+    "Separate third party sending services and mailing lists from true spoofing attempts.",
+    "Use recipient count and message volume to grade the severity of a spoofing campaign.",
+    "Describe how forwarding breaks authentication and why that must be baselined."
+  ],
+  "techniqueId": "t1684-002",
+  "detectsTechniques": [
+    "t1684-002"
+  ],
+  "dataSources": [
+    "Mail gateway logs recording authentication results for SPF, DKIM and DMARC per message",
+    "Email header records with the header from address, envelope sender, reply to address and message identifier",
+    "Mail server transport logs showing the connecting internet protocol address and the receiving recipient list",
+    "Domain inventory listing internal domains and authorised third party sending services",
+    "Phishing report mailbox submissions that label user reported messages for correlation"
+  ],
+  "logic": "The pattern is a message whose header from domain matches an internal or trusted partner domain, while the authentication results show a failure or no authentication at all, and the envelope sender domain does not align with the header domain, especially when the message is sent to many recipients in a short period or arrives from an infrastructure address that has never delivered mail for that domain before. The fields that must be correlated are the header from address, the envelope sender, the reply to address, the authentication verdicts, the connecting address and the recipient count within a time window. The benign case is dominated by known mailing lists, ticketing systems and marketing platforms that send on your behalf and by forwarders that break authentication in transit, so an inventory of authorised senders and a comparison against first seen sending addresses are what separate the two. A first time sending address plus a failed check plus a reply to address on a free mail domain is a strong malicious combination.",
+  "pseudoQuery": "# title: Inbound Message Claiming Internal Domain That Failed Sender Authentication\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     header_from|endswith: '@example.com'\n#     dmarc_result:\n#       - fail\n#       - none\n#     direction: inbound\n#   filter_authorised:\n#     envelope_sender|endswith:\n#       - '@mailer.example.com'\n#       - '@ticketing-vendor.example.net'\n#   condition: selection and not filter_authorised\n# level: high",
+  "falsePositives": [
+    "Mailing list and discussion platform messages that rewrite the sender and break alignment in transit",
+    "Automatic forwarding rules that resend internal mail from an external mailbox and lose the original signature",
+    "Marketing or survey platforms that send on behalf of the brand before their records are published",
+    "Application notification services inside the company that send through a third party relay without alignment",
+    "Security awareness training simulations that intentionally spoof internal identities during a campaign"
+  ],
+  "tuningNotes": "Build two lists before you switch the rule on: the authorised third party senders for each internal domain, taken from published sending records and from ninety days of observed envelope senders, and the set of internal applications that relay notifications. Filter by those exact envelope domains and addresses rather than by the authentication failure, since failure is the normal state for many legitimate senders. Grade alerts so that a failed check with a reply to address on a free mail provider or with more than twenty recipients in ten minutes pages someone, while a single failed message with a known forwarder only creates a report entry. You lose visibility into spoofing that passes authentication because an attacker obtained a valid sending credential or compromised an authorised relay, so also alert on new sending addresses for your domains that have not been seen before and on any change to the domain authentication records.",
+  "severity": "high"
+}

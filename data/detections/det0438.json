@@ -1,0 +1,107 @@
+{
+  "id": "det0438",
+  "type": "detection",
+  "title": "Detect Archiving via Custom Method (T1560.003)",
+  "shortTitle": "Detect Archiving via Custom Method (T1560.003)",
+  "externalId": "DET0438",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the use of a custom or command line archiving method to collect and compress files before exfiltration. The technique matters because a single compressed file is easier to move past data loss controls than hundreds of individual documents, and it is the last observable step before data leaves the network. Useful telemetry includes process creation with a full command line, file creation events that record the new archive name and extension, and network connections made by the same process shortly after the archive appears. The main failure mode is over alerting, because backup agents, log rotation jobs and developer scripts also create archives all day, so the rule must lean on archive location, archive name and the collecting process rather than on the presence of an archiver alone.",
+  "tags": [
+    "collection",
+    "archive",
+    "exfiltration staging",
+    "process creation",
+    "file integrity",
+    "t1560.003"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Archiving via Custom Method (T1560.003)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0438/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Archiving via Custom Method (T1560.003) - EASY",
+      "path": "exercises/det0438/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Archiving via Custom Method (T1560.003) - MEDIUM",
+      "path": "exercises/det0438/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Archiving via Custom Method (T1560.003) - HARD",
+      "path": "exercises/det0438/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Archiving via Custom Method (T1560.003) - EXTREMELY HARD",
+      "path": "exercises/det0438/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection finds programs that pack many files into one file. That packing is called archiving. The detection also looks for tools that are not the normal backup product. It catches the moment before data is stolen.",
+    "whyItMatters": "Stealing one hundred documents takes time. Stealing one packed file takes seconds. Attackers pack files to hide them and to move faster. Your normal backup tool also packs files, so the rule must tell them apart. The archiver name alone is not enough to alert on.",
+    "howItWorks": [
+      "A sensor records every program that starts, with the full command line.",
+      "The rule looks for archiver names and for packing switches in that command line.",
+      "It notes the output file name and the folder where the file was written.",
+      "Filters remove the approved backup product and its service account.",
+      "A second event, such as a large upload, raises the severity of the alert."
+    ],
+    "example": "Think of a shop assistant who tidies a whole shelf into one cardboard box. Packing is normal at closing time. Packing the till receipts into a box at midday, with no manager request, is the thing worth a second look.",
+    "takeaways": [
+      "Archiving is normal, so context decides if it is suspicious.",
+      "Watch the output path and the file name, not only the tool name.",
+      "Link the archive to any transfer that follows it."
+    ]
+  },
+  "objectives": [
+    "Describe how archive and compress utilities appear in process creation telemetry.",
+    "List the command line switches that indicate scripted or hidden archiving.",
+    "Identify the archive output path and extension for a created file event.",
+    "Correlate an archive creation with a following network transfer.",
+    "Build a filter for approved backup and deployment agents.",
+    "Rank archive alerts by the sensitivity of the collected source folders."
+  ],
+  "techniqueId": "t1560-003",
+  "detectsTechniques": [
+    "t1560-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation with parent image and full command line",
+    "Sysmon event 11 file creation with target file name and extension",
+    "Windows Defender Antivirus operational event for detected archive malware within a created archive",
+    "Network flow records showing large outbound transfers from the archiving host after file creation"
+  ],
+  "logic": "The signal is an archiving or compression process that is not the approved backup agent, combined with a newly created archive file outside the backup staging paths. The fields to correlate are the process image, the command line switches, the parent process, the created file extension, the destination folder and the account that ran it. A benign case is a scheduled job under a service account writing to a known backup share with a stable naming pattern, while a malicious case is an interactive user or an office application parent, writing into a temporary folder with a random name and no matching backup schedule.",
+  "pseudoQuery": "# title: Custom Archive Creation By Non Standard Tool\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: ['\\\\7z.exe', '\\\\rar.exe', '\\\\tar.exe', '\\\\makecab.exe']\n#     CommandLine|contains: ['-p', 'a -t', '-mx=']\n#   filter:\n#     ParentImage|endswith: '\\\\backupagent.exe'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Software packaging teams that build installers from a build share with a documented pipeline.",
+    "Log rotation scripts that compress old logs into a local archive folder each night.",
+    "Help desk staff packing diagnostic logs before attaching them to a support ticket.",
+    "Developers creating source snapshots from their own project directory."
+  ],
+  "tuningNotes": "Start in audit mode for two weeks and group the results by parent image, command line pattern and output folder. Promote only the combinations that never appear in your baseline, and allow list the exact backup service account plus its target share instead of allowing the archiver binary everywhere. Scope a stricter version of the rule to file servers and database hosts where staging is rare. The coverage you lose by narrowing is opportunistic packing on user laptops, so keep a low severity rule there that reports but does not page.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0274",
+  "type": "detection",
+  "title": "Boot or Logon Autostart Execution Detection Strategy",
+  "shortTitle": "Boot or Logon Autostart Execution Detection Strategy",
+  "externalId": "DET0274",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence established through autostart locations, where a program arranges to run automatically when a user logs on or the system boots. T1547 is a parent technique covering registry run keys, startup folders, logon scripts and similar mechanisms, and it matters because a single well placed entry keeps an adversary on a host across reboots with no further exploitation. Detection is achievable because these locations are well known and finite, so change monitoring on them produces high value alerts. The main failure is scale and legibility: legitimate installers and updaters write to the same locations constantly, so the rule must distinguish a new entry written by a signed installer from a new entry that points into a user writable directory and launches a script interpreter.",
+  "tags": [
+    "persistence",
+    "autostart",
+    "registry",
+    "windows",
+    "boot",
+    "t1547"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Boot or Logon Autostart Execution Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0274/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Boot or Logon Autostart Execution Detection Strategy - EASY",
+      "path": "exercises/det0274/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Boot or Logon Autostart Execution Detection Strategy - MEDIUM",
+      "path": "exercises/det0274/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Boot or Logon Autostart Execution Detection Strategy - HARD",
+      "path": "exercises/det0274/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Boot or Logon Autostart Execution Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0274/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the places where Windows keeps a list of programs to start automatically. When you log in or start the computer, everything on those lists runs. Attackers add their own program to a list so that it keeps running after a restart.",
+    "whyItMatters": "Persistence is what turns a small break in into a long stay. If an attacker cannot survive a reboot, your normal patching and restarts will remove them. Autostart locations are the most common way they survive. These locations are well known and few in number, so watching them is practical. It also gives you a clear list to check after any incident.",
+    "howItWorks": [
+      "A monitoring agent records every change to the registry keys that hold autostart entries.",
+      "The detection keeps changes that add or alter a value rather than a routine read.",
+      "It checks the path the new entry points to, looking for temporary folders, user profiles and public directories.",
+      "It checks the program being launched, because scripts and command interpreters rarely belong in autostart entries.",
+      "It also watches the startup folders with file creation monitoring, since files there run the same way.",
+      "The analyst sees the key, the value name, the target path, the writing process and the account."
+    ],
+    "example": "Think of a workshop with a sign board listing the jobs to do each morning. Workers read the board and start those jobs. If someone pins their own job to the bottom of the board overnight, it will be done every single morning without anyone asking questions. The board itself is the thing you must guard.",
+    "takeaways": [
+      "Autostart locations are a short, known list, which makes them excellent places to monitor.",
+      "The interesting part is the target path, not the fact that a registry value changed.",
+      "Legitimate installers cause most of the noise, so baseline them instead of ignoring the whole key."
+    ]
+  },
+  "objectives": [
+    "List the main autostart locations on Windows and explain why each one survives a reboot.",
+    "Interpret registry change events to distinguish a new autostart value from an unrelated key modification.",
+    "Assess an autostart target path for risk based on directory, file type and signing status.",
+    "Correlate a new autostart entry with the process that wrote it and the account that was active.",
+    "Explain the coverage gaps for autostart mechanisms that do not write to the registry, such as startup folders and logon scripts."
+  ],
+  "techniqueId": "t1547",
+  "detectsTechniques": [
+    "t1547"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set, which records the key path, value name and new value for autostart locations",
+    "Sysmon event 11 file create for the user and system startup folders, showing new shortcut or executable files",
+    "Windows Security event 4688 process creation with command line auditing, used to attribute the registry write to a parent process",
+    "Windows Security event 4697 service installation for autostart mechanisms implemented as services, including image path and account"
+  ],
+  "logic": "The pattern is a new or modified value in a known autostart registry key, or a new file in a startup folder, whose target path resolves to a location that user level processes should not be launching from, such as a temporary directory, an application data folder or a public share. The fields that must be correlated are the registry key path and value name, the new value data, the image of the process that performed the write, its parent image, and the user account, plus the file path and signature status of the target for file based autostart. The benign case is a signed installer, updater or enterprise agent writing an entry during its own installation and pointing at its own program directory, which usually happens once per host. The malicious case shows an entry created by a scripting interpreter or an office application, pointing at a script, a portable executable in a user writable path, or a command line with encoded arguments, and it is often followed within a short time by that same target executing.",
+  "pseudoQuery": "# title: Autostart Registry Value Points to User Writable Path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_key:\n#     EventID: 13\n#     TargetObject|contains:\n#       - \\CurrentVersion\\Run\n#       - \\CurrentVersion\\RunOnce\n#       - \\Winlogon\\Shell\n#       - \\Winlogon\\Userinit\n#   selection_value:\n#     Details|contains:\n#       - \\AppData\\\n#       - \\Temp\\\n#       - \\Users\\Public\\\n#       - \\ProgramData\\\n#   condition: selection_key and selection_value\n# level: medium",
+  "falsePositives": [
+    "Signed consumer or enterprise applications that install an updater entry in a user profile folder during a per user installation",
+    "Software deployment tooling that creates startup shortcuts for a line of business application in a controlled rollout",
+    "Remote monitoring and management agents that store their launcher in a program data folder and register it once per host",
+    "Developer tooling installed by engineers that registers a helper in the user application data directory on developer workstations"
+  ],
+  "tuningNotes": "Reduce noise by allowlisting exact registry value names and target paths belonging to signed, inventoried software, and by scoping the rule to servers and to workstations that do not belong to engineering or IT staff. Baseline every autostart entry on a reference host per operating system build so that you can alert on the difference rather than on the presence of a value, and add a filter for writing processes that are signed and located in the program files directory. What you give up is detection of an adversary who uses a whitelisted updater path or who writes an entry that matches an approved pattern, so keep a monthly reconciliation that diffs current autostart entries against the approved baseline rather than trusting the real time rule alone.",
+  "severity": "medium"
+}

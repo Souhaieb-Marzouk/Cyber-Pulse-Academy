@@ -1,0 +1,106 @@
+{
+  "id": "det0815",
+  "type": "detection",
+  "title": "Detection of IP Addresses",
+  "shortTitle": "Detection of IP Addresses",
+  "externalId": "DET0815",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the collection of IP addresses, the technique where an adversary maps the externally reachable range of the target by reading public registry records, border gateway protocol data and route looking glass services, then confirms live hosts with light probing. It matters because internet facing addresses are the entry point for every later access attempt, and the collection stage itself is nearly invisible to the victim: it leaves traces only in passive domain name system resolvers, whois query logs, scanning detection sensors, and reputation services that publish which ranges are being enumerated. The telemetry that makes it possible is netflow or firewall session records for sweep patterns, intrusion detection sensors for sequential address probes, resolver logs for bulk reverse lookups, and threat intelligence feeds that list enumeration sources. Detection fails because the internet is scanned constantly by researchers, search engines and vulnerability scanners, so the rule has to separate targeted work against your own announced ranges from background noise.",
+  "tags": [
+    "reconnaissance",
+    "ip addresses",
+    "mitre t1590.005",
+    "network monitoring",
+    "scan detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of IP Addresses",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0815/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of IP Addresses - EASY",
+      "path": "exercises/det0815/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of IP Addresses - MEDIUM",
+      "path": "exercises/det0815/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of IP Addresses - HARD",
+      "path": "exercises/det0815/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of IP Addresses - EXTREMELY HARD",
+      "path": "exercises/det0815/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone mapping the internet facing addresses of your company. The attacker learns which addresses are live and what runs on them. The rule watches for many addresses being probed in order from one source. It also watches for bulk lookups of your address range.",
+    "whyItMatters": "Every network has a front door on the internet. The attacker must find that door before trying to open it. Address hunting is quiet and often done weeks before the attack. Catching the mapping gives you time to close the door and to block the source.",
+    "howItWorks": [
+      "Firewall and flow records capture each connection attempt. They store the source, the destination, the port and the decision.",
+      "Sensors add a record when packets match a scan signature. One common signature is a run of addresses in order.",
+      "Resolver logs capture reverse lookups. These show one source asking for the name of many addresses in your range.",
+      "The security monitoring platform groups these records by source address and by destination range.",
+      "The rule looks for one source that touches many addresses or ports in your range within a short window.",
+      "Matching sources are compared with threat intelligence feeds, and the alert lists the addresses that were found live."
+    ],
+    "example": "Think of a burglar walking down a street and knocking on every door to see which ones are answered. One knock is nothing. Twenty knocks on your street in five minutes tells you someone is choosing a target. This detection watches the knocks that reach your own range.",
+    "takeaways": [
+      "Scanning your own range is normal background noise, so measure it before you alert.",
+      "Count distinct destination addresses and ports from one source, not single packets.",
+      "Lookups of your range are as interesting as probes of your range."
+    ]
+  },
+  "objectives": [
+    "Define IP address collection and explain how it precedes access attempts.",
+    "Identify the firewall, flow and resolver fields that reveal range enumeration.",
+    "Write a rule that counts distinct destination addresses probed per source in a window.",
+    "Describe how to measure background internet scanning on your own ranges.",
+    "Explain how enumeration results appear in later exploitation and phishing activity."
+  ],
+  "techniqueId": "t1590-005",
+  "detectsTechniques": [
+    "t1590-005"
+  ],
+  "dataSources": [
+    "Firewall session logs recording source address, destination address, destination port and the allow or deny decision",
+    "Network flow records exported from border routers showing connection counts per source and destination pair",
+    "Intrusion detection and prevention sensor alerts for sequential address sweeps and port sweep signatures",
+    "Recursive resolver logs showing bulk reverse lookups or zone file requests against the corporate address range",
+    "Threat intelligence feeds listing known scanning and enumeration infrastructure addresses"
+  ],
+  "logic": "The pattern is one external source address contacting many distinct destination addresses inside the corporate announced range, or a small number of addresses across many ports, within a short window, with a high proportion of denied or reset sessions and a distinctive uniform interval between attempts. The fields that must be correlated are the source address and its reputation, the count of distinct destination addresses and ports, the time spacing between attempts, the allow or deny decision, and matching records in resolver logs that show reverse lookups of the same range. The benign case is internet search engine crawlers, monitoring providers and vulnerability assessment services that scan on a schedule from documented ranges at a low and steady rate; the malicious case is a tight sequential sweep of the corporate range, often with a spoofed or hosting address, immediately followed by exploitation attempts against the few hosts that answered.",
+  "pseudoQuery": "# title: Sequential Address Sweep Against Corporate Announced Range\n# logsource:\n#   product: network\n#   service: firewall\n# detection:\n#   selection:\n#     action: 'deny'\n#     dst_ip|cidr: '203[.]0[.]113[.]0/24'\n#   filter_scanners:\n#     src_ip|cidr:\n#       - '198[.]51[.]100[.]0/24'\n#   condition: selection and not filter_scanners | count(distinct dst_ip) by src_ip > 40 within 5m\n# level: medium",
+  "falsePositives": [
+    "Internet search engine crawlers that index every address in the range on a weekly schedule",
+    "External vulnerability assessment providers contracted to test the public estate from known ranges",
+    "Content delivery or certificate transparency monitoring services that probe addresses for inventory",
+    "A branch office or remote worker whose network address translation egress generates many denied sessions after a routing change"
+  ],
+  "tuningNotes": "Build a baseline of denied inbound sessions per source and destination for two weeks, then set the distinct destination address threshold above the noisiest legitimate scanner and allow list documented research and monitoring ranges by name. Split the rule into a low severity version covering the whole public range and a high severity version covering only the ranges that host remote access gateways or mail services. Add a filter for your own monitoring agents that test failover paths. The narrower rule will miss a slow sweep that touches five addresses per hour to stay under the threshold, so keep a weekly aggregation that flags any source that has probed more than half of a given subnet over seven days.",
+  "severity": "medium"
+}

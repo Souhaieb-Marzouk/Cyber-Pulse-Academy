@@ -1,0 +1,106 @@
+{
+  "id": "det0291",
+  "type": "detection",
+  "title": "Detection of Cloud Service Dashboard Usage via GUI-Based Cloud Access",
+  "shortTitle": "Detection of Cloud Service Dashboard Usage via GUI-Based ...",
+  "externalId": "DET0291",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects hands on keyboard use of a cloud provider management console, which adversaries use to browse and operate an environment with stolen credentials while avoiding the command line tooling that most cloud detections watch. The technique matters less for what the dashboard does and more for what it implies: a human is exploring the environment interactively, often minutes after a suspicious sign in and before any resource changes appear. The telemetry comes from cloud audit records for console sign in, the client user agent and application name that identify a browser, and the read only enumeration calls that follow the session. It fails because legitimate administrators use the console constantly, so the rule must compare a session against the established behaviour of that identity instead of flagging console use on its own.",
+  "tags": [
+    "cloud dashboard",
+    "hands on keyboard",
+    "aws",
+    "identity",
+    "enumeration"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Cloud Service Dashboard Usage via GUI-Based Cloud Access",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0291/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Cloud Service Dashboard Usage via GUI-Based Cloud Access - EASY",
+      "path": "exercises/det0291/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Cloud Service Dashboard Usage via GUI-Based Cloud Access - MEDIUM",
+      "path": "exercises/det0291/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Cloud Service Dashboard Usage via GUI-Based Cloud Access - HARD",
+      "path": "exercises/det0291/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Cloud Service Dashboard Usage via GUI-Based Cloud Access - EXTREMELY HARD",
+      "path": "exercises/det0291/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A cloud dashboard is the web page where you manage your cloud account. Administrators use it every day to check and change resources. An attacker who has stolen a password can use that same page to look around your environment. This detection watches dashboard sessions that do not match how that account normally behaves.",
+    "whyItMatters": "The dashboard is a normal, fully supported way to work, so blocking it would break the business. Detection built only for command line tools often misses it, because the browser makes the calls instead of a script. A browsing session can reveal a great deal before anyone notices. Comparing a session with the account history is what makes it visible at all.",
+    "howItWorks": [
+      "The cloud provider records each console sign in, including the account, the source address and the browser string.",
+      "The rule keeps sign ins that succeeded and that came from a browser rather than a command line tool.",
+      "It then reviews the read only calls that follow, such as listing resources or reading configuration.",
+      "A comparison with the last thirty days shows whether this identity or this address is new.",
+      "Sessions that read many different services in a short time are scored higher than routine checks.",
+      "The analyst confirms the session with the account owner before treating any change as hostile."
+    ],
+    "example": "Picture a warehouse where staff may use a browser tool to look at the stock system. Using the tool is not a crime, and most people use it every single day. The interesting part is who signs in, from where, and how much they browse. A brand new visitor who opens every shelf in ten minutes deserves a second look.",
+    "takeaways": [
+      "Console use is normal, so the alert depends on the identity and the browsing pattern.",
+      "Browser based access bypasses detection that only watches command line tools.",
+      "Confirm a new session with the account owner before you treat it as an incident."
+    ]
+  },
+  "objectives": [
+    "Explain why a management console session can evade command line detection.",
+    "Read console sign in records and identify the fields that mark a browser session.",
+    "Summarise the enumeration calls that follow a session into a behaviour profile.",
+    "Compare a live session with the historic behaviour of the same identity and address.",
+    "Verify a suspicious session with the account owner without alerting an attacker."
+  ],
+  "techniqueId": "t1538",
+  "detectsTechniques": [
+    "t1538"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for console sign in showing the account, source address, user agent and result",
+    "Azure sign in logs where the client application is the management portal and the client is a browser",
+    "Google Cloud audit logs for console access and browser based authorization grants",
+    "Cloud read only enumeration API calls recorded per session and linked to the same authenticated identity"
+  ],
+  "logic": "The pattern is an interactive console session whose source, device profile or browse behaviour differs from the established pattern for that identity. The fields to correlate are the sign in result, the source address, the client user agent, the client application name and the authenticating identity, together with the sequence of read only enumeration calls attributed to the same session. The benign case is an administrator who signs in from the corporate network with the usual browser, checks a small number of services they own, and does so at similar times of day. The malicious case is a successful browser sign in for an identity that has only ever used command line access, arriving from a hosting provider address or an unfamiliar country, and followed within minutes by enumeration across many services and regions.",
+  "pseudoQuery": "# title: Console Sign In Without Multi Factor Followed by Enumeration\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName: 'ConsoleLogin'\n#     userAgent|contains: 'Mozilla'\n#     responseElements.ConsoleLogin: 'Success'\n#     additionalEventData.MFAUsed: 'No'\n#   filter:\n#     userIdentity.arn|contains: 'automation'\n#   condition: selection and not filter\n# level: low",
+  "falsePositives": [
+    "Administrators who travel and sign in to the console from a hotel or a customer network.",
+    "A newly hired engineer signing in to the console for the first time and exploring many unfamiliar services.",
+    "A support contract opening a browser session to investigate a ticket, where read only access needs no change record.",
+    "A security team member reviewing configuration across many services during a scheduled assessment.",
+    "A developer checking a deployment in the browser because the command line tool is unavailable."
+  ],
+  "tuningNotes": "Begin by recording which identities use the console at all, because an identity that has only ever used command line access is the highest value case and can be alerted at high severity. Baseline source address ranges, browser strings and the set of services each account reviews over thirty days, then alert on a new source combined with broad enumeration rather than on console sign in alone. Scope the high severity branch to privileged and break glass accounts, and keep ordinary engineering accounts at low severity so the queue stays workable. Filtering on known automation roles costs coverage of a session driven by a compromised service credential, so also watch for command line calls that begin inside the same window as a suspicious browser session.",
+  "severity": "low"
+}

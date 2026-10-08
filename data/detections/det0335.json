@@ -1,0 +1,107 @@
+{
+  "id": "det0335",
+  "type": "detection",
+  "title": "Detect Abuse of XPC Services (T1559.003)",
+  "shortTitle": "Detect Abuse of XPC Services (T1559.003)",
+  "externalId": "DET0335",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of interprocess communication services (T1559.003) on macOS, where a local process talks to a privileged helper through a service interface and convinces it to perform actions on the caller's behalf. Attackers use this to escalate privileges, bypass user prompts and reach capabilities they are not entitled to, all from what appears to be ordinary local traffic. The detection depends on process creation with parent-child relationships, service registration and launch records, file writes of service definition files outside approved locations, and signed process identity on both ends of the connection. It fails when service definitions and their clients are not baselined, because hundreds of legitimate helpers exist on a normal system and only the pairing and signing status separate abuse from routine behaviour.",
+  "tags": [
+    "mitre t1559.003",
+    "macos",
+    "interprocess communication",
+    "privilege escalation",
+    "endpoint telemetry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Abuse of XPC Services (T1559.003)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0335/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Abuse of XPC Services (T1559.003) - EASY",
+      "path": "exercises/det0335/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Abuse of XPC Services (T1559.003) - MEDIUM",
+      "path": "exercises/det0335/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Abuse of XPC Services (T1559.003) - HARD",
+      "path": "exercises/det0335/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Abuse of XPC Services (T1559.003) - EXTREMELY HARD",
+      "path": "exercises/det0335/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches helper programs on Apple computers that work for other programs. A helper can do things a normal program cannot, such as changing system settings. Attackers talk to a helper and ask it to do the work for them.",
+    "whyItMatters": "Helpers often run with high permissions, so they can act on behalf of anyone who asks correctly. That makes them a shortcut to more control over the machine. Local traffic like this is easy to overlook, because it never touches the network. Watching who calls which helper closes an important privilege gap.",
+    "howItWorks": [
+      "The system records which programs start, who started them and how they are signed.",
+      "The detection builds a list of helper services and the programs that normally connect to them.",
+      "It flags helper connections from programs that are unsigned or that live in unusual folders.",
+      "It watches the files that register a helper, because adding a new one is a persistence step.",
+      "It checks whether the helper performs a sensitive action, such as writing a system setting.",
+      "Related events from the same session are grouped, so the analyst sees the full chain."
+    ],
+    "example": "Think of a hotel with a concierge who can open any door for guests. Guests asking for help is normal, and the concierge never questions a request. Now imagine a person with no room key and no uniform badge. This person keeps asking the concierge to open the manager's office. The front desk will want to know why.",
+    "takeaways": [
+      "Local helper services are powerful and easy to overlook, so baseline them.",
+      "Signing status and file location of the calling program are your best signals.",
+      "A new or modified helper definition is a persistence clue worth alerting on."
+    ]
+  },
+  "objectives": [
+    "Explain how a privileged helper service can be abused by a local process",
+    "Identify the process, signing and service definition telemetry available on macOS",
+    "Baseline approved helper clients and their installed locations",
+    "Detect new or modified service definitions as a persistence indicator",
+    "Describe why network-focused rules cannot see this behaviour"
+  ],
+  "techniqueId": "t1559-003",
+  "detectsTechniques": [
+    "t1559-003"
+  ],
+  "dataSources": [
+    "macOS Endpoint Security process execution events with the responsible and parent process identifiers",
+    "Code signing information for both the calling process and the helper service binary",
+    "File integrity monitoring of service registration and launch configuration directories",
+    "macOS unified logging records from the system helper and service management subsystems",
+    "Process creation records showing a helper service spawning a shell or an interpreter"
+  ],
+  "logic": "The pattern is a process that is unsigned, ad hoc signed or located in a user-writable directory connecting to a system helper service, and especially a helper that then performs a privileged action such as writing a protected configuration file or spawning a shell. The fields to correlate are the client process path and signing identifier, the parent and responsible process, the helper service name, and the action the helper performs afterwards. The benign case is a signed application installed under the system applications directory whose helper clients appear in the baseline and whose helper actions are limited to its own settings. The malicious case is a temporary or download directory client, an identity that fails validation, a helper connecting outside its normal application, and evidence of a new service definition written shortly before the connection.",
+  "pseudoQuery": "# title: Unsigned Process Calling Privileged Helper Service\n# logsource:\n#   product: macos\n# detection:\n#   selection:\n#     event_type: 'service_client_connect'\n#     service_name|endswith: ['.helper', 'com.apple.systemsettings', 'com.apple.security']\n#   filter_signed:\n#     client_signing_id|contains: 'com.apple.'\n#     client_path|startswith: '/Applications/'\n#   condition: selection and not filter_signed\n# level: medium",
+  "falsePositives": [
+    "Enterprise management agents that use a signed helper service to apply configuration profiles on managed Macs",
+    "Backup and disk utility applications that ask a privileged helper to read protected folders",
+    "Virtualisation software that connects to a signed helper for network and disk configuration",
+    "Third-party input device drivers whose helper receives commands from an accessory utility",
+    "Developers running locally built applications that are signed for development but not by a distribution identity"
+  ],
+  "tuningNotes": "Inventory helper services and their client applications on a sample of managed Macs, then allow the signed publisher identities and install paths you find, and alert on anything outside that set. Keep the development-signed exception scoped to engineering subnets only, and raise severity on servers and executive devices. Add file integrity monitoring of the service registration directories so a new helper definition alerts even when no connection is observed. The coverage you lose by trusting signed publisher identities is an attacker who signs with a stolen certificate or manages to modify a signed helper through a vulnerable plugin, so watch for certificate anomalies and unexpected helper updates.",
+  "severity": "medium"
+}

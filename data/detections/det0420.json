@@ -1,0 +1,108 @@
+{
+  "id": "det0420",
+  "type": "detection",
+  "title": "Detect User Activity Based Sandbox Evasion via Input & Artifact Probing",
+  "shortTitle": "Detect User Activity Based Sandbox Evasion via Input & Ar...",
+  "externalId": "DET0420",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers user activity based sandbox evasion, tracked as T1497.002, where an adversary delays execution or changes behaviour until it observes signs of a real user, such as mouse movement, recent documents, a scrolling window or an interactive session, in order to avoid automated analysis. It matters because a sample that waits for human input will look inert in a sandbox and benign in telemetry, so defenders must observe the long tail of behaviour that starts after an artificial delay or after an interaction. The telemetry that makes detection possible is endpoint sensor process and window event data: process creation with parent and user context, window focus and input event records where the platform exposes them, file access records for recent document folders, and network connection events that follow the delay. The main way it fails is that interactivity signals are rarely logged, so detection usually leans on timing and on the process that suddenly wakes up, which means coverage depends on how completely the endpoint sensor records user session state.",
+  "tags": [
+    "endpoint",
+    "defense evasion",
+    "sandbox",
+    "user activity",
+    "malware analysis"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect User Activity Based Sandbox Evasion via Input & Artifact Probing",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0420/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect User Activity Based Sandbox Evasion via Input & Artifact Probing - EASY",
+      "path": "exercises/det0420/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect User Activity Based Sandbox Evasion via Input & Artifact Probing - MEDIUM",
+      "path": "exercises/det0420/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect User Activity Based Sandbox Evasion via Input & Artifact Probing - HARD",
+      "path": "exercises/det0420/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect User Activity Based Sandbox Evasion via Input & Artifact Probing - EXTREMELY HARD",
+      "path": "exercises/det0420/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A sandbox is an automated system that runs a file to see what it does. Some malicious files check whether a real person is using the computer before they act. If nobody moves the mouse or opens a document, they stay quiet. This detection looks for programs that wait for signs of a real user and then wake up.",
+    "whyItMatters": "Automated analysis is how many teams check unknown files quickly. A file that waits defeats that check and looks harmless. The same trick delays the attack inside a real company, which also delays your response. The waiting period is a clue you can see if you keep records long enough. It also explains surprising activity hours after a file was first opened.",
+    "howItWorks": [
+      "The endpoint sensor records when each program starts, who started it and how long it stays alive.",
+      "It also records file reads in document folders and any network connection the program makes.",
+      "The rule looks for a program that starts with no further activity, then becomes active much later.",
+      "It checks whether the later activity follows a user session action, such as a screen unlock or a document open.",
+      "It compares the process with the normal list for that computer, because many legitimate agents poll in the background.",
+      "When the quiet period, the wake up and the later activity line up, an alert shows the analyst the timeline."
+    ],
+    "example": "Think of a burglar who waits in a parked car. The burglar waits until the street goes quiet and someone walks past the house. Sitting still proves nothing on its own, and cars park on the street all the time. The watchman writes down the time the car arrived and the time it moved. The gap between those notes makes the report useful.",
+    "takeaways": [
+      "Long gaps between a program starting and doing anything useful are the core signal.",
+      "Record timestamps carefully, because the delay is the evidence.",
+      "Know your polling agents, since they also wake up on a schedule."
+    ]
+  },
+  "objectives": [
+    "Explain what a sandbox is and how a check for user activity defeats it.",
+    "Identify the endpoint records that show a program starting and later becoming active.",
+    "Measure the gap between process start and the first meaningful child or network event.",
+    "Recognise the user session signals an adversary may look for, such as input or unlocked state.",
+    "Separate legitimate scheduled polling from activity that follows a user interaction.",
+    "Describe how to retain endpoint data long enough to see delayed execution."
+  ],
+  "techniqueId": "t1497-002",
+  "detectsTechniques": [
+    "t1497-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, user, session identifier and creation time",
+    "Sysmon event 3 network connection with process image, destination and time stamp relative to the parent process start",
+    "Endpoint sensor records of file access in recent document and download folders with the accessing process",
+    "Windows Security event 4624 logon and 4800 workstation locked records that mark user session state changes",
+    "Endpoint sensor records of window focus or input activity where the platform exposes session interactivity data"
+  ],
+  "logic": "The pattern is a process that starts as a child of a document handler, archive tool or script host, performs no meaningful child process, file write or network connection for an extended period, and then becomes active shortly after a user interaction marker such as a workstation unlock, a session logon or a document folder access. The fields to correlate are the parent image, the creating user and session identifier, the process creation time, the time of the first network or file event from that process, and the nearest user session state change event. Legitimate background agents also idle, but they act on a fixed schedule, run under a service account and behave the same on every host, while evasion behaviour is tied to human presence and varies between hosts. The distinguishing factor is that activity resumes after a user action rather than at a scheduled time.",
+  "pseudoQuery": "# title: Process stays idle then becomes active after user session unlock\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_start:\n#     EventID: 1\n#     ParentImage|endswith: ['\\winword.exe', '\\excel.exe', '\\7zFM.exe', '\\explorer.exe']\n#   selection_net:\n#     EventID: 3\n#     Image|endswith: ['\\rundll32.exe', '\\regsvr32.exe', '\\mshta.exe']\n#   filter_agents:\n#     Image|endswith: ['\\GoogleUpdate.exe', '\\OneDrive.exe']\n#   condition: selection_start and selection_net and not filter_agents | time_gap(ProcessGuid) > 20m\n# level: medium",
+  "falsePositives": [
+    "Office add ins and document templates that open a network connection only when a user first edits a document",
+    "Software updaters started at logon that check for updates many minutes later after the session settles",
+    "Remote management and backup agents that run as user session helpers and act when the workstation is unlocked",
+    "Chat and meeting clients that connect after the user signs in and clicks into the application window",
+    "Scheduled tasks configured with a delay so they do not compete with logon activity at the start of the day"
+  ],
+  "tuningNotes": "Build the rule around a time gap that you can actually measure, and start by measuring the distribution of start to first action gaps for known agents on a sample of hosts, so your threshold reflects real behaviour rather than a guess. Filter the signed updaters, session helper agents and remote management tools by image path and by the user they run as, and require a new or unusual parent before alerting. Scope the first version to workstations in finance, engineering and administration, where user driven document activity is high and the agent list is well known, and where a delayed loader matters most. Pair it with file integrity monitoring so that a process which writes nothing but reads many recent documents still produces evidence. The coverage you lose by filtering known agents is an attacker who runs inside a signed process, so keep the network connection rule active on all hosts even where the time gap rule has been narrowed.",
+  "severity": "medium"
+}

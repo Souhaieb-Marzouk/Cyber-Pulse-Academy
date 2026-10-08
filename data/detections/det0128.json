@@ -1,0 +1,106 @@
+{
+  "id": "det0128",
+  "type": "detection",
+  "title": "Detection Strategy for Hidden Windows",
+  "shortTitle": "Detection Strategy for Hidden Windows",
+  "externalId": "DET0128",
+  "theme": "Detection Strategy",
+  "summary": "Hidden windows (T1564.003) is a defense evasion technique in which a program creates or manipulates a graphical window and then conceals it so the user never sees the interface. The action itself is ordinary, so the detection strategy deliberately looks at context instead of the hiding call alone: which process hid a window, where that process lives, what started it, and whether it made network connections at the same time. Telemetry comes from endpoint agents that instrument window and desktop calls, from process creation records, and from short-lived process termination events. This strategy fails in two common ways. First, many legitimate applications hide windows on purpose, including tray utilities, installers, updaters, and backup helpers, so the base rate of the behaviour is very high. Second, on hosts without an agent that records user interface calls, a hidden window leaves almost nothing in the standard operating system event logs.",
+  "tags": [
+    "defense evasion",
+    "t1564.003",
+    "hidden window",
+    "process monitoring",
+    "user interface",
+    "endpoint telemetry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hidden Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0128/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hidden Windows - EASY",
+      "path": "exercises/det0128/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hidden Windows - MEDIUM",
+      "path": "exercises/det0128/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hidden Windows - HARD",
+      "path": "exercises/det0128/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hidden Windows - EXTREMELY HARD",
+      "path": "exercises/det0128/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A hidden window is a program window that runs on your computer but is never shown on the screen. The program still works and can still receive commands. Attackers hide windows so that you do not notice their tools. This detection looks for programs that create a window and then hide it straight away.",
+    "whyItMatters": "Most people judge a computer by what they can see on the screen. If nothing appears, the machine looks quiet and healthy. An attacker can use that gap to run tools without raising suspicion. Some hidden tools can also take orders from a remote server. This detection helps you find activity that avoids the screen on purpose.",
+    "howItWorks": [
+      "The endpoint agent watches the calls that create, show, or hide a window.",
+      "Hiding a window is normal alone, so the rule adds more context before it alerts.",
+      "The rule checks which program made the call and where that program is stored.",
+      "It also checks whether the program started recently or arrived from a temporary folder.",
+      "The alert lists the process, the user account, and the title of the hidden window.",
+      "An analyst then decides whether a known installed application caused the event."
+    ],
+    "example": "Imagine a shop with a back room. Customers only ever see the front of the shop. A staff member can work in the back room all day, and the shop still looks normal. Now imagine a stranger slips into that back room. The front of the shop still looks fine, and no customer notices anything. This detection is like a camera in the back room. It records who goes in and what they do there. A hidden window is that back room, and the camera is the record of window calls.",
+    "takeaways": [
+      "A hidden window is invisible to the user but still active on the machine.",
+      "Hiding a window is normal behaviour, so an alert needs extra context.",
+      "Without software that records window calls, this activity is very hard to see."
+    ]
+  },
+  "objectives": [
+    "Describe what a hidden window is and why an attacker would use one.",
+    "Identify which telemetry sources can record a change in window visibility.",
+    "Explain why the hiding action alone is too common to alert on.",
+    "Build context checks around process path, parent process, and process start time.",
+    "Recognise the legitimate applications in your estate that hide their own windows."
+  ],
+  "techniqueId": "t1564-003",
+  "detectsTechniques": [
+    "t1564-003"
+  ],
+  "dataSources": [
+    "Endpoint detection agent telemetry recording window creation and show or hide calls together with the calling process identifier",
+    "Sysmon event 1 process creation including image path, parent image, and full command line",
+    "Sysmon event 11 file creation for executables written into user temporary or download directories",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The detection looks for a process that creates or receives a graphical window and then sets that window to a hidden state shortly after launch, especially when the process is not one of the interactive applications already known on that host. Window visibility calls are extremely common, so the rule must combine them with at least one supporting signal: the image runs from a user writeable directory, the parent process is a script host or a document reader, the same process opened outbound network connections, or the binary appears on the host for the first time compared with the baseline. The process identifier and the window handle are the correlation keys, because together they bind the hiding call to one specific binary. The benign case is a tray utility, installer, or updater that hides a window while it works, and those normally run from a signed installation path under a stable publisher with a matching parent process.",
+  "pseudoQuery": "# title: Hidden window created by a process outside trusted paths\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection:\n#     EventType: 'window_visibility'\n#     NewVisibility: 'hidden'\n#   filter_trusted:\n#     Image|startswith:\n#       - 'C:\\Program Files\\'\n#       - 'C:\\Windows\\'\n#   condition: selection and not filter_trusted\n# level: low",
+  "falsePositives": [
+    "Tray utilities and background update assistants that hide their own window while they check for new versions",
+    "Software installers that hide a progress window when they run in unattended or silent mode",
+    "Remote support sessions where the operator hides a console window to avoid disturbing the user",
+    "Monitoring agents that open a hidden window to collect user interface information for inventory"
+  ],
+  "tuningNotes": "Begin by inventorying the applications in your estate that legitimately create hidden windows, then add a filter for those signed binaries and their installation directories. Scope the rule to servers and to user groups such as finance and engineering where hidden tooling is rare, and require at least one supporting signal before the alert fires, for example execution from a temporary directory or a first-seen binary. Baseline window-hiding events for two weeks so you can see the real volume on each asset group. The coverage you lose by narrowing is the attacker who hides a window using a legitimate signed application already trusted on the host, so pair this rule with network and parent process detections for that case.",
+  "severity": "low"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0207",
+  "type": "detection",
+  "title": "Detect LSA Authentication Package Persistence via Registry and LSASS DLL Load",
+  "shortTitle": "Detect LSA Authentication Package Persistence via Registr...",
+  "externalId": "DET0207",
+  "theme": "Detection Strategy",
+  "summary": "This strategy links a registry change that registers an authentication package with the library that the local security authority then loads, covering T1547.002 Authentication Package. The technique matters because a package registered this way runs inside the process that handles logon, so it can capture credentials in clear text and persists across reboots with system privileges. The telemetry is registry value modification on the authentication package key plus image load events naming the library loaded into the local security authority process, joined by file creation on disk. The failure mode is that the registry write alone is weak evidence, because operating system updates and security agents touch related keys, so the loaded module path and its signature must confirm the finding.",
+  "tags": [
+    "mitre t1547.002",
+    "persistence",
+    "credential access",
+    "windows",
+    "lsass"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect LSA Authentication Package Persistence via Registry and LSASS DLL Load",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0207/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect LSA Authentication Package Persistence via Registry and LSASS DLL Load - EASY",
+      "path": "exercises/det0207/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect LSA Authentication Package Persistence via Registry and LSASS DLL Load - MEDIUM",
+      "path": "exercises/det0207/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect LSA Authentication Package Persistence via Registry and LSASS DLL Load - HARD",
+      "path": "exercises/det0207/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect LSA Authentication Package Persistence via Registry and LSASS DLL Load - EXTREMELY HARD",
+      "path": "exercises/det0207/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a new authentication package on Windows. An authentication package is a module that helps Windows check who a user is during logon. Windows loads these modules inside a protected process. An attacker adds one so that they can capture passwords. The rule joins the registry change with the module that the logon process loads.",
+    "whyItMatters": "The module runs inside the process that sees every logon attempt. That means it can copy passwords before they are properly protected. It also starts again after every reboot. This is one of the most valuable footholds an attacker can hold. Very few changes should ever appear in that registry location, so a new entry deserves a careful look.",
+    "howItWorks": [
+      "The agent records registry value changes, including the key path, value name, and data.",
+      "It records image load events for the protected process that handles logon.",
+      "The detection watches the authentication package registry location for edits.",
+      "It extracts the library path that was written into the registry value.",
+      "It searches the image load records for that path inside the logon process.",
+      "A confirmed load with no valid signature is escalated as a critical alert."
+    ],
+    "example": "Picture a bank where every customer must speak to a teller before entering the vault. The bank hires a new teller, and the manager adds her name to the staff list. Now she stands at the counter and hears every customer account number. Nobody questions her, because she is on the list. An authentication package works like that new hire. Once the system adds it to the list, it hears every password.",
+    "takeaways": [
+      "Authentication packages run inside the Windows logon process.",
+      "Always confirm the registry write with the loaded library file.",
+      "This registry location changes very rarely, so treat edits as serious."
+    ]
+  },
+  "objectives": [
+    "Explain what an authentication package does during a Windows logon.",
+    "Locate the registry key that registers authentication packages.",
+    "Correlate registry modification with module loads inside the logon process.",
+    "Assess signature and path evidence to confirm or dismiss a finding.",
+    "Escalate a confirmed finding using a credential exposure response plan."
+  ],
+  "techniqueId": "t1547-002",
+  "detectsTechniques": [
+    "t1547-002"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for the authentication package value under the Windows control set",
+    "Windows Security event 4657 registry value modification naming the acting account and process",
+    "Sysmon event 7 image load recording modules mapped into the local security authority process",
+    "Sysmon event 11 file create for a new library placed in a system or temporary directory"
+  ],
+  "logic": "The pattern is a registry value that adds or replaces a library in the authentication package list, followed by that same library being mapped into the logon process. The fields that must be correlated are the registry key path and value data, the acting account and process that wrote it, the file creation event for the library at the path named in the value, and the image load event inside the local security authority process. The malicious case differs from the benign one by provenance and confirmation: an identity product or an operating system update writes a signed library from a program files path as part of a planned change, while a script, a shell, or an office process writing a value that points to a temporary or user writable library, especially one that then loads into the logon process, is a credential theft primitive. The registry entry alone is not enough, because stale or rolled back values are common.",
+  "pseudoQuery": "# title: New Authentication Package Registered and Loaded\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     event_type: registry_value_set\n#     target_object|endswith: '\\Control\\Lsa\\Authentication Packages'\n#   filter_default:\n#     details|contains:\n#       - 'msv1_0'\n#       - 'kerberos'\n#   condition: selection and not filter_default\n# level: critical",
+  "falsePositives": [
+    "Endpoint security agents that install a credential provider or authentication package",
+    "Smart card middleware installed by the identity team",
+    "Windows feature updates or in place upgrades that rewrite the value",
+    "Third party single sign on clients added by an approved software package",
+    "A host restore that returns the value to an earlier configuration"
+  ],
+  "tuningNotes": "Allow the default packages and the identity products that your access management baseline confirms, and require a matching image load inside the logon process before you escalate, because registry writes without a load are usually stale or reverted. Scope the critical severity to servers and to hosts in the privileged access group, and keep a lower severity copy everywhere else. Filtering by known package names loses detection when an attacker reuses a default name with a different library path, so always inspect the value data and the loaded module signature too.",
+  "severity": "critical"
+}

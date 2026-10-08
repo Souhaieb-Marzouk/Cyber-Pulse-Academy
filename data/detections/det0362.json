@@ -1,0 +1,106 @@
+{
+  "id": "det0362",
+  "type": "detection",
+  "title": "Detection Strategy for AppCert DLLs Persistence via Registry Injection",
+  "shortTitle": "Detection Strategy for AppCert DLLs Persistence via Regis...",
+  "externalId": "DET0362",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects AppCert DLL persistence, the T1546.009 sub-technique in which an entry is written to the AppCertDlls registry key so that a dynamic link library (DLL) of the attacker's choosing is loaded into processes that call the process creation interface. The write itself is a single registry value, which makes it quiet and durable: it survives restarts and does not need a scheduled task, a service or a start-up folder entry. Detection depends on registry auditing for value creation under that key, Sysmon registry events, image load telemetry naming the DLL in unexpected processes, and file creation records for the DLL before it is referenced. It fails in practice on two fronts: the key is often not in the audit scope because it is rarely used legitimately, and modern Windows versions largely ignore the setting, so the detectable part is the write rather than the effect.",
+  "tags": [
+    "windows",
+    "persistence",
+    "privilege escalation",
+    "registry",
+    "dll"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for AppCert DLLs Persistence via Registry Injection",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0362/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for AppCert DLLs Persistence via Registry Injection - EASY",
+      "path": "exercises/det0362/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for AppCert DLLs Persistence via Registry Injection - MEDIUM",
+      "path": "exercises/det0362/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for AppCert DLLs Persistence via Registry Injection - HARD",
+      "path": "exercises/det0362/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for AppCert DLLs Persistence via Registry Injection - EXTREMELY HARD",
+      "path": "exercises/det0362/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches a single setting in the Windows registry, which is the system's settings database. The setting tells Windows to load an extra program file, called a dynamic link library, into other programs. Intruders add entries here to keep their code running.",
+    "whyItMatters": "Persistence means the intruder comes back after a reboot. This setting is easy to add and hard to notice, because it adds no new service and no new start-up icon. A single unnoticed entry can keep unknown code loading for months.",
+    "howItWorks": [
+      "Registry auditing is switched on for the AppCert DLL key on monitored hosts.",
+      "Each set or create value operation under that key is recorded with the account and the value data.",
+      "The rule matches any new value under the key that is not part of the approved build.",
+      "File creation and image load records are checked to see whether the named file exists and loads.",
+      "A new value pointing to a file in a user writable folder raises a high severity alert."
+    ],
+    "example": "Think of a hotel guest who does not ask for a room key. They instead tape a note to the front desk telling staff to let them in whenever they ask. The note is small, it stays after they leave, and no new key was ever issued.",
+    "takeaways": [
+      "Persistence does not need a new service or a start-up entry; registry settings can do the job.",
+      "This key has almost no legitimate use, so any unexpected value deserves attention.",
+      "Record the value data, because the file path it names is your best lead."
+    ]
+  },
+  "objectives": [
+    "Explain what an AppCert DLL is and why the registry setting enables persistence",
+    "Identify the registry key and the operation type that must be audited to see the write",
+    "Correlate a new registry value with file creation and image load records for the named file",
+    "Recognise why this technique has limited effect on current Windows versions yet still indicates intrusion",
+    "Build a known good baseline of values under the key across the estate",
+    "Describe how to remove the persistence and verify it has not returned"
+  ],
+  "techniqueId": "t1546-009",
+  "detectsTechniques": [
+    "t1546-009"
+  ],
+  "dataSources": [
+    "Windows registry auditing for set-value and create-key operations under the AppCertDlls key with subject account",
+    "Sysmon event 13 registry value set records including target object and details",
+    "Sysmon event 11 file creation records for dynamic link libraries written to user profile or temporary paths",
+    "Sysmon event 7 image load records naming the registered dynamic link library and the loading process",
+    "Windows Security event 4688 process creation records used to identify the process that wrote the value"
+  ],
+  "logic": "The pattern is any unexpected value under a registry key that has no role in standard builds. Analysts watch registry auditing for set-value operations under the AppCertDlls key and compare the value data path against a known good baseline collected from the same operating system build and asset class. They then join the value to file creation and image load records to see whether the named file exists, where it lives and whether any process has loaded it. The benign case is rare and usually comes from a vendor component registered during installation and documented in the build standard; the malicious case is a value created by a scripting host or an unapproved process shortly after a file appears in a temporary directory, pointing to an unsigned library in a user writable path.",
+  "pseudoQuery": "# title: Unapproved AppCert DLL registry value created\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_reg:\n#     EventID: 13\n#     TargetObject|contains: 'AppCertDlls'\n#   filter_baseline:\n#     Details|contains: 'C:\\\\Program Files\\\\'\n#   condition: selection_reg and not filter_baseline\n# level: high",
+  "falsePositives": [
+    "Legacy third party security or licence components installed by a vendor package that registers a library in this key",
+    "Application compatibility shims deployed by an old installer during a migration project",
+    "System management tooling that writes the key on hosts built from an outdated image template",
+    "Administrators testing a registry change on a lab machine that reports to the production monitoring platform"
+  ],
+  "tuningNotes": "Enable registry auditing on this key through group policy on servers and administrator workstations first, because an unaudited key produces no alerts at all. Collect a baseline of existing values from every operating system build in use and filter those exact paths, not the whole programme files directory, so a new library in the same folder still fires. Add a second condition that requires a matching file creation recorded within the previous hour, which removes stale or copied values. The trade-off is that a file dropped long before the registry write will not be linked, so also keep a low severity alert for any new value under the key with an unsigned binary, and verify after removal that no new value appears within a week.",
+  "severity": "high"
+}

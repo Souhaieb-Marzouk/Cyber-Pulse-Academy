@@ -1,0 +1,107 @@
+{
+  "id": "det0473",
+  "type": "detection",
+  "title": "Detect persistent or elevated container services via container runtime or cluster manipulation",
+  "shortTitle": "Detect persistent or elevated container services via cont...",
+  "externalId": "DET0473",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistent or elevated services created through container runtimes and cluster objects, which maps to the container service technique under create or modify system process. The attacker either changes the container runtime configuration on a node or creates a long running privileged workload such as a daemon set, a static pod or a host path mount so that access returns after restarts and can reach the node itself. Detection relies on cluster control plane audit logs, node level service manager records, container runtime logs and file integrity monitoring of runtime configuration files. It fails in practice because platform teams deploy privileged workloads constantly, so the discriminator has to be who made the change, from where, and whether the resulting workload mounts host resources or runs in a way the platform normally forbids.",
+  "tags": [
+    "mitre t1543.005",
+    "container",
+    "kubernetes",
+    "persistence",
+    "privilege escalation",
+    "cloud"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect persistent or elevated container services via container runtime or cluster manipulation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0473/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect persistent or elevated container services via container runtime or cluster manipulation - EASY",
+      "path": "exercises/det0473/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect persistent or elevated container services via container runtime or cluster manipulation - MEDIUM",
+      "path": "exercises/det0473/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect persistent or elevated container services via container runtime or cluster manipulation - HARD",
+      "path": "exercises/det0473/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect persistent or elevated container services via container runtime or cluster manipulation - EXTREMELY HARD",
+      "path": "exercises/det0473/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Containers are small packaged programs that run on a shared host. A container service is software set up to keep running quietly in that environment. An attacker can create such a service, or change the runtime settings, to keep access after a restart. This detection looks for those changes.",
+    "whyItMatters": "A privileged container can often reach the host and other workloads. Persistent workloads survive restarts, so cleaning one pod is not enough. Cluster change logs record a great deal of detail about who did what. Catching this early prevents a small foothold from becoming a long one.",
+    "howItWorks": [
+      "The cluster control plane records every request to create or change an object, including the caller and the source address.",
+      "The detection selects requests that create workloads designed to run on every node or with host access.",
+      "It checks node logs and service records for new runtime services or changed runtime configuration files.",
+      "It compares the caller identity and source address with the identities the platform normally uses.",
+      "It scores workloads that mount host paths, request privileged mode or use the host network.",
+      "An analyst reviews the manifest, the caller and the node state before removing the workload."
+    ],
+    "example": "Think of a large office where cleaners may enter every room after hours. A person could leave a cleaning cart in a corridor with a key hidden inside it. The cart looks like normal equipment and it stays there every night. This detection asks who signed for the cart and why it holds a key.",
+    "takeaways": [
+      "Persistent workloads survive restarts, so removing a single container is not enough.",
+      "Privileged mode, host path mounts and host networking are the fields that raise risk.",
+      "The caller identity and source address tell you whether the change came from your platform team."
+    ]
+  },
+  "objectives": [
+    "Describe how containers and cluster workloads can be used to keep persistent access.",
+    "Identify the control plane audit fields that record who created a workload and from where.",
+    "Explain why privileged mode, host path mounts and host networking increase impact.",
+    "Recognise node level changes to container runtime configuration and services.",
+    "Outline a review and containment process for a suspicious privileged workload."
+  ],
+  "techniqueId": "t1543-005",
+  "detectsTechniques": [
+    "t1543-005"
+  ],
+  "dataSources": [
+    "Kubernetes API server audit logs recording workload creation with the requesting user, source address and object manifest",
+    "Container runtime daemon logs recording container start, restart policy and privileged mode on each node",
+    "Cloud provider managed Kubernetes audit records for node pool, workload identity and cluster role binding changes",
+    "Linux service manager and journal records on cluster nodes showing new or changed runtime services",
+    "File integrity monitoring of container runtime configuration files and node level credential paths"
+  ],
+  "logic": "The pattern is a workload or node level service that is designed to persist and to reach beyond its normal boundary, created by an identity or from a source that the platform does not normally use. Correlate the audit log entry that creates the object with the manifest fields, especially privileged mode, host path volumes, host network and restart policy, then join it to node level runtime logs and service manager changes on the affected node. In the benign case the caller is a known deployment service account, the source is the build or continuous integration network, the workload is owned by a labelled namespace and the manifest matches an approved template. In the malicious case the caller is a user account or a service account from another namespace, the source is a workstation address, and the workload mounts the node filesystem or the runtime socket.",
+  "pseudoQuery": "# title: Privileged Workload with Host Path Mount Created by Unusual Identity\n# logsource:\n#   product: kubernetes\n#   service: audit\n# detection:\n#   selection:\n#     verb:\n#       - 'create'\n#       - 'patch'\n#     object:\n#       - 'daemonsets'\n#       - 'pods'\n#     privileged: true\n#   selection_hostpath:\n#     hostPath|contains: '/var/run'\n#   filter_platform:\n#     user.username|endswith: ':deploy-bot'\n#     sourceIPs|startswith: '10[.]50[.]0[.]'\n#   condition: (selection or selection_hostpath) and not filter_platform\n# level: high",
+  "falsePositives": [
+    "Platform engineering teams that deploy monitoring and log collection agents as privileged workloads by design",
+    "Cluster upgrades and autoscaling events that recreate workloads and node runtime services legitimately",
+    "Development or test clusters where engineers experiment with privileged pods and host path mounts",
+    "Backup and storage drivers that must mount host paths and run with elevated permissions on each node"
+  ],
+  "tuningNotes": "First inventory the deployment identities, namespaces and source networks that legitimately create privileged workloads, and filter those by identity rather than by workload name alone. Raise severity when a privileged workload also mounts the container runtime socket or the node filesystem, and when the creating identity has no history in that namespace. Baseline the normal number of privileged workloads per cluster and alert on new ones rather than on steady state, and keep a separate lower-severity rule for every privileged creation so exploratory activity remains visible. The coverage you lose by filtering your deployment bot is detection of that bot being abused, so monitor its credentials with authentication alerts and require signed manifests.",
+  "severity": "high"
+}

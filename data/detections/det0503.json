@@ -1,0 +1,106 @@
+{
+  "id": "det0503",
+  "type": "detection",
+  "title": "Behavioral Detection Strategy for Exfiltration Over Symmetric Encrypted Non-C2 Protocol",
+  "shortTitle": "Behavioral Detection Strategy for Exfiltration Over Symme...",
+  "externalId": "DET0503",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects exfiltration that hides stolen data inside a symmetric encrypted protocol which is not the implant's own command channel, such as an encrypted file transfer or a secure shell session to an unexpected host. The signal is direction and volume: a large one way outbound transfer from a host that normally receives data, to a destination it has never contacted, over a protocol that cannot be inspected. Telemetry comes from firewall session logs, network flow exports with byte counters, proxy logs and endpoint network connection events. It fails in practice because backups, replication and cloud sync also move large volumes outbound, so the destination and the owning process decide the verdict.",
+  "tags": [
+    "exfiltration",
+    "encrypted channel",
+    "network flow",
+    "firewall log",
+    "data loss"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection Strategy for Exfiltration Over Symmetric Encrypted Non-C2 Protocol",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0503/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection Strategy for Exfiltration Over Symmetric Encrypted Non-C2 Protocol - EASY",
+      "path": "exercises/det0503/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Exfiltration Over Symmetric Encrypted Non-C2 Protocol - MEDIUM",
+      "path": "exercises/det0503/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Exfiltration Over Symmetric Encrypted Non-C2 Protocol - HARD",
+      "path": "exercises/det0503/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Exfiltration Over Symmetric Encrypted Non-C2 Protocol - EXTREMELY HARD",
+      "path": "exercises/det0503/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Exfiltration means stealing data by sending it out of the network. This detection looks for data leaving inside an encrypted channel, such as a secure copy session. It watches how much data leaves and where it goes. The aim is to catch the theft while the transfer is still running.",
+    "whyItMatters": "Attackers know that defenders read unencrypted traffic, so they wrap stolen data in encryption. Content inspection then sees only random bytes and cannot help you at all. What stays visible is the size, the direction and the destination of the transfer. Those three facts are enough to raise a useful alert.",
+    "howItWorks": [
+      "Firewall and network flow records store the bytes sent and received for each session.",
+      "The rule computes the ratio of outbound bytes to inbound bytes for each host.",
+      "It flags a large outbound transfer to a destination that host has not used before.",
+      "It checks the protocol and the port to see whether the traffic is encrypted.",
+      "It links the session to the process on the host that owns the connection.",
+      "The analyst confirms whether the process and destination fit the host role."
+    ],
+    "example": "Think of a warehouse where every delivery van is checked at the gate. A driver fills a van with boxes at night and covers them with a heavy tarpaulin. The guard cannot see the boxes, but he can weigh the van on the way out. A van leaving far heavier than it arrived deserves a look. This detection is the weighbridge at the gate.",
+    "takeaways": [
+      "When content is encrypted, size, direction and destination are your evidence.",
+      "Compare each host with its own normal outbound volume, not with a global number.",
+      "The owning process often decides whether a large upload is normal."
+    ]
+  },
+  "objectives": [
+    "Explain why encrypted exfiltration defeats content inspection.",
+    "Name the telemetry that provides byte counts and destination data.",
+    "Calculate and baseline outbound to inbound ratios for one host group.",
+    "Link a network session back to the process that created it.",
+    "Write a pseudo-rule with a volume threshold and an approved backup filter."
+  ],
+  "techniqueId": "t1048-001",
+  "detectsTechniques": [
+    "t1048-001"
+  ],
+  "dataSources": [
+    "Firewall session logs with source host, destination address, port, protocol and bytes sent and received",
+    "Network flow records such as IPFIX or NetFlow exports with per conversation byte and packet counters",
+    "Proxy logs for encrypted tunnelling and file upload requests with bytes transferred per request",
+    "Sysmon event 3 network connection with owning process image and destination address",
+    "Endpoint agent records of archive creation and large file reads before the transfer begins"
+  ],
+  "logic": "The pattern is a large, one directional outbound transfer from an internal host to an external destination that host has not used before, over a symmetric encrypted protocol that is not the host's known management channel. Analysts must correlate the source host and destination address across firewall, flow and proxy records, sum the bytes over the session, and then join to the endpoint network connection event to identify the owning process and user. Normal behaviour comes from backup, replication and cloud sync agents, which run on a schedule, use a stable destination set and a service account. The malicious case shows a single host, an unusual process such as a scripting or archive tool, a destination with no business relationship, and a transfer that starts outside the normal backup window.",
+  "pseudoQuery": "# title: Large Outbound Encrypted Transfer to Unfamiliar Destination\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     action: 'allow'\n#     direction: 'outbound'\n#     destination_port:\n#       - 22\n#       - 443\n#     bytes_out: '>500000000'\n#   filter_backup:\n#     process_name|endswith: '\\backupagent.exe'\n#   condition: selection and not filter_backup\n# level: high",
+  "falsePositives": [
+    "Nightly database backup that copies a large archive to cloud object storage",
+    "Video production team uploading raw footage to a client file transfer service",
+    "Disaster recovery replication that sends a full copy to a secondary data centre for the first time",
+    "Data science team uploading a large training data set to an approved analytics platform"
+  ],
+  "tuningNotes": "Baseline the top outbound talkers per subnet and per host role for at least thirty days, then set the byte threshold above the ninety-ninth percentile of normal uploads. Allow list approved backup, replication and file sharing destinations by address range and by service account, and scope the rule to hosts that hold regulated data. Raise severity when the owning process is a scripting host or an archive tool. This removes routine transfer noise, but you lose coverage of a patient attacker who keeps each individual transfer below the threshold.",
+  "severity": "high"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0559",
+  "type": "detection",
+  "title": "Multi-Platform Shutdown or Reboot Detection via Execution and Host Status Events",
+  "shortTitle": "Multi-Platform Shutdown or Reboot Detection via Execution...",
+  "externalId": "DET0559",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers System Shutdown or Reboot, the deliberate restarting or powering off of hosts to destroy evidence, interrupt defenders, or set up a later destructive or ransomware stage. It matters because shutdown activity is destructive and often precedes encryption or wiping, and because a coordinated reboot across many hosts at once is itself an incident signal regardless of the reason. The telemetry that catches it is host shutdown and start events, the logon records that show who initiated a shutdown, process creation for the shutdown utility, hypervisor power operation events, and monitoring gaps that reveal hosts which stopped reporting. It fails in practice because patch cycles and power events generate the same records constantly, so the detection depends on knowing your maintenance windows and on distinguishing a user initiated restart from a remote forced one.",
+  "tags": [
+    "impact",
+    "shutdown",
+    "reboot",
+    "availability",
+    "ransomware"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Platform Shutdown or Reboot Detection via Execution and Host Status Events",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0559/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Platform Shutdown or Reboot Detection via Execution and Host Status Events - EASY",
+      "path": "exercises/det0559/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Platform Shutdown or Reboot Detection via Execution and Host Status Events - MEDIUM",
+      "path": "exercises/det0559/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Platform Shutdown or Reboot Detection via Execution and Host Status Events - HARD",
+      "path": "exercises/det0559/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Platform Shutdown or Reboot Detection via Execution and Host Status Events - EXTREMELY HARD",
+      "path": "exercises/det0559/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for computers being shut down or restarted. It watches both the event that records the shutdown and the person or program that asked for it. It also looks for many machines stopping at the same time.",
+    "whyItMatters": "Attackers restart machines to break logging tools and to hide their tracks. Ransomware often restarts systems before locking them. A machine that stops reporting may be under attack. Seeing the restart as it happens gives you a chance to act before more damage is done.",
+    "howItWorks": [
+      "Windows records shutdown and start events in its system log, and records who requested a shutdown.",
+      "Linux writes shutdown commands to the system journal, and audit records show the program that ran the command.",
+      "Virtual management platforms record power off and reset requests for each virtual machine.",
+      "A SIEM, which is a central system that collects and searches log events, collects all of these records.",
+      "The rule compares the shutdown time with the approved maintenance windows for that host group.",
+      "A forced restart from a remote session, or many hosts stopping together outside a window, raises the alert."
+    ],
+    "example": "Think of a factory where each machine writes in a log book at the end of a shift. One machine stopping early is odd. Ten machines stopping at the same minute, with no shift change, means someone tripped the main switch. This detection reads both the log books and the main switch.",
+    "takeaways": [
+      "Shutdown events matter most when many hosts stop together or outside a change window.",
+      "Record who initiated the shutdown, because a forced remote restart is much more interesting than a user pressing restart.",
+      "A sudden gap in reporting from a host is its own alert, not just missing data."
+    ]
+  },
+  "objectives": [
+    "Explain why shutdown and reboot activity can indicate destructive intent or defence evasion.",
+    "Identify the operating system and hypervisor events that record shutdown, reset and start actions.",
+    "Determine who or what initiated a shutdown using logon and process creation records.",
+    "Correlate a mass shutdown with maintenance windows and with monitoring coverage gaps.",
+    "Distinguish a user initiated restart from a remote forced shutdown.",
+    "Describe the response workflow for a suspected destructive shutdown, including isolation and evidence preservation."
+  ],
+  "techniqueId": "t1529",
+  "detectsTechniques": [
+    "t1529"
+  ],
+  "dataSources": [
+    "Windows system log shutdown and startup events recording the reason code and the initiating process",
+    "Windows Security event 1074 system shutdown initiated, naming the user account and process that requested it",
+    "Linux system journal and audit records for the shutdown and reboot commands, including the invoking user and session",
+    "Hypervisor management events for virtual machine power off, reset and guest shutdown operations with the requesting account",
+    "Endpoint and network monitoring heartbeat records used to detect hosts that stop reporting at the same time"
+  ],
+  "logic": "The pattern is a shutdown, reset or power off action that comes from an unexpected source or affects many hosts at once. You correlate the shutdown event, which gives the host and time, with the event that names the initiating user and process, and with hypervisor power operation events for the same virtual machine, then compare the whole set against the approved maintenance calendar and the normal patch cadence per host group. The malicious case is a forced shutdown requested by a non interactive session, a service account or a scripting host, clusters of hosts stopping within minutes of each other outside any window, or a shutdown that immediately follows mass file modification or deletion. The benign case is a scheduled patch reboot from the management server during a defined window, a user choosing restart after an update, or a documented power event in a lab environment.",
+  "pseudoQuery": "# title: Forced Remote Shutdown Outside Maintenance Window\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1074\n#     ShutdownType: 'forced'\n#   filter_console:\n#     SessionType: 'Console'\n#   condition: selection and not filter_console\n# level: medium",
+  "falsePositives": [
+    "Scheduled patch management cycles that reboot large groups of servers inside an approved window",
+    "Administrators restarting a host remotely to clear a hung service or apply a configuration change",
+    "Virtual desktop infrastructure platforms that reset idle or unhealthy guests automatically",
+    "Lab and test environments where hosts are rebuilt several times a day by automation",
+    "Facilities power work that requires a planned outage and produces a coordinated shutdown of a rack"
+  ],
+  "tuningNotes": "Import your change calendar and patch schedule into the detection platform and suppress shutdown events that fall inside an approved window for the matching host group, rather than suppressing specific hosts, so you keep visibility when a window is abused. Add the count of hosts stopping within a short window as a separate high severity rule, because a coordinated event is more meaningful than any single restart. Baseline the normal initiator accounts and processes per host role and alert when the initiator is a service account or an interactive session running a scripting host. The coverage you lose by suppressing windows is a destructive action disguised as maintenance, so retain a rule that alerts on shutdown of hosts holding backup or logging roles at any time.",
+  "severity": "medium"
+}

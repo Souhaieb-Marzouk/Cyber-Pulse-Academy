@@ -1,0 +1,106 @@
+{
+  "id": "det0181",
+  "type": "detection",
+  "title": "Detection Strategy for SQL Stored Procedures Abuse via T1505.001",
+  "shortTitle": "Detection Strategy for SQL Stored Procedures Abuse via T1...",
+  "externalId": "DET0181",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of stored procedures, the pre-packaged routines inside a database engine that attackers use to run operating system commands, read files or move data while appearing to perform ordinary database work. It matters because the activity happens inside a service account that already holds database privileges, so host and network controls see nothing unusual. Detection depends on database audit records for procedure execution, database error and login logs showing privilege failures, and host process creation where the database engine spawns a shell or command interpreter. The common failure is that database auditing is often disabled or captured only for schema changes, so the procedure calls that matter most never reach the security platform, and where they do, legitimate maintenance jobs produce the same events on a schedule.",
+  "tags": [
+    "database",
+    "stored procedures",
+    "persistence",
+    "command execution",
+    "audit logs"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for SQL Stored Procedures Abuse via T1505.001",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0181/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for SQL Stored Procedures Abuse via T1505.001 - EASY",
+      "path": "exercises/det0181/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for SQL Stored Procedures Abuse via T1505.001 - MEDIUM",
+      "path": "exercises/det0181/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for SQL Stored Procedures Abuse via T1505.001 - HARD",
+      "path": "exercises/det0181/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for SQL Stored Procedures Abuse via T1505.001 - EXTREMELY HARD",
+      "path": "exercises/det0181/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A database stores data, and a stored procedure is a saved set of instructions inside it. Some procedures can run commands on the computer that hosts the database. This detection looks for those powerful procedures being used, especially outside maintenance windows.",
+    "whyItMatters": "Database servers often hold the most valuable data in a company. The database service account already has strong rights on its own server. So one procedure call can read files or run commands without any new login. Auditing the database is often weaker than auditing laptops and servers, which is exactly why attackers choose this path.",
+    "howItWorks": [
+      "The database engine can write an audit record each time a procedure runs, including the account, the procedure name and the time.",
+      "The detection keeps a short list of procedures that should almost never be used in production, such as command shell and file access procedures.",
+      "It compares each call with the account and the schedule that normally use it, such as a nightly maintenance job.",
+      "It also watches the host. If the database service starts a command interpreter, that is a strong sign.",
+      "It links the audit record to the host event by time and by the account that connected.",
+      "Calls from a new account, at an odd hour, or with output written to a file are raised for urgent review."
+    ],
+    "example": "Think of a warehouse forklift. It is meant to move pallets, and trained staff use it daily. If the same forklift is used at night to open the strongroom, the forklift is not at fault. The schedule and the driver are what tell you something is wrong.",
+    "takeaways": [
+      "Database procedures can reach the host, using the database service account's own rights.",
+      "Turn on database procedure auditing, or this technique stays invisible.",
+      "Separate scheduled maintenance jobs from interactive use before you tune."
+    ]
+  },
+  "objectives": [
+    "Explain how stored procedures can execute operating system commands under a database service account",
+    "Identify database audit and host process telemetry that records procedure execution",
+    "List the high risk procedures that should be rare in production databases",
+    "Differentiate scheduled maintenance jobs from interactive abuse by account, host and time",
+    "Correlate a database audit record with host process creation to confirm command execution"
+  ],
+  "techniqueId": "t1505-001",
+  "detectsTechniques": [
+    "t1505-001"
+  ],
+  "dataSources": [
+    "Database engine audit logs recording stored procedure execution with the calling account, procedure name and timestamp",
+    "Database login and error logs recording failed privilege checks and impersonation attempts",
+    "Sysmon event 1 process creation where the database service image is the parent of a shell or command interpreter",
+    "Windows Security event 4688 process creation with command line auditing for the database service account",
+    "Database job scheduler records showing approved maintenance procedures and their expected run times"
+  ],
+  "logic": "The detection hunts for execution of procedures that grant operating system or file system reach, and treats the account, the host and the schedule as the deciding context. The fields that must be correlated are the database instance, the authenticated account, the procedure name, the caller's source host, the timestamp, and on the host side the parent process image of any shell that follows. A benign case is a documented maintenance job, running as a service account, on a fixed schedule, against a known procedure, with no shell spawned on the host. The malicious case shows an interactive session or a new account calling a powerful procedure outside the job schedule, often immediately after privilege escalation within the database, and very often accompanied by the database engine spawning a command interpreter or writing output to a file in a temporary directory.",
+  "pseudoQuery": "# title: High Risk Database Stored Procedure Executed Outside Maintenance Window\n# logsource:\n#   product: windows\n#   service: mssql\n# detection:\n#   selection:\n#     EventID: 33205\n#     statement|contains:\n#       - 'xp_cmdshell'\n#       - 'sp_OACreate'\n#       - 'xp_regwrite'\n#       - 'xp_dirtree'\n#   filter:\n#     account|in: approved_dba_service_accounts\n#     statement|contains: 'job_step'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "A nightly extraction job that uses the directory listing procedure to enumerate files before loading them into a staging table",
+    "Database administration scripts that use an automation procedure to compress or move backup files on the server",
+    "Third party monitoring software that queries procedure execution statistics through a documented administrative procedure",
+    "An upgrade or migration performed by a database vendor during a change window with a named engineer present"
+  ],
+  "tuningNotes": "Turn on database audit logging for procedure execution before you tune anything, then baseline at least thirty days so that every scheduled job, monitoring tool and reporting procedure is known. Filter by the service accounts and job identifiers that run those jobs rather than by procedure name alone, because the same procedure invoked from an interactive session is the interesting case. Keep the host side rule that looks for the database service spawning a shell, since it catches procedures you have not enumerated. Narrowing the rule to a fixed list of procedures will always miss a newly added or renamed one, so review the list quarterly against vendor documentation and alert separately on any first time procedure execution per instance.",
+  "severity": "high"
+}

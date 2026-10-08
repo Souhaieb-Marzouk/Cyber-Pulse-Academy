@@ -1,0 +1,107 @@
+{
+  "id": "det0352",
+  "type": "detection",
+  "title": "Detection Strategy for T1550.003 - Pass the Ticket (Windows)",
+  "shortTitle": "Detection Strategy for T1550.003 - Pass the Ticket (Windows)",
+  "externalId": "DET0352",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Pass the Ticket (T1550.003), where an adversary steals a Kerberos ticket from memory or from disk and uses it from another host to reach services without knowing the account password. The technique matters because the stolen ticket is a valid credential, so authentication succeeds and no password guessing or forced prompt appears, and because a service ticket can be used against many services that trust the same realm. Detection depends on domain controller Kerberos request records, Windows Security event 4624 logons that carry the Kerberos authentication package, endpoint process telemetry from the host using the ticket, and inventory that shows where each account normally works. It fails most often because legitimate single sign on, service accounts and cached tickets produce similar patterns.",
+  "tags": [
+    "kerberos",
+    "credential access",
+    "lateral movement",
+    "domain controller",
+    "t1550.003"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1550.003 - Pass the Ticket (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0352/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1550.003 - Pass the Ticket (Windows) - EASY",
+      "path": "exercises/det0352/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1550.003 - Pass the Ticket (Windows) - MEDIUM",
+      "path": "exercises/det0352/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1550.003 - Pass the Ticket (Windows) - HARD",
+      "path": "exercises/det0352/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1550.003 - Pass the Ticket (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0352/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a Kerberos ticket that is used without the normal first step. Kerberos is the system Windows domains use to prove who you are. A stolen ticket can be used from another computer, so the attacker never needs the password.",
+    "whyItMatters": "No password is typed, so there is no failed logon to notice. The ticket is valid, so every service accepts it. One stolen ticket can give access to many servers in the same domain. This makes it a favourite step for moving from one computer to another. You need to compare the ticket with the request that created it to see the problem.",
+    "howItWorks": [
+      "Domain controllers record every request for a ticket, including the account, the service and the ticket type.",
+      "The rule pairs each ticket use with the earlier request that should have created it.",
+      "A ticket used on a host that never asked for it is the main signal.",
+      "The rule also looks at the ticket encryption type and the target service name for odd values.",
+      "Endpoint records show which programs were active on the host at that moment.",
+      "Inventory data tells the analyst whether the account normally works from that computer."
+    ],
+    "example": "Think of a train ticket that is checked at the gate. A stolen ticket still opens the gate, because the gate only checks that the ticket is real. What the gate cannot see is that the traveller never bought it. The purchase record is what exposes the theft, and the domain controller keeps that record.",
+    "takeaways": [
+      "A valid ticket is a credential, so look at how it was obtained.",
+      "Pair a ticket use with the request that should have come first.",
+      "Inventory of where each account works turns a strange logon into a clear alert."
+    ]
+  },
+  "objectives": [
+    "Explain how a stolen Kerberos ticket can authenticate without a password",
+    "Identify the domain controller and endpoint telemetry that records ticket requests and ticket use",
+    "Recognise anomalies such as a service ticket used without a preceding ticket request from that host",
+    "Write a rule that correlates account, host, service name, encryption type and logon type",
+    "Triage a match by checking where the account normally works and what ran on the host at the time",
+    "Describe how filtering service accounts reduces noise and what malicious activity it hides"
+  ],
+  "techniqueId": "t1550-003",
+  "detectsTechniques": [
+    "t1550-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4624 logon records showing logon type 3 with the Kerberos authentication package",
+    "Domain controller Kerberos service ticket request records including the requesting account, service name and ticket encryption type",
+    "Domain controller Kerberos ticket granting ticket request records used to pair a ticket use with its original request",
+    "Sysmon event 1 process creation showing the tools and scripting hosts active on the host when the ticket was used",
+    "Asset and identity inventory showing which workstations and servers each account normally authenticates from"
+  ],
+  "logic": "The pattern is a Kerberos service ticket that is presented from a host or account with no matching ticket granting ticket request, or a ticket with an unexpected encryption type, or one account using many service tickets across hosts in a short window. The fields that must be correlated are the account name, the source host, the target service name, the ticket encryption type, the logon type and package in event 4624, and the earlier request records that should explain the ticket. The benign case is a documented service account that logs on interactively, a scheduled task that runs right after a restart with a cached ticket, or an application that still uses an older encryption type. The malicious case is a service ticket used from a workstation that never requested one for that account, a burst of service tickets for many different services, or a computer account used in an interactive session.",
+  "pseudoQuery": "# title: Kerberos Service Ticket Used Without Prior Ticket Request\n# logsource:\n#   product: windows\n# detection:\n#   selection_logon:\n#     EventID: 4624\n#     LogonType: 3\n#     AuthenticationPackageName: Kerberos\n#   filter_machine_accounts:\n#     AccountName|endswith: '$'\n#   condition: selection_logon and not filter_machine_accounts\n# level: high",
+  "falsePositives": [
+    "Single sign on after a reboot where cached tickets are presented before a new ticket request is logged",
+    "Service accounts that run scheduled jobs and log on interactively on a fixed set of servers",
+    "Legacy applications configured to use an older Kerberos encryption type for compatibility",
+    "Load balancers or proxies that authenticate on behalf of many users from one address"
+  ],
+  "tuningNotes": "Baseline the normal source host for every account that uses Kerberos, then alert when an account authenticates from a host it has never used. Keep the machine account filter only if your environment is noisy, and track those accounts in a separate lower severity rule, because they are also abused. Add the encryption type baseline so that a legacy setting stops alerting, and correlate a ticket use with any missing request over a short window rather than treating every logon as suspicious. The coverage you lose is an attacker who steals a ticket and uses it from the same host, or who waits until the source host rotation looks normal, so keep the endpoint side of the rule as a second signal.",
+  "severity": "high"
+}

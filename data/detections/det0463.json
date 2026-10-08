@@ -1,0 +1,106 @@
+{
+  "id": "det0463",
+  "type": "detection",
+  "title": "Brute Force Authentication Failures with Multi-Platform Log Correlation",
+  "shortTitle": "Brute Force Authentication Failures with Multi-Platform L...",
+  "externalId": "DET0463",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects brute force authentication attempts by correlating failure bursts across several platforms rather than watching each log source alone, covering Windows domain logons, Linux secure shell, virtual private network and web application authentication, and cloud identity sign ins. It matters because attackers spread guessing across services to stay under per source thresholds, so a rule that reads only one log file sees a small number of failures while the whole picture shows a sustained campaign. Detection depends on normalised authentication events that share user, source address, service and outcome fields, plus account lockout records and use of authentication methods such as password spray patterns. It fails in practice because asset inventories and user name formats differ between platforms, so correlation breaks unless identities and addresses are mapped consistently.",
+  "tags": [
+    "credential access",
+    "authentication",
+    "brute force",
+    "correlation",
+    "multi platform"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Brute Force Authentication Failures with Multi-Platform Log Correlation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0463/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Brute Force Authentication Failures with Multi-Platform Log Correlation - EASY",
+      "path": "exercises/det0463/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Brute Force Authentication Failures with Multi-Platform Log Correlation - MEDIUM",
+      "path": "exercises/det0463/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Brute Force Authentication Failures with Multi-Platform Log Correlation - HARD",
+      "path": "exercises/det0463/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Brute Force Authentication Failures with Multi-Platform Log Correlation - EXTREMELY HARD",
+      "path": "exercises/det0463/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Brute force means trying many passwords until one works. This detection counts failed logins across several systems instead of looking at one system at a time. Attackers often spread their attempts so that each system sees only a few.",
+    "whyItMatters": "Single system alerts stay quiet when attempts are spread out. The attacker gets many tries per hour while each log looks normal. Joining the platforms together reveals the true scale of the attempt.",
+    "howItWorks": [
+      "Authentication events from each platform are sent to the central log platform.",
+      "Events are normalised so that user, source and result mean the same everywhere.",
+      "The rule groups failures by user and source within a short time window.",
+      "It counts distinct services touched and compares with the normal level.",
+      "A sudden rise in failures across services is treated as one incident.",
+      "The analyst then checks whether any attempt succeeded."
+    ],
+    "example": "Think of a thief walking a street of houses and trying one key in each front door. Each household sees a single stranger at the door, so nobody calls the police. Only a map of the whole street shows the pattern.",
+    "takeaways": [
+      "Correlate failures across platforms, not inside one log.",
+      "Watch for a rise in failures against many accounts at once.",
+      "Always check whether any attempt in the burst succeeded."
+    ]
+  },
+  "objectives": [
+    "Explain why brute force attempts are spread across services",
+    "Describe normalisation of authentication fields across platforms",
+    "Build a correlation rule that counts failures by user and source",
+    "Distinguish a password spray from a targeted guessing attack",
+    "Confirm whether a burst produced a successful logon"
+  ],
+  "techniqueId": "t1110",
+  "detectsTechniques": [
+    "t1110"
+  ],
+  "dataSources": [
+    "Windows Security event 4625 failed logon records with account name, logon type, source workstation and source address",
+    "Linux secure shell and pluggable authentication module logs recording failed authentication with source address and user",
+    "Virtual private network and web application authentication logs with user, source address and outcome",
+    "Cloud identity sign in logs with user principal name, source address, client application and failure reason",
+    "Windows Security event 4740 account lockout records showing which accounts were locked and from where"
+  ],
+  "logic": "The pattern is a rise in failed authentications for the same accounts or the same sources that is visible only when several platforms are combined. Correlate the normalised user identity, the source address, the service or platform, the authentication method, the failure reason, and the time window, then compare the totals with the tenant baseline for that hour and day. The benign case is a user with a stale cached password retrying on many services after a password change, or a service account whose credential expired on several hosts, where the failures cluster on one identity and stop after the credential is updated. The malicious case is many distinct accounts failing from one source or one address range, the same account failing from many addresses, a burst touching several unrelated platforms in minutes, or a failure burst followed by a successful logon with a different client fingerprint. Counting distinct accounts and distinct services, rather than raw failures, is what keeps the rule accurate.",
+  "pseudoQuery": "# title: Failed authentication burst across multiple platforms\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID:\n#       - 4625\n#       - 4740\n#     LogonType:\n#       - 3\n#       - 10\n#   filter_service_accounts:\n#     TargetUserName|endswith: '$'\n#   condition: selection and not filter_service_accounts | count() by IpAddress > 15 in 10m\n# level: high",
+  "falsePositives": [
+    "Password change rollouts where cached credentials on many services fail until users update them",
+    "Service accounts with expired secrets that retry across several hosts on a schedule",
+    "Monitoring or vulnerability scanning tools that test authentication on many hosts in one sweep",
+    "Mobile devices with saved passwords retrying after a password or policy change on the account"
+  ],
+  "tuningNotes": "Anchor the correlation on the normalised user identity and source address and baseline the failure rate per hour for each platform separately before you combine them. Exclude machine and service accounts whose names end in a dollar sign, and exclude the scanner and monitoring ranges that perform authentication checks. Require a threshold expressed as distinct accounts and distinct services rather than total failures, which is far more stable across environments. If you filter all service account activity you lose coverage of an attack on those accounts, so keep a separate targeted rule for privileged and service accounts with a much lower threshold.",
+  "severity": "high"
+}

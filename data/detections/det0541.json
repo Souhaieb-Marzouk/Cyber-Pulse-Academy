@@ -1,0 +1,105 @@
+{
+  "id": "det0541",
+  "type": "detection",
+  "title": "Detection Strategy for /proc Memory Injection on Linux",
+  "shortTitle": "Detection Strategy for /proc Memory Injection on Linux",
+  "externalId": "DET0541",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers memory injection performed through the Linux proc filesystem, matching technique T1055.009, where a process opens and writes to the memory file of another running process to place code inside it. It matters because the injected code runs inside a trusted process, keeps its original file on disk unchanged, and therefore defeats signature scanning of executables. The telemetry that makes it possible is kernel audit records for file access to the memory files under the proc filesystem, process monitoring records that resolve the two process identities, and command line data showing debug or injection utilities. It fails in practice because debugging, profiling and crash collection tools perform almost identical operations on production hosts, so the rule depends on which processes are involved and whether the pair is expected.",
+  "tags": [
+    "linux",
+    "process injection",
+    "auditd",
+    "t1055.009",
+    "memory"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for /proc Memory Injection on Linux",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0541/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for /proc Memory Injection on Linux - EASY",
+      "path": "exercises/det0541/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for /proc Memory Injection on Linux - MEDIUM",
+      "path": "exercises/det0541/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for /proc Memory Injection on Linux - HARD",
+      "path": "exercises/det0541/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for /proc Memory Injection on Linux - EXTREMELY HARD",
+      "path": "exercises/det0541/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for one process writing into the memory of another process on Linux. The proc filesystem is a folder, normally at slash proc, that the kernel uses to show information about running programs. Its memory file is a special file that points at a program memory.",
+    "whyItMatters": "Code placed inside another process runs with that process trust and leaves the original program file untouched. A scan of files on disk therefore finds nothing wrong. Seeing who opened which memory file is often the only evidence that this happened.",
+    "howItWorks": [
+      "The kernel audit service records when a process opens a sensitive file, including the memory files under the proc filesystem.",
+      "Each record contains the process identity of the opener, the target it touched and the system call used.",
+      "A process monitoring agent adds the full binary path, the parent process and the command line for both identities.",
+      "The platform joins the audit record with the process information to name both sides of the operation.",
+      "The rule removes relationships that match known debugging, profiling or agent behaviour.",
+      "What remains becomes an alert with both process names and the account that owns them."
+    ],
+    "example": "Think of a hotel guest list. Staff may enter a room to clean it, and that is written down. If a guest enters another guest room, the log shows it and the manager asks why. Opening another program memory file is that entry, and the reason is what matters.",
+    "takeaways": [
+      "Writing into another process memory hides code from file based scanning.",
+      "You need both process identities to judge whether the access is normal.",
+      "Debugging tools produce the same records, so the pair of processes decides the alert."
+    ]
+  },
+  "objectives": [
+    "Explain how the proc filesystem memory file can be used to write into another running process",
+    "Identify the kernel audit and process monitoring telemetry that records access to proc memory files",
+    "Resolve the opening process and the target process identities from a single audit record",
+    "Separate expected debugging and agent behaviour from injection by comparing process relationships",
+    "Write a detection rule for proc memory access and tune it against profiling and observability tooling"
+  ],
+  "techniqueId": "t1055-009",
+  "detectsTechniques": [
+    "t1055-009"
+  ],
+  "dataSources": [
+    "Linux kernel audit records for file access to proc memory paths showing the opening process identity and target process identity",
+    "Linux process monitoring events that resolve process identifiers to binary paths, parent process and command line",
+    "Kernel audit records for process trace and process memory write system calls with their arguments",
+    "Package and process inventory records that list approved debugging, profiling and observability agents on each host"
+  ],
+  "logic": "The pattern is a process opening the memory file of a different process and then issuing write or trace calls against it, particularly when the target is a long running privileged service and the opener is a short lived process started from a temporary directory. The fields that must be correlated are the opening process identifier and its executable path, the target process identifier and its executable path, the account that owns both, the audit system call and its result, and the time relationship between the open and the write. The benign case is a debugger, profiler, crash handler or endpoint agent whose parent process and binary are known and approved; the malicious case shows an unexpected opener, a temporary or world writable executable path, and a target that the opener has no operational reason to touch.",
+  "pseudoQuery": "# title: Unexpected write into another process memory via proc filesystem\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection:\n#     type: SYSCALL\n#     syscall: [ptrace, process_vm_writev]\n#     key: proc_mem_access\n#   filter_approved_tools:\n#     exe|endswith: [gdb, perf, dotnet-dump, /usr/bin/strace]\n#   filter_agent_parent:\n#     ppid_exe|endswith: [/usr/lib/systemd/systemd, /opt/observability/agent]\n#   condition: selection and not filter_approved_tools and not filter_agent_parent\n# level: high",
+  "falsePositives": [
+    "Application performance monitoring and profiling agents that read process memory to collect metrics on production services",
+    "Crash collection handlers that attach to a failing service to capture a memory image for support",
+    "Developers running a debugger against a local service on a shared build or test server",
+    "Security scanning tools that inspect running processes for known malicious memory patterns on a scheduled basis"
+  ],
+  "tuningNotes": "First deploy the audit rule only on a small group of servers and record which processes legitimately touch proc memory for a week, then allow list those by full executable path and parent process rather than by name. Scope the rule to production servers that host long running services, and leave developer and build hosts in a separate lower severity policy. Keep the target side of the correlation in scope, because agents touch their own child processes normally while injection targets a service the opener does not own. Narrowing to production hosts means you lose visibility of an attacker who injects into a workstation process, so extend coverage later using process lineage anomalies rather than removing the audit rule.",
+  "severity": "high"
+}

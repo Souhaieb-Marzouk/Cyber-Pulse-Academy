@@ -1,0 +1,106 @@
+{
+  "id": "det0498",
+  "type": "detection",
+  "title": "Behavior‑chain detection for T1134.003 Make and Impersonate Token (Windows)",
+  "shortTitle": "Behavior‑chain detection for T1134.003 Make and Impersona...",
+  "externalId": "DET0498",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects token creation and impersonation on Windows, where an adversary duplicates an existing access token or builds a new one so that a process can act as another user without knowing that user's password. The behaviour appears in process access events that request token related rights, in new processes created under a different user context than their parent, and in logon records that reuse a session identifier belonging to another account. Sysmon process access telemetry and Windows Security logon records supply the correlation points. It fails in practice because service accounts, backup software and remote management agents move tokens between processes by design, so the rule must learn which pairs are normal on each host group.",
+  "tags": [
+    "token impersonation",
+    "privilege escalation",
+    "windows security",
+    "sysmon",
+    "logon type"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior‑chain detection for T1134.003 Make and Impersonate Token (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0498/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior‑chain detection for T1134.003 Make and Impersonate Token (Windows) - EASY",
+      "path": "exercises/det0498/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior‑chain detection for T1134.003 Make and Impersonate Token (Windows) - MEDIUM",
+      "path": "exercises/det0498/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior‑chain detection for T1134.003 Make and Impersonate Token (Windows) - HARD",
+      "path": "exercises/det0498/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior‑chain detection for T1134.003 Make and Impersonate Token (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0498/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "On Windows, a token is a small object that says who you are and what you may do. This detection looks for a program that copies another user token or makes a new one. It catches a process that starts acting as a more powerful user. The aim is to find privilege abuse on a single host.",
+    "whyItMatters": "An attacker with a small foothold can copy a token from a powerful process. After that, the attacker acts as that user without knowing any password. Resetting passwords does not help, because no password was ever used. This move sits at the centre of many Windows intrusions, so it deserves an alert of its own.",
+    "howItWorks": [
+      "Windows records each logon and the token type it creates in the security log.",
+      "The endpoint agent can record when one process opens another process with sensitive rights.",
+      "The rule joins a process access event with a later process created under a new user.",
+      "It compares the parent account with the child account and flags a change in privilege.",
+      "It also checks whether the logon type fits the way that account normally works.",
+      "The alert shows both accounts, the host and the command line of the new process."
+    ],
+    "example": "Think of a staff canteen where each worker wears a colour coded badge. A visitor cannot buy lunch, because the till reads the badge first. Someone finds a spare badge in a coat pocket and copies its code onto a blank card. The till now accepts the card, and no password was ever needed. This detection watches for the copied badge, not for the lunch.",
+    "takeaways": [
+      "Token theft needs no password, so a password reset does not stop it.",
+      "Correlate process access rights with a later process created as another user.",
+      "Learn which service accounts normally touch tokens on each server group."
+    ]
+  },
+  "objectives": [
+    "Explain what a Windows access token and an impersonation token are.",
+    "List the events that record logon type and token duplication activity.",
+    "Correlate process access events with child process creation records.",
+    "Recognise normal token use by backup and service accounts.",
+    "Write a pseudo-rule that flags a privilege change between parent and child."
+  ],
+  "techniqueId": "t1134-003",
+  "detectsTechniques": [
+    "t1134-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4624 logon records including logon type, target user and session identifier",
+    "Windows Security event 4672 assignment of special privileges to a new logon",
+    "Sysmon event 10 process access showing granted access rights plus source and target images",
+    "Windows Security event 4688 process creation with command line and the user context of the new process",
+    "Windows Security event 4648 logon attempt using explicit credentials, with target server and account"
+  ],
+  "logic": "The pattern is a process that opens another process with token related access rights and then starts a child process under that other user. Analysts must correlate the source image, the target image, the granted access value and the logon identifier from the process access event with the user, logon type and token elevation fields of the process creation and logon events that follow it. Normal behaviour clusters around a small set of service accounts and known binaries such as backup or management agents, on hosts where those services are installed. The malicious case shows an unusual parent such as a scripting host or an office application, a target that is a privileged process, and a logon type that does not match the account history on that host.",
+  "pseudoQuery": "# title: Token Impersonation Followed by Process in Another User Context\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_access:\n#     EventID: 10\n#     GrantedAccess|contains: '0x0400'\n#     TargetImage|endswith: '\\lsass.exe'\n#   selection_new_process:\n#     EventID: 4688\n#     LogonType: '9'\n#   filter_service:\n#     SubjectUserName|endswith: '$'\n#   condition: selection_access and selection_new_process and not filter_service\n# level: high",
+  "falsePositives": [
+    "Backup software that impersonates the account of a file owner in order to read protected files",
+    "Remote management agents that start child processes under the context of the logged on user",
+    "Antivirus scanning engines that open process memory to inspect it for malicious code",
+    "Scheduled maintenance scripts that run a helper program as a service account on a file server"
+  ],
+  "tuningNotes": "Baseline which service accounts and binaries request process access with token related rights on each server group, then allow list those image and user pairs per group rather than globally. Scope the rule to domain controllers, file servers and hosts running privileged management software, and exclude general workstations where endpoint agents make the pattern noisy. Require the second stage, a new process under a changed user context, before alerting. This protects fidelity, but you lose coverage of token theft used only to read data in place, where no new process is ever started.",
+  "severity": "high"
+}

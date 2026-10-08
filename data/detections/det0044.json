@@ -1,0 +1,107 @@
+{
+  "id": "det0044",
+  "type": "detection",
+  "title": "Detecting Malicious Browser Extensions Across Platforms",
+  "shortTitle": "Detecting Malicious Browser Extensions Across Platforms",
+  "externalId": "DET0044",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1176.001, browser extensions, where an adversary installs or abuses an add-on inside a Chromium or Firefox based browser to read pages, steal session cookies, or inject script. It matters because the extension inherits the trust and the network access of the browser itself, so it blends into ordinary web traffic. The telemetry that makes it visible is process creation showing browser launch arguments that point at an extension directory, file creation inside the browser profile extension folders, and registry or preference writes that record the install. The main way this fails in practice is that enterprise browsers legitimately load extensions by policy and developers legitimately load unpacked ones from source, so the rule needs profile path, signer, and install source context before it alerts. Without that context the queue fills with approved software and the detection is abandoned.",
+  "tags": [
+    "mitre t1176",
+    "browser extension",
+    "persistence",
+    "endpoint",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Malicious Browser Extensions Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0044/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Malicious Browser Extensions Across Platforms - EASY",
+      "path": "exercises/det0044/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Malicious Browser Extensions Across Platforms - MEDIUM",
+      "path": "exercises/det0044/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Malicious Browser Extensions Across Platforms - HARD",
+      "path": "exercises/det0044/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Malicious Browser Extensions Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0044/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for browser add-ons that were installed or loaded in a suspicious way. An add-on is a small program that runs inside your web browser. Attackers use add-ons to read pages and steal sessions. This rule watches the signs that an add-on arrived without approval.",
+    "whyItMatters": "An add-on runs with the same access as the browser itself. It can read every page you open, including web mail and bank portals. People often install add-ons by clicking yes on a prompt they did not read. Because of that, an unwanted add-on can sit quietly for months. This detection gives you a chance to find it early.",
+    "howItWorks": [
+      "The agent records process creation, including the arguments used to start the browser.",
+      "The rule looks for browser arguments that point to an extension folder outside the normal store path.",
+      "It also watches file creation events inside the browser profile extension directories.",
+      "It links the browser process to the account and the host, so the analyst sees who and where.",
+      "Trusted policy deployments and signed store extensions are filtered using known hashes and publisher names.",
+      "An extension loaded from a temporary folder or a user download folder raises the alert."
+    ],
+    "example": "Picture a hospital sign-in sheet at the staff entrance. Everyone signs in, so the sheet is normal. Now imagine a visitor signs the sheet, then walks behind the pharmacy counter without a badge. The signature is not the problem. The signature plus the wrong door is the problem. Browser extension detection works the same way. Loading an add-on is normal. Loading one from a temporary folder, on a finance laptop, at midnight, is the detail that earns a closer look.",
+    "takeaways": [
+      "An add-on shares the trust of the browser, so it can reach far more than a normal program.",
+      "Approved policy deployments are common, so context about the install source decides whether a match is real.",
+      "Unwanted add-ons often begin with a click the user did not understand. User reports and this rule work well together."
+    ]
+  },
+  "objectives": [
+    "Describe how browser extensions are installed and how an attacker can abuse one.",
+    "Identify the process creation and file creation telemetry that reveals an extension being loaded.",
+    "Explain the difference between a store extension, a policy extension, and an unpacked extension.",
+    "Write a pseudo rule that flags extension loads from temporary and download folders.",
+    "Separate developer and enterprise deployment activity from suspicious extension activity.",
+    "Recommend a response path once a suspicious extension is confirmed on a host."
+  ],
+  "techniqueId": "t1176-001",
+  "detectsTechniques": [
+    "t1176-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation capturing browser command lines with load extension arguments and the parent image",
+    "Sysmon event 11 file creation inside the Chromium and Firefox extension profile directories",
+    "Windows Security event 4688 process creation with command line auditing for browser processes",
+    "Sysmon event 3 network connection from a browser process to an unrecognised destination",
+    "Registry modification telemetry for the browser extension install and settings keys under the user profile"
+  ],
+  "logic": "The rule chains three signals that together describe an extension arriving without a managed channel. First, a process creation event shows a Chromium or Firefox based browser started with an argument that names an extension directory outside the standard store cache. Second, a file creation event lands inside the same profile extension directory within a short window. Third, the parent image is an office document handler, a script host, or a download manager rather than the vendor updater or a management agent. Correlating the browser process identifier, the profile path, the user session, and the network connection from that same process distinguishes the malicious case, an add-on delivered from a temporary folder and immediately reaching out to a new destination, from the benign case of a packaged enterprise deployment or a developer loading unpacked source. Detection time correlates the image load and the network connection to the same process identifier rather than to the host.",
+  "pseudoQuery": "# title: Browser Loading Extension From Temporary Or Download Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: \\chrome.exe, \\msedge.exe, \\firefox.exe\n#     CommandLine|contains: --load-extension, --disable-extensions-except\n#   filter:\n#     CommandLine|contains: \\Program Files\\, \\AppData\\Local\\CompanyName\\\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Enterprise browser policy that silently pushes an approved extension through the vendor management channel",
+    "Developers loading an unpacked extension from a source or build folder while testing their own add-on",
+    "Remote debugging sessions where a browser is started with an extension directory argument by a support tool",
+    "Corporate browser hardening scripts that relaunch the browser with a fixed set of approved extensions"
+  ],
+  "tuningNotes": "Baseline the normal extension change rate for two weeks and record which publishers and extension identifiers appear in your estate, then add a filter that excludes those signed and policy managed paths. Scope the rule to endpoints outside the development and IT engineering groups, since unpacked extension loads there are expected. Keep a low severity variant across all users so unexpected installs on finance and executive laptops still surface. The coverage you lose is unpacked and script driven extension activity on developer machines, so monitor that group through change tickets instead of alerting, and review the allowlist each quarter as vendor bundles change.",
+  "severity": "high"
+}

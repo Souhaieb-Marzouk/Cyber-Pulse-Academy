@@ -1,0 +1,107 @@
+{
+  "id": "det0525",
+  "type": "detection",
+  "title": "System Discovery via Native and Remote Utilities",
+  "shortTitle": "System Discovery via Native and Remote Utilities",
+  "externalId": "DET0525",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers host and operating system discovery through built in and remote utilities, the behaviour behind system information discovery. The tools are ordinary administration commands, so the signal is the combination of the tool, its parent process, the account that ran it, and the burst of related commands in a short window. Process creation records with full command lines, PowerShell script block logging, and remote management service logs on the target host provide the evidence. The usual failure is a rule that alerts on a single command name, which buries the analyst in routine inventory and support work and destroys trust in the alert.",
+  "tags": [
+    "discovery",
+    "windows",
+    "process creation",
+    "powershell",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: System Discovery via Native and Remote Utilities",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0525/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "System Discovery via Native and Remote Utilities - EASY",
+      "path": "exercises/det0525/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "System Discovery via Native and Remote Utilities - MEDIUM",
+      "path": "exercises/det0525/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "System Discovery via Native and Remote Utilities - HARD",
+      "path": "exercises/det0525/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "System Discovery via Native and Remote Utilities - EXTREMELY HARD",
+      "path": "exercises/det0525/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for commands that ask a computer about itself. Examples include its name, its version and its patch level. These commands are normal on their own. Attackers run many of them in a short time after they break in, to learn what the machine can do. The alert fires on an unusual mix and timing of commands, not on one command alone.",
+    "whyItMatters": "After an attacker gets into a machine, they need to know what it is. They ask about the operating system, the domain and the installed tools. Each question is harmless by itself, so no single command deserves an alert. A group of these questions from one account in a short time is a strong sign of hands on activity. Catching that moment gives you a chance before the attacker moves to another machine. It also keeps your analysts from chasing every inventory script.",
+    "howItWorks": [
+      "Endpoint agents record each process start, with the full command line, the parent process and the user account.",
+      "The rule keeps the commands that read host or operating system information from a fixed list.",
+      "It groups the matching events by machine and account inside a short window, such as ten minutes.",
+      "The rule scores each group by how many different discovery commands appear in it.",
+      "The parent process is added to the score. A command started by an office document matters far more than one started by a management agent.",
+      "Groups above the score become alerts, and each alert lists the exact commands so the analyst can judge intent quickly."
+    ],
+    "example": "Think of a person who walks into an office. The person asks the receptionist for the floor plan, then the staff list, then the opening hours. Any one question is normal. All three in five minutes, from someone who does not work there, is worth a call. The detection counts the questions and looks closely at who is asking them.",
+    "takeaways": [
+      "Single discovery commands are too common to alert on, so group them by machine, account and time.",
+      "The parent process often decides whether a group is suspicious.",
+      "Always show the exact commands in the alert so the analyst can judge intent fast."
+    ]
+  },
+  "objectives": [
+    "List the built in commands that read host and operating system information on Windows and Linux",
+    "Explain why a single discovery command is not worth an alert and how grouping changes that",
+    "Identify the process creation fields that carry the account, parent process and full command line",
+    "Describe how remote management sessions and script block logs add context to a local discovery burst",
+    "Set a grouping window and command count threshold that fits your environment",
+    "Explain why inventory and monitoring service accounts must be baselined first"
+  ],
+  "techniqueId": "t1082",
+  "detectsTechniques": [
+    "t1082"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with full command line, parent image and user fields",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "PowerShell script block logging records that capture the text of each script block executed",
+    "Windows remote management operational logs showing inbound management sessions and the client address",
+    "Windows Management Instrumentation activity logs showing remote query calls and the calling account"
+  ],
+  "logic": "The pattern is a burst of host and operating system discovery commands from one account on one machine inside a short window. Correlate the image name, the full command line, the parent image and the user across process creation records, and count distinct discovery tools rather than total events so that repeated calls to the same tool do not inflate the score. The benign case is patch, inventory or monitoring software that reads host details on a schedule from a service account. The malicious case is an interactive account, or a script host started by an office document, running several different discovery tools within minutes of a new logon.",
+  "pseudoQuery": "# title: Burst Of Host Discovery Commands From One Account\n# logsource:\n#   product: windows\ndetection:\n  selection:\n    EventID: 1\n    Image|endswith:\n      - '\\systeminfo.exe'\n      - '\\whoami.exe'\n      - '\\hostname.exe'\n      - '\\wmic.exe'\n    CommandLine|contains:\n      - 'os get'\n      - '/all'\n  timeframe: 10m\n  condition: selection | count() by Computer, User > 3\nlevel: low",
+  "falsePositives": [
+    "Software inventory and patch management agents that collect host details on a schedule",
+    "Help desk staff running a standard diagnostic script when a user reports a problem",
+    "New machine builds that gather system information as part of provisioning",
+    "Monitoring agents that read the operating system version and patch level from every server each hour"
+  ],
+  "tuningNotes": "Baseline which accounts run inventory tools in your environment, then allow the service accounts that own patch and monitoring agents. Scope the rule to servers and privileged workstations where interactive discovery is rare, and lower the count threshold only after you see a stable daily rate. Add a filter for your help desk diagnostic script name and for remote management sessions that start from the jump host. Narrowing this way loses coverage of an attacker who reuses an inventory service account, so keep a separate low severity alert for inventory tools started outside their normal schedule.",
+  "severity": "low"
+}

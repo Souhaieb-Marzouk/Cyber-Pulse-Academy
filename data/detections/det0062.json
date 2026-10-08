@@ -1,0 +1,106 @@
+{
+  "id": "det0062",
+  "type": "detection",
+  "title": "Detection Strategy for Disable or Modify Linux Audit System Log",
+  "shortTitle": "Detection Strategy for Disable or Modify Linux Audit Syst...",
+  "externalId": "DET0062",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects attempts to disable or modify the Linux audit system, which is one of the most common defence evasion steps on a Linux host after an intruder gains a foothold. Auditd records the syscall level evidence that most Linux detections depend on, so stopping the daemon, deleting rules or editing its configuration blinds a whole family of rules at once. The telemetry that exposes it is process creation with command line capture from auditd itself or from a host sensor, combined with file integrity monitoring on the audit configuration directory and integrity checking on the audit log files. This fails in practice because configuration management and troubleshooting tasks make the same edits, so a rule without ownership and change window context will alert on routine operations work.",
+  "tags": [
+    "linux",
+    "defence-evasion",
+    "auditd",
+    "log-integrity",
+    "host-monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Disable or Modify Linux Audit System Log",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0062/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Disable or Modify Linux Audit System Log - EASY",
+      "path": "exercises/det0062/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Linux Audit System Log - MEDIUM",
+      "path": "exercises/det0062/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Linux Audit System Log - HARD",
+      "path": "exercises/det0062/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Linux Audit System Log - EXTREMELY HARD",
+      "path": "exercises/det0062/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for commands that turn off or change the Linux audit service. Auditd is the part of Linux that writes down what programs do. An intruder who stops it removes the evidence of everything that follows. The detection watches for the stop, the rule deletion and the configuration edits.",
+    "whyItMatters": "Many Linux detections read the records that auditd writes. If those records stop, the other rules go quiet and nobody notices. That silence is the point of the attack. Catching the change itself is often your only warning that other coverage has gone dark.",
+    "howItWorks": [
+      "A host sensor records each command that runs, including its full arguments and the account that ran it.",
+      "A file monitoring tool watches the audit configuration directory and reports any change.",
+      "A SIEM (Security Information and Event Management system) collects both record types.",
+      "The rule looks for service stop commands, rule deletion commands and edits to audit settings.",
+      "It also checks whether the audit service stops sending records soon after the change.",
+      "An unapproved change plus a gap in audit records raises the alert."
+    ],
+    "example": "Think of a building where the fire alarm writes everything into a log book. Someone who first tears out the log book pages, then starts a fire, leaves a very short story. The torn book is the clue you actually get.",
+    "takeaways": [
+      "Stopping the audit service blinds many other detections at the same time.",
+      "The change itself is your warning, so treat it as a high priority event.",
+      "Monitor the log shipping path too, because a silent host looks the same as a quiet shift."
+    ]
+  },
+  "objectives": [
+    "Explain what the Linux audit service records and which detections depend on it.",
+    "Recognise the command patterns and configuration files involved in disabling audit.",
+    "Detect a break in the flow of audit records as a separate signal from the command itself.",
+    "Distinguish approved configuration management or troubleshooting from hostile tampering.",
+    "Prioritise alerts when audit changes happen on hosts that hold sensitive data or privileges."
+  ],
+  "techniqueId": "t1685-004",
+  "detectsTechniques": [
+    "t1685-004"
+  ],
+  "dataSources": [
+    "Linux process execution telemetry with full command line and the effective user identifier, from the audit service execve records or a host sensor",
+    "File integrity monitoring on the audit configuration directory and its rule files, reporting the changed path and responsible process",
+    "Linux system service management logs recording stop, disable and mask operations for the audit service unit",
+    "Audit log ingestion monitoring that records the last event time per host and flags a host that stopped sending records",
+    "File metadata and hash checks on audit log files that reveal truncation or deletion without a matching rotation event"
+  ],
+  "logic": "The detection watches for three related signs on the same Linux host. First, a process runs a command that stops, masks or disables the audit service or removes its rules. Second, a monitored audit configuration or rule file changes outside an approved window. Third, the host stops shipping audit records, or its audit log files are shortened without a rotation event. The fields that must be joined are the host name, the executing account, the full command line or changed path, and the minute when record ingestion stopped. Benign activity is a configuration management run that restarts the service with the same rules and is followed by records resuming within seconds, or a documented change that carries a ticket. Malicious activity is a stop or flush ordered by an interactive account, rules deleted in bulk, and record flow that does not resume, often followed by other covering actions such as history clearing.",
+  "pseudoQuery": "# title: Linux Audit Service Disabled or Audit Rules Removed\n# logsource:\n#   product: linux\n#   category: process_creation\n# detection:\n#   selection_cmd:\n#     CommandLine|contains:\n#       - 'service auditd stop'\n#       - 'systemctl stop auditd'\n#       - 'systemctl disable auditd'\n#       - 'auditctl -D'\n#       - 'auditctl --delete-all'\n#   filter_change_window:\n#     User: 'root'\n#     CommandLine|contains: '/etc/ansible/playbooks/audit-baseline'\n#   condition: selection_cmd and not filter_change_window\n# level: high",
+  "falsePositives": [
+    "Configuration management playbooks that reload audit rules and briefly restart the service as part of a documented baseline push",
+    "Performance troubleshooting on a busy database server where an administrator temporarily flushes audit rules to reduce syscall overhead",
+    "Compliance scanning tools that write their own rule file into the audit configuration directory and then restart the service",
+    "Log rotation or storage pressure tasks that truncate old audit log files according to the retention policy"
+  ],
+  "tuningNotes": "Alert primarily on stop or disable actions and on bulk rule deletion, and downgrade single file edits that arrive during a change window or from a configuration management account on a known host. Baseline the normal audit record volume per host so a sudden drop to zero is treated as its own high severity event even when no command was logged, because the command may itself have been hidden. The coverage you lose by trusting the configuration management account is an attacker who has stolen its credentials, so pair this rule with alerting on that account running outside its usual host set or at unusual hours.",
+  "severity": "high"
+}

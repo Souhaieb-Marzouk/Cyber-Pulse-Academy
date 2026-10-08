@@ -1,0 +1,108 @@
+{
+  "id": "det0411",
+  "type": "detection",
+  "title": "Detection Strategy for Hide Infrastructure",
+  "shortTitle": "Detection Strategy for Hide Infrastructure",
+  "externalId": "DET0411",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Hide Infrastructure, tracked as T1665, where an adversary conceals the command and control channel behind legitimate services, proxy layers or disposable front end addresses so that the destination a victim host contacts is not the real controller. It matters because once the channel hides behind a trusted provider, blocklists and domain reputation checks give the analyst nothing to work with. The telemetry that makes detection possible is name resolution and proxy telemetry: Domain Name System query logs with query name, answer and client, proxy or secure web gateway logs with the requested host and the bytes transferred, Transport Layer Security certificate metadata such as the server name and certificate issuer, and firewall flow records with destination address and port. The main way it fails is that the hidden traffic is designed to look like normal use of a popular service, so volume based or reputation based rules stay silent and the analyst has to rely on behaviour such as long lived sessions to newly registered fronts and unusual request patterns.",
+  "tags": [
+    "network",
+    "command and control",
+    "dns",
+    "proxy",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hide Infrastructure",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0411/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hide Infrastructure - EASY",
+      "path": "exercises/det0411/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hide Infrastructure - MEDIUM",
+      "path": "exercises/det0411/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hide Infrastructure - HARD",
+      "path": "exercises/det0411/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hide Infrastructure - EXTREMELY HARD",
+      "path": "exercises/det0411/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Hide Infrastructure means an attacker keeps the real control server out of sight. The infected computer talks to a well known website or a rented proxy. That service passes the messages on. This detection looks for signs that the destination is a front, not the real purpose of the traffic.",
+    "whyItMatters": "Blocking a bad address is easy when you can see it. A hidden channel gives you no bad address to block. The traffic also looks like normal browsing, so users and tools see nothing odd. Attackers can change the front quickly, so a list of blocked names ages fast. Detecting the shape of the traffic helps you respond when the address itself tells you nothing.",
+    "howItWorks": [
+      "The network records every name lookup, including the name asked for, the answer given and the computer that asked.",
+      "A proxy or secure web gateway inspects web requests. It logs the host requested and the amount of data moved.",
+      "The rule groups those records by client computer and by destination, then measures session length, request regularity and data volume.",
+      "It flags destinations that are reached by many clients that never use that service in any other way.",
+      "It also flags destinations whose certificate or hosting provider does not match the service being used.",
+      "The analyst then reviews the session with the client and the destination fields side by side to judge the case."
+    ],
+    "example": "Think of a night watchman watching a building entrance. A visitor arrives in a delivery van and the van is allowed in. The watchman cannot see inside, so the van may carry anything. The same van comes back every night at the same minute. It stays for hours, so the watchman starts writing it down. The van is the front. The regular timing is the clue.",
+    "takeaways": [
+      "When the destination is a trusted service, you must judge behaviour instead of reputation.",
+      "Regular timing, long sessions and odd data sizes are the strongest clues.",
+      "Name resolution logs are often the only place the front can be seen at all."
+    ]
+  },
+  "objectives": [
+    "Explain why reputation based blocking fails against hidden command and control infrastructure.",
+    "Read Domain Name System query logs and proxy logs together for the same client.",
+    "Identify session features such as beacon regularity and long idle connections.",
+    "Use Transport Layer Security certificate metadata to spot a provider that does not match the service.",
+    "Correlate a suspicious destination with the process that made the connection on the endpoint.",
+    "Describe how to write a scoped rule that avoids alerting on ordinary cloud service use."
+  ],
+  "techniqueId": "t1665",
+  "detectsTechniques": [
+    "t1665"
+  ],
+  "dataSources": [
+    "Domain Name System query and response logs recording query name, record type, answer, client address and timestamp",
+    "Secure web gateway or forward proxy logs with requested host, user, bytes sent and bytes received",
+    "Transport Layer Security handshake metadata including server name indication, certificate issuer and certificate validity dates",
+    "Firewall or netflow session records with source, destination, port and session duration",
+    "Sysmon event 3 network connection with image, destination address and destination port on the endpoint"
+  ],
+  "logic": "The pattern is a client or a small group of clients reaching a destination that is a legitimate public service provider, but doing so on a machine independent schedule with a stable interval, small symmetric payloads and long session lifetimes, and the endpoint process behind the connection is a script interpreter or an unsigned binary rather than a browser. The fields to correlate are the query name and answer from name resolution, the requested host in the proxy log, the process image and destination in endpoint network events, and the session duration and byte counts in flow records. Benign use of the same provider is bursty, driven by human actions, and stops when the working day ends, while a hidden channel keeps a steady rhythm around the clock. What distinguishes the malicious case is the combination of a non browser process, a fixed interval and traffic that continues outside working hours.",
+  "pseudoQuery": "# title: Regular beacon to public service from non browser process\n# logsource:\n#   product: network\n#   service: proxy\n# detection:\n#   selection:\n#     RequestedHost|endswith: ['.cloudfront.net', '.azureedge.net']\n#     BytesReceived: < 2000\n#   selection_proc:\n#     Image|endswith: ['\\powershell.exe', '\\rundll32.exe', '\\wscript.exe']\n#   filter_update:\n#     User|endswith: 'svc-update'\n#   condition: selection and selection_proc and not filter_update | count() by SourceIp, RequestedHost > 20 in 1h\n# level: medium",
+  "falsePositives": [
+    "Software update agents that poll a content delivery network on a fixed schedule from management servers",
+    "Cloud backup clients that keep a long lived encrypted session open to a storage provider all day",
+    "Video conferencing or chat clients that maintain a persistent connection to a regional front end",
+    "Monitoring agents on servers that post small status messages to a hosted metrics service every minute",
+    "Content filtering or endpoint agents that call a vendor reputation service with regular small requests"
+  ],
+  "tuningNotes": "Build an inventory of the approved services and their expected client processes first, then filter to traffic whose process is not the approved one for that service, which is a much stronger signal than the destination alone. Scope the first version to servers and to workstations in sensitive departments, where the process and provider pairings are few and easy to baseline. Add a filter for the maintenance windows of known agents so their scheduled polling does not page anyone. Baseline the interval and byte counts of legitimate agents over two weeks and set thresholds above the observed range. Because hiding infrastructure is a high impact behaviour, keep a lower severity alert for the general workstation population even after you narrow the rule, since losing that coverage would leave you blind to an attacker who hides behind a service the whole enterprise uses.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0209",
+  "type": "detection",
+  "title": "Detection of Registry Query for Environmental Discovery",
+  "shortTitle": "Detection of Registry Query for Environmental Discovery",
+  "externalId": "DET0209",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects registry queries that map out a host and its domain, covering T1012 Query Registry under Discovery. The technique matters less for any single key than for the pattern: an operator who reads security settings, installed software, and network configuration within a short span is building a picture of the host before acting on it. The telemetry is registry auditing or endpoint sensor records for key reads, joined with the process and account that issued them. The strategy fails in practice because read access is extremely common and auditing is frequently disabled, so a workable rule weighs sensitive key categories and the number of distinct keys read per process rather than logging every query.",
+  "tags": [
+    "mitre t1012",
+    "discovery",
+    "windows",
+    "registry",
+    "reconnaissance"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Registry Query for Environmental Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0209/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Registry Query for Environmental Discovery - EASY",
+      "path": "exercises/det0209/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Registry Query for Environmental Discovery - MEDIUM",
+      "path": "exercises/det0209/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Registry Query for Environmental Discovery - HARD",
+      "path": "exercises/det0209/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Registry Query for Environmental Discovery - EXTREMELY HARD",
+      "path": "exercises/det0209/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at programs that read Windows settings from the registry. The registry is a large store of settings for the operating system and for programs. Reading it is completely normal. Attackers read many keys to learn about a system. The rule counts how many keys a process reads and which keys they are.",
+    "whyItMatters": "Discovery comes before action. An attacker who knows the security products, the domain name, and the installed tools can choose the easiest path in. Each single read looks harmless, so a simple rule cannot catch it. Counting reads per process over a short time shows the survey. That early warning gives your team time to respond.",
+    "howItWorks": [
+      "Registry auditing or an endpoint sensor records the moment a process opens a registry key.",
+      "The detection selects read operations rather than writes, because writes are already watched.",
+      "It groups each key into a category, such as security settings or network configuration.",
+      "It counts the distinct categories that one process touches inside a short window.",
+      "Processes that cover many categories, or that read security product keys, are flagged.",
+      "Known inventory and management agents are filtered out of the results."
+    ],
+    "example": "Think of a burglar who walks past the same house every evening. He notes the lights, the dog, the alarm box, and the car in the drive. None of those observations is a crime on its own. Together they tell him whether the house is easy to enter. Registry queries are those evening walks. One look means very little, and the whole survey means a lot.",
+    "takeaways": [
+      "A single registry read is weak evidence, but a survey is strong.",
+      "Count distinct key categories per process, not the total reads.",
+      "Auditing must be enabled, and it adds load, so scope it carefully."
+    ]
+  },
+  "objectives": [
+    "Explain how registry queries support host and domain discovery.",
+    "Identify sensitive key categories that indicate reconnaissance activity.",
+    "Count distinct key reads per process within a defined time window.",
+    "Filter legitimate inventory and management agents from the results.",
+    "Balance registry auditing coverage against endpoint performance cost."
+  ],
+  "techniqueId": "t1012",
+  "detectsTechniques": [
+    "t1012"
+  ],
+  "dataSources": [
+    "Windows registry auditing records for key open events with the requesting process identifier",
+    "Endpoint detection sensor records of registry key reads grouped by process",
+    "Sysmon event 1 process creation used to resolve the process that issues the queries",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is one process reading a large number of distinct sensitive registry keys inside a short window. The fields that must be correlated are the process image and identifier, the acting account, the key path and the category it belongs to, the access requested, and the timing of the reads. The malicious case differs from the benign one by breadth and by the process doing the reading: inventory agents and installers read specific categories they need and then stop, while an operator reads security product settings, system policy, uninstall information, and network configuration from the same shell in the same session. Counting distinct categories rather than total reads is what separates a survey from a busy management agent, and the account context tells you whether the reader is a service or a person.",
+  "pseudoQuery": "# title: Registry Survey Across Multiple Sensitive Key Categories\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     event_type: registry_key_open\n#     access: read\n#     key_path|contains:\n#       - 'CurrentVersion\\Uninstall'\n#       - 'Policies\\System'\n#   filter_inventory:\n#     image|endswith:\n#       - '\\InventoryAgent.exe'\n#       - '\\msiexec.exe'\n#   condition: selection and not filter_inventory\n# level: low",
+  "falsePositives": [
+    "Asset inventory agents that enumerate installed software on a schedule",
+    "Licence compliance tools that read uninstall keys across the fleet",
+    "Health checks in endpoint agents that read security product configuration",
+    "Support tools that gather system information when a ticket is opened",
+    "Installer packages that read network and proxy settings before they run"
+  ],
+  "tuningNotes": "Filter the inventory, installer, and support agents that your estate already approves, and raise the alert only when a single process reads a set number of distinct sensitive key categories inside a short window, for example fifteen categories in ten minutes. Enable auditing only on the categories you care about, because full registry auditing is expensive on busy servers. Counting rather than listing loses detection of a slow and careful survey, so complement the rule with a weekly report of first time key readers per host.",
+  "severity": "low"
+}

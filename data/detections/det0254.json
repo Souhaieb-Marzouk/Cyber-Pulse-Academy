@@ -1,0 +1,105 @@
+{
+  "id": "det0254",
+  "type": "detection",
+  "title": "Detection Strategy of Transmitted Data Manipulation",
+  "shortTitle": "Detection Strategy of Transmitted Data Manipulation",
+  "externalId": "DET0254",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers transmitted data manipulation, tracked as T1565.002, where an adversary alters data while it travels between systems rather than editing it at rest. Because the change happens in flight, file integrity monitoring on the endpoints sees nothing at all. Detection therefore depends on network capture, proxy and application logs, transaction reconciliation records, and database or message queue audit trails. In practice the strategy fails when traffic is encrypted end to end and no logging endpoint terminates the session, or when the application itself keeps no record of the value before and after transmission.",
+  "tags": [
+    "data integrity",
+    "network traffic",
+    "t1565.002",
+    "man in the middle",
+    "transaction monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy of Transmitted Data Manipulation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0254/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy of Transmitted Data Manipulation - EASY",
+      "path": "exercises/det0254/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy of Transmitted Data Manipulation - MEDIUM",
+      "path": "exercises/det0254/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy of Transmitted Data Manipulation - HARD",
+      "path": "exercises/det0254/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy of Transmitted Data Manipulation - EXTREMELY HARD",
+      "path": "exercises/det0254/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for data that changes while it moves from one system to another. The data is correct when it leaves the sender and wrong when it reaches the receiver. The detection compares what was sent with what arrived. It catches tampering that never touches a stored file.",
+    "whyItMatters": "Most integrity tools only watch files that sit on a disk. Data in flight is invisible to them. An attacker can change a payment amount or a record value and leave no trace. The victim system then acts on the wrong value and stores it as if it were real. This kind of change can move money or hide a record. The damage is often found long after the event. Watching the trip between systems closes that gap.",
+    "howItWorks": [
+      "Network sensors or a proxy record each transaction request and response. The record includes the session identifier and the payload size.",
+      "Application logs record the value the sender submitted, such as an amount or an account number. The same entry holds a transaction reference.",
+      "A correlation rule joins the two records on that shared reference and compares the values field by field.",
+      "Any difference between the sent value and the received value raises a candidate alert for the analyst to review.",
+      "The rule ignores mismatches where a known gateway rewrites the field, such as a currency conversion service."
+    ],
+    "example": "Think of a cashier who writes a receipt for a customer. The receipt copy stays in the till, and a second copy travels to the finance office in a bag. A night watchman compares the two copies at the end of the day. If the two amounts do not match, someone changed the paper. The change happened while the bag was in transit. The watchman cannot see the change happen. He only knows that the two copies do not match.",
+    "takeaways": [
+      "Data can be changed while it is moving, not only while it is stored.",
+      "You need two records of the same event to compare: the sender copy and the receiver copy.",
+      "Encryption hides the payload unless a logging device ends the session."
+    ]
+  },
+  "objectives": [
+    "Explain how transmitted data manipulation differs from changing stored data",
+    "List the telemetry sources that record a transaction before and after transmission",
+    "Correlate sender side and receiver side records using a shared transaction reference",
+    "Identify benign gateways that legitimately rewrite field values",
+    "Write a tuning plan that reduces false alerts without losing transaction coverage"
+  ],
+  "techniqueId": "t1565-002",
+  "detectsTechniques": [
+    "t1565-002"
+  ],
+  "dataSources": [
+    "Network proxy or web gateway logs recording outbound request and response bodies for application transactions",
+    "Application transaction audit logs that record the submitted value and a shared transaction reference",
+    "Database audit trails showing committed values compared with the value the client sent",
+    "Message queue delivery logs that record payload checksums before and after broker relay",
+    "Full packet capture or TLS terminating inspection on segments that carry business transactions"
+  ],
+  "logic": "Transmitted data manipulation shows up as a disagreement between two records of the same transaction. The value written by the sender side, captured in application or audit logs, does not match the value received and committed by the receiver side, captured in database or queue logs. The detection correlates both records on a shared transaction identifier and a tight time window, then compares the critical fields such as amount, account number, or quantity. Benign rewrites by approved gateways, currency converters, or format normalizers produce the same pattern, so those services must be allowlisted before the rule is enabled.",
+  "pseudoQuery": "# title: Transaction value mismatch between client submission and server commit\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: 'transaction'\n#     payload_integrity: 'mismatch'\n#     tls_inspection: 'enabled'\n#   filter:\n#     destination_service: 'approved-payment-gateway'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "A payment gateway that legitimately recalculates tax or currency values before forwarding a transaction",
+    "Load balancers and API gateways that normalize or truncate long string fields in transit",
+    "Middleware that compresses or re-encodes a payload, which changes its checksum but not its meaning",
+    "Mobile applications that retry a transaction and submit a slightly different value on the second attempt"
+  ],
+  "tuningNotes": "Start by baselining which internal services are allowed to rewrite payload fields, then add them as a destination allowlist rather than disabling the rule. Scope the first deployment to the transaction types that carry money or identity data, because those mismatches have clear business impact, and leave informational fields out of the comparison. Exclude fields that are known to be recalculated, such as checksums, timestamps, and sequence numbers, since they change legitimately on every hop. Narrowing this way loses visibility into tampering on the excluded fields and on any traffic that does not cross the monitored segment.",
+  "severity": "high"
+}

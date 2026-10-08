@@ -1,0 +1,109 @@
+{
+  "id": "det0010",
+  "type": "detection",
+  "title": "Behavioral Detection of Event Triggered Execution Across Platforms",
+  "shortTitle": "Behavioral Detection of Event Triggered Execution Across ...",
+  "externalId": "DET0010",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects event triggered execution, where an adversary attaches their code to a system event so the operating system runs it for them (T1546, Event Triggered Execution). Instead of launching a program, the attacker registers an action that fires later, for example when a user logs on, when a debugger starts, when a shell opens, or when a container lifecycle stage runs. This matters because the execution inherits the trust and privileges of the host process that fires the trigger, and because nothing runs until the event occurs, which defeats detections that only watch for a process starting. Detection depends on monitoring registration points rather than payloads, and the practical difficulty is volume: legitimate software registers at the same locations daily.",
+  "tags": [
+    "persistence",
+    "privilege escalation",
+    "event trigger",
+    "t1546",
+    "registry",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Event Triggered Execution Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0010/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Event Triggered Execution Across Platforms - EASY",
+      "path": "exercises/det0010/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Event Triggered Execution Across Platforms - MEDIUM",
+      "path": "exercises/det0010/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Event Triggered Execution Across Platforms - HARD",
+      "path": "exercises/det0010/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Event Triggered Execution Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0010/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "An event trigger is a rule that tells the system to run something when a certain thing happens. Many programs use this, for example to start a helper when you log in. An attacker can add their own rule, so their code runs automatically later. This detection watches the places where such rules are stored.",
+    "whyItMatters": "The attacker does not need to keep a program running. The system starts the code at the right moment, and it looks like part of normal startup. The code inherits the rights of whatever fired the trigger, which is often a powerful service. Because the trigger may only fire at the next login or restart, the gap between the setup and the effect gives you time to respond. That time is only useful if you catch the setup.",
+    "howItWorks": [
+      "Your endpoint agent records writes to the registry keys and files where trigger definitions are stored.",
+      "It records the process that made each write, along with its parent and the account it used.",
+      "The detection matches those writes against a list of trigger locations that are common attack targets.",
+      "It compares the new entry with a baseline, so a first time entry is treated as more interesting than a known one.",
+      "It then waits for the trigger to fire and matches the resulting process start back to the saved record.",
+      "The linked pair of registration and execution produces one alert that shows both halves of the story."
+    ],
+    "example": "Think of a door that opens when a smoke alarm sounds. A maintenance worker can add a new device to the alarm system. The system then opens the door for whoever is standing there. Nobody forced the door. The alarm did exactly what it was told.",
+    "takeaways": [
+      "Event triggered execution runs through normal system mechanisms, not through a launched attack tool.",
+      "Watch the registration points, because the payload may not run for hours or days.",
+      "Linking a new registration to its later execution turns two weak signals into one strong one."
+    ]
+  },
+  "objectives": [
+    "Define event triggered execution and explain how it differs from direct process execution.",
+    "Identify the system registration points commonly abused for persistent triggers.",
+    "Describe the telemetry needed to observe both registration and later execution.",
+    "Explain how a baseline of expected registrations reduces false positives.",
+    "Correlate a trigger registration with the process started when the event fires.",
+    "Compare trigger mechanisms across operating systems and platforms to build broad coverage."
+  ],
+  "techniqueId": "t1546",
+  "detectsTechniques": [
+    "t1546"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set and event 12 registry object create or delete for trigger locations",
+    "Sysmon event 1 process creation showing the parent process that fired the trigger with its command line",
+    "Windows WMI activity logging showing permanent event consumer registration and the filter bound to it",
+    "Linux audit records of file writes in shell profile directories, scheduled directories and package manager hook directories",
+    "Container runtime audit logs recording lifecycle hook creation in an orchestration manifest or runtime configuration"
+  ],
+  "logic": "The rule watches the registration points where an operating system stores actions to run later, then links registration to execution. The primary selection is a write to a trigger location, including registry values used for debugger and command processor triggers, image file execution options, logon notification entries, and scripting profiles, plus equivalent files on other platforms such as shell startup files, scheduled directories and container lifecycle hooks. Fields that must be correlated are the object written, the value name, the writing process and its parent, the account, the host, and the process that later starts with that object as its origin. The malicious case is a write from an office application or a scripting host running from a temporary directory into a high impact trigger location, especially where the stored value points to a binary outside the system directory, and the later execution inherits a privileged parent. The benign case is a signed application updating its own logon helper during an upgrade from a system installer process.",
+  "pseudoQuery": "# title: Suspicious Write to Event Trigger Registration Point\n# logsource:\n#   product: windows\n# detection:\n#   selection_reg:\n#     EventID: 13\n#     TargetObject|contains:\n#       - 'Image File Execution Options'\n#       - 'AppInit_DLLs'\n#       - 'Userinit'\n#       - 'Command Processor'\n#   filter_signed:\n#     Image|startswith: 'C:\\\\Windows\\\\System32\\\\'\n#   filter_installer:\n#     Image|endswith: '\\\\msiexec.exe'\n#   condition: selection_reg and not filter_signed and not filter_installer\n# level: high",
+  "falsePositives": [
+    "Application installers that register a logon helper or shell extension during an upgrade",
+    "Accessibility and assistive technology configuration changes made by a user or support engineer",
+    "Software distribution tools that configure debugger settings for application crash analysis",
+    "Container images that legitimately declare a post start hook in a deployment manifest",
+    "Developer tools that write to a shell profile to add a version manager to the search path"
+  ],
+  "tuningNotes": "Build a baseline of every trigger location write on a representative host per operating system for two weeks, and allow list the object and writing process pairs you expect, such as your software distribution tool. Keep high severity for locations that cause code to run with high privilege, and summarise the rest. Filter by signing information where your agent records it, because attackers rarely hold a valid signature for the publisher they are imitating. Scope the rule to servers and administrative workstations first. The coverage you lose when you allow list known pairs is abuse of a location that legitimate software already uses, so keep the linked execution half of the rule active on its own as a lower severity monitor.",
+  "severity": "high"
+}

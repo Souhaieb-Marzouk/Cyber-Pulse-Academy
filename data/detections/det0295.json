@@ -1,0 +1,106 @@
+{
+  "id": "det0295",
+  "type": "detection",
+  "title": "Behavioral Detection of Thread Execution Hijacking via Thread Suspension and Context Switching",
+  "shortTitle": "Behavioral Detection of Thread Execution Hijacking via Th...",
+  "externalId": "DET0295",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects thread execution hijacking, where an adversary suspends a thread inside another process, rewrites its context so that it points at attacker supplied code, and then resumes it. The technique creates no new process and often no new thread, so process based detections are blind to it, and the payload usually appears as ordinary memory or module activity inside a legitimate binary. Detection therefore depends on the sequence of thread operations and on process access rights: an unexpected process requesting suspend and resume rights on a remote thread, a context change on a thread the caller does not own, and subsequent activity in a target that does not normally accept it. The strategy fails because this telemetry is largely kernel or driver sourced, so coverage depends heavily on the sensor version and its configuration.",
+  "tags": [
+    "thread hijacking",
+    "code injection",
+    "windows",
+    "process access",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Thread Execution Hijacking via Thread Suspension and Context Switching",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0295/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Thread Execution Hijacking via Thread Suspension and Context Switching - EASY",
+      "path": "exercises/det0295/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Thread Execution Hijacking via Thread Suspension and Context Switching - MEDIUM",
+      "path": "exercises/det0295/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Thread Execution Hijacking via Thread Suspension and Context Switching - HARD",
+      "path": "exercises/det0295/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Thread Execution Hijacking via Thread Suspension and Context Switching - EXTREMELY HARD",
+      "path": "exercises/det0295/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A thread is the part of a program that actually runs code. Thread hijacking means an attacker pauses a thread inside another program. They point it at their own code and start it again. The program keeps running, so nothing new appears in the process list. This detection watches those pause, change and restart operations.",
+    "whyItMatters": "No new process is created, so many detections see nothing at all. The code runs inside a trusted program, which is already allowed to do its normal work. The technique is used to run code while avoiding common monitoring. Because these events are so low level, you need good sensor coverage before the rule can help you.",
+    "howItWorks": [
+      "The sensor records process access events, which show one program opening another with specific rights.",
+      "It also records thread operations, such as a thread created inside a process other than the caller.",
+      "The rule keeps the operations that request suspend, resume and context change rights.",
+      "It checks whether the source process normally performs this kind of work at all.",
+      "The target process and its loaded modules are compared with the state recorded a minute earlier.",
+      "The alert is enriched with the modules loaded into the target, because the payload often appears there."
+    ],
+    "example": "Imagine a bus travelling its normal route with passengers on board. Part way through the trip, a different driver quietly takes the wheel. The bus keeps the same route, the same stops and the same passengers. So nobody at any of the stops notices a single thing. Thread hijacking works in very much the same way. The program keeps running, but somebody else is now steering it.",
+    "takeaways": [
+      "No new process appears, so rules built only on process creation will miss this technique.",
+      "Process access rights and thread operations are the core evidence you need.",
+      "Coverage depends on your sensor, so confirm that it records these events at all."
+    ]
+  },
+  "objectives": [
+    "Describe what a thread is and how its execution can be redirected inside another process.",
+    "Explain why hijacking leaves no new process for a detection to find.",
+    "Identify the access rights and thread operations that indicate cross process control.",
+    "Correlate process access, remote thread creation and image load records.",
+    "Verify that your endpoint sensor produces this telemetry before you rely on the rule."
+  ],
+  "techniqueId": "t1055-003",
+  "detectsTechniques": [
+    "t1055-003"
+  ],
+  "dataSources": [
+    "Sysmon process access events recording the source process, the target process and the granted access rights",
+    "Sysmon remote thread creation events showing which process created a thread inside another process",
+    "Endpoint detection API or system call telemetry covering thread suspension, context change and resume operations",
+    "Sysmon event 7 image load records naming the modules present in the target process",
+    "Sysmon event 1 process creation for the target process with the user field and integrity level"
+  ],
+  "logic": "The pattern is one process taking control of a thread inside another process that it has no legitimate reason to manage. The fields to correlate are the source image, the target image and the granted access rights from process access telemetry, the source and target pair from remote thread creation records, the sequence of suspend, context change and resume operations from API telemetry, and the modules loaded into the target from image load records. The benign case is a debugger, a crash handler or an endpoint agent that opens many processes with broad rights for monitoring, where the source image is a known signed product and the behaviour repeats continuously on every host. The malicious case is a first seen source process requesting suspend and context change rights on one unrelated target, followed by a resume and the appearance of an unsigned module in that target, especially when the source runs from a user writable directory.",
+  "pseudoQuery": "# title: Cross Process Thread Suspension and Context Change\n# logsource:\n#   product: windows\n# detection:\n#   selection_access:\n#     EventID: 10\n#     GrantedAccess|contains:\n#       - '0x1FFFFF'\n#       - '0x0800'\n#     SourceImage|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\rundll32.exe'\n#       - '\\\\wscript.exe'\n#   filter:\n#     TargetImage|endswith:\n#       - '\\\\MsMpEng.exe'\n#       - '\\\\windbg.exe'\n#   condition: selection_access and not filter\n# level: high",
+  "falsePositives": [
+    "Endpoint protection and endpoint detection agents that open processes with broad access in order to scan them.",
+    "Debuggers and crash analysis tools used by developers or support engineers on their own hosts.",
+    "Application compatibility shims and accessibility tools that adjust threads inside another process by design.",
+    "Backup or migration software that pauses threads in a target application to capture a consistent copy."
+  ],
+  "tuningNotes": "Because these events are high volume on some hosts, begin by confirming that your sensor actually reports process access and remote thread creation, then baseline the source images that perform them across the estate. Filter the signed endpoint agents, debuggers and backup products you have approved, and scope the rule to servers and user devices that hold sensitive data instead of the whole fleet. Keep the granted access rights and the source path in the alert, because an interpreter requesting suspend and context change rights on an unrelated process is the shape that matters. Filtering by approved source images loses coverage of an attacker who injects into one of those approved agents, so add a separate rule for an unsigned module loaded into a protected process shortly after such an access event.",
+  "severity": "high"
+}

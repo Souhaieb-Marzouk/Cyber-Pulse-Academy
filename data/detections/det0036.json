@@ -1,0 +1,107 @@
+{
+  "id": "det0036",
+  "type": "detection",
+  "title": "Suspicious Device Registration via Entra ID or MFA Platform",
+  "shortTitle": "Suspicious Device Registration via Entra ID or MFA Platform",
+  "externalId": "DET0036",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects suspicious device registration and the credential material added alongside it, the account manipulation behaviour tracked as T1098.005. A registered or joined device becomes an identity object that can satisfy a device based access rule and carry its own credentials, so an attacker who registers a device they control, or who adds a credential to an existing identity object, can keep access even after the user password is reset. The telemetry is directory audit data for device and credential operations joined to sign-in logs and multi factor authentication registration events. It fails in practice because onboarding tools register devices in bulk and users legitimately add their own hardware, so the operation name alone is far too common and the useful discriminators are the actor, the origin address, the device name pattern, and whether the user was recently prompted for a strong authentication method.",
+  "tags": [
+    "identity",
+    "persistence",
+    "t1098.005",
+    "cloud",
+    "device registration",
+    "audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Suspicious Device Registration via Entra ID or MFA Platform",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0036/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Suspicious Device Registration via Entra ID or MFA Platform - EASY",
+      "path": "exercises/det0036/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Suspicious Device Registration via Entra ID or MFA Platform - MEDIUM",
+      "path": "exercises/det0036/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Suspicious Device Registration via Entra ID or MFA Platform - HARD",
+      "path": "exercises/det0036/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Suspicious Device Registration via Entra ID or MFA Platform - EXTREMELY HARD",
+      "path": "exercises/det0036/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "In cloud identity platforms a device can be registered, which means the platform now trusts and knows that device. This detection looks for device registrations that do not fit the normal pattern. It also looks for new sign in keys added to an account.",
+    "whyItMatters": "A registered device can pass device checks at sign in. If an attacker registers a device they own, a stolen password becomes far more useful. They may keep access even after the password is changed. So this is a persistence problem, not only a login problem.",
+    "howItWorks": [
+      "The cloud writes an audit record whenever a device is registered or joined.",
+      "It writes another record when a credential or key is added to a user or application.",
+      "The rule collects both record types for the same account in a short window.",
+      "It adds sign in details, such as the address the request came from and the device name.",
+      "It removes bulk registrations from approved management tools and known corporate ranges.",
+      "It flags registrations from unusual addresses or names that do not match your naming standard."
+    ],
+    "example": "Think of a members only gym. The desk keeps a list of approved keys. At midnight, someone who is not the desk manager adds a key for a member you never met. That key should be checked before the locker room opens.",
+    "takeaways": [
+      "A device object can act like a spare key, so treat registration as a persistence event.",
+      "Join registration data with credential additions and sign in records.",
+      "A naming standard for devices makes the odd one much easier to spot."
+    ]
+  },
+  "objectives": [
+    "Explain what a registered or joined device can do at sign in.",
+    "Identify audit operations that create a device object or add a credential.",
+    "Correlate a device registration with sign-in origin and authentication method data.",
+    "Recognise bulk registration performed by an approved onboarding tool.",
+    "Describe how device registration supports persistence after a password reset.",
+    "Define a device naming standard that supports detection and triage."
+  ],
+  "techniqueId": "t1098-005",
+  "detectsTechniques": [
+    "t1098-005"
+  ],
+  "dataSources": [
+    "Cloud identity directory audit log entries for device registration, device join, and device update operations with actor and target object",
+    "Cloud identity directory audit log entries for adding or updating credentials and keys on a user or application object",
+    "Cloud identity sign-in logs recording origin IP address, client application, and whether multi factor authentication was satisfied",
+    "Mobile device management enrolment records showing which devices an approved management service registered"
+  ],
+  "logic": "The pattern is a device object created or a credential added to an identity object by an actor whose origin, timing, or naming does not match the normal onboarding process. The fields that must be correlated are the audit operation name, the actor account, the target device or user object, the origin address, the device display name, and the sign-in records for the same actor in the surrounding minutes. The malicious case shows a device registered from an address or client application that the organisation does not use, a display name that breaks the naming standard, registration by a non administrative account, or a registration that follows a failed or unusual authentication attempt. The benign case is a bulk enrolment by an approved management tool from a known service address, or a user registering a corporate laptop during a normal sign-in on a managed network. Counting registrations per actor per hour is often the fastest way to separate a campaign from routine onboarding.",
+  "pseudoQuery": "# title: Device Registration and Credential Addition by Unusual Actor\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     operation|contains:\n#       - 'Register device'\n#       - 'Add device'\n#       - 'Add service principal credentials'\n#     result: success\n#   filter:\n#     actorIp|startswith: '10.0.0.'\n#     userAgent|contains: 'MDM'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Bulk device enrolment performed by an approved mobile device management service during onboarding of a new employee group",
+    "Users registering their own personal phone for multi factor authentication through the self service portal",
+    "A device registration repeated after a hardware replacement or an operating system reinstall on a managed laptop",
+    "Application owners rotating service principal credentials as part of a scheduled key rotation process"
+  ],
+  "tuningNotes": "Build two views of this rule. Keep a strict version that filters out the management service addresses and the approved enrolment accounts, and keep a broad counting version that alerts when one actor registers many devices or adds credentials outside a change window. Baseline device names against your naming standard, then alert on names that break the pattern rather than on every registration. If you exclude self service registrations entirely, you lose visibility of an attacker who uses the legitimate self service flow with stolen credentials, so retain that path at a lower severity with the origin address attached.",
+  "severity": "medium"
+}

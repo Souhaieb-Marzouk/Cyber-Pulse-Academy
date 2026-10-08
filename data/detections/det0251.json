@@ -1,0 +1,108 @@
+{
+  "id": "det0251",
+  "type": "detection",
+  "title": "Behavioral Detection of Cloud Group Enumeration via API and CLI Access",
+  "shortTitle": "Behavioral Detection of Cloud Group Enumeration via API a...",
+  "externalId": "DET0251",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects enumeration of cloud groups, roles and their memberships through provider interfaces and command line tools, the discovery step an adversary takes to learn which identities hold power before choosing a target. The technique matters because group and role listing needs only read permissions that most accounts already hold, produces no change to the environment, and tells the attacker exactly where to aim next. Detection depends on cloud control plane audit records that carry the caller identity, the operation name and user agent, joined with the enterprise directory audit trail, and scored against the caller's normal enumeration volume. The main way it fails is that directories are full of legitimate automation that lists groups constantly, so the rule must key on the user agent of interactive tools and on volume per identity rather than on the operations alone.",
+  "tags": [
+    "cloud",
+    "discovery",
+    "identity",
+    "aws",
+    "azure",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Cloud Group Enumeration via API and CLI Access",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0251/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Cloud Group Enumeration via API and CLI Access - EASY",
+      "path": "exercises/det0251/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Cloud Group Enumeration via API and CLI Access - MEDIUM",
+      "path": "exercises/det0251/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Cloud Group Enumeration via API and CLI Access - HARD",
+      "path": "exercises/det0251/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Cloud Group Enumeration via API and CLI Access - EXTREMELY HARD",
+      "path": "exercises/det0251/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone listing cloud groups and their members. Groups are collections of accounts that share permissions, like a team with a shared key. An attacker reads these lists to find who can do the most. The rule watches which account asks for the lists, with which tool, and how often.",
+    "whyItMatters": "Mapping permissions is the cheap first step before an attack on an account. It needs only read access, which is common and rarely reviewed. Nothing in the environment changes, so there is no fault to notice. Catching the sweep gives you time to protect the powerful accounts before they are used.",
+    "howItWorks": [
+      "An account calls the cloud interface to list groups, roles or their members.",
+      "The provider writes an audit record with the caller, the action, the address and the tool name.",
+      "The rule counts these calls per account over a short window.",
+      "It compares the count with the normal level for that account and its tool.",
+      "It also checks whether the tool is a command line client rather than the normal web console.",
+      "A sudden sweep of membership listings by a quiet account raises an alert."
+    ],
+    "example": "Think of a thief who wants to rob an office. They read the staff notice board first. That board shows who holds the master key and who works late. Reading it breaks nothing. But if the cleaners report a stranger photographing the board at midnight, the guards know a plan is forming.",
+    "takeaways": [
+      "Enumeration leaves no damage, so volume and tool choice are the signals.",
+      "Command line clients are unusual for accounts that normally use the web console.",
+      "Baseline which service accounts list groups, because automation does it constantly."
+    ]
+  },
+  "objectives": [
+    "Describe why group and role enumeration matters before an attack.",
+    "Identify the cloud audit fields that record the caller, operation and user agent.",
+    "Explain how to build a per identity baseline of enumeration volume.",
+    "Separate command line tool usage from normal console browsing.",
+    "Correlate cloud directory listing activity with the enterprise directory audit trail.",
+    "Recognise automation that legitimately lists groups and roles."
+  ],
+  "techniqueId": "t1069-003",
+  "detectsTechniques": [
+    "t1069-003"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for ListGroups, GetGroup and ListGroupMemberships with the caller identity and user agent",
+    "Azure Entra ID audit logs for group read and membership read operations with the calling application identifier",
+    "Google Cloud audit logs for role and policy listing operations with the principal and caller address",
+    "Identity provider sign in and token issuance logs showing which client application the listing calls used",
+    "Cloud asset inventory or directory export used as the baseline of legitimate group management automation"
+  ],
+  "logic": "The pattern is one identity enumerating group, role or membership objects at a volume and with a tool that does not match its history. The fields that must be correlated are the caller identity and its account, the operation names in the family of group and membership reads, the count per identity per window, the source address and address type, the user agent or client application identifier, and the identity's own baseline of such calls. The malicious case usually shows an identity that has never listed groups before suddenly sweeping membership and role listings, a command line or scripting user agent where the account normally uses the web console, listing calls from a hosting provider address, and a follow up pattern of policy reads naming the powerful identities that were discovered. The benign case is identity governance and access review tooling that lists all groups on a schedule, a continuous integration role that reads group membership before deployment, or an administrator using the console audit view.",
+  "pseudoQuery": "# title: Burst of Cloud Group and Role Membership Enumeration\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName|contains|any:\n#       - 'ListGroups'\n#       - 'GetGroup'\n#       - 'ListRolePolicies'\n#       - 'ListGroupMemberships'\n#   filter_console:\n#     userAgent|contains: 'console.amazonaws.com'\n#   filter_governance:\n#     userIdentity.arn|contains: 'identity-governance'\n#   condition: selection and not filter_console and not filter_governance\n# level: medium",
+  "falsePositives": [
+    "Identity governance and access review tooling that lists every group and membership on a nightly schedule",
+    "Continuous integration and deployment roles that read group and role membership before applying infrastructure changes",
+    "A security operations engineer using a command line client to review privileged group membership during an investigation",
+    "Directory synchronisation products that reconcile cloud groups with an on premises directory every few minutes"
+  ],
+  "tuningNotes": "Baseline enumeration volume per identity and per user agent for thirty days and set the alert on deviation from that identity's own pattern rather than on a fixed number, because automation and analysts differ by orders of magnitude. Keep the console user agent allowed only for accounts that are expected to browse, and treat command line enumeration from a service account as high interest. Scope the first version to accounts that hold directory write permissions and to reads that name privileged roles. The coverage you lose by allowing scheduled governance tooling is a compromised governance account, so require that account to follow its normal schedule and alert on any listing burst outside its window or from a new address.",
+  "severity": "medium"
+}

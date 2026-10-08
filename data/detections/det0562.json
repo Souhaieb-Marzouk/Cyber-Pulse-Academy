@@ -1,0 +1,108 @@
+{
+  "id": "det0562",
+  "type": "detection",
+  "title": "Multi-Platform Execution Guardrails Environmental Validation Detection Strategy",
+  "shortTitle": "Multi-Platform Execution Guardrails Environmental Validat...",
+  "externalId": "DET0562",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Execution Guardrails, the environmental checks malware performs before it acts, such as confirming it is on the intended host, that a sandbox is absent, or that a date and location condition is met. It matters because guardrails mean the malicious behaviour only appears in the attacker's target environment, so a sample detonated in a sandbox shows nothing and defenders may never see the payload. The telemetry that makes it visible is process creation for the checking commands, access to the system attributes malware inspects, such as hostname, domain membership, hardware identifiers, gateway address and virtualisation artefacts, plus the timing pattern of repeated checks before any payload behaviour. It fails in practice because legitimate software performs the same checks for licensing and compatibility, so the detection must combine several weak signals and the presence of a suspicious parent rather than rely on any single attribute lookup.",
+  "tags": [
+    "defense-evasion",
+    "execution-guardrails",
+    "sandbox-evasion",
+    "endpoint",
+    "detection-engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Platform Execution Guardrails Environmental Validation Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0562/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Platform Execution Guardrails Environmental Validation Detection Strategy - EASY",
+      "path": "exercises/det0562/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Platform Execution Guardrails Environmental Validation Detection Strategy - MEDIUM",
+      "path": "exercises/det0562/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Platform Execution Guardrails Environmental Validation Detection Strategy - HARD",
+      "path": "exercises/det0562/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Platform Execution Guardrails Environmental Validation Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0562/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Guardrails are checks a program makes before it does something. Malware may check the computer name, the network, or the time to be sure it is on the right machine. This detection looks for programs that inspect their surroundings in an unusual way before acting.",
+    "whyItMatters": "Attackers use these checks so that security test systems see nothing. A sample that looks harmless in a sandbox may be dangerous on a real desk. If you only test files in a sandbox, you can miss the whole attack. Watching the checks themselves shows intent even when the payload stays quiet.",
+    "howItWorks": [
+      "The endpoint records program starts and the commands they run, including calls that read system details.",
+      "It also records the machines and network settings that a program asks about, such as the host name and the gateway.",
+      "A SIEM, which is a central system that collects and searches log events, brings these records together from many hosts.",
+      "The rule counts how many different checks one process family makes in a short time.",
+      "It then looks at what happens next, such as reading many documents or connecting to a new address.",
+      "Several checks with no normal business reason, from a program in a temporary folder, raise the alert."
+    ],
+    "example": "Think of a burglar who first checks whether anyone is home by ringing the bell and watching the windows. The ringing itself is not a crime and proves nothing alone. But a stranger who rings three different flats in five minutes and then tries the back door is worth a call to the police.",
+    "takeaways": [
+      "Guardrail checks are normal on their own, so only the combination of several checks and a suspicious program is meaningful.",
+      "Sandbox testing alone cannot defeat this technique, which is why host telemetry matters.",
+      "The strongest signal is a check sequence followed by payload behaviour on the same machine."
+    ]
+  },
+  "objectives": [
+    "Explain how environmental validation hides malicious behaviour from sandbox analysis.",
+    "Identify the system attributes commonly inspected, such as host name, domain, hardware identifiers and virtualisation indicators.",
+    "Correlate several attribute lookups from one process family inside a short time window.",
+    "Combine guardrail checks with the payload behaviour that follows them to raise confidence.",
+    "Baseline legitimate software that performs the same checks for licensing or compatibility.",
+    "Describe how to feed sandbox and host telemetry into one detection story."
+  ],
+  "techniqueId": "t1480",
+  "detectsTechniques": [
+    "t1480"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with full command line, showing host name, domain, user or date queries executed by a script",
+    "Windows Security event 4688 process creation with command line auditing for the commands that read system details",
+    "Endpoint sensor records of registry and configuration reads for hardware identifiers, virtualisation indicators and installed security products",
+    "System and network configuration inventory giving the expected host name, domain membership and gateway address for each asset",
+    "Sandbox detonation reports recording the environment artefacts presented to the sample and the absence of payload behaviour"
+  ],
+  "logic": "The pattern is a process family that reads several environment attributes in quick succession and then either stays silent or performs only a small amount of privileged work, which is the opposite of what normal software does. You correlate process creation events, which give the command lines of the checking commands, with registry and configuration read telemetry, grouping by the initiating process identifier and its parent so that you can count distinct checks in a window, and then join forward to later file, network or document access events from the same lineage. The malicious case shows checks for host name and domain, hardware serial numbers, virtualisation drivers, security tool processes and gateway reachability from a binary in a temporary or user writable directory, followed by a delay and then payload behaviour. The benign case is a licensed application verifying its host and dongle at start up from a program directory, a management agent checking its domain membership, or a benchmark tool reading hardware details for a report.",
+  "pseudoQuery": "# title: Multiple Environment Checks Followed by Payload Activity\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'hostname'\n#       - 'whoami'\n#       - 'systeminfo'\n#       - 'ipconfig'\n#   filter_signed:\n#     Signed: 'true'\n#   condition: selection and not filter_signed\n#   threshold:\n#     field: ProcessGuid\n#     count: 4\n#     timeframe: 5m\n# level: medium",
+  "falsePositives": [
+    "Software installers and license managers that verify the host name, domain and hardware identifiers before activation",
+    "Information technology support scripts that gather a machine inventory when a user reports a problem",
+    "Monitoring agents that check domain membership and gateway reachability during a periodic health sweep",
+    "Virtual desktop and application streaming clients that detect the hypervisor platform to enable acceleration",
+    "Developer and quality assurance scripts that detect a virtual machine to skip graphics or performance tests"
+  ],
+  "tuningNotes": "Start with the count of distinct checks rather than any individual command, and require a suspicious context such as an unsigned binary, a path in a temporary or download folder, or a parent process that is an office application or a script host. Maintain an allow list of signed inventory, licensing and management agents by hash or signer, and review it quarterly because the list is the whole tuning surface. Where you have both host and sandbox telemetry, join them so a sample that behaves quietly in the sandbox but performs checks on a real host is escalated automatically. The coverage you lose by trusting signed software is a signed binary abused as a loader, so also alert on any process that directly reads virtualisation or security product indicators without being on the approved list.",
+  "severity": "medium"
+}

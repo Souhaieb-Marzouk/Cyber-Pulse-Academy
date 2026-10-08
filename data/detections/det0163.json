@@ -1,0 +1,106 @@
+{
+  "id": "det0163",
+  "type": "detection",
+  "title": "Detection Strategy for Network Address Translation Traversal",
+  "shortTitle": "Detection Strategy for Network Address Translation Traversal",
+  "externalId": "DET0163",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of network address translation traversal, where an attacker or an unapproved tool uses address translation behaviour to make a connection cross a boundary that policy says it should not cross. Network address translation traversal covers the techniques that keep sessions alive across translators, including hole punching, port prediction and undocumented forwarding. The covered technique matters because a successful traversal places an internal service on the public internet or lets an external host reach deep inside the network while the perimeter device believes the flow is a normal outbound session. Border firewall logs, flow exports and edge device session tables make this possible because every translated session records the internal address, the translated address, the external peer and the lifetime. The main failure mode is that legitimate real time communication and remote access products use the same mechanisms, so the rule must separate approved rendezvous infrastructure from unexplained direct connections between peers.",
+  "tags": [
+    "network",
+    "defense evasion",
+    "network boundary",
+    "firewall",
+    "network flow"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Network Address Translation Traversal",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0163/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Network Address Translation Traversal - EASY",
+      "path": "exercises/det0163/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Network Address Translation Traversal - MEDIUM",
+      "path": "exercises/det0163/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Network Address Translation Traversal - HARD",
+      "path": "exercises/det0163/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Network Address Translation Traversal - EXTREMELY HARD",
+      "path": "exercises/det0163/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for connections that sneak through the device that rewrites network addresses. Some tools predict which outside port the device will choose and use that to reach inside. The detection looks for sessions that cross a boundary without an approved rule.",
+    "whyItMatters": "The address translation device is the wall between your network and the internet. Traversal defeats the wall without changing any rule, so nothing obvious is edited. It can expose an internal service or let an outsider reach a host directly. Because the traffic looks like normal outbound traffic, only careful session analysis shows the difference.",
+    "howItWorks": [
+      "The border device records each translated session with its inside and outside addresses.",
+      "It also records which outside port it assigned and how long the session stayed open.",
+      "The detection compares the outside peer against the small set of approved services.",
+      "It looks for repeated short sessions from one inside host to many outside ports.",
+      "It also looks for inside hosts that suddenly accept connections they never accept normally.",
+      "An analyst checks whether a known product or an unapproved tool caused the pattern."
+    ],
+    "example": "Imagine a hotel that gives each guest a room phone number from a shared list. A guest works out the pattern and dials the number that will be assigned to the manager tomorrow. The switchboard sees a normal internal call, but the guest has reached an office that was never published.",
+    "takeaways": [
+      "Traversal leaves no rule change, so detection must read session metadata.",
+      "Repeated short sessions to many outside ports from one host are a strong sign of port prediction.",
+      "Inventory the products you allow to use traversal and treat everything else as suspicious."
+    ]
+  },
+  "objectives": [
+    "Describe how address translation traversal lets a session cross a boundary without a rule change.",
+    "Name the session metadata fields that reveal a traversal attempt.",
+    "Distinguish approved real time communication traffic from unapproved peer to peer tools.",
+    "Detect repeated short lived sessions to many distinct outside ports from one internal host.",
+    "Explain how an internal service becomes reachable if a mapping is predicted or left open."
+  ],
+  "techniqueId": "t1599-001",
+  "detectsTechniques": [
+    "t1599-001"
+  ],
+  "dataSources": [
+    "Border firewall logs recording translated sessions with inside address, outside address, assigned outside port and rule matched",
+    "Network flow exports such as NetFlow or IPFIX showing packet counts, byte counts and session duration for translated flows",
+    "Edge device translation table snapshots capturing static and dynamic mappings and their remaining lifetime",
+    "Approved real time communication or remote access service inventory listing the rendezvous servers and ports the organisation permits"
+  ],
+  "logic": "The pattern is translated traffic that reaches a peer or a port that policy does not allow, or repeated short lived sessions from one internal host that appear to probe for the outside port the translator will assign next. The telemetry is the border firewall session log, the flow export from the same device and the translation table snapshot, and the fields that must be correlated are the internal address and port, the translated address and port, the external peer address, the matched rule, the session duration, the packet and byte counts, and the frequency of similar sessions from the same internal host. Benign behaviour is an approved conferencing or voice product that negotiates media through a documented rendezvous server, a virtual private network client connecting to the corporate gateway, or a backup or monitoring agent that keeps one long lived session to a known destination. Malicious behaviour is one internal host creating many brief sessions to many different outside addresses and ports while the translator opens a predictable mapping each time, or an inbound session arriving at an internal port that has no published service, or a tool the organisation has never approved performing a direct peer to peer transfer. The most reliable discriminator is the destination: approved services resolve to a small documented set of rendezvous hosts, while traversal abuse spreads across many unrelated addresses.",
+  "pseudoQuery": "# title: Internal host creating many translated sessions to unrelated peers\n# logsource:\n#   product: network\n#   service: firewall\n# detection:\n#   selection:\n#     action: nat_session\n#     direction: outbound\n#   filter_approved_rendezvous:\n#     dst_ip:\n#       - '203[.]0[.]113[.]10'\n#       - '203[.]0[.]113[.]11'\n#   condition: selection and not filter_approved_rendezvous | count() by src_ip, dst_port > 40\n# level: medium",
+  "falsePositives": [
+    "Video conferencing and voice over IP clients that negotiate media ports through a documented cloud service",
+    "Game, media streaming or content delivery software that opens many short sessions to distributed servers",
+    "Content delivery networks and cloud storage clients that connect to many edge addresses during a large transfer",
+    "Remote access products that use standard traversal to reach the corporate gateway from a home network",
+    "Network monitoring or synthetic testing agents that deliberately probe reachability from many ports"
+  ],
+  "tuningNotes": "First document the address translation traversal mechanisms your approved products use and their rendezvous destinations, then exclude those destinations by address group rather than by name so a renamed service still matches. Set the session count threshold from a four week baseline of translated sessions per internal host and group by host as well as destination so a single noisy client does not raise the threshold for everyone. Scope the rule to server networks before workstations, because servers should rarely initiate peer to peer media sessions. The coverage you lose by excluding approved rendezvous hosting is abuse of those same services, so also alert on internal hosts that begin accepting inbound media sessions and review any traversal traffic that uses a destination not seen in the last ninety days.",
+  "severity": "medium"
+}

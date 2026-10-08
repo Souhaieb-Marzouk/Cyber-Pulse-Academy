@@ -1,0 +1,108 @@
+{
+  "id": "det0301",
+  "type": "detection",
+  "title": "Removable Media Execution Chain Detection via File and Process Activity",
+  "shortTitle": "Removable Media Execution Chain Detection via File and Pr...",
+  "externalId": "DET0301",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers execution from removable media, mapped to T1091, where an adversary uses a universal serial bus, or USB, device or other removable drive to move code onto a host and run it, often at a moment when the device is plugged in. It matters because removable media crosses network boundaries that firewalls and email filtering cannot see, and it is a classic route into isolated or air-gapped environments. The telemetry that makes it detectable is the chain that starts with device installation records, continues with the mounting of the new volume, then shows file creation or execution from that volume and often a network connection from the process that ran there. The chain is the detection, because any single link is common; the main failure mode is missing the link, either because device installation logging is not enabled, drive letters are reassigned and lose their history, or the file is copied locally first so that execution never references the removable path.",
+  "tags": [
+    "mitre t1091",
+    "removable media",
+    "usb",
+    "lateral movement",
+    "device control"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Removable Media Execution Chain Detection via File and Process Activity",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0301/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Removable Media Execution Chain Detection via File and Process Activity - EASY",
+      "path": "exercises/det0301/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Removable Media Execution Chain Detection via File and Process Activity - MEDIUM",
+      "path": "exercises/det0301/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Removable Media Execution Chain Detection via File and Process Activity - HARD",
+      "path": "exercises/det0301/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Removable Media Execution Chain Detection via File and Process Activity - EXTREMELY HARD",
+      "path": "exercises/det0301/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Removable media are storage devices you can unplug, such as USB sticks. USB stands for universal serial bus. This rule looks for a sequence of events. First such a device is plugged in. Then files are written to it or copied from it. Then a program on that device is started. The sequence matters more than any single step.",
+    "whyItMatters": "Not every network is connected to the internet. Some are kept separate on purpose, and a USB stick is one of the few ways data moves between them. On a normal office computer, a new device rarely appears and runs a program within minutes. Catching that chain early can stop both data theft and a new infection.",
+    "howItWorks": [
+      "The endpoint agent records when a new device is connected and when a new volume is mounted.",
+      "The rule notes the device identifier and the drive letter or mount point that was assigned.",
+      "It then watches for programs started from that drive path, and for files created on it.",
+      "It also checks for large copies from the local disk to the removable volume, which looks like staging for theft.",
+      "The system links these events by device, host and time into one investigation.",
+      "If the whole chain appears in a short window, the system alerts, because that pattern is rare in normal use."
+    ],
+    "example": "Think of a building where visitors must sign in at reception. A visitor signs in, walks straight to the server room and stays one minute. That is odd, even though signing in and walking are both allowed. The guard cares about the combination and the timing. This rule links the plug-in, the file movement and the program start in the same way.",
+    "takeaways": [
+      "The alert is the chain: device attached, volume mounted, file written or executed, sometimes followed by network traffic.",
+      "Routine backups and approved transfers also use removable drives, so you need a baseline of approved devices.",
+      "Without device installation logging you will only see a program running from a drive letter, which is weak evidence."
+    ]
+  },
+  "objectives": [
+    "Describe how removable media are used to cross network boundaries and why that creates risk.",
+    "Identify the device installation, volume mount and process creation records that form the detection chain.",
+    "Build a correlation that links a mount event to file writes and program starts on the same volume.",
+    "Distinguish approved backup and transfer devices from unapproved ones using device identifiers.",
+    "Explain why copying a file to the local disk before running it evades path based rules.",
+    "Plan response actions such as blocking the device, isolating the host and checking what was copied."
+  ],
+  "techniqueId": "t1091",
+  "detectsTechniques": [
+    "t1091"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation and Sysmon event 1 process creation where the image or command line path refers to a removable drive letter or mount point",
+    "Sysmon event 11 file creation for files written to a removable volume path, including executables and archives",
+    "Windows plug and play device installation events that record a new device identifier, its vendor and the installing account",
+    "Sysmon event 12 registry object add and delete records for the mounted devices registry key, which shows the assigned drive letter and device identifier",
+    "Sysmon event 3 network connection records from a process whose image path sits on a removable volume"
+  ],
+  "logic": "The pattern is a short sequence on one host: a new removable device or volume appears, a program or file is written to or started from the path that the new device was assigned, and often the same process later makes a network connection. The fields that must be correlated are the device identifier and volume serial number, the host name, the assigned drive letter or mount point, the account that is signed in, the process image path and hash, and the timestamps of each step, all within a window of a few minutes. The benign case is an approved encrypted backup drive used by a service account on a fixed schedule, or a help desk technician copying a driver package on a managed device with a device control exemption. The malicious case usually involves an unapproved device identifier, an interactive user session on a sensitive server, an executable or script launched directly from the removable path, or a large outbound copy of documents followed by removal of the device.",
+  "pseudoQuery": "# title: Execution or Staging from Newly Mounted Removable Volume\n# logsource:\n#   product: windows\n# detection:\n#   selection_mount:\n#     EventType: 'volume_mount'\n#     DeviceType: 'RemovableMedia'\n#   selection_exec:\n#     EventID: 1\n#     Image|startswith: 'E:\\\\'\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|startswith: 'E:\\\\'\n#     TargetFilename|endswith:\n#       - '.exe'\n#       - '.dll'\n#       - '.zip'\n#   filter_backup:\n#     User|contains: 'svc-backup'\n#   condition: selection_mount and (selection_exec or selection_write) and not filter_backup\n# level: high",
+  "falsePositives": [
+    "An approved encrypted backup drive that is connected to a file server each evening by a service account",
+    "A help desk technician using a vendor supplied driver or firmware USB device to repair a laptop",
+    "Presentation or media files on a USB stick played on a meeting room computer by a visitor or employee",
+    "Industrial or medical equipment maintenance laptops that import configuration files from vendor media",
+    "A photographer or design team member transferring large asset files from a camera card to a workstation"
+  ],
+  "tuningNotes": "Inventory the device identifiers of approved removable media and the hosts and accounts allowed to use them, then filter on device identifier and volume serial number rather than on drive letters, which change between sessions. Scope the highest severities to servers, domain controllers and administrative jump hosts, where removable media use is rare, and keep a softer rule for design, media and field engineering workstations. Require the mount event to be recent, within the correlation window, so that long-connected devices do not trigger the rule every time an update runs. Add a filter for antivirus or management agents that scan removable volumes on insert, since their scanning reads look like file access. Narrowing by device identifier loses coverage when an attacker uses a device that is genuinely approved, so also watch for unusually large outbound copies to any removable volume and for execution from removable paths on hosts where the device class is normally blocked.",
+  "severity": "high"
+}

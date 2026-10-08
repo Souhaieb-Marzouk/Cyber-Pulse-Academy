@@ -1,0 +1,105 @@
+{
+  "id": "det0118",
+  "type": "detection",
+  "title": "Exploitation of Remote Services – multi-platform lateral movement detection",
+  "shortTitle": "Exploitation of Remote Services – multi-platform lateral ...",
+  "externalId": "DET0118",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects exploitation of a remote service used as a lateral movement step across Windows, Linux and appliances. The technique matters because a single vulnerable listening service can hand an attacker code execution on many hosts at once, and the network noise looks like ordinary service traffic. Detection depends on authentication records for the targeted service, application logs from the service itself, network flow data showing short lived connections to one port from one source, and process creation on the target host with an unusual parent. It fails in practice because the vulnerable service is designed to be accessed remotely, so no single event is decisive; the signal comes from the ratio of failed to successful access, the fan out across hosts, and the process that appears on the target after the connection.",
+  "tags": [
+    "lateral movement",
+    "remote services",
+    "network",
+    "authentication",
+    "exploitation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Exploitation of Remote Services – multi-platform lateral movement detection",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0118/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Exploitation of Remote Services – multi-platform lateral movement detection - EASY",
+      "path": "exercises/det0118/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Exploitation of Remote Services – multi-platform lateral movement detection - MEDIUM",
+      "path": "exercises/det0118/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Exploitation of Remote Services – multi-platform lateral movement detection - HARD",
+      "path": "exercises/det0118/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Exploitation of Remote Services – multi-platform lateral movement detection - EXTREMELY HARD",
+      "path": "exercises/det0118/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for an attacker who jumps from one computer to another. The attacker does this by attacking a service that is open to the network. A service is a program that listens for connections, such as file sharing or remote management. The rule joins network and host records to spot the jump.",
+    "whyItMatters": "Lateral movement is how a small break in becomes a company wide incident. Attackers rarely write new tools for this step. They use a flaw in software that is already running and reachable. Because the traffic is ordinary for that service, you need to compare it with what normal looks like.",
+    "howItWorks": [
+      "The rule reads network flow records for connections to service ports on many hosts.",
+      "It groups them by source address and counts how many different targets one source touched.",
+      "It reads authentication records for the same service on those targets.",
+      "It marks a target where access failed many times and then succeeded once.",
+      "It looks for a new process on the target whose parent is the service that was reached.",
+      "A wide fan out plus a child process from a service raises an alert."
+    ],
+    "example": "Imagine a row of apartment doors with the same lock model. A locksmith with one key tries every door. Opening one door is normal. Trying forty doors from the same person in ten minutes is not. The building log shows each attempt, and only the pattern across all the doors reveals the intent.",
+    "takeaways": [
+      "Look at fan out across hosts, not at a single connection.",
+      "The parent process of a new child on the target is the key host clue.",
+      "Failed access followed by success on a service is a strong signal."
+    ]
+  },
+  "objectives": [
+    "Describe how remote service exploitation supports lateral movement",
+    "Select authentication and service log sources for Windows and Linux targets",
+    "Measure fan out from one source to many hosts as a detection signal",
+    "Correlate a service process with an unexpected child process on the target",
+    "Prioritise an alert by the value and exposure of the affected hosts"
+  ],
+  "techniqueId": "t1210",
+  "detectsTechniques": [
+    "t1210"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation on target hosts showing a child process of a listening service such as the print spooler",
+    "Network flow records with source and destination address, destination port and connection duration",
+    "Windows Security event 4624 and 4625 logon records with logon type 3 network logons, including source workstation",
+    "Linux auditd execve records showing processes started by a network daemon"
+  ],
+  "logic": "The detection builds a fan out picture from network flow data, then confirms it on the host. Fields to correlate are the source address, the destination port, the count of distinct destination hosts in a short window, the authentication result on each target, and any process created by the service that received the connection. The benign case is a management server or vulnerability scanner that legitimately connects to many hosts on the same port with a regular schedule and a consistent account; the malicious case is an unfamiliar source reaching many hosts in a short burst, often with failed authentications before a success, followed by a child process that is a shell or script interpreter running under the service account. Counting distinct destinations is what turns ordinary service traffic into a usable signal.",
+  "pseudoQuery": "# title: One source reaching many hosts on a remote service port\n# logsource:\n#   product: network\n#   category: flow\n# detection:\n#   selection:\n#     DestinationPort:\n#       - 445\n#       - 3389\n#       - 5985\n#     BytesSent: '>0'\n#   filter:\n#     SourceIp|contains: '10[.]20[.]0[.]'\n#   condition: selection and not filter | count(DestinationIp) by SourceIp > 25\n# level: high",
+  "falsePositives": [
+    "Vulnerability scanners that run authenticated checks against every host on a fixed schedule",
+    "Backup servers that connect to the same service port on many hosts each night",
+    "Software distribution systems that push packages over administrative shares",
+    "Printer management tools that poll every print server in a subnet"
+  ],
+  "tuningNotes": "Allowlist the source addresses of scanners, backup servers and management platforms, and require the fan out count to stay above a threshold you measured from your own baseline. Then add the host side condition, a child process created by the service, and keep the rule at high severity only for services that never spawn shells in your environment. Baseline which services create child processes at all, because this varies a lot between estates. The coverage you lose by allowlisting a scanner address is the case where that scanner host is itself compromised, so pair this rule with host based alerting on those systems.",
+  "severity": "high"
+}

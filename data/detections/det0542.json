@@ -1,0 +1,105 @@
+{
+  "id": "det0542",
+  "type": "detection",
+  "title": "Registry and LSASS Monitoring for Security Support Provider Abuse",
+  "shortTitle": "Registry and LSASS Monitoring for Security Support Provid...",
+  "externalId": "DET0542",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers abuse of the Windows Security Support Provider and authentication package interfaces, matching technique T1547.005, where an adversary registers a malicious dynamic link library with the Local Security Authority so that it loads at boot and can capture credentials. It matters because registration turns the library into a trusted part of the logon process, giving durable persistence and a position to intercept every authentication attempt. The telemetry that makes it possible is registry monitoring of the Local Security Authority configuration keys, process creation records for the subsystem process, and image load events showing which libraries the subsystem loads. It fails in practice because several legitimate products, including smart card middleware and single sign on agents, register providers in exactly the same places, so the rule needs an application baseline rather than a blanket alert.",
+  "tags": [
+    "windows",
+    "lsass",
+    "registry",
+    "t1547.005",
+    "credential access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Registry and LSASS Monitoring for Security Support Provider Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0542/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Registry and LSASS Monitoring for Security Support Provider Abuse - EASY",
+      "path": "exercises/det0542/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Registry and LSASS Monitoring for Security Support Provider Abuse - MEDIUM",
+      "path": "exercises/det0542/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Registry and LSASS Monitoring for Security Support Provider Abuse - HARD",
+      "path": "exercises/det0542/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Registry and LSASS Monitoring for Security Support Provider Abuse - EXTREMELY HARD",
+      "path": "exercises/det0542/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the part of Windows that handles logon. It looks for new security packages being registered there. A security package is a library that Windows loads during logon. A library is a small program file that ends in dot dll.",
+    "whyItMatters": "Windows loads these libraries with high trust at every boot. If an attacker adds one, it starts automatically and can read credentials as users sign in. Removing it needs a registry change and usually a restart, not just a file delete. This makes it valuable to attackers and important to detect.",
+    "howItWorks": [
+      "A registry monitoring agent reports every change to the configuration keys that list security and authentication packages.",
+      "The event shows the key path, the value name, the old data and the new data.",
+      "The endpoint records when the logon subsystem process starts and which libraries it loads.",
+      "An application inventory lists the products that are allowed to register these packages.",
+      "The platform matches the new registry value against the approved list.",
+      "A value that is not approved, or a library loaded from a temporary folder, raises the alert."
+    ],
+    "example": "Imagine a hospital sign-in sheet where staff write down who may collect keys at the front desk. If someone adds a new name at night, that person can take keys in the morning. The registry value is that name on the list, and the library is the person who collects.",
+    "takeaways": [
+      "Persistence here loads at boot and has very high privilege.",
+      "Compare registry values with an approved product list before you alert.",
+      "A library loaded from a temporary or user writable folder is a strong warning sign."
+    ]
+  },
+  "objectives": [
+    "Explain what a Security Support Provider is and why registering one creates persistent privileged access",
+    "Identify the registry keys and value names that control security and authentication package loading",
+    "Describe the subsystem process start and image load events that confirm a new provider was loaded",
+    "Correlate a registry change with the loading of the library at the next boot or restart",
+    "Write a detection rule for provider registration and tune it against legitimate security products"
+  ],
+  "techniqueId": "t1547-005",
+  "detectsTechniques": [
+    "t1547-005"
+  ],
+  "dataSources": [
+    "Registry value set auditing events for the Local Security Authority control key recording the object name, value name, old value and new value",
+    "Windows process creation records for the Local Security Authority subsystem process with command line and parent process",
+    "Image load events recording libraries loaded into the Local Security Authority subsystem process with signature status",
+    "Software inventory records listing approved smart card, single sign on and credential provider products per host"
+  ],
+  "logic": "The pattern is a modification to the security or authentication package values under the Local Security Authority control keys, followed by a restart or a subsystem process start that loads a library from a path outside the system directory. The fields that must be correlated are the registry key path, the value name, the previous and new value data, the file path of the referenced library, its digital signature status, and the process that loaded it. The benign case is a documented installation of a smart card or single sign on product where the library sits in the program files directory and carries a valid vendor signature; the malicious case shows a new value written outside a change window, a library in a temporary or user profile folder, and an unsigned binary.",
+  "pseudoQuery": "# title: New security support provider registered in Local Security Authority\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_registry:\n#     EventID: 4657\n#     ObjectName|contains: Control\\Lsa\n#     ObjectValueName: [Security Packages, Authentication Packages, Notification Packages]\n#   filter_approved_products:\n#     NewValue|contains: [C:\\Program Files\\ApprovedVendor, C:\\Windows\\System32]\n#   condition: selection_registry and not filter_approved_products\n# level: critical",
+  "falsePositives": [
+    "Installation of approved smart card middleware or single sign on agents that register their own providers under the system directory",
+    "Operating system feature updates that rewrite the package value lists and preserve the original entries",
+    "Backup and restore software that returns the registry configuration to an earlier state after a recovery operation",
+    "Security products that register a notification package to observe password changes as a documented feature"
+  ],
+  "tuningNotes": "Collect the current values of the package lists from every host and review them with the desktop team, then allow list the library paths and the signing certificates of the products that legitimately appear there. Alert at full severity when the new value points outside the system and program files directories, and keep a lower severity report for any change to the value list so that a tampered entry inside an approved path is still visible. Scoping to these three value names reduces noise but loses visibility of providers registered through other logon extension points, so monitor other authentication related extension keys in a separate rule with its own baseline.",
+  "severity": "critical"
+}

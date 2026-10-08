@@ -1,0 +1,107 @@
+{
+  "id": "det0051",
+  "type": "detection",
+  "title": "Detection Strategy for File/Path Exclusions",
+  "shortTitle": "Detection Strategy for File/Path Exclusions",
+  "externalId": "DET0051",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1564.012, File and Path Exclusions, where an adversary or an intruder adds a folder or a file type to a security product exclusion list so that later activity in that location is never inspected. It matters because the exclusion silently removes coverage for everything placed there afterwards, turning a single configuration change into a long term blind spot that no malware alert will ever report. The telemetry that reveals it is configuration level: process creation showing exclusion commandlets or command line flags, registry writes to the security product exclusion keys, and management console audit records where the change was made centrally. The main failure is that legitimate administrators, build pipelines, and database teams all request exclusions for performance reasons, so the rule is only useful when it captures the adding account, the target path, and whether the change bypassed the normal request process.",
+  "tags": [
+    "mitre t1564.012",
+    "defense evasion",
+    "security controls",
+    "registry",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for File/Path Exclusions",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0051/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for File/Path Exclusions - EASY",
+      "path": "exercises/det0051/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for File/Path Exclusions - MEDIUM",
+      "path": "exercises/det0051/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for File/Path Exclusions - HARD",
+      "path": "exercises/det0051/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for File/Path Exclusions - EXTREMELY HARD",
+      "path": "exercises/det0051/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new entries in the exclusion list of a security product. An exclusion tells the scanner to ignore a folder or a file type. Attackers want that because it lets their tools run without being checked. This rule watches for exclusions that were added without approval.",
+    "whyItMatters": "An exclusion is a permanent hole in your defences. Anything placed in that folder stays unchecked, even a known dangerous tool. The change usually looks like normal administration, so nobody reviews it. A few seconds of typing can remove protection from a whole directory. Catching the change is far easier than catching everything that follows it.",
+    "howItWorks": [
+      "The agent records process creation, including the command line and the account that ran it.",
+      "The rule looks for security product commands that add or change exclusion paths.",
+      "It also watches the registry keys where the security product stores its exclusion list.",
+      "It collects the target path from the command or the registry value.",
+      "Approved service accounts and documented change records are compared with the change.",
+      "An exclusion added outside a change window, especially for a broad path, raises the alert."
+    ],
+    "example": "Think of a museum guard who is told to skip one room during the nightly round. The order may be reasonable, perhaps the floor is being waxed. But the guard no longer looks inside that room at all. If someone hides a stolen painting there next week, nobody notices. An exclusion is that skipped room. The order itself is harmless. The room it creates is the problem.",
+    "takeaways": [
+      "An exclusion defeats detection for everything placed in that path afterwards.",
+      "Legitimate performance tuning creates many exclusions, so the approving account and the change record are essential context.",
+      "Broad exclusions, such as a whole drive or a user profile, deserve the highest scrutiny."
+    ]
+  },
+  "objectives": [
+    "Explain what a security product exclusion is and how it creates a lasting blind spot.",
+    "Identify the command line, registry, and console audit telemetry that records exclusion changes.",
+    "Describe the account and change record fields needed to judge whether an exclusion was approved.",
+    "Write a pseudo rule that flags exclusion creation for broad or user writable paths.",
+    "Explain how to review the existing exclusion list as a coverage assessment task.",
+    "Recommend a response that restores coverage and finds what was placed in the excluded path."
+  ],
+  "techniqueId": "t1564-012",
+  "detectsTechniques": [
+    "t1564-012"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including command line and user for security product exclusion commandlets",
+    "Windows Security event 4688 process creation with command line auditing for command interpreters that set exclusions",
+    "Sysmon event 13 registry value set for the security product exclusion policy keys",
+    "Windows Security event 4657 registry value modification auditing for the exclusion policy keys",
+    "Endpoint management console audit records for exclusion changes made through the central console"
+  ],
+  "logic": "The rule detects the creation or modification of a security product exclusion, then scores how risky that exclusion is. It collects exclusion commandlets and command line flags from process creation telemetry, registry value set events under the exclusion policy keys, and central console audit records, then extracts the target path and the account that made the change. The malicious case is an exclusion for a broad path, a user profile folder, a temporary directory, or a file type such as script or executable files, added by an interactive user account outside a change window, or added immediately after a suspicious file was written to that path. The benign case is a documented performance exclusion requested by a database or build team and applied by a service account. The path breadth, the account type, and the presence of an approved change record are the fields that separate them.",
+  "pseudoQuery": "# title: Security Exclusion Added For Broad Or User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains: Add-MpPreference, Set-MpPreference, ExclusionPath, ExclusionExtension\n#   broad:\n#     CommandLine|contains: :\\Users, :\\Temp, :\\ProgramData, .exe\n#   condition: selection and broad\n# level: high",
+  "falsePositives": [
+    "Database or build servers where the platform team added a documented performance exclusion for data folders",
+    "Application rollouts that add a temporary exclusion during installation and remove it afterwards",
+    "Endpoint management tools that reapply the approved exclusion baseline after a policy refresh",
+    "Security operations staff adding a short lived exclusion to investigate a suspected false positive file"
+  ],
+  "tuningNotes": "Collect the current exclusion inventory from every endpoint as a first step, since that baseline is both your filter list and your coverage report. Filter on the exact account, the change channel, and the reviewed path set, and escalate only when the new path is broader than the approved pattern or the account is interactive. Route the events to a review queue rather than an alert queue after tuning, but keep alerting on any change to a whole drive, a user profile, or executable file types. The coverage you give up is a small exclusion added inside an already approved folder, so schedule a monthly diff of the exclusion inventory against the last reviewed version.",
+  "severity": "high"
+}

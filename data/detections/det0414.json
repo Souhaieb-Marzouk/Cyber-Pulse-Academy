@@ -1,0 +1,108 @@
+{
+  "id": "det0414",
+  "type": "detection",
+  "title": "Detection of AppleScript-Based Execution on macOS",
+  "shortTitle": "Detection of AppleScript-Based Execution on macOS",
+  "externalId": "DET0414",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers AppleScript based execution on macOS, tracked as T1059.002, where an adversary uses the built in scripting language to drive applications, run shell commands and automate actions without dropping an obvious binary. It matters because AppleScript and its osascript interpreter are signed parts of the operating system, so allow listing and reputation checks treat them as trustworthy, and the technique is a common way to persist, phish or move through a Mac estate. The telemetry that makes detection possible is macOS process execution logging from the unified log or a reliable endpoint sensor, including the parent process, the full argument list and the signing information, plus file creation events for script files and login item or configuration profile changes. The main way it fails is that administration and management tooling uses osascript constantly, so the rule must focus on who launched it, which script it ran and what it did next rather than on the interpreter alone.",
+  "tags": [
+    "macos",
+    "execution",
+    "script interpreter",
+    "endpoint",
+    "applescript"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of AppleScript-Based Execution on macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0414/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of AppleScript-Based Execution on macOS - EASY",
+      "path": "exercises/det0414/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of AppleScript-Based Execution on macOS - MEDIUM",
+      "path": "exercises/det0414/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of AppleScript-Based Execution on macOS - HARD",
+      "path": "exercises/det0414/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of AppleScript-Based Execution on macOS - EXTREMELY HARD",
+      "path": "exercises/det0414/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "AppleScript is a scripting language built into macOS computers. It can control applications, open windows and run other commands. This detection looks for AppleScript used like attacker automation, not like a normal user task. It watches the program named osascript and the script it is told to run.",
+    "whyItMatters": "Many security tools trust programs that ship with the operating system. AppleScript is one of them, so it often passes checks that a strange downloaded file would fail. It can run other commands, which makes it powerful. Attackers also use it in documents and links that convince a user to click. Watching how it is launched helps you separate real work from abuse.",
+    "howItWorks": [
+      "The Mac records which program started which other program, together with the arguments passed to it.",
+      "The sensor stores that record, including the parent program, the user account and the script text or file path.",
+      "The rule selects runs of the AppleScript interpreter, which is named osascript, and runs of shell programs started by it.",
+      "It compares the parent program with the normal list, such as management agents, installers and editor tools.",
+      "It looks for suspicious arguments. Examples are a script kept in a temporary folder or a command that downloads code.",
+      "When the parent, the script location and the following actions all look wrong, the alert goes to the analyst."
+    ],
+    "example": "Picture a building with a master key kept for the cleaners. The key is not suspicious, and the cleaners use it every night. One evening someone uses the same master key to open the record room and photograph files. The key is not the problem. Who used it, at what hour, and what they did with it is the clue.",
+    "takeaways": [
+      "Built in scripting tools are trusted by design, so trust must come from behaviour and context.",
+      "The parent program and the script location are the two fields that separate work from abuse.",
+      "Always look at what ran after the script, because the interpreter alone means little."
+    ]
+  },
+  "objectives": [
+    "Explain what AppleScript and the osascript interpreter are and why they are trusted.",
+    "Identify the macOS process execution records that include parent process and arguments.",
+    "Recognise normal parent processes that legitimately launch AppleScript.",
+    "Spot script locations and arguments that should never appear in production use.",
+    "Correlate script execution with later file creation or persistence changes on the same host.",
+    "Write a scoped rule that excludes management agents without losing user driven abuse."
+  ],
+  "techniqueId": "t1059-002",
+  "detectsTechniques": [
+    "t1059-002"
+  ],
+  "dataSources": [
+    "macOS unified log or endpoint sensor process execution records for osascript including parent process, user and full argument list",
+    "Endpoint sensor process creation for shells started by osascript with image path and command line",
+    "macOS file system monitoring records for script files created in temporary and download directories",
+    "Login item, launch agent and configuration profile change records on the host",
+    "Endpoint sensor network connection records showing the process that initiated outbound traffic after a script ran"
+  ],
+  "logic": "The pattern is the AppleScript interpreter starting from a parent process that is not a management agent, an installer or a developer tool, and running a script file that sits in a temporary or download folder, or running an inline command that fetches and executes further code. The fields to correlate are the parent image path, the account that owns the session, the script file path or inline script text, and the child process that follows, plus any outbound connection made by that child. Legitimate automation is launched by a small set of signed management binaries, with a stable script path inside a managed directory, and it does the same thing every time. Abuse tends to come from a browser, a mail client or a document handler, uses a user controlled path, and ends in a download or a persistence write. The distinguishing factor is the parent process and whether the script path is inside a managed location.",
+  "pseudoQuery": "# title: AppleScript interpreter launched by non management parent\n# logsource:\n#   product: macos\n#   service: endpoint\n# detection:\n#   selection:\n#     Image|endswith: '/osascript'\n#   filter_mgmt:\n#     ParentImage|endswith: ['/jamf', '/mdmclient', '/softwareupdated']\n#   filter_managed_path:\n#     CommandLine|contains: '/Library/Application Support/'\n#   condition: selection and not filter_mgmt and not filter_managed_path\n# level: medium",
+  "falsePositives": [
+    "Management agents that use AppleScript to configure application settings or map printers during enrolment",
+    "Automation tools such as keyboard shortcut utilities and personal workflow scripts run by the user themselves",
+    "Developer build scripts and continuous integration agents that drive Xcode through AppleScript",
+    "Document production workflows that use AppleScript to format and export pages in a publishing suite",
+    "Help desk remote support sessions that use AppleScript to open applications or gather system information for the user"
+  ],
+  "tuningNotes": "Filter on the parent image first, because management and developer tooling accounts for most legitimate interpreter launches and the parent tells you the intent. Add a filter for script paths inside managed directories such as the application support and management agent folders, and require the analyst to approve each new path when a tool changes. Then keep separate higher severity alerts for the remaining cases where the parent is a browser, a mail client or a document handler, and for any script that writes a launch agent or a login item. Baseline the parent process and script path pairings for two weeks rather than assuming them. The coverage you lose by filtering managed paths is an attacker who writes into a managed directory, so pair the rule with file integrity monitoring on those directories so that a write is still visible.",
+  "severity": "medium"
+}

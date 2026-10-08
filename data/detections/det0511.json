@@ -1,0 +1,109 @@
+{
+  "id": "det0511",
+  "type": "detection",
+  "title": "Detection of Data Access and Collection from Removable Media",
+  "shortTitle": "Detection of Data Access and Collection from Removable Media",
+  "externalId": "DET0511",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers collection of data from removable media, the technique tracked as T1025. Removable drives are usually outside endpoint backup, data loss prevention coverage and version control, so copying their contents is a quiet way to gather documents, exports and media that may be more sensitive than anything on the laptop itself. The telemetry that makes this visible is file access events that name the drive path, volume mount records that tell you when a device appeared, process creation for copy and archive utilities with removable drive arguments, and the outbound transfer that usually follows. The failure mode is that most operating systems only log writes and deletions on removable volumes by default, so without read auditing the technique is largely invisible and the rule degrades into watching for the drive itself rather than the collection.",
+  "tags": [
+    "removable media",
+    "t1025",
+    "collection",
+    "usb",
+    "data loss prevention",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Data Access and Collection from Removable Media",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0511/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Data Access and Collection from Removable Media - EASY",
+      "path": "exercises/det0511/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Data Access and Collection from Removable Media - MEDIUM",
+      "path": "exercises/det0511/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Data Access and Collection from Removable Media - HARD",
+      "path": "exercises/det0511/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Data Access and Collection from Removable Media - EXTREMELY HARD",
+      "path": "exercises/det0511/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for someone copying many files off a removable drive. A removable drive is a memory card or an external disk that you can plug in and take away. These drives often hold data that is saved nowhere else. The rule watches for a burst of file reads from that drive, and for the tools used to do it.",
+    "whyItMatters": "Data on a removable drive is often not covered by the same protection as data on a server. It may hold camera footage, equipment exports or field notes that no one classified. Copying it leaves almost no trace in most file systems. File system logging usually records changes, not reads. A burst of reads from one device is a small but useful signal that this is happening.",
+    "howItWorks": [
+      "The agent records when a new volume is mounted, together with its drive letter and device identity.",
+      "It also records file access events that name a path on that volume, when read auditing is enabled.",
+      "The rule counts how many distinct files one process or user touched on the volume in a short window.",
+      "Tools that copy or compress whole folders are weighted more heavily than a normal document viewer.",
+      "Process records are checked to see whether the copying process is a signed backup or sync agent.",
+      "A high file count from a non backup process raises the alert and starts a review of the device."
+    ],
+    "example": "Think of a till receipt at a shop. The drawer opens many times a day and nobody counts the coins. But if one cashier opens the drawer forty times in five minutes, a supervisor walks over. This rule is that supervisor for removable drives.",
+    "takeaways": [
+      "File systems usually log changes on removable media, not reads, so read auditing must be turned on.",
+      "The volume mount record tells you when to start looking, but it is not evidence by itself.",
+      "Compare the file count against the user normal behaviour before you decide the event is serious."
+    ]
+  },
+  "objectives": [
+    "Explain why removable media are attractive for collection and why reads are rarely logged by default.",
+    "Identify the telemetry that records a volume mount and the file access events that follow it.",
+    "List the copy, archive and synchronisation tools that commonly appear in these events.",
+    "Set a file count threshold that reflects the normal work of the user group being monitored.",
+    "Correlate a removable drive collection burst with later outbound network transfers.",
+    "Describe how to preserve the device as evidence before it is returned or wiped."
+  ],
+  "techniqueId": "t1025",
+  "detectsTechniques": [
+    "t1025"
+  ],
+  "dataSources": [
+    "Windows Security removable device or volume mount events recording the drive letter and device serial",
+    "Sysmon event 11 file creation and Windows object access auditing for file reads on removable volumes",
+    "Sysmon event 1 process creation showing copy or archive utilities with a removable drive path in the command line",
+    "Endpoint detection and response process and file telemetry that retains the source volume identifier",
+    "Proxy or firewall flow records for the same host in the hours after the collection burst"
+  ],
+  "logic": "The pattern is a burst of distinct file accesses on a removable volume by one process or user within a short window, where the accessing process is not a signed backup, synchronisation or endpoint management agent. The fields that must be correlated are the volume or drive identifier from the mount record, the file path and accessing image with its user on the file access events, and the process command line, all joined on host and user across a window that starts at device insertion. The malicious case usually shows hundreds of unrelated file types read in minutes, a copy or archive tool that is not part of the standard build, and a user whose normal work never involves that media. The benign case is a scheduled backup agent that reads the whole volume from a management service account, or a single document opened once from a removable drive.",
+  "pseudoQuery": "# title: Bulk File Read from Removable Volume by Non Backup Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|startswith:\n#       - 'D:\\'\n#       - 'E:\\'\n#       - 'F:\\'\n#   filter_backup:\n#     Image|endswith:\n#       - '\\robocopy.exe'\n#       - '\\BackupExec.exe'\n#       - '\\OneDrive.exe'\n#       - '\\MsMpEng.exe'\n#   condition: selection and not filter_backup\n# level: medium",
+  "falsePositives": [
+    "Photographers and field engineers who legitimately offload a whole memory card or instrument drive at the end of a shift",
+    "Scheduled backup or synchronisation agents that read the entire removable volume from a service account",
+    "Forensic and audit teams that copy a device for investigation with a documented evidence ticket",
+    "Help desk technicians who run a full antivirus scan across a user supplied removable drive",
+    "Media production staff who import raw footage from a camera card into an editing project"
+  ],
+  "tuningNotes": "Turn on read auditing for removable volumes first, then scope the rule to user groups whose work does not involve regular device offload, and allow list the signed backup, sync and antivirus agents by full path. Raise the file count threshold using a two week baseline per group rather than one global number, and require at least two distinct file types or folders so that a single large camera file does not trigger it. The coverage you lose is the slow collector who copies a handful of files per day and stays under the threshold, and file reads on volumes where auditing was never enabled.",
+  "severity": "medium"
+}

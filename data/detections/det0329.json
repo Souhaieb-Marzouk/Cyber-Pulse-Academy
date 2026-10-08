@@ -1,0 +1,107 @@
+{
+  "id": "det0329",
+  "type": "detection",
+  "title": "Behavioral Detection for T1490 - Inhibit System Recovery",
+  "shortTitle": "Behavioral Detection for T1490 - Inhibit System Recovery",
+  "externalId": "DET0329",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects attempts to inhibit system recovery (T1490), the step ransomware and destructive actors take before encrypting or wiping data so that victims cannot restore from local shadow copies. The behaviour class is narrow and well documented: shadow copy deletion, backup catalog removal, recovery environment disabling and boot configuration changes that skip recovery options. Detection is built on process creation with full command lines, service state changes for backup services and evidence of shadow copy storage shrinking. The main failure mode is over-blocking: backup agents legitimately prune old shadow copies, so the rule must weigh the parent process, the account and whether a backup job was scheduled at that moment.",
+  "tags": [
+    "mitre t1490",
+    "ransomware",
+    "shadow copy",
+    "impact",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection for T1490 - Inhibit System Recovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0329/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection for T1490 - Inhibit System Recovery - EASY",
+      "path": "exercises/det0329/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection for T1490 - Inhibit System Recovery - MEDIUM",
+      "path": "exercises/det0329/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection for T1490 - Inhibit System Recovery - HARD",
+      "path": "exercises/det0329/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection for T1490 - Inhibit System Recovery - EXTREMELY HARD",
+      "path": "exercises/det0329/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for commands that destroy a computer's recovery options. Recovery options are the saved copies and repair settings that let you undo damage. When these are removed, ransomware victims cannot restore their files.",
+    "whyItMatters": "Most ransomware deletes recovery copies before it locks your files. That single step is often the difference between a bad day and a total loss. If you detect it early, you can disconnect the machine and stop the spread. It is one of the clearest warning signs you will ever get.",
+    "howItWorks": [
+      "The computer records programs that start, together with the full command line used.",
+      "The detection searches those command lines for recovery-related tools and for flags that delete or disable recovery data.",
+      "It checks the account and parent program that launched the tool, because backup software runs on a schedule.",
+      "It also watches the backup and recovery services, since stopping them is part of the same behaviour.",
+      "It compares the event time with the list of approved backup jobs.",
+      "When the tool runs outside a scheduled job or from an unusual account, it raises a priority alert."
+    ],
+    "example": "Imagine a shop that keeps a month of receipts in a fireproof box. A thief who plans to take the till removes the receipt box first. That way, nobody can prove what was taken. A guard who notices the box being carried out learns about the robbery before the money goes missing.",
+    "takeaways": [
+      "Deleting recovery data is a strong early sign of a destructive attack, so treat it at high priority.",
+      "The account and parent program are as important as the tool being used.",
+      "Compare every event with your backup schedule before deciding it is noise."
+    ]
+  },
+  "objectives": [
+    "Identify the command line patterns that delete or disable local recovery data",
+    "Correlate backup agent schedules with recovery-related command execution to suppress noise",
+    "Describe why service state changes belong in the same detection as command execution",
+    "Rank this behaviour highly on impact even when a single event looks unremarkable",
+    "Draft a rule that alerts when recovery tooling runs outside an approved backup window"
+  ],
+  "techniqueId": "t1490",
+  "detectsTechniques": [
+    "t1490"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "Sysmon event 13 registry value set events for boot and recovery configuration values",
+    "Windows System log service control manager events recording backup and recovery service state changes",
+    "PowerShell script block logging capturing recovery commands issued from a script rather than a command shell"
+  ],
+  "logic": "The pattern is execution of recovery-destroying commands such as shadow copy deletion, backup catalog removal or disabling of recovery at boot, and this is dangerous because of what it enables rather than what it does by itself. The fields to correlate are the process image and command line, the parent image, the running account, the host role and the time of day against the known backup schedule. The benign case is the backup product on a file server pruning snapshots inside its maintenance window under a service account, with its own parent process. The malicious case is the same tool started by a script interpreter or a command shell, under an interactive or newly created account, outside any backup window, often minutes before mass file modification events on the same host.",
+  "pseudoQuery": "# title: Recovery Data Deletion Outside Backup Window\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'delete shadows'\n#       - 'resize shadowstorage'\n#       - 'delete catalog'\n#       - 'recoveryenabled no'\n#       - 'wbadmin delete'\n#   filter_backup:\n#     ParentImage|endswith: ['\\\\veeamagent.exe', '\\\\backupagent.exe']\n#     User|endswith: '$'\n#   condition: selection and not filter_backup\n# level: critical",
+  "falsePositives": [
+    "Backup products that prune old shadow copies when storage pressure exceeds a configured threshold",
+    "Storage administrators who reclaim shadow storage on a file server during planned maintenance",
+    "Imaging or build scripts that disable recovery settings on temporary virtual machines before a rebuild",
+    "Endpoint management tools that install a new backup agent and clean up the previous agent's snapshots",
+    "Server decommissioning runbooks that clear backup catalogs as a documented final step"
+  ],
+  "tuningNotes": "Collect the exact command lines, parent processes and service accounts used by each approved backup product for two weeks, then filter those combinations rather than the tool name alone, which keeps coverage of the same tool used by different parents. Scope the rule to server subnets and managed workstations where backups exist, and keep a separate lower-severity rule for hosts with no backup agent. Alert immediately on occurrences outside the maintenance window and on weekends. Narrowing by parent process loses detection of an attacker who reuses the backup agent's own scheduled execution path, so monitor for changes to backup job definitions as a companion control.",
+  "severity": "critical"
+}

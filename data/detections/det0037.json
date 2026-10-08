@@ -1,0 +1,107 @@
+{
+  "id": "det0037",
+  "type": "detection",
+  "title": "Detect Suspicious Access to Browser Credential Stores",
+  "shortTitle": "Detect Suspicious Access to Browser Credential Stores",
+  "externalId": "DET0037",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects theft of credentials stored by browsers, the behaviour tracked as T1555.003. Browsers keep saved passwords in local database and key files, and any process that can read those files under the user context can copy and later decrypt them, which turns a single user level compromise into a long list of reusable account passwords with no malware left running. The telemetry that makes it visible is file access and file creation data on the browser profile path, registry writes to the encryption state and preference keys, and process events showing which image touched the store. It fails in practice because the browser itself reads those files constantly and backup or migration tools copy them, so the detection depends on the accessing process and on the destination of any copy rather than on the file path alone.",
+  "tags": [
+    "credential access",
+    "t1555.003",
+    "browser",
+    "endpoint",
+    "file access",
+    "user profile"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Suspicious Access to Browser Credential Stores",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0037/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Suspicious Access to Browser Credential Stores - EASY",
+      "path": "exercises/det0037/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Suspicious Access to Browser Credential Stores - MEDIUM",
+      "path": "exercises/det0037/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Suspicious Access to Browser Credential Stores - HARD",
+      "path": "exercises/det0037/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Suspicious Access to Browser Credential Stores - EXTREMELY HARD",
+      "path": "exercises/det0037/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Web browsers offer to save your passwords. Those passwords sit in files inside your user profile. This detection looks for programs, other than the browser itself, that read or copy those files.",
+    "whyItMatters": "Saved passwords often open mail, file shares, and cloud tools. An attacker with only user rights on one laptop can copy those files and take the passwords away. Nothing needs to stay installed, so cleaning the machine may not remove the risk.",
+    "howItWorks": [
+      "The endpoint agent records file access, file creation, and registry changes.",
+      "The rule lists known browser credential file paths for each browser you support.",
+      "It removes the browser processes themselves, which read the files every day.",
+      "It looks for another program reading or copying those files.",
+      "It also watches for the encryption key files and preference files being touched.",
+      "A copy into a temporary or public folder raises the score to high."
+    ],
+    "example": "Think of a desk drawer where people keep spare house keys. The owner opens it often. A stranger opening the drawer and copying the key shapes onto paper is the event you want to see.",
+    "takeaways": [
+      "The file path is normal; the program reading it is the signal.",
+      "A copy into a temporary folder is a strong sign of staging for theft.",
+      "Passwords in browsers should be reset after this kind of alert."
+    ]
+  },
+  "objectives": [
+    "Name the browser files that hold saved passwords and the key that protects them.",
+    "Select telemetry that reports file access and file creation in a user profile.",
+    "Build a filter that removes legitimate browser processes from the rule.",
+    "Detect a copy of a credential store into a temporary or sharing folder.",
+    "Explain why user level access is enough for this technique.",
+    "Plan a containment step that includes credential rotation, not only cleanup."
+  ],
+  "techniqueId": "t1555-003",
+  "detectsTechniques": [
+    "t1555-003"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation showing a browser credential database or key file copied to a new path",
+    "Endpoint file access auditing or an endpoint detection agent recording reads of files under the browser user data directory",
+    "Sysmon event 13 registry value set on browser encryption state and preference keys",
+    "Sysmon event 1 process creation with command line and parent image for the process that touched the store"
+  ],
+  "logic": "The pattern is a process other than the owning browser reading or copying the browser credential database, its encryption key file, or the preference file that describes how the key is protected, especially when the copy lands in a temporary, public, or share path. The fields that must be correlated are the file path, the accessing process image and hash, its parent process, the user account, and the destination path of any created copy. The malicious case is a script host, a command shell, a document application, or an archive utility that touches the credential file, or the file appearing under a staging directory with a new name such as a text or archive file. The benign case is the browser reading its own store, a supported password manager or browser profile migration tool doing a documented move, or a backup agent reading the profile during a scheduled job, all of which are stable in process identity and destination. Because the volume of normal browser reads is enormous, the rule must be anchored on the accessing process and on the destination, not on the file path.",
+  "pseudoQuery": "# title: Browser Credential Store Accessed or Copied by Non Browser Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '\\Login Data'\n#       - '\\logins.json'\n#       - '\\key4.db'\n#   filter:\n#     Image|endswith:\n#       - '\\chrome.exe'\n#       - '\\firefox.exe'\n#       - '\\msedge.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Browser profile migration or backup tooling that copies the user data directory to a network location as part of a documented laptop refresh",
+    "Supported password managers and single sign on clients that read browser profile files to import saved credentials at the user request",
+    "Endpoint backup agents that read the whole user profile on a fixed schedule and run under a signed service account",
+    "Help desk staff restoring a user profile from backup during a device replacement and copying the browser folder back into place"
+  ],
+  "tuningNotes": "Anchor the rule on the accessing process and the destination, and allow list the exact signed binaries and service accounts that perform profile backup or migration in your environment. Restrict the file list to the credential database and key files rather than every file in the profile, and require the destination to be outside the original browser directory for the copy variant. Baseline which processes read these paths during a normal week, because the list is short and stable. If you narrow to known credential stealing tool names you lose coverage of living off the land utilities, so keep a severity high alert on any non browser process copying the store into a temporary directory.",
+  "severity": "high"
+}

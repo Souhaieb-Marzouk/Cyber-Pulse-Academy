@@ -1,0 +1,105 @@
+{
+  "id": "det0122",
+  "type": "detection",
+  "title": "Detect Abuse of Windows Time Providers for Persistence",
+  "shortTitle": "Detect Abuse of Windows Time Providers for Persistence",
+  "externalId": "DET0122",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of Windows time providers, where an attacker registers a dynamic link library as a time provider so that the Windows time service loads it at start up. The technique matters because the loading process runs as a privileged service, so the code executes with high rights and survives reboots while sitting in a service registry key that administrators rarely inspect. Detection depends on service registry change telemetry for the time service provider keys, file creation events showing the provider library appearing just before the registry write, and service start events that show the time service loading a new module. It fails in practice because the registry write is tiny and legitimate time provider changes are rare but do happen during virtualisation migrations, so a baseline of approved provider libraries is essential.",
+  "tags": [
+    "persistence",
+    "windows",
+    "time provider",
+    "registry",
+    "privilege escalation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Abuse of Windows Time Providers for Persistence",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0122/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Abuse of Windows Time Providers for Persistence - EASY",
+      "path": "exercises/det0122/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Abuse of Windows Time Providers for Persistence - MEDIUM",
+      "path": "exercises/det0122/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Abuse of Windows Time Providers for Persistence - HARD",
+      "path": "exercises/det0122/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Abuse of Windows Time Providers for Persistence - EXTREMELY HARD",
+      "path": "exercises/det0122/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for changes to the settings of the Windows time service. That service keeps the computer clock correct. It can load extra modules, called time providers. An attacker can add their own module so it runs with high rights at every start up.",
+    "whyItMatters": "The time service starts early and runs with powerful rights. Code loaded there is hard to see and stays after a restart. The settings live in a registry key that most administrators never open. A single value change is enough to gain a lasting foothold.",
+    "howItWorks": [
+      "The rule watches the registry keys that list time providers for the time service.",
+      "It records the value name, the file path it points to and the account that made the change.",
+      "It looks for a library file that appeared on disk shortly before the change.",
+      "It checks whether the library is in a system folder and whether it is signed.",
+      "It watches the service start record to see the module being loaded.",
+      "A new provider path outside the system folder raises an alert."
+    ],
+    "example": "Think of a clock tower with a tray of spare parts. The caretaker may fit a new gear at any time. Someone leaves an unmarked gear on the tray. The next time the tower is wound, that gear turns with the rest. The caretaker never checked where the gear came from.",
+    "takeaways": [
+      "The clock service can load extra modules, and those modules run with high rights.",
+      "Watch the registry values that name those modules, not only the files.",
+      "An unsigned library outside the system folder is the strongest clue."
+    ]
+  },
+  "objectives": [
+    "Explain how the Windows time service loads provider libraries",
+    "Identify the registry keys and values that list time providers",
+    "Correlate a new library file with the registry value that references it",
+    "Verify the signature and location of any provider library",
+    "Remove a malicious provider and confirm the clock service still works"
+  ],
+  "techniqueId": "t1547-003",
+  "detectsTechniques": [
+    "t1547-003"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for the Windows time service provider registry keys, including target object and new value data",
+    "Sysmon event 11 file creation showing a new library written shortly before the registry change",
+    "Windows System log service control manager events recording that the time service started and which modules it loaded",
+    "Windows Security event 4688 process creation with command line auditing showing the utility used to modify the provider settings"
+  ],
+  "logic": "The detection pairs a registry write under the time service provider keys with the file it names. Fields that must be correlated are the registry key path, the value name, the value data containing the library path, the writing process image and account, and the creation time and signature status of that library. The benign case is a platform migration or virtualisation tool that registers a signed provider from the system directory with an installer as the parent process and a change record; the malicious case is a value pointing to a user writable directory, written by a command shell or a remote management session, with a library that appeared minutes earlier and carries no valid signature. Because the file and the registry write happen close together, a short correlation window turns a weak single event into a strong pair.",
+  "pseudoQuery": "# title: Time provider registry value pointing outside system directory\n# logsource:\n#   product: windows\n#   category: registry_set\n# detection:\n#   selection:\n#     TargetObject|contains: 'Services\\\\W32Time\\\\TimeProviders'\n#     Details|contains: '.dll'\n#   filter:\n#     Details|contains: 'C:\\\\Windows\\\\System32\\\\'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Virtualisation platforms that register a signed time provider during tools installation",
+    "Domain controllers where an administrator adds a vendor time provider for compliance reasons",
+    "System imaging workflows that apply a reference registry configuration during build",
+    "Clock synchronisation appliances whose driver package registers its own provider library"
+  ],
+  "tuningNotes": "Record every provider library path present on your domain controllers and servers today, and filter that list, since it changes very rarely. Add a filter for the vendor installer parents you trust and require a valid signature on the named library. Scope to domain controllers and servers that hold authoritative time, and keep workstations at lower severity. The coverage you lose by trusting a signed library is a stolen signing key or a path substitution, so keep the check on the file path itself and alert if a filtered path starts pointing at a different file name.",
+  "severity": "high"
+}

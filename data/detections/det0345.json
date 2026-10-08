@@ -1,0 +1,107 @@
+{
+  "id": "det0345",
+  "type": "detection",
+  "title": "Detection Strategy for Abuse Elevation Control Mechanism (T1548)",
+  "shortTitle": "Detection Strategy for Abuse Elevation Control Mechanism ...",
+  "externalId": "DET0345",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Abuse of the Elevation Control Mechanism (T1548), where an adversary tries to gain higher privileges without a legitimate prompt, for example through a redirected elevation helper on Windows or a permissive sudo rule on a Unix like host. The technique matters because successful elevation turns a limited user or an unprivileged service into an administrator or root account, which is the step that unlocks credential theft and lateral movement. The telemetry that exposes it is process creation with parent and command line, registry writes that redirect an elevation path, and authentication records for privilege commands such as sudo and su. The main failure mode is that administrators legitimately elevate many times a day, so the rule must key on unusual parents, redirects and the accounts involved.",
+  "tags": [
+    "privilege escalation",
+    "uac",
+    "sudo",
+    "process creation",
+    "t1548"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Abuse Elevation Control Mechanism (T1548)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0345/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Abuse Elevation Control Mechanism (T1548) - EASY",
+      "path": "exercises/det0345/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Abuse Elevation Control Mechanism (T1548) - MEDIUM",
+      "path": "exercises/det0345/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Abuse Elevation Control Mechanism (T1548) - HARD",
+      "path": "exercises/det0345/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Abuse Elevation Control Mechanism (T1548) - EXTREMELY HARD",
+      "path": "exercises/det0345/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for attempts to gain more power on a computer without a normal permission prompt. On Windows this means the permission window that asks you to allow a change. On Linux and macOS it means commands that run a task as the root user.",
+    "whyItMatters": "A normal user account cannot install software or read every file. Attackers need more power to steal passwords and to move between computers. The step from a normal user to an administrator is often the point where an incident becomes serious. Legitimate staff also elevate, so the rule must compare the pattern with normal work. Getting this alert right tells you quickly whether an attacker has a strong foothold.",
+    "howItWorks": [
+      "The operating system logs the process start for every program, including the parent program and the command line.",
+      "The rule focuses on the programs that Windows or Linux uses to prepare an elevated action.",
+      "It checks whether the parent program is a scripting host, which should not drive an elevation helper.",
+      "It also watches registry and configuration writes that redirect the elevation path to a new command.",
+      "On Unix like hosts, it reads the authentication records for privilege commands and their arguments.",
+      "A match is scored by the account, the host role and whether a real prompt appeared for the user."
+    ],
+    "example": "Think of a hotel where the front desk gives out room keys only with a manager's approval. A guest who finds a spare master key avoids the desk completely. The guest never asks for anything, so the desk record looks clean. The clue is that a room was opened without any approval being logged.",
+    "takeaways": [
+      "The parent process and the account tell you more than the program name.",
+      "A redirected elevation path is a strong signal, not a weak one.",
+      "Compare elevation activity with how each host role normally behaves."
+    ]
+  },
+  "objectives": [
+    "Explain how the elevation control mechanism can be bypassed or abused on Windows and Unix like systems",
+    "Identify process, registry and authentication telemetry that records an elevation attempt",
+    "Establish a baseline of normal elevation parents and privilege command use per host role",
+    "Write a rule that joins the elevation helper, its parent, the account and any redirect of the elevation path",
+    "Triage a match by checking whether the user saw a prompt and whether the action matched a ticket",
+    "Assess the coverage lost when the rule is limited to servers or to a short list of helper programs"
+  ],
+  "techniqueId": "t1548",
+  "detectsTechniques": [
+    "t1548"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation showing the elevation helper, its parent image and command line",
+    "Sysmon event 1 process creation with parent image, integrity level and full command line",
+    "Sysmon event 13 registry value set for user writable keys that redirect an auto elevating program",
+    "Linux auditd execve records for sudo, su, pkexec and set user id binaries",
+    "Linux and macOS authentication records for privilege command sessions, including the command that was run"
+  ],
+  "logic": "The pattern is a program that prepares an elevated action started by a parent that should not start it, or a change to the configuration that decides which command an elevation helper will run. The fields that must be correlated are the helper image, the parent image, the command line, the user account, the host role and any registry or configuration write made moments before. The benign case is a signed installer or a management tool started by an interactive administrator, or a documented sudo rule used by an automation account on a build server. The malicious case is a scripting host or an office document process starting an elevation helper, a freshly written redirect key in the user hive, or a privilege command run by an account that has never used one before.",
+  "pseudoQuery": "# title: Elevation Helper Started By Scripting Or Document Parent\n# logsource:\n#   product: windows\n# detection:\n#   selection_helper:\n#     Image|endswith:\n#       - '\\\\fodhelper.exe'\n#       - '\\\\sdclt.exe'\n#       - '\\\\computerdefaults.exe'\n#   selection_parent:\n#     ParentImage|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\cmd.exe'\n#       - '\\\\wscript.exe'\n#   condition: selection_helper and selection_parent\n# level: high",
+  "falsePositives": [
+    "Software management platforms that launch signed installers through an elevation helper on managed endpoints",
+    "Automation accounts on build or configuration servers that run privileged commands without an interactive prompt",
+    "Help desk tools that trigger an elevation prompt on behalf of a user during a remote support session",
+    "Standard operating system maintenance tasks that use an auto elevating program at a scheduled time"
+  ],
+  "tuningNotes": "Baseline the parent child pairs for each host role for at least two weeks, then alert only on new pairs and on helpers started by scripting hosts or document readers. Filter signed deployment and remote support agents by image path and publisher, and keep the registry redirect part of the rule active on user workstations where such writes are rare. On Unix like hosts, restrict the rule to privilege commands run by accounts that never used them before. The trade off is that an attacker who reuses a parent pair that already exists in the baseline, or who edits a privilege rule slowly over several days, will not trigger the narrowed rule, so review the baseline for drift each month.",
+  "severity": "high"
+}

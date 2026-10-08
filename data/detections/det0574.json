@@ -1,0 +1,106 @@
+{
+  "id": "det0574",
+  "type": "detection",
+  "title": "Detection Strategy for Remote System Enumeration Behavior",
+  "shortTitle": "Detection Strategy for Remote System Enumeration Behavior",
+  "externalId": "DET0574",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers remote system enumeration behaviour, tracked as T1018, where an adversary maps the hosts and shares reachable on a network before choosing targets for lateral movement. It matters because the scan is quiet, uses ordinary protocols and often comes from an account or host that is already trusted, so it is one of the last cheap opportunities to intervene before credentials are used against another machine. Detection draws on authentication logs showing one source account or host touching many distinct destinations, firewall and netflow records showing a single source contacting many targets on file sharing, directory or name resolution ports, and endpoint process creation for built in administrative tools that enumerate remote hosts. The practical failure is that vulnerability scanners, inventory agents and backup software perform the same pattern at scale, so the rule has to separate an approved scanner subnet from an interactive account that suddenly talks to hundreds of machines.",
+  "tags": [
+    "discovery",
+    "network-scanning",
+    "lateral-movement",
+    "windows",
+    "t1018"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Remote System Enumeration Behavior",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0574/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Remote System Enumeration Behavior - EASY",
+      "path": "exercises/det0574/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Remote System Enumeration Behavior - MEDIUM",
+      "path": "exercises/det0574/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Remote System Enumeration Behavior - HARD",
+      "path": "exercises/det0574/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Remote System Enumeration Behavior - EXTREMELY HARD",
+      "path": "exercises/det0574/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for one computer or account that contacts many other computers to learn about them. Mapping the network this way is called remote system discovery. The technique covers finding hosts before moving to them.",
+    "whyItMatters": "An attacker needs a list of targets before moving deeper into your network. Building that list creates a pattern, because one source talks to many machines in a short time. Normal work rarely looks like that from a single account. Catching the scan gives you time before real damage starts.",
+    "howItWorks": [
+      "The platform collects network records that show which host contacted which other host and on which port.",
+      "A filter keeps traffic to file sharing, directory service and name resolution ports.",
+      "It counts the number of different destinations reached by one source in a short window.",
+      "Authentication records are added, so you can see whether the source also tried to log in.",
+      "The platform compares the count with the normal pattern for that host and that account.",
+      "An alert fires when one source reaches far more hosts than it usually does."
+    ],
+    "example": "Think of a courier who must deliver one parcel to one address. Now imagine the same courier knocking on two hundred doors in an hour. At each door, the courier writes a note. The receptionist notices at once. No parcel was stolen, yet the round is clearly not a delivery round.",
+    "takeaways": [
+      "A single source reaching many hosts is the core signal, so count destinations.",
+      "Scanners create the same pattern, so they must be identified and excluded.",
+      "Combine network records with authentication records for a stronger finding."
+    ]
+  },
+  "objectives": [
+    "Explain why a host inventory is useful to an adversary before lateral movement.",
+    "Identify the network ports and logs that reveal enumeration traffic.",
+    "Describe how to count distinct destinations per source over time.",
+    "Correlate a network scan with failed or unusual authentication attempts.",
+    "Explain how to document and exclude approved scanners."
+  ],
+  "techniqueId": "t1018",
+  "detectsTechniques": [
+    "t1018"
+  ],
+  "dataSources": [
+    "Firewall or netflow records showing one source address contacting many distinct destinations on file sharing and directory service ports",
+    "Windows Security event 4624 logon records on many destination hosts sharing the same source account within a short window",
+    "Windows Security event 4625 failed logon records across multiple destination hosts from one source",
+    "Sysmon event 1 process creation for built in tools that enumerate remote hosts and shares",
+    "DNS server query logs showing repeated name resolution requests for sequential hostname patterns from one client"
+  ],
+  "logic": "The pattern is one source host or one account reaching a high number of distinct destinations on internal discovery related ports inside a short window, optionally followed by authentication attempts against those hosts. You must correlate the source address, the account used, the count of unique destinations, the ports touched and the time span, because vulnerability scanning appliances and inventory agents contact many hosts by design while a finance workstation that normally talks to three servers contacting two hundred is abnormal. The malicious case is distinguished by the requested information: share listings, host name queries and logon attempts rather than a fixed scan profile, and by the source being a workstation rather than a designated scanning host.",
+  "pseudoQuery": "# title: Single Source Contacting Many Hosts on Discovery Ports\n# logsource:\n#   product: network\n#   service: firewall\n# detection:\n#   selection:\n#     dst_port:\n#       - 445\n#       - 139\n#       - 389\n#       - 135\n#     action: allow\n#   filter_scanner:\n#     src_ip|cidr: '10[.]20[.]0[.]0/24'\n#   condition: selection and not filter_scanner | count(dst_ip) by src_ip > 50\n# level: medium",
+  "falsePositives": [
+    "Authenticated vulnerability scanners that enumerate hosts on a documented schedule from a fixed subnet",
+    "Asset inventory and software metering agents that poll every workstation for installed applications",
+    "Backup software that connects to every file server in a site during its nightly job",
+    "Administrators using a remote management console that opens sessions to many hosts at once"
+  ],
+  "tuningNotes": "Document every authorised scanner and management subnet first, since those sources must be excluded by address rather than by port, then set the destination threshold from the observed ninety-ninth percentile of your busiest legitimate internal source. Scope alerting to workstation to workstation traffic first, because that is the pattern lateral movement needs, and add a requirement that the same account also attempts authentication. Raising the threshold and scoping to workstations cuts noise sharply but means a slow scan spread over hours or a scan from a busy server will be missed, so also run a daily report on first time source and destination pairs at a lower threshold.",
+  "severity": "medium"
+}

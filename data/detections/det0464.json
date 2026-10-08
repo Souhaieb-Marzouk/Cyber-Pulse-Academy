@@ -1,0 +1,105 @@
+{
+  "id": "det0464",
+  "type": "detection",
+  "title": "Behavioral Detection of Wi-Fi Discovery Activity",
+  "shortTitle": "Behavioral Detection of Wi-Fi Discovery Activity",
+  "externalId": "DET0464",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Wi-Fi discovery activity, where a host scans for nearby wireless networks to map the wireless environment, identify access points, and learn about networks the device has connected to before. It matters because a laptop that has been to a sensitive site carries a list of preferred network names, and that list reveals where the organisation operates and can be used to lure the device onto a fake access point. Detection depends on endpoint process and command telemetry for wireless scanning utilities, on operating system wireless event logs that record scan cycles and connection attempts, and on location or interface telemetry that shows scans from a device that has no reason to roam. It fails in practice because the operating system scans automatically, so the rule has to separate a user driven survey from routine background scanning.",
+  "tags": [
+    "discovery",
+    "wireless",
+    "reconnaissance",
+    "endpoint",
+    "network"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Wi-Fi Discovery Activity",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0464/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Wi-Fi Discovery Activity - EASY",
+      "path": "exercises/det0464/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Wi-Fi Discovery Activity - MEDIUM",
+      "path": "exercises/det0464/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Wi-Fi Discovery Activity - HARD",
+      "path": "exercises/det0464/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Wi-Fi Discovery Activity - EXTREMELY HARD",
+      "path": "exercises/det0464/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Wireless network discovery means listing the Wi-Fi networks that are nearby. This detection looks for that scanning on devices that do not normally perform surveys. A survey can show where your sites are and which network names your staff trust.",
+    "whyItMatters": "A device remembers the networks it joined. That history tells an attacker where your offices are and what your network names look like. The names can then be copied to build a fake access point that the device joins by itself.",
+    "howItWorks": [
+      "The system writes a wireless event each time it scans for nearby networks.",
+      "An endpoint sensor also records commands that list wireless profiles.",
+      "The rule checks whether a survey tool or a profile listing was used.",
+      "It records the device, the user and the time of the activity.",
+      "It compares the volume of scans with the normal level for that device.",
+      "A survey run on a fixed office desktop is raised for review."
+    ],
+    "example": "Think of a visitor who walks the corridors writing down every office name on each door. Nothing is broken or opened, but the visitor leaves with a map and a list of names to use later.",
+    "takeaways": [
+      "Saved wireless profiles reveal where a device has been.",
+      "Surveys on fixed devices are unusual and worth a look.",
+      "Routine background scanning makes baselines essential."
+    ]
+  },
+  "objectives": [
+    "Explain what a wireless survey collects and why it is useful to an attacker",
+    "Identify wireless event and process telemetry that reveals scanning",
+    "Separate normal background scanning from a deliberate survey",
+    "Recognise the risk from saved wireless profiles on mobile devices",
+    "Recommend policy that limits profile retention and survey tooling"
+  ],
+  "techniqueId": "t1016-002",
+  "detectsTechniques": [
+    "t1016-002"
+  ],
+  "dataSources": [
+    "Windows wireless network connection and scan event logs recording scan cycles and attempted network names",
+    "Sysmon event 1 or Linux auditd execve records for wireless survey and profile listing commands",
+    "macOS unified log entries for the airport or wireless framework showing scan requests and preferred network lists",
+    "Mobile device management or endpoint agent inventory of saved wireless profiles per device"
+  ],
+  "logic": "The pattern is wireless scanning that is driven by a user or tool rather than by the operating system roaming normally. Correlate the device name and its role, the process image and command line, the count of scan cycles per hour, the number of distinct network names observed, and the account active at the time. The benign case is a laptop or phone whose wireless service scans on a fixed cadence while roaming, or an approved wireless engineer running a survey from a known test device with a change record. The malicious case is a desktop or server with no wireless business need running a survey tool, a device listing saved wireless profiles in bulk, or a scan rate many times the baseline from a device that is not part of the wireless team. The device role and the presence of an interactive user session are the discriminators.",
+  "pseudoQuery": "# title: Wireless survey or profile listing on a device that should not roam\n# logsource:\n#   product: macos\n# detection:\n#   selection_tool:\n#     Image|endswith:\n#       - '/usr/sbin/airport'\n#       - '/usr/bin/networksetup'\n#     CommandLine|contains:\n#       - '-s'\n#       - 'scan'\n#       - 'listpreferredwirelessnetworks'\n#   selection_scan:\n#     EventType: 'wireless_scan'\n#     ScanCount|gte: 30\n#   filter_wireless_team:\n#     User|endswith:\n#       - 'wireless.engineer'\n#       - 'svc_survey'\n#   condition: (selection_tool or selection_scan) and not filter_wireless_team\n# level: low",
+  "falsePositives": [
+    "Wireless engineers running approved site surveys to plan coverage or troubleshoot interference",
+    "Mobile laptops and phones that scan automatically while moving between floors and buildings",
+    "Operating system updates or network drivers that rescan repeatedly during installation",
+    "Conference or visitor networks where devices probe for many network names in a short time"
+  ],
+  "tuningNotes": "Baseline the normal scan rate for each device group and alert only on a rate that is several times higher, or on the presence of survey tools, rather than on any scan event. Scope the rule to fixed devices such as desktops, servers, and kiosks where wireless discovery has no purpose, and allow the wireless team accounts and test hardware. Reduce the sensitivity on laptops, where roaming scans are normal. Excluding all laptops loses coverage of a travelling executive device being surveyed before a fake access point is deployed, so keep a lower severity report of devices that list many saved profiles and review it during investigations.",
+  "severity": "low"
+}

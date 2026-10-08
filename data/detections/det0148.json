@@ -1,0 +1,106 @@
+{
+  "id": "det0148",
+  "type": "detection",
+  "title": "Detection Strategy for Forged SAML Tokens",
+  "shortTitle": "Detection Strategy for Forged SAML Tokens",
+  "externalId": "DET0148",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1606.002, forged security assertion markup language tokens, where an intruder mints or edits an identity assertion so that a single sign on service treats them as a legitimate user, including an administrator. Detection works on the assertion and on the authentication record around it: the signing certificate and its thumbprint, the issuer and audience values, the validity window, the claim values, and the correlation of that session with a normal interactive sign-in and with device compliance state. The main failure mode is that service providers already accept assertions from many source addresses and devices, so a strange looking token is easy to dismiss. The rule must therefore weight signature validation failures and impossible claim combinations far above simple attribute oddities.",
+  "tags": [
+    "t1606.002",
+    "identity",
+    "federation",
+    "token-forgery",
+    "single-sign-on"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Forged SAML Tokens",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0148/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Forged SAML Tokens - EASY",
+      "path": "exercises/det0148/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Forged SAML Tokens - MEDIUM",
+      "path": "exercises/det0148/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Forged SAML Tokens - HARD",
+      "path": "exercises/det0148/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Forged SAML Tokens - EXTREMELY HARD",
+      "path": "exercises/det0148/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Single sign on lets one login open many applications. The login system sends the app a signed statement that says who you are. This detection looks for statements that are fake, edited, or signed with a key that does not match.",
+    "whyItMatters": "A forged statement can name any user, including a senior administrator, so the attacker skips passwords and multi factor prompts. Applications trust the statement because it comes through a normal path. Checking the signature and the claim values is often the only way to notice.",
+    "howItWorks": [
+      "When you open a connected application, the identity provider issues a signed statement.",
+      "The application or gateway logs whether it accepted the statement and how the signature was checked.",
+      "The detection compares the signing certificate with the one the identity provider actually uses.",
+      "It checks each claim, such as the group list and the validity window, against the directory record.",
+      "It then matches the session with the sign-in records to see whether a real login happened first."
+    ],
+    "example": "Think of a visitor badge at an office. Reception prints the badge and the door reader trusts the printed code. A forged badge may look right to a busy guard. But the printed code belongs to a printer retired last year. Comparing the code with the printer list catches the fake without any confrontation.",
+    "takeaways": [
+      "Trust in single sign on rests on the signature, so check it.",
+      "Claims that cannot coexist are a strong signal of a forged token.",
+      "Pair every federated session with a real sign-in record."
+    ]
+  },
+  "objectives": [
+    "Describe what a security assertion markup language token is and who issues it",
+    "Explain how a forged or edited token grants access without a password",
+    "Identify the token fields and signature data that reveal tampering",
+    "Correlate federated sessions with identity provider sign-in records",
+    "Recognise legitimate certificate rotation as a benign cause of signature errors",
+    "Rate the severity of a suspected forged token event"
+  ],
+  "techniqueId": "t1606-002",
+  "detectsTechniques": [
+    "t1606-002"
+  ],
+  "dataSources": [
+    "Identity provider sign-in logs for federated authentication showing issuer, audience, and token issue time",
+    "Application gateway or service provider logs recording assertion validation results and signing certificate thumbprints",
+    "Certificate lifecycle records for the token signing certificates published by the identity provider",
+    "Directory audit records for changes to trusted issuers, federated domains, and token signing settings",
+    "Privileged role assignment and group membership logs for the account named inside the assertion"
+  ],
+  "logic": "The detection looks for an assertion that a service provider accepts even though it cannot have come from the legitimate issuer. The fields that must be correlated are the signing certificate thumbprint, the issuer and audience values, the validity window compared with the request time, the claim values such as group membership and role, the source address and device of the request, and whether a matching successful sign-in exists at the identity provider for that account in the same minute. A benign case is a valid assertion issued seconds earlier to a compliant device with claims that match the directory, while the malicious case is a signature that fails validation, an assertion whose audience does not match the receiving application, an unusually long validity window, or a session with no counterpart sign-in at the provider.",
+  "pseudoQuery": "# title: Federated Assertion Accepted Without Matching Identity Provider Sign-In\n# logsource:\n#   product: azure\n#   service: signinlogs\n# detection:\n#   selection:\n#     AuthenticationProtocol: 'SAML'\n#     SignatureStatus|contains: 'invalid'\n#   condition: selection\n# level: critical",
+  "falsePositives": [
+    "Certificate rotation performed by the identity team, which briefly breaks signature validation for cached tokens",
+    "A legacy application that does not validate signatures strictly and logs warnings during normal use",
+    "Clock drift on an application server that makes a valid assertion appear outside its validity window",
+    "Third party integration testing against a staging identity provider that shares log storage with production"
+  ],
+  "tuningNotes": "Begin by collecting the published token signing certificates so that the rule can compare thumbprints precisely, and allow list signature warnings only from applications documented as not enforcing validation. Add a filter for planned certificate rotation windows, and require the absence of a matching provider sign-in before alerting at the highest severity. Scope the strongest branch to administrator and privileged accounts, where a forged token has the greatest impact, and keep a lower severity branch for ordinary users. The coverage you lose by requiring a missing sign-in is token replay that follows a real but compromised login, so also alert on the same assertion identifier being presented from two different source addresses.",
+  "severity": "critical"
+}

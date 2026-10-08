@@ -1,0 +1,107 @@
+{
+  "id": "det0524",
+  "type": "detection",
+  "title": "Traffic Signaling (Port-knock / magic-packet → firewall or service activation) – T1205",
+  "shortTitle": "Traffic Signaling (Port-knock / magic-packet → firewall o...",
+  "externalId": "DET0524",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy looks for traffic signalling, the use of a special sequence of network packets to wake a hidden service or open a path through a packet filter. A single magic packet, a fixed order of connection attempts to closed ports, or a crafted field value can tell a dormant implant that it is safe to start, which keeps the implant quiet during routine monitoring. Packet filter rule changes, firewall logs that show a short ordered sequence of refused connections followed by a rule commit, and flow records with repeated refused connections in a fixed order supply the evidence. The main failure mode is treating the knock itself as an attack when it may be an approved administrative access control, so the rule must be tied to what happens after the sequence.",
+  "tags": [
+    "command and control",
+    "network",
+    "firewall",
+    "port knocking",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Traffic Signaling (Port-knock / magic-packet → firewall or service activation) – T1205",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0524/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Traffic Signaling (Port-knock / magic-packet → firewall or service activation) – T1205 - EASY",
+      "path": "exercises/det0524/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Traffic Signaling (Port-knock / magic-packet → firewall or service activation) – T1205 - MEDIUM",
+      "path": "exercises/det0524/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Traffic Signaling (Port-knock / magic-packet → firewall or service activation) – T1205 - HARD",
+      "path": "exercises/det0524/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Traffic Signaling (Port-knock / magic-packet → firewall or service activation) – T1205 - EXTREMELY HARD",
+      "path": "exercises/det0524/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a secret knock on the network. A program on an infected host sleeps until it hears a special pattern of packets. Then it wakes up and starts working. The alert fires when such a pattern is followed by a new open port or a firewall rule change.",
+    "whyItMatters": "A silent implant is hard to find, because it does nothing until someone calls it. Traffic signalling lets the attacker choose when the implant is active. The implant can then stay quiet through most of your monitoring. The knock often looks like harmless failed connections to closed ports. Only the change that follows the knock shows the real intent. Linking the two gives you a rare view of a hidden entry point switching on.",
+    "howItWorks": [
+      "Network sensors log every connection attempt with the source, the destination, the port and the connection state.",
+      "The rule looks for several refused connections from one source. They arrive at different ports inside a short window, in a fixed order.",
+      "At the same time, host or gateway logs are checked for packet filter changes. A new accept rule is the clearest example.",
+      "The rule joins the two streams by source address and by time. It keeps pairs that happen within a few minutes.",
+      "Known knock configurations used by administrators are filtered out by source and destination pair.",
+      "Surviving pairs become an alert that shows the port sequence and the rule that was added."
+    ],
+    "example": "Think of a closed shop with a back door. The owner knocks three times, then once, and a helper inside opens the door. To anyone walking past, the knocks mean nothing, and the shop still looks shut. The useful clue is not the knocking on its own. It is the door opening right after a strange pattern that no normal visitor makes.",
+    "takeaways": [
+      "The knock is weak evidence on its own; the state change that follows it is the real signal.",
+      "Correlate network flow records with firewall rule or service state changes by source and time.",
+      "Approved port knocking setups exist, so allow them by address pair before you alert."
+    ]
+  },
+  "objectives": [
+    "Describe how a packet sequence can activate a dormant service or open a firewall path",
+    "Identify the flow record fields used to spot an ordered sequence of refused connections from one source",
+    "Explain how to correlate a knock sequence with a packet filter rule change or a new listening service",
+    "Distinguish approved administrative port knocking from malicious traffic signalling",
+    "Choose a correlation window and explain the coverage it costs",
+    "Decide on a severity for signalling that leads to a hidden remote access path"
+  ],
+  "techniqueId": "t1205",
+  "detectsTechniques": [
+    "t1205"
+  ],
+  "dataSources": [
+    "Host firewall or packet filter logs that record accepted and dropped connections with source and destination ports",
+    "Linux auditd records for rule changes made by the packet filter control tools",
+    "Process creation records for commands that change firewall rules, including the full command line and the parent process",
+    "Network flow records such as connection logs with source address, destination port, state and timing fields",
+    "Router or gateway configuration change audit logs for access control list edits"
+  ],
+  "logic": "The pattern is a short, ordered burst of connection attempts to closed ports from one source, followed closely by a state change that makes a service reachable. Correlate flow records with packet filter or service state logs on the source address and the time window: several refused connections in a fixed order, then a new accept rule, a new listening socket, or a service start on the same host. The benign case is an approved administrative knock configuration, a scanner probing many ports, or peer to peer software retrying several ports after a refusal. The malicious case is a knock from an external address that no asset owner recognises, followed by a rule that allows a single unusual port.",
+  "pseudoQuery": "# title: Port Knock Sequence Followed By Firewall Rule Change\n# logsource:\n#   product: network\ndetection:\n  selection_knock:\n    ConnectionState: 'S0'\n    DestinationPort|count() > 5\n  selection_change:\n    EventType: 'firewall_rule_change'\n  filter_known:\n    SourceIP: '10[.]0[.]0[.]10'\n  condition: selection_knock and selection_change and not filter_known\nlevel: high",
+  "falsePositives": [
+    "Authorised port knocking used by administrators to reach a management interface from outside the office",
+    "Vulnerability scanners that probe many closed ports in sequence against an agreed target list",
+    "Peer to peer applications that retry connections to several ports after the first attempt is refused",
+    "Load balancer or address translation health checks that produce ordered refused connections"
+  ],
+  "tuningNotes": "List every approved knock configuration and the addresses that use it, then allow those source and destination pairs. Scope the rule to internet facing gateways and build servers rather than the whole estate, because client software produces most refused connection sequences. Correlate the knock with a state change inside a five minute window, since the sequence alone is too common to act on. That short window costs you coverage of slow knock schemes that wait hours between the sequence and the service start, so add a slower daily review of unmatched sequences.",
+  "severity": "high"
+}

@@ -1,0 +1,109 @@
+{
+  "id": "det0006",
+  "type": "detection",
+  "title": "Detection Strategy for Network Boundary Bridging",
+  "shortTitle": "Detection Strategy for Network Boundary Bridging",
+  "externalId": "DET0006",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects network boundary bridging (T1599), where an adversary changes the configuration of network devices so that traffic can cross a boundary that policy says it must not cross. The change is usually small and looks administrative: a new route, an interface moved into another virtual network, a tunnel endpoint added or a firewall rule relaxed. Detection is a configuration and change management problem rather than a traffic problem, because the resulting packets look ordinary. The telemetry that makes it possible is device configuration change logging, routing and tunnel state, and identity records for who made the change. It fails when devices are managed only by periodic configuration backups, which give no actor and no timestamp for the change.",
+  "tags": [
+    "defense evasion",
+    "network segmentation",
+    "configuration change",
+    "t1599",
+    "firewall",
+    "routing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Network Boundary Bridging",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0006/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Network Boundary Bridging - EASY",
+      "path": "exercises/det0006/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Network Boundary Bridging - MEDIUM",
+      "path": "exercises/det0006/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Network Boundary Bridging - HARD",
+      "path": "exercises/det0006/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Network Boundary Bridging - EXTREMELY HARD",
+      "path": "exercises/det0006/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A network boundary is a line that traffic should not cross, such as the gap between a factory network and the office network. Bridging means building a path across that line. Attackers do this by changing settings on routers, switches or firewalls. This detection looks for those changes.",
+    "whyItMatters": "Once the path exists, the attacker reaches systems that were protected only by being unreachable. The traffic then looks normal, because it uses allowed ports and allowed protocols. Guards that watch for strange traffic see nothing unusual. Only the configuration tells the story. That means you must log configuration changes as carefully as you log logins.",
+    "howItWorks": [
+      "Your network devices send their configuration change records to a central log platform, with the account and address that made each change.",
+      "The platform stores a known good copy of each device configuration and compares the new one with the old one.",
+      "The detection looks for specific change types, such as a new static route, a tunnel added or a relaxed firewall rule.",
+      "It also looks at interface settings, because moving an interface into another virtual network joins two segments.",
+      "Each change is matched against an approved change ticket, and changes without a ticket score higher.",
+      "A rare or unexpected login to the device shortly before the change adds weight to the alert."
+    ],
+    "example": "Picture a fence between two fields with a locked gate. The gate is the boundary. Someone does not climb the fence. They quietly add a second gate and pocket the key. Every walker then uses the new gate, and nothing looks wrong from the field.",
+    "takeaways": [
+      "Boundary bridging is a configuration change, so configuration logging is the sensor.",
+      "The packets that follow look normal, so traffic analysis alone will miss it.",
+      "Requiring an approved change ticket is the strongest filter you have."
+    ]
+  },
+  "objectives": [
+    "Describe what a network boundary is and why bridging it undermines segmentation.",
+    "Identify the device log sources that record configuration changes with an actor and a timestamp.",
+    "Recognise the specific change types that create a path across a boundary, such as routes, tunnels and virtual network reassignment.",
+    "Explain how to compare a running configuration against a known good baseline.",
+    "Correlate an administrative login with the configuration change that follows it.",
+    "Set severity levels that reflect which boundary was crossed, not how the change was made."
+  ],
+  "techniqueId": "t1599",
+  "detectsTechniques": [
+    "t1599"
+  ],
+  "dataSources": [
+    "Network device configuration change logs recording the account, source address and changed lines",
+    "Syslog messages from routers and switches for interface state, virtual local area network membership and route table changes",
+    "Virtual private network and tunnel gateway logs showing new tunnel peers or changed encryption settings",
+    "Cloud virtual network, route table and firewall policy audit records such as VPC route creation events",
+    "Authentication logs for network device management interfaces showing administrative logins and privilege escalation"
+  ],
+  "logic": "The rule treats configuration change as the primary event and asks whether the change could join two segments that policy separates. The selection covers change types that alter reachability: a static route added, a tunnel peer configured, a network interface moved into another virtual local area network or subnet, a firewall or security group rule that widens a source range, or network address translation added. Fields that must be correlated are the device or networking object, the account that made the change, the source address of the management session, the exact configuration lines added or removed, and the change ticket or approval reference if your platform records one. The malicious case is a reachability widening change made from an unusual management address, outside a change window, without an approved ticket, and often preceded by a first time administrator login from that address. The benign case is the same change type performed during a documented maintenance window by a network engineer from a known management host.",
+  "pseudoQuery": "# title: Network Configuration Change That Widens Reachability\n# logsource:\n#   product: network\n# detection:\n#   selection_change:\n#     action:\n#       - 'config_change'\n#       - 'route_add'\n#       - 'acl_modify'\n#       - 'vlan_change'\n#       - 'tunnel_create'\n#   selection_lines:\n#     config_diff|contains:\n#       - 'permit ip any'\n#       - 'route-map'\n#       - 'encapsulation tunnel'\n#   filter_window:\n#     change_approved: 'true'\n#   condition: selection_change and selection_lines and not filter_window\n# level: high",
+  "falsePositives": [
+    "Scheduled network maintenance windows where an engineer adds routes for a new site link",
+    "Data centre migrations that temporarily span two segments while systems are moved",
+    "Disaster recovery testing that brings up a tunnel to a standby site",
+    "Network automation pipelines that reconcile device configuration from a source of truth",
+    "Vendor remote support sessions that adjust a firewall rule to complete a troubleshooting task"
+  ],
+  "tuningNotes": "Baseline every device configuration first and store a signed copy, so you can diff rather than alert on the raw change event. Add a filter for changes that carry an approved ticket reference from your change management system, and for changes made from your network management subnet. Scope the critical severity rating to boundaries that protect regulated or industrial segments, and use a lower severity elsewhere. Tune the configuration line patterns to your own device syntax, because vendor dialects differ and a wrong pattern silently drops coverage. Review your audit trail quarterly, since devices that were not configured to export change logs will not appear in this detection at all.",
+  "severity": "critical"
+}

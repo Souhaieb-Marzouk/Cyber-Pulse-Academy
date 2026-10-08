@@ -1,0 +1,107 @@
+{
+  "id": "det0188",
+  "type": "detection",
+  "title": "Local Storage Discovery via Drive Enumeration and Filesystem Probing",
+  "shortTitle": "Local Storage Discovery via Drive Enumeration and Filesys...",
+  "externalId": "DET0188",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects local storage discovery, where an adversary enumerates drives, volumes, mount points and free space on a host to decide what is worth collecting or where to stage data. It matters because this reconnaissance step sits immediately before collection and exfiltration, so catching it gives you a short but genuine head start, and because it is cheap to detect from command line telemetry that you probably already collect. Detection uses process creation with full command lines, file system enumeration tooling and in some cases file access auditing on volume roots. The practical difficulty is volume: inventory agents, backup software, monitoring plugins and even the operating system itself enumerate drives constantly, so a rule that fires on the command family alone is unusable.",
+  "tags": [
+    "discovery",
+    "storage",
+    "command line",
+    "windows",
+    "linux",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Local Storage Discovery via Drive Enumeration and Filesystem Probing",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0188/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Local Storage Discovery via Drive Enumeration and Filesystem Probing - EASY",
+      "path": "exercises/det0188/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Local Storage Discovery via Drive Enumeration and Filesystem Probing - MEDIUM",
+      "path": "exercises/det0188/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Local Storage Discovery via Drive Enumeration and Filesystem Probing - HARD",
+      "path": "exercises/det0188/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Local Storage Discovery via Drive Enumeration and Filesystem Probing - EXTREMELY HARD",
+      "path": "exercises/det0188/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for commands that list the disks and volumes on a computer. Attackers run these commands to learn what storage exists and how much free space it has. The commands are built into Windows and Linux, so no special tool is needed. The rule looks at who ran them, how often, and what ran next.",
+    "whyItMatters": "Before stealing data, an attacker needs to know where it lives. Listing drives is a fast way to find out. These commands are not harmful on their own, but they are unusual on a user laptop. Grouping them with what happens next turns a weak clue into a strong one. It also gives you a chance to act before any data leaves.",
+    "howItWorks": [
+      "A user or process runs a command that lists drives, volumes or free space.",
+      "Windows or Linux records the process and its full command line.",
+      "The rule checks which account ran it and from which parent process.",
+      "It compares that account and host against the usual pattern for that asset type.",
+      "It then looks for related activity, such as an archive or a copy, nearby in time.",
+      "A rare command from a rare parent, followed by collection, becomes the alert."
+    ],
+    "example": "Picture a courier who has just entered an office building. Before taking anything, they walk the corridors and read the room numbers to see which floors hold stock. Walking the corridors breaks no rules. But the front desk notices something odd. The visitor never goes to the meeting room they signed in for. Instead they start reading every door plate on the floor.",
+    "takeaways": [
+      "Drive enumeration is discovery, so its value comes from what happens next.",
+      "These commands are built in, so you detect behaviour rather than a specific tool.",
+      "Baseline your inventory and backup agents first or the rule will never be quiet."
+    ]
+  },
+  "objectives": [
+    "Explain why local storage discovery precedes collection and exfiltration.",
+    "Identify the built in commands that enumerate drives, volumes and free space.",
+    "Correlate a discovery command with the parent process and account that started it.",
+    "Use rarity of command and parent pair as the primary detection signal.",
+    "Recognise the discovery, staging and transfer sequence as a chained detection.",
+    "Describe why asset type changes whether a discovery command is suspicious."
+  ],
+  "techniqueId": "t1680",
+  "detectsTechniques": [
+    "t1680"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including full command line and parent image",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Linux auditd execve records capturing interpreter and utility argument vectors",
+    "Sysmon event 11 file creation recording archive or staging files written after enumeration"
+  ],
+  "logic": "The pattern is a process that runs drive or volume enumeration commands on a host, especially when that command and parent combination is rare for the account or the asset group, and particularly when it is followed within a short window by file collection or archive creation. The fields to correlate are the process image, the full command line, the parent image and command line, the executing account, the host asset tag, and any subsequent file writes on the same host. The malicious case shows discovery run from an interactive shell or from an unusual parent such as a document reader, web server or scheduled task created recently, often several enumeration commands chained together, and usually on a workstation or server that has never needed to inspect its own storage. The benign case is a fixed agent or a login script that runs the same command at a predictable time under a service account, with a stable parent and a stable command line.",
+  "pseudoQuery": "# title: Rare Drive and Volume Enumeration\n# logsource:\n#   product: windows\n# detection:\n#   selection_storage:\n#     EventID: 1\n#     CommandLine|contains|any:\n#       - 'fsutil fsinfo drives'\n#       - 'wmic logicaldisk'\n#       - 'Get-PSDrive'\n#       - 'Get-Volume'\n#   filter_agents:\n#     User|endswith: '$'\n#     ParentImage|endswith|any:\n#       - '\\\\inventoryagent.exe'\n#       - '\\\\backupagent.exe'\n#   filter_logon_script:\n#     CommandLine|contains: 'logon-inventory.ps1'\n#   condition: selection_storage and not (filter_agents or filter_logon_script)\n# level: low",
+  "falsePositives": [
+    "Hardware inventory agents that enumerate logical disks on every host on a fixed schedule",
+    "Backup software that checks free space and lists volumes before starting a job",
+    "Helpdesk staff checking whether a failing disk has enough free space during a support call",
+    "Virtual machine guest tooling that probes attached volumes after a disk is expanded or added"
+  ],
+  "tuningNotes": "Baseline the command and parent process pairs that run on each asset group for at least two weeks and filter those exact pairs rather than the command names, because the storage commands themselves will always be common somewhere in your estate. Scope the initial alert to user workstations and to servers that host sensitive data, where self inspection of storage is rare, and leave build servers and storage nodes out of scope entirely since they inspect volumes constantly. Add a companion chain rule that raises severity when the same host shows enumeration followed by archive creation within an hour, which is far more informative than either event alone. The coverage you lose by filtering known agents is discovery performed through their binaries, so keep a separate rule for new processes writing to disk inventory log paths and review weekly which new command and parent pairs appeared.",
+  "severity": "low"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0155",
+  "type": "detection",
+  "title": "Detection Strategy for Modify Cloud Resource Hierarchy",
+  "shortTitle": "Detection Strategy for Modify Cloud Resource Hierarchy",
+  "externalId": "DET0155",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects modification of the cloud resource hierarchy that an organisation uses to organise accounts, folders, projects and subscriptions. The covered technique matters because the hierarchy is the skeleton that carries inherited permissions and security policy, so an attacker who moves an account into a looser folder, deletes a guardrail organisational unit, or creates a shadow project can quietly gain access or hide later activity. Cloud control plane audit logs make this possible because every create, move, update and delete call against the hierarchy is recorded with an actor identity. The main failure mode is noise: platform teams and automation legitimately reshape the hierarchy, so the rule must baseline expected actors and expected change windows or it drowns in alerts.",
+  "tags": [
+    "cloud",
+    "cloud control plane",
+    "defense evasion",
+    "permission model",
+    "audit logging"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Modify Cloud Resource Hierarchy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0155/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Modify Cloud Resource Hierarchy - EASY",
+      "path": "exercises/det0155/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Resource Hierarchy - MEDIUM",
+      "path": "exercises/det0155/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Resource Hierarchy - HARD",
+      "path": "exercises/det0155/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Resource Hierarchy - EXTREMELY HARD",
+      "path": "exercises/det0155/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for changes to the way your cloud accounts and projects are organised into groups. Attackers change that structure to inherit weaker permissions or to hide new resources. The detection catches the change, not the resource itself.",
+    "whyItMatters": "Cloud providers pass permissions down from a parent group to everything inside it. If an attacker moves an account into a relaxed group, that account suddenly gains power without any visible permission edit. A deleted guardrail group can switch off security policy for a whole business unit. These changes are rare and quiet, so they are easy to miss without a rule.",
+    "howItWorks": [
+      "The cloud provider writes an audit record for every change to a group, folder, project or account.",
+      "Each record names the person or service that made the call, the target object and the action taken.",
+      "The detection keeps only the actions that reshape the hierarchy, such as moving or deleting a group.",
+      "It compares the actor and the time against a baseline of normal platform engineering work.",
+      "Anything that does not match the baseline is raised as an alert with the old and new parent shown.",
+      "An analyst then confirms whether a change ticket exists for that work."
+    ],
+    "example": "Think of a large office building where each floor passes its door keys down to the floors below. A manager quietly moves a storage room onto the executive floor, so the room now opens with an executive key. The building log still shows the same room and the same key, but the room has silently gained a much higher level of access.",
+    "takeaways": [
+      "The hierarchy carries permissions, so moving an object is a privilege change.",
+      "Legitimate platform work looks identical on the wire, so you must baseline your own teams.",
+      "Record the old and new parent in the alert, because that pair is what the analyst needs."
+    ]
+  },
+  "objectives": [
+    "Explain how inherited permissions travel down a cloud resource hierarchy.",
+    "Identify which audit log actions reshape the hierarchy rather than ordinary resources.",
+    "Baseline the identities and maintenance windows that are allowed to change the hierarchy.",
+    "Correlate a hierarchy change with a change ticket or approval record before escalating.",
+    "Describe why a move between parent groups can grant more access than a direct permission edit."
+  ],
+  "techniqueId": "t1666",
+  "detectsTechniques": [
+    "t1666"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for AWS Organizations actions such as CreateOrganizationalUnit, MoveAccount, DeleteOrganizationalUnit and UpdateOrganizationalUnit",
+    "Azure Activity log entries for management group and subscription move or delete operations",
+    "Google Cloud Audit Logs for organization, folder and project create, move, update and delete operations",
+    "Cloud identity audit records showing the actor, source IP address and session context for each hierarchy change"
+  ],
+  "logic": "The pattern is a control plane call that changes the position or existence of a hierarchy object rather than the contents of a workload. In CloudTrail, Azure Activity logs and Google Cloud Audit Logs these appear as move, delete or update actions on organizational units, management groups, folders, projects or subscriptions, and the fields that matter are the event name, the actor identity, the source IP address, the target resource path and the request parameters that record the previous and new parent. What separates malicious from benign is context rather than shape: platform automation and cloud administrators perform the same calls, so the rule must weigh the actor against a baseline of known change management identities, flag calls from unfamiliar source addresses or personal access keys, and treat deletion or downward-permissive moves of guardrail objects as the highest risk case. A single unexplained move that places an account under a less restrictive parent, or a delete that removes policy inheritance for many accounts at once, is the signal worth an analyst's time.",
+  "pseudoQuery": "# title: Cloud resource hierarchy moved or deleted by unexpected actor\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventSource: organizations.amazonaws.com\n#     eventName:\n#       - MoveAccount\n#       - DeleteOrganizationalUnit\n#       - UpdateOrganizationalUnit\n#   filter_known:\n#     userIdentity.arn|contains:\n#       - ':role/platform-automation'\n#       - ':role/CloudOrgAdmin'\n#   condition: selection and not filter_known\n# level: high",
+  "falsePositives": [
+    "Cloud platform engineering teams reorganising accounts during a merger or business unit split",
+    "Infrastructure as code pipelines that reconcile the organisation structure on every deployment",
+    "A cloud landing zone migration project that moves accounts between organisational units in bulk",
+    "Provider-initiated or marketplace-applied changes that create a new project under a management folder",
+    "Break-glass administrator accounts used during an incident to delete and recreate a misconfigured unit"
+  ],
+  "tuningNotes": "Start by collecting thirty to sixty days of hierarchy change events and building a list of the service principals, roles and named administrators that perform them, then exclude those identities by role and require a change ticket reference where your process allows it. Scope the rule to production management groups or top level organisational units and treat any change to a guardrail unit that carries security policy as always alertable. Add a filter for approved maintenance windows so scheduled reorganisations do not page anyone. The coverage you give up is real: a compromised automation role becomes invisible, so keep a lower severity copy of the rule with no actor filter and review it weekly, and alert on new or first-seen actors even when they claim a known role name.",
+  "severity": "high"
+}

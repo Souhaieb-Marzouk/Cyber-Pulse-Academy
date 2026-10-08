@@ -1,0 +1,106 @@
+{
+  "id": "det0451",
+  "type": "detection",
+  "title": "Detection Strategy for PowerShell Profile Persistence via profile.ps1 Modification",
+  "shortTitle": "Detection Strategy for PowerShell Profile Persistence via...",
+  "externalId": "DET0451",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers persistence through modification of PowerShell profile scripts, which run automatically at the start of each PowerShell session for the signed in user. The technique matters because the change needs no administrator rights, survives reboots, and blends into a file that is normally written by administrators and software deployment. Detection depends on file creation and modification telemetry for the documented profile paths, PowerShell module and script block logging that shows the code being loaded, and process creation records that identify which process wrote the file. It fails in practice when script block logging is off, so the analyst sees that a profile changed but not what it now runs.",
+  "tags": [
+    "persistence",
+    "powershell",
+    "windows",
+    "file modification",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for PowerShell Profile Persistence via profile.ps1 Modification",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0451/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for PowerShell Profile Persistence via profile.ps1 Modification - EASY",
+      "path": "exercises/det0451/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for PowerShell Profile Persistence via profile.ps1 Modification - MEDIUM",
+      "path": "exercises/det0451/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for PowerShell Profile Persistence via profile.ps1 Modification - HARD",
+      "path": "exercises/det0451/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for PowerShell Profile Persistence via profile.ps1 Modification - EXTREMELY HARD",
+      "path": "exercises/det0451/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "PowerShell is a scripting tool built into Windows, and it runs a profile script each time it starts. This detection watches for changes to those profile files, because an attacker can put their own commands inside one. The commands then run again in every new PowerShell session without any further action.",
+    "whyItMatters": "A change like this gives an attacker a way back in after a reboot or a cleanup. It needs no administrator rights and often no new file on disk. Many teams never review profile files, so the added code can stay in place for a long time.",
+    "howItWorks": [
+      "A file monitoring sensor writes a record when a profile file is created or changed.",
+      "The rule checks whether the path is one of the PowerShell profile locations for a user.",
+      "It looks at the process that made the change and how the code was started.",
+      "It also reads PowerShell script block logging, which stores the text that ran.",
+      "The analyst compares the new content with the approved profile content for that host.",
+      "A profile edit made by a script host is grouped with the session that follows it."
+    ],
+    "example": "Think of a night watchman who reads the duty list at the start of every shift. Someone quietly adds a line to that list, so from then on the watchman performs an extra task each night and never questions it. The list is the profile, and the nightly routine is the code that runs at startup.",
+    "takeaways": [
+      "PowerShell profiles run code on every new session without asking anyone.",
+      "Watch who writes the profile file, not only what the file contains.",
+      "A file change record plus a content baseline is the clearest warning."
+    ]
+  },
+  "objectives": [
+    "Describe how a PowerShell profile runs automatically when a session starts",
+    "Name the telemetry sources that record profile file changes",
+    "Distinguish a managed profile update from an unexpected script write",
+    "Correlate a profile change with the process that caused it",
+    "Build a baseline of approved profile content for key hosts"
+  ],
+  "techniqueId": "t1546-013",
+  "detectsTechniques": [
+    "t1546-013"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation records for the Documents\\WindowsPowerShell and Documents\\PowerShell profile paths",
+    "Sysmon event 1 process creation showing powershell.exe parent image and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "PowerShell module logging and script block logging events that record the code executed in a session",
+    "File integrity monitoring baseline reports for user profile directories"
+  ],
+  "logic": "The detection looks for a write to a PowerShell profile path that does not come from the normal owners of that file. The fields to correlate are the target file path, the writing process image and command line, the parent process, and the user account, which are then joined with the script block logging that shows what the session executed. The benign case is a software deployment or configuration management agent writing a small profile from a management share during a change window, with a known parent process and a content hash equal to the approved version. The malicious case is a script host, an office application, or an unusual interactive parent writing to a user profile outside a change window, together with new download or execution code visible in the logging that follows. The combination of writer, path, and timing is what separates the two.",
+  "pseudoQuery": "# title: PowerShell profile script modified by scripting host\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - '\\\\WindowsPowerShell\\\\profile.ps1'\n#       - '\\\\PowerShell\\\\profile.ps1'\n#       - '\\\\WindowsPowerShell\\\\Microsoft.PowerShell_profile.ps1'\n#   filter_managed:\n#     Image|endswith:\n#       - '\\\\msiexec.exe'\n#       - '\\\\ccmexec.exe'\n#   condition: selection and not filter_managed\n# level: high",
+  "falsePositives": [
+    "Software deployment tools that install a standard profile script for all users during a maintenance window",
+    "Administrators who add a company banner or logging snippet to the all users profile by hand",
+    "Developer workstations where the user edits their own profile while building automation scripts",
+    "Endpoint management agents that repair or restore a profile file after it is deleted"
+  ],
+  "tuningNotes": "Filter the executable names and parent processes used by your deployment and configuration management tools, and scope the rule to servers and privileged workstations first, where profile tampering has the highest impact. Baseline how often each profile path changes per host per month before you alert on single changes. Keep the script block logging join, because a profile write without visible content is hard to judge. Narrowing to privileged hosts loses coverage on ordinary user machines, where the same technique is still used to keep a foothold after a help desk password reset.",
+  "severity": "medium"
+}

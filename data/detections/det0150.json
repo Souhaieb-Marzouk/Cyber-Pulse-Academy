@@ -1,0 +1,106 @@
+{
+  "id": "det0150",
+  "type": "detection",
+  "title": "Detection Strategy for File Creation or Modification of Boot Files",
+  "shortTitle": "Detection Strategy for File Creation or Modification of B...",
+  "externalId": "DET0150",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1542.003, creation or modification of boot files, where an intruder alters the components that start the operating system in order to persist or to load code before normal protections apply. Detection relies on file integrity monitoring for boot directories and boot configuration stores, kernel module loading records, boot loader configuration change events, and signed boot policy state on Linux and Windows hosts. The value of the rule is that these paths almost never change outside patching or a documented engineering task, so a precise allow list gives excellent signal. The practical failure mode is that legitimate patch cycles and kernel upgrades touch exactly the same files, so the rule must distinguish a signed vendor update from an unsigned or unexpected change.",
+  "tags": [
+    "t1542.003",
+    "boot-integrity",
+    "persistence",
+    "file-integrity",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for File Creation or Modification of Boot Files",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0150/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for File Creation or Modification of Boot Files - EASY",
+      "path": "exercises/det0150/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for File Creation or Modification of Boot Files - MEDIUM",
+      "path": "exercises/det0150/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for File Creation or Modification of Boot Files - HARD",
+      "path": "exercises/det0150/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for File Creation or Modification of Boot Files - EXTREMELY HARD",
+      "path": "exercises/det0150/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Boot files are the instructions a computer reads when it first starts up. This detection watches those files and the boot settings. It alerts when something changes them outside a normal update.",
+    "whyItMatters": "Code that loads at start up runs early, before many security tools are active. Changes to boot files can survive reboots and even survive a disk wipe in some designs. Since these files rarely change, an unexpected edit is a strong warning.",
+    "howItWorks": [
+      "Agents record a baseline of the boot files and boot settings on each host.",
+      "They report every later file write, rename, or deletion in those folders.",
+      "They also report changes to boot configuration entries and to signed boot settings.",
+      "The detection compares each change with the publisher signature and with the approved patch schedule.",
+      "An unsigned or off schedule change raises an alert with the file path and the process that made it."
+    ],
+    "example": "Think of the master key list taped inside a hotel lift control room. It is checked once a month and almost never edited. If someone adds a new key line at midnight, the maintenance log will show no matching job. The change itself, not the key, is what raises the question.",
+    "takeaways": [
+      "Boot files change rarely, so any change is worth explaining.",
+      "Check who signed the change and whether patching was scheduled.",
+      "Signed boot enforcement makes silent tampering much harder."
+    ]
+  },
+  "objectives": [
+    "Identify which files and settings control the boot process on each platform",
+    "Explain how boot level tampering survives restarts and evades normal controls",
+    "Collect file integrity and boot configuration telemetry for those paths",
+    "Compare observed changes with patch schedules and vendor signatures",
+    "Use signed boot and measured boot state as supporting evidence",
+    "Decide the right severity for an unexplained boot file change"
+  ],
+  "techniqueId": "t1542-003",
+  "detectsTechniques": [
+    "t1542-003"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create events and event 2 file creation time change events for boot and system directories",
+    "Linux audit records for writes to boot loader configuration and to kernel image locations including the writing process",
+    "Kernel module load records with module name, signature status, and the loading process",
+    "Secure boot or measured boot state changes reported by firmware and by the platform security service",
+    "Windows event log entries for boot configuration data edits and for boot manager repair operations"
+  ],
+  "logic": "The detection looks for a write, rename, or deletion inside the boot chain, meaning boot loader files, kernel images, boot configuration stores, or kernel driver directories, that is not explained by a signed vendor update. The fields that must be correlated are the file path and its previous hash, the process image and signature that performed the change, the account, the time relative to the patch schedule, and the resulting boot configuration state and signature status. A benign change is a signed package manager or update service altering predictable files during a maintenance window with valid vendor signing, while the malicious case is an unsigned or user writable executable writing to these paths, a new boot entry that points outside the normal system location, or a signed boot setting turning off enforcement alongside a driver load.",
+  "pseudoQuery": "# title: Boot Path Modified Without Signed Update Process\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection:\n#     FilePath|contains:\n#       - '/boot/'\n#       - '/etc/default/grub'\n#     Operation: 'write'\n#   filter:\n#     ProcessImage|endswith:\n#       - '/usr/bin/dpkg'\n#       - '/usr/bin/rpm'\n#   condition: selection and not filter\n# level: critical",
+  "falsePositives": [
+    "Operating system kernel updates installed by the standard package manager during a patch window",
+    "Systems management tooling that rebuilds the boot configuration after a disk or firmware upgrade",
+    "Virtual machine image customisation that writes boot files before the image is captured for deployment",
+    "Recovery or disk repair operations performed by an on site technician after a hardware failure"
+  ],
+  "tuningNotes": "Take a hash baseline of the boot chain per host build first, and allow list the signed package manager and management agent processes that update it routinely. Then require either an unknown process or an unsigned binary for the alert, and add a separate alert for signed boot enforcement being disabled regardless of who does it. Scope the highest severity branch to servers and to hosts with full disk encryption, where boot tampering has the greatest consequence. The coverage you lose by trusting signed updaters is a supply chain compromise that arrives inside a correctly signed package, so keep hashes and change history for later comparison even when you do not alert.",
+  "severity": "critical"
+}

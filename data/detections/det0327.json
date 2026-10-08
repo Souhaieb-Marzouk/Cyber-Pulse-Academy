@@ -1,0 +1,107 @@
+{
+  "id": "det0327",
+  "type": "detection",
+  "title": "Multi-event Detection Strategy for RDP-Based Remote Logins and Post-Access Activity",
+  "shortTitle": "Multi-event Detection Strategy for RDP-Based Remote Login...",
+  "externalId": "DET0327",
+  "theme": "Detection Strategy",
+  "summary": "This multi-event strategy detects interactive remote desktop logins (T1021.001) and the activity that follows them, because a successful remote desktop session alone is weak evidence while the sequence of session start, account used, source address and first actions after login is strong. Telemetry comes from Windows Security logon events with logon type 10, the remote desktop services operational log, Sysmon process creation on the target and authentication logs on the source. The correlation is what makes it work: it links the account, the originating host and the processes spawned inside the session window. It fails when session auditing is incomplete, when jump hosts hide the true origin, and when administrators legitimately work this way all day.",
+  "tags": [
+    "mitre t1021.001",
+    "remote desktop",
+    "lateral movement",
+    "correlation",
+    "windows security"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-event Detection Strategy for RDP-Based Remote Logins and Post-Access Activity",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0327/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-event Detection Strategy for RDP-Based Remote Logins and Post-Access Activity - EASY",
+      "path": "exercises/det0327/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-event Detection Strategy for RDP-Based Remote Logins and Post-Access Activity - MEDIUM",
+      "path": "exercises/det0327/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-event Detection Strategy for RDP-Based Remote Logins and Post-Access Activity - HARD",
+      "path": "exercises/det0327/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-event Detection Strategy for RDP-Based Remote Logins and Post-Access Activity - EXTREMELY HARD",
+      "path": "exercises/det0327/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for remote desktop logins, where one computer shows another computer's screen over the network. It then checks what the person did right after signing in. A login on its own is normal, so the detection looks for the pair of login and unusual follow-up work.",
+    "whyItMatters": "Attackers use stolen passwords to sign in to servers they should not reach. With remote desktop they can work as if they were sitting at the machine. One login event tells you very little, because staff use the same method every day. Linking the login to what happens next separates routine support work from an intruder exploring your network.",
+    "howItWorks": [
+      "The target computer logs a successful sign-in and records the sign-in type. Type ten means a remote desktop session.",
+      "The same record lists the account name and the address of the computer that connected.",
+      "The detection starts a short timer when that record appears, for example fifteen minutes.",
+      "During the timer it collects new programs started on the target computer and any new accounts or services created.",
+      "It compares those follow-up actions with what the account normally does on that host.",
+      "If the pattern is new, it raises one alert that shows the login and everything that followed it."
+    ],
+    "example": "Picture a door log at a factory. A single entry at three in the morning is not proof of a break-in, because the night crew works then. But the same entry shows a badge from the loading department. Two minutes later, the machine room alarm rings. Now the guard has a story worth investigating.",
+    "takeaways": [
+      "A remote login is only the beginning of the signal, not the whole alert.",
+      "Correlating account, source address and follow-up actions is what makes the alert useful.",
+      "Set a short window, because intruder actions usually start within minutes of the login."
+    ]
+  },
+  "objectives": [
+    "Identify the logon type value that marks an interactive remote desktop session",
+    "Correlate a session start event with process creation and account changes on the same host",
+    "Describe how source address and account baselines separate support work from intrusion",
+    "Explain the impact of jump hosts and shared administrator accounts on this detection",
+    "Draft a correlation rule with a bounded window and a follow-up action requirement"
+  ],
+  "techniqueId": "t1021-001",
+  "detectsTechniques": [
+    "t1021-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4624 logon success with logon type 10 and source network address",
+    "Windows Remote Desktop Services operational log session start and reconnect events",
+    "Sysmon event 1 process creation on the target host during the session window",
+    "Windows Security event 4720 account creation and event 4697 service installation on the target host",
+    "Terminal server gateway or jump host authentication logs listing the client address and user"
+  ],
+  "logic": "The pattern is a logon success with logon type 10 on a server or privileged workstation, followed within a short window by activity on that same host that the account has never performed there. The fields to correlate are the target host name, the account name, the source address, the session time and the follow-up process image or account change. The benign case is a helpdesk or administrator account that logs in from a known management subnet during working hours and runs the same tools it always runs; the malicious case is an account appearing from an unusual source, on a host it has never touched, spawning discovery, credential or archive utilities inside the session. Source address history and per-account host history are the two baselines that make the difference.",
+  "pseudoQuery": "# title: Remote Desktop Session Followed by Unusual Host Activity\n# logsource:\n#   product: windows\n# detection:\n#   selection_logon:\n#     EventID: 4624\n#     LogonType: 10\n#     LogonProcessName: 'User32'\n#   selection_followup:\n#     EventID: 1\n#     Image|endswith: ['\\\\whoami.exe', '\\\\net.exe', '\\\\nltest.exe', '\\\\7z.exe', '\\\\vssadmin.exe']\n#   filter_admin:\n#     SourceIp: ['10[.]20[.]0[.]0/16', '10[.]30[.]5[.]0/24']\n#   condition: selection_logon and selection_followup and not filter_admin | timeframe 15m | group by TargetUserName, ComputerName\n# level: high",
+  "falsePositives": [
+    "Helpdesk staff who connect to many servers each day from a fixed management subnet to apply patches",
+    "Automated administrative scripts that start a remote session to run scheduled maintenance tasks",
+    "Vendor support accounts that connect through a jump host during an agreed maintenance window",
+    "Developers who use remote desktop to reach build servers and run the same deployment commands each release",
+    "Monitoring agents that open a session to collect inventory and immediately close it"
+  ],
+  "tuningNotes": "Baseline the source subnets and host sets for every account that uses remote desktop, then filter those known pairs at the correlation stage rather than at the logon stage, so unusual sources still alert. Enforce distinct administrator accounts instead of shared ones and alert on shared accounts from any new source address. If the volume is still high, restrict the rule to tier-zero servers and domain controllers, which removes most routine support noise. The coverage you lose is intrusion that uses an already trusted administrator account from its usual address, which this rule cannot see and which requires separate credential theft detection.",
+  "severity": "high"
+}

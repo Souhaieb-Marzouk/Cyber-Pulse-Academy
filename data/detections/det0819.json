@@ -1,0 +1,106 @@
+{
+  "id": "det0819",
+  "type": "detection",
+  "title": "Detection of Network Topology",
+  "shortTitle": "Detection of Network Topology",
+  "externalId": "DET0819",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers network topology discovery, the technique where an adversary maps how the target network is built: which subnets exist, how they route to each other, where the firewalls and jumps sit, and which internal addresses answer. It matters because an accurate map decides how the attacker moves after the first foothold, and because the collection is quiet, using routing protocol queries, simple network management protocol walks of routing tables, time to live probing and internal sweep of each discovered subnet. The telemetry that makes it possible is firewall and flow records for host sweeps inside the corporate space, router and switch logs for route table reads, simple network management protocol query logs, and command line auditing that captures traceroute and network configuration commands on hosts. Detection fails because network engineers run the same tools legitimately all day, so the rule depends on baseline behaviour and on the direction of the traffic, not on the tool name alone.",
+  "tags": [
+    "reconnaissance",
+    "network topology",
+    "mitre t1590.004",
+    "internal monitoring",
+    "lateral movement"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Network Topology",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0819/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Network Topology - EASY",
+      "path": "exercises/det0819/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Network Topology - MEDIUM",
+      "path": "exercises/det0819/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Network Topology - HARD",
+      "path": "exercises/det0819/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Network Topology - EXTREMELY HARD",
+      "path": "exercises/det0819/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone drawing a map of your internal network. The map shows which computers exist and how they connect. The rule watches for one host that contacts many internal addresses in a short time. It also watches for route table reads by unusual accounts.",
+    "whyItMatters": "An attacker who has one stolen account wants more. A network map shows the next targets, such as servers and backup systems. Building the map makes almost no changes, so few alarms fire. Seeing the map being drawn tells you that an intruder is already inside.",
+    "howItWorks": [
+      "Routers and switches record log events when their routing tables or configuration are read.",
+      "Firewalls and flow collectors record each internal connection attempt with the source, the destination and the port.",
+      "Hosts record command lines when auditing is switched on, which captures map building tools and their options.",
+      "The security monitoring platform joins these records by source host and by time.",
+      "The rule counts how many distinct internal addresses one host contacted in a window, and how many subnets were covered.",
+      "Hosts that sweep many subnets, or that run map commands outside change windows, raise the alert."
+    ],
+    "example": "Think of a new cleaner in an office tower. On the first night the cleaner walks every floor and writes down which doors are locked. The cleaning itself takes ten minutes. The walk takes two hours. This detection notices the walk, not the cleaning.",
+    "takeaways": [
+      "Topology discovery happens from a host that is already inside, so treat it as post compromise.",
+      "Count distinct internal addresses and subnets per source host in a window.",
+      "Change windows and network engineer workstations are the main source of false alarms."
+    ]
+  },
+  "objectives": [
+    "Define network topology discovery and explain why it follows an initial foothold.",
+    "Identify the router, firewall, flow and command line telemetry that reveals mapping.",
+    "Write a rule that counts distinct internal destinations per source host.",
+    "Describe how to profile network engineers and approved change windows.",
+    "Explain how a topology map supports lateral movement and target selection."
+  ],
+  "techniqueId": "t1590-004",
+  "detectsTechniques": [
+    "t1590-004"
+  ],
+  "dataSources": [
+    "Firewall and internal flow records showing connection attempts between hosts with source, destination, port and decision",
+    "Router and switch log events recording routing table reads, configuration export and discovery protocol queries",
+    "Simple network management protocol query logs listing which host walked routing and interface tables",
+    "Command line auditing records on servers and workstations, including process creation with the full command line",
+    "Asset inventory and subnet documentation used to judge whether the addresses contacted belong to one zone"
+  ],
+  "logic": "The pattern is one internal host contacting a large number of distinct internal addresses across more than one subnet within a short window, especially when the attempts are spread evenly, skip the host's own zone, or pair with reads of route tables and discovery protocol responses from that same host. The fields that must be correlated are the source host and its account, the distinct internal destination addresses and the subnets they belong to, the destination port mix, the firewall decision, the command lines executed on the host, and the identity's normal communication profile. The benign case is a network engineer or monitoring platform that discovers devices on a schedule, or a backup and inventory system that talks to every host in one subnet; the malicious case is a workstation contacting a handful of addresses in every server subnet, using different ports, with command lines that resolve routes and read configuration, often outside the change window.",
+  "pseudoQuery": "# title: Internal Subnet Sweep and Route Table Discovery\n# logsource:\n#   product: network\n#   service: firewall\n# detection:\n#   selection:\n#     direction: 'internal'\n#     action: 'allow'\n#   filter_scanners:\n#     src_ip|cidr:\n#       - '10[.]20[.]0[.]0/24'\n#   condition: selection and not filter_scanners | count(distinct dst_ip) by src_ip > 60 within 10m\n# level: medium",
+  "falsePositives": [
+    "Network engineers running discovery or documentation tooling against the estate during a planned change",
+    "Vulnerability management scanners that sweep internal subnets on a weekly schedule",
+    "Backup and software distribution servers that contact every host in a subnet each night",
+    "A dynamic host configuration protocol or monitoring service that checks reachability across many addresses after an outage"
+  ],
+  "tuningNotes": "Baseline the number of distinct internal destinations each host contacts in an hour for thirty days, then set the threshold above the ninety ninth percentile for workstations and allow list the scanner and backup address ranges by host group. Exclude the scheduled change windows and the engineer jump hosts, but keep a low severity copy of the rule for those hosts so a compromised administrator is still visible. Require coverage of at least three subnets so a single busy subnet does not trigger. Narrowing to a host list loses detection from a newly deployed attacker host, so also alert on any host that first contacts internal discovery protocol addresses in its first seven days on the network.",
+  "severity": "medium"
+}

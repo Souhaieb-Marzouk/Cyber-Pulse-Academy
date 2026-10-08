@@ -1,0 +1,107 @@
+{
+  "id": "det0344",
+  "type": "detection",
+  "title": "Detection Strategy for Fileless Storage via Registry, WMI, and Shared Memory",
+  "shortTitle": "Detection Strategy for Fileless Storage via Registry, WMI...",
+  "externalId": "DET0344",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Fileless Storage (T1027.011), where an adversary hides payload or configuration data in the registry, the Windows Management Instrumentation repository or shared memory instead of the file system. The technique matters because the stored content survives reboots, is not scanned by file based tools, and can be read back later by a small loader. Detection depends on registry value set telemetry that includes value data, process creation records for the tools that write to those stores, and instrumentation records for permanent event subscriptions. The common failure is that registry writes are extremely frequent and mostly benign, so the rule must use value size, encoding and the reading process as its signals.",
+  "tags": [
+    "fileless",
+    "registry",
+    "wmi",
+    "defense evasion",
+    "t1027.011"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Fileless Storage via Registry, WMI, and Shared Memory",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0344/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Fileless Storage via Registry, WMI, and Shared Memory - EASY",
+      "path": "exercises/det0344/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Fileless Storage via Registry, WMI, and Shared Memory - MEDIUM",
+      "path": "exercises/det0344/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Fileless Storage via Registry, WMI, and Shared Memory - HARD",
+      "path": "exercises/det0344/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Fileless Storage via Registry, WMI, and Shared Memory - EXTREMELY HARD",
+      "path": "exercises/det0344/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for data hidden outside normal files. Attackers can hide program code in the Windows registry, in the inventory database of the system, or in shared memory. These places survive a restart and most file scanners never look inside them.",
+    "whyItMatters": "Most security tools check files on the disk, so hidden data can stay for a long time. The hidden data can start again after the computer restarts. A small loader only has to read it back, which takes one line of script. Seeing the write early gives you the chance to remove the foothold. It also tells you which account and host the attacker used.",
+    "howItWorks": [
+      "The endpoint agent records every registry value change, including the value name, its size and its data.",
+      "The rule ignores routine settings and looks for unusually large or encoded values.",
+      "It follows the host and user to see which process wrote the value.",
+      "A second part of the rule watches for new permanent instrumentation subscriptions in the system database.",
+      "The rule then looks for a scripting host that reads the same key or subscription soon after.",
+      "When a write and a read line up, the alert shows a complete storage and retrieval chain."
+    ],
+    "example": "Think of a hotel that keeps a spare key inside a hollowed out book in the lobby. The book sits on a normal shelf and passes every inspection. Only someone who knows the shelf and the book can use the key. The registry is that shelf, and the encoded value is the hollow book.",
+    "takeaways": [
+      "Hidden data needs a writer and a reader, so detect both.",
+      "Size and encoding of a registry value matter more than the key name alone.",
+      "File scanning alone will not find content stored outside files."
+    ]
+  },
+  "objectives": [
+    "Explain why the registry, instrumentation repository and shared memory are attractive hiding places",
+    "Identify registry and instrumentation telemetry that reveals large or encoded stored content",
+    "Recognise the process chain of a writer, a storage location and a later reader",
+    "Write a rule that scores value size, encoding and the reading process together rather than the key alone",
+    "Triage a match by exporting the stored value and checking it against known benign configuration",
+    "Describe how filtering noisy registry keys reduces coverage of low volume storage"
+  ],
+  "techniqueId": "t1027-011",
+  "detectsTechniques": [
+    "t1027-011"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set with target object, value name, value data and data size",
+    "Sysmon event 1 process creation showing registry and instrumentation command lines from reg.exe or wmic.exe",
+    "Windows Management Instrumentation activity records showing creation of permanent event filters, consumers and bindings",
+    "Endpoint detection and response memory section telemetry for named shared memory created by non standard processes",
+    "Endpoint file integrity monitoring of registry hives collected for offline comparison"
+  ],
+  "logic": "The pattern is a large or encoded value written into a storage location that is not part of normal configuration, followed by a read of the same location by a scripting host or a small loader. The fields that must be correlated are the target object and value name, the size and encoding of the data, the writing process and account, the reading process, and the gap between the two events. The benign case is a well known application writing a long but readable configuration string, or a management tool creating a documented subscription. The malicious case is a value of several hundred bytes of encoded text under a class or shell key, written by a command shell and read minutes or days later by a process that then makes a network connection.",
+  "pseudoQuery": "# title: Encoded Blob Written To Registry Then Read By Script Host\n# logsource:\n#   product: windows\n# detection:\n#   selection_registry:\n#     EventID: 13\n#     TargetObject|contains:\n#       - '\\\\Software\\\\Classes\\\\'\n#       - '\\\\CurrentVersion\\\\Explorer\\\\'\n#     Details|re: '^[A-Za-z0-9+/]{512,}'\n#   selection_wmi:\n#     event_type: wmi_permanent_subscription_created\n#   condition: selection_registry or selection_wmi\n# level: high",
+  "falsePositives": [
+    "Endpoint management agents that store signed configuration blobs in their own registry keys with encoded values",
+    "Monitoring or backup software that creates permanent instrumentation subscriptions as a documented feature",
+    "Licensing components that write long encrypted licence strings into the registry during activation",
+    "Application installers and updaters that cache a compressed package inside a registry value for a later step"
+  ],
+  "tuningNotes": "Baseline the registry keys that regularly hold long values on each operating system build, then exclude those keys by path so that routine agent traffic disappears. Keep the size threshold high enough to skip normal settings, and require a reader event or a network connection before raising severity, which converts a very noisy write alert into a rare and meaningful chain. Scope the instrumentation part of the rule to servers and workstations that do not run management software with documented subscriptions. The coverage you give up is a small payload that sits under the size threshold, so pair this rule with periodic offline comparison of registry hives on high value hosts.",
+  "severity": "high"
+}

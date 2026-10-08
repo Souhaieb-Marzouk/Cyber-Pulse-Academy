@@ -1,0 +1,106 @@
+{
+  "id": "det0366",
+  "type": "detection",
+  "title": "Detection Strategy for Double File Extension Masquerading",
+  "shortTitle": "Detection Strategy for Double File Extension Masquerading",
+  "externalId": "DET0366",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects double file extension masquerading, the T1036.007 sub-technique of Masquerading, in which a file is named so that a benign extension appears to be the last one, for example a document name followed by an executable extension, or a right-to-left override character reverses the displayed order of the extensions. The behaviour shows up in file creation and rename telemetry, mail gateway attachment records, archive and container file listings, and subsequent process creation when the file is executed. Detection succeeds by parsing the file name rather than by trusting the shell, normalising unicode direction control characters and counting the extension chain. It fails in practice because many legitimate applications ship installers and helper files with two extensions, and because file names alone carry no intent, so the rule must look at where the file came from and what runs it.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "masquerading",
+    "file name",
+    "phishing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Double File Extension Masquerading",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0366/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Double File Extension Masquerading - EASY",
+      "path": "exercises/det0366/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Double File Extension Masquerading - MEDIUM",
+      "path": "exercises/det0366/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Double File Extension Masquerading - HARD",
+      "path": "exercises/det0366/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Double File Extension Masquerading - EXTREMELY HARD",
+      "path": "exercises/det0366/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at file names that contain two extensions, such as a name ending in both a document extension and an executable extension. An extension is the last part of a file name, like pdf or exe, and it tells Windows which program opens the file. The trick makes the file look like a document while it is really a program.",
+    "whyItMatters": "People trust what they see at the end of a file name. A file that looks like an invoice may actually run code when it is opened. A hidden direction character can even make the name display in the wrong order, so the safe extension appears last on screen.",
+    "howItWorks": [
+      "File creation, rename and download records are collected with the full file name and path.",
+      "The rule splits the name at each dot and counts how many known extension parts it contains.",
+      "It also checks for direction control characters, which a normal file name never needs.",
+      "Files that came from mail attachments, archives or browser downloads are treated as higher risk.",
+      "If the file is then executed, the process record confirms the file was a program, and the alert is raised."
+    ],
+    "example": "Think of a parcel with two labels. The top label says books and the label underneath says fireworks. The courier reads the top label and waves it through the front gate. Only the person who peels the label back sees what is really inside.",
+    "takeaways": [
+      "Read the whole file name from the computer, not from the screen.",
+      "Direction control characters in a file name are almost always a sign of trickery.",
+      "A two extension file that then runs as a program is the strongest confirmation you can get."
+    ]
+  },
+  "objectives": [
+    "Explain how double extensions and direction control characters deceive users",
+    "Parse file names programmatically instead of relying on the operating system display",
+    "Correlate file creation records from downloads, archives and mail attachments with later execution",
+    "Recognise legitimate two extension file names and why they are filtered",
+    "Write a rule that survives renaming by watching the executed file rather than the archived name",
+    "Describe user awareness advice that supports the technical detection"
+  ],
+  "techniqueId": "t1036-007",
+  "detectsTechniques": [
+    "t1036-007"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation records with full target file name, creating process and originating path",
+    "Sysmon event 1 process creation records showing the image path with its full extension chain",
+    "Mail gateway attachment records with the original attachment file name and the sending domain",
+    "Browser download history or web proxy download records with the content disposition file name",
+    "Archive extraction logs recording member file names written from compressed containers"
+  ],
+  "logic": "The detection normalises the file name and looks for a benign document or image extension followed by an executable, script or shortcut extension, or for unicode direction control characters that reorder the displayed name. Analysts then establish provenance by joining the file creation record to the creating process: a browser, a mail client, an archive tool or a chat application that writes into a download or temporary folder. The benign case is a vendor installer or a helper file with two extensions written by a signed updater into programme files, or a legitimate archive member with a double extension that a business application unpacks on a schedule. The malicious case is a file that arrives through mail, chat or a download, lives in a user writable folder, and is executed either directly or through a scripting host or a signed binary proxy within a short time.",
+  "pseudoQuery": "# title: Executable with a double extension created from a download path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|re: '\\.(pdf|docx?|xlsx?|jpe?g|txt)\\.(exe|scr|js|vbs|lnk|bat|cmd|ps1)$'\n#   selection_path:\n#     TargetFilename|contains:\n#       - '\\\\Downloads\\\\'\n#       - '\\\\Temp\\\\'\n#       - '\\\\AppData\\\\'\n#   filter_signed_installer:\n#     Image|endswith: '\\\\vendorupdater.exe'\n#   condition: selection_file and selection_path and not filter_signed_installer\n# level: medium",
+  "falsePositives": [
+    "Software distributors that name installers with the product name and a document like extension such as setup.pdf.exe in marketing bundles",
+    "Development and build pipelines that generate artefacts whose names contain several dots and a version suffix",
+    "Business applications that download a data file whose name includes a document extension and then a compression extension",
+    "Backup or email archive exports where the original attachment name is preserved inside a temporary folder"
+  ],
+  "tuningNotes": "Filter the download managers, updaters and archive tools that legitimately produce these names, and confirm each filter by matching on the signed image path rather than the file name alone. Raise severity only when the file is executed or when it carries a direction control character, and treat files in the mail attachment spool and user download folders as the priority scope. Add a guard so that files written by a signed installer into programme files are excluded, which removes most noise. The coverage you lose by restricting the rule to user writable paths is a masquerading file dropped directly into a system directory, so pair this rule with file integrity monitoring over the system directories and with attachment policy enforcement at the mail gateway.",
+  "severity": "medium"
+}

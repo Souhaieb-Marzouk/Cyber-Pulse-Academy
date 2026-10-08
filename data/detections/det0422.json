@@ -1,0 +1,108 @@
+{
+  "id": "det0422",
+  "type": "detection",
+  "title": "Detection Strategy for IFEO Injection on Windows",
+  "shortTitle": "Detection Strategy for IFEO Injection on Windows",
+  "externalId": "DET0422",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Image File Execution Options injection, tracked as T1546.012, where an adversary registers a debugger value for a legitimate executable so that Windows starts their program whenever the target is launched, which yields both persistence and a way to run code inside a trusted process path. It matters because the tampering sits in the registry rather than on disk as a new shortcut or startup item, and because it is often used to keep security tools or accessibility programs from starting correctly. The telemetry that makes detection possible is registry value change monitoring on the image file execution options key, process creation records that show an unexpected debugger parent, and file writes to the binary that appears in the debugger value. The main way it fails is that developers and support engineers legitimately set debugger values on test machines, so the rule needs to distinguish a managed administrative host from a production server or user workstation.",
+  "tags": [
+    "windows",
+    "persistence",
+    "privilege escalation",
+    "registry",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for IFEO Injection on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0422/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for IFEO Injection on Windows - EASY",
+      "path": "exercises/det0422/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for IFEO Injection on Windows - MEDIUM",
+      "path": "exercises/det0422/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for IFEO Injection on Windows - HARD",
+      "path": "exercises/det0422/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for IFEO Injection on Windows - EXTREMELY HARD",
+      "path": "exercises/det0422/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows has a settings area that can tell it to start a special program whenever a chosen program runs. It exists to help developers test code. An attacker can use the same setting to start their own program instead. This detection watches that settings area for new or changed entries.",
+    "whyItMatters": "The change lives in the registry, so no new file appears in a startup folder. It can also stop a security tool from starting properly. It runs with the rights of whoever launches the target program. Because the setting is a real feature, it does not look like a mistake. Watching the settings area catches the change at the moment it is made.",
+    "howItWorks": [
+      "The endpoint sensor records each change to a registry value, including the full path, the name and the new data.",
+      "The rule selects changes under the image file execution options area of the registry.",
+      "It reads the value name, which is usually the word debugger, and the program path stored in the data.",
+      "It checks whether that program path is signed, is in a normal program folder and matches a known debugging tool.",
+      "It also watches for a process starting where the parent is a debugger path that is not a real debugger.",
+      "When the value points to a user folder or an unsigned program, the analyst gets an alert."
+    ],
+    "example": "Think of a reception desk that keeps a note saying which courier to call for each department. Someone edits the note for the finance department so that any delivery is sent to a private address instead. No door was forced and no key was copied. The edited note is the whole trick, and the receptionist only spots it by reading the note itself.",
+    "takeaways": [
+      "The evidence is a registry value, so you must monitor registry changes, not only files.",
+      "A debugger path in a user writable folder is the strongest single indicator.",
+      "This technique is often used to disable security and accessibility tools, so it deserves a fast response."
+    ]
+  },
+  "objectives": [
+    "Explain what the image file execution options setting does and why it exists.",
+    "Identify the registry path and value name that this technique abuses.",
+    "Read a registry change event and judge the program path it contains.",
+    "Explain how a debugger value can prevent a legitimate program from starting.",
+    "Recognise the process creation pattern that follows a debugger hijack.",
+    "Describe how to record legitimate debugger values so the rule stays useful."
+  ],
+  "techniqueId": "t1546-012",
+  "detectsTechniques": [
+    "t1546-012"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set under the image file execution options key with the value name and new data",
+    "Windows Security event 4657 registry value modification including object name, value name and new value",
+    "Sysmon event 1 process creation showing a parent image that is not a known debugger",
+    "Sysmon event 11 file creation for the binary referenced in the debugger value",
+    "Endpoint sensor records of service or application start failures for security and accessibility tools"
+  ],
+  "logic": "The pattern is a registry value written under the image file execution options key for a target executable, where the stored program path is unsigned, lives in a user writable or temporary directory, or is a scripting host, and the write is followed by that program starting with the hijacked executable as the parent. The fields to correlate are the registry key path, the value name, the new value data, the process and account that performed the write, and the later process creation where the parent image is the injected path. Legitimate debugger values are set by developers on test or build hosts, reference a signed debugger in the program files directory, and are documented. Malicious values appear on production hosts, point to user controlled locations and often target security, backup or accessibility executables. The distinguishing factor is the host class combined with the program path stored in the value.",
+  "pseudoQuery": "# title: Debugger value written under image file execution options\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains: '\\Image File Execution Options\\'\n#     TargetObject|endswith: '\\Debugger'\n#   filter_dev:\n#     Image|endswith: ['\\devenv.exe', '\\windbg.exe']\n#   filter_signed:\n#     Details|startswith: 'C:\\Program Files\\'\n#   condition: selection and not filter_dev and not filter_signed\n# level: high",
+  "falsePositives": [
+    "Developer and build servers where engineers register a debugger for an application under test",
+    "Application compatibility shims applied by an installer to fix behaviour on a newer Windows version",
+    "Support engineers who set a debugger value temporarily to capture a crash dump at a customer request",
+    "Accessibility or assistive software that registers a helper for a system program during installation",
+    "Legacy line of business applications that are launched through a wrapper registered as a debugger by the vendor"
+  ],
+  "tuningNotes": "Build an inventory of hosts that are allowed to hold debugger values, which should be limited to developer workstations and build servers, and alert on every such value everywhere else. Within the allowed host group, filter values whose data path points into the program files directory and whose writing process is a signed developer tool. Record the account that made the write, because a debugger value written by a service account or from a remote session on a server is the case worth waking someone for. Baseline the set of image file execution options keys that already exist on your estate, including the well known accessibility and compatibility entries, so you do not alert on pre existing configuration. The coverage you lose by allowing known paths is an attacker who places their binary inside a program files subfolder they can write to, so pair the rule with file integrity monitoring on those directories.",
+  "severity": "high"
+}

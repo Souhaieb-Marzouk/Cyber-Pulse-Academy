@@ -1,0 +1,106 @@
+{
+  "id": "det0280",
+  "type": "detection",
+  "title": "Behavior-Based Registry Modification Detection on Windows",
+  "shortTitle": "Behavior-Based Registry Modification Detection on Windows",
+  "externalId": "DET0280",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects registry modification as a behaviour rather than as a list of known bad keys, focusing on the combination of which process wrote to the registry, which key it touched, and what changed. T1112 covers the whole range of registry abuse, from disabling security features and altering policy to storing configuration for later stages, and it matters because the registry is a legitimate system database that most allowlisting and file monitoring never inspects. Useful telemetry is registry value set and key creation events from endpoint monitoring plus the process creation records that establish lineage and account context. It fails in practice because registry writes are constant and voluminous, so a rule that alerts on a suspicious key without lineage produces alert fatigue, and a rule that filters too aggressively misses defence evasion performed by a trusted binary.",
+  "tags": [
+    "defense evasion",
+    "registry",
+    "windows",
+    "persistence",
+    "configuration",
+    "t1112"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-Based Registry Modification Detection on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0280/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-Based Registry Modification Detection on Windows - EASY",
+      "path": "exercises/det0280/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-Based Registry Modification Detection on Windows - MEDIUM",
+      "path": "exercises/det0280/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-Based Registry Modification Detection on Windows - HARD",
+      "path": "exercises/det0280/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-Based Registry Modification Detection on Windows - EXTREMELY HARD",
+      "path": "exercises/det0280/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for changes to the Windows registry. The registry is a database where Windows and its programs keep settings. Attackers change these settings to switch off protections or to make their code start automatically.",
+    "whyItMatters": "The registry controls a great deal of Windows behaviour. A small change there can turn off logging or make a program start at every boot. File based tools rarely look at it, so changes can pass unnoticed. Many of these changes also take effect immediately, with no restart needed. Monitoring changes together with the program that made them shows intent, not just activity.",
+    "howItWorks": [
+      "An endpoint agent records each registry value that is created, changed or deleted.",
+      "The event includes the key path, the value name, the new data and the process that performed the write.",
+      "The detection groups events by the writing process and looks at which sensitive keys were touched.",
+      "It compares the writing program with a baseline, because system tools normally change system keys.",
+      "It flags writes from scripts, office programs and files running out of temporary folders.",
+      "The analyst receives the key, the old and new values, the process, its parent and the account behind it."
+    ],
+    "example": "Think of the settings panel on a building's alarm system. Staff change timings and zones all the time, and the log grows long. The security office cares when the change comes from a keypad that should not have access, or when someone turns off a sensor. The change and the person making it together tell the story.",
+    "takeaways": [
+      "The registry is a primary control point, so changes there can disable defences without touching a single file.",
+      "Record the writing process and its parent, or you cannot separate normal software from abuse.",
+      "Baselines matter: most registry noise comes from software you already trust."
+    ]
+  },
+  "objectives": [
+    "Explain why the registry is a target for defence evasion and persistence and what kinds of settings matter most.",
+    "Read registry modification events and extract the key path, value name, new data and writing process.",
+    "Correlate registry writes with process lineage to distinguish trusted software from scripted abuse.",
+    "Prioritise sensitive registry areas such as security policy, logon configuration and autorun keys.",
+    "Design a baseline approach that reduces noise while keeping coverage of unusual writers."
+  ],
+  "techniqueId": "t1112",
+  "detectsTechniques": [
+    "t1112"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set, recording the key path, value name, new data and writing process image",
+    "Sysmon event 12 registry key create and delete, which captures the creation of new keys used to store configuration",
+    "Windows Security event 4657 registry value modification with the old and new value data for audited keys",
+    "Sysmon event 1 process creation including image, parent image, command line and user, used to attribute the registry write to a lineage"
+  ],
+  "logic": "The pattern is a registry write to a security relevant area, such as policy or logon configuration, autorun keys, service definitions or the areas that control logging and tamper protection, performed by a process whose lineage does not match the software that normally maintains those keys. The fields that must be correlated are the key path, the value name, the new value data, the process identifier and image of the writer, the parent image, and the user account. The benign case is a signed installer, a management agent or the operating system itself writing to these keys from a program directory during deployment or update, which typically affects many hosts at once. The malicious case shows a scripting host, a scheduled task, an office application or a binary in a temporary directory writing to the same keys, often a single host at a time, sometimes with a value that weakens logging or adds a script to an autorun location, and frequently followed by execution of the value that was just written.",
+  "pseudoQuery": "# title: Security Relevant Registry Value Written by Script Host\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_reg:\n#     EventID: 13\n#     TargetObject|contains:\n#       - \\Policies\\System\\\n#       - \\Windows\\CurrentVersion\\Run\n#       - \\Services\\\n#       - \\Winlogon\\\n#   selection_writer:\n#     Image|endswith:\n#       - \\powershell.exe\n#       - \\wscript.exe\n#       - \\mshta.exe\n#       - \\reg.exe\n#   filter_management:\n#     ParentImage|contains: program files\n#   condition: selection_reg and selection_writer and not filter_management\n# level: medium",
+  "falsePositives": [
+    "Configuration management agents that enforce policy settings in the registry on a schedule using a signed management binary",
+    "Group Policy client processing that writes policy values into the registry at logon and during background refresh",
+    "Application installers and updaters that register services or autorun values in the registry from a trusted program directory",
+    "Desktop support scripts that adjust proxy, drive mapping or user preference keys for a documented request"
+  ],
+  "tuningNotes": "Tune in two directions at once: restrict the key list to areas that actually affect security or persistence, and allowlist the writer paths and publishers that legitimately maintain those keys, such as the policy client and your management agents. Baseline which processes write to the same key on a clean reference host and alert on deviations rather than on the key itself. What you give up is a legitimate signed binary being used to make the change, which is a known attacker technique, so keep a complementary rule that watches for changes to logging and tamper protection settings regardless of which process makes them, and forward those events to a separate protected pipeline that the compromised host cannot reach.",
+  "severity": "medium"
+}

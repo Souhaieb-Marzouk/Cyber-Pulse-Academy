@@ -1,0 +1,108 @@
+{
+  "id": "det0314",
+  "type": "detection",
+  "title": "Detection Strategy for Network Sniffing Across Platforms",
+  "shortTitle": "Detection Strategy for Network Sniffing Across Platforms",
+  "externalId": "DET0314",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects network sniffing, the collection of traffic that the host can already see, using the documented technique t1040. Sniffing is rarely the goal on its own, it is a support step that harvests credentials, session cookies and protocol details for later use, and it leaves few traces because the tools read traffic instead of altering it. Detection therefore leans on execution evidence, capture files written to disk and the operating system calls needed to open a raw or packet socket. The practical failure is that the same tools are installed for legitimate troubleshooting, so the rule has to weigh the host role, the command line and the destination of the captured data rather than simply matching a tool name.",
+  "tags": [
+    "network sniffing",
+    "credential access",
+    "discovery",
+    "packet capture",
+    "linux",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Network Sniffing Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0314/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Network Sniffing Across Platforms - EASY",
+      "path": "exercises/det0314/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Network Sniffing Across Platforms - MEDIUM",
+      "path": "exercises/det0314/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Network Sniffing Across Platforms - HARD",
+      "path": "exercises/det0314/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Network Sniffing Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0314/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Network sniffing means copying network traffic that passes a computer, without changing it. Tools such as tcpdump and tshark do this by asking the operating system to hand over raw packets. A packet is one small piece of a network conversation.",
+    "whyItMatters": "Traffic inside a network often carries passwords, tokens and email. If an attacker can read it, they can reuse those secrets later. Sniffing produces no crash and no error, so users notice nothing. Spotting the capture tool is often your only early chance. The capture file it leaves behind is the second clue.",
+    "howItWorks": [
+      "An attacker gains a foothold on a computer, then runs or copies a capture tool onto it.",
+      "The tool asks the operating system for a special network socket that receives all visible traffic.",
+      "The tool writes the collected packets into a capture file, usually with a pcap ending.",
+      "The endpoint agent records the program start, the command line and any file the tool creates.",
+      "The rule looks for capture tools and for capture files, then checks whether this host normally does that work.",
+      "If the host is a user laptop, the platform raises an alert. Servers that are not monitoring nodes also alert."
+    ],
+    "example": "Think of a mail room where letters are sorted into pigeonholes. A person standing in the corridor can read the address on every envelope that passes. Nothing is opened and nothing goes missing, so the room looks normal. The clue is the stranger in the corridor. Here that stranger is the capture tool, running on a host with no reason to capture.",
+    "takeaways": [
+      "Sniffing reads traffic instead of changing it, so it is hard to spot from the network side.",
+      "Capture tools and the capture files they write are the best endpoint evidence.",
+      "Host role is the key filter, because monitoring servers run these tools on purpose."
+    ]
+  },
+  "objectives": [
+    "Describe how a host can read traffic that is not addressed to it",
+    "Identify process, file and audit telemetry that reveals packet capture activity",
+    "Distinguish approved monitoring hosts from user endpoints using an asset inventory",
+    "Write a detection that matches capture tools and capture file extensions together",
+    "Explain the value of argument inspection for capture filters and interface selection",
+    "Assess how encryption changes the impact of a successful sniffing attempt"
+  ],
+  "techniqueId": "t1040",
+  "detectsTechniques": [
+    "t1040"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with command line capturing packet capture utilities and their arguments on Windows hosts",
+    "Linux auditd execve records for capture binaries together with socket or packet socket audit rules on monitored servers",
+    "Sysmon event 11 file creation showing new capture files with endings such as pcap, cap or pcapng and the process that wrote them",
+    "Configuration management or asset inventory data listing hosts approved to run traffic capture for monitoring purposes"
+  ],
+  "logic": "The detection looks for two related signals in the same window on the same host: execution of a well known capture utility or a script that downloads one, and creation of a capture file with a recognised packet capture extension. Correlating the two raises confidence, because a person who installs a tool but never records anything is less concerning than one who captures traffic to disk. The malicious case is further separated from troubleshooting by host role and context: capture on a user workstation or a database server outside a change window, started by a non administrative account or by a process that is not an approved jump host session, is treated as suspicious, while the same command on an approved monitoring node is expected.",
+  "pseudoQuery": "# title: Packet Capture Tool Execution or Capture File Creation\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection_exec:\n#     type: EXECVE\n#     a0|endswith:\n#       - tcpdump\n#       - tshark\n#       - dumpcap\n#       - tcpflow\n#   selection_file:\n#     type: PATH\n#     name|endswith:\n#       - .pcap\n#       - .pcapng\n#       - .cap\n#   filter_monitoring_hosts:\n#     host|startswith: sensor-\n#   condition: (selection_exec or selection_file) and not filter_monitoring_hosts\n# level: medium",
+  "falsePositives": [
+    "Network engineers running a short capture on a server to troubleshoot a latency complaint during a change window",
+    "Application support teams whose vendor asks for a packet trace before the case can be escalated",
+    "Monitoring agents that continuously write rolling capture buffers to disk as part of normal observability",
+    "Security analysts collecting evidence from a suspect host during an approved incident response task",
+    "Development teams capturing traffic to a test service on an isolated laboratory network segment"
+  ],
+  "tuningNotes": "Build the approved monitoring host list first, from your asset inventory and your network team, and allowlist those hosts by name pattern and by the service account that runs the captures. Everything else should stay in scope at medium severity, raised to high when the capture command names a specific interface, filters for authentication protocols, or the capture file is later compressed or moved off the host. Narrowing to capture file extensions alone reduces noise but loses coverage of attackers who stream captured data over a socket without writing a file, so keep the execution rule alongside the file rule and monitor for capture utilities transferred by remote management tooling.",
+  "severity": "high"
+}

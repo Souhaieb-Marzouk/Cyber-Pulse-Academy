@@ -1,0 +1,107 @@
+{
+  "id": "det0472",
+  "type": "detection",
+  "title": "Detect Malicious Password Filter DLL Registration",
+  "shortTitle": "Detect Malicious Password Filter DLL Registration",
+  "externalId": "DET0472",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects registration of a malicious password filter dynamic link library (DLL) on a domain controller, which maps to the modify authentication process technique under credential access. Windows loads password filter libraries into the local security authority process so they can inspect password changes, which means an attacker who registers one can capture credentials in clear text as users change or reset passwords. The telemetry that makes detection possible is registry monitoring of the notification packages and authentication packages values under the LSA configuration key, file creation of a new DLL on the domain controller, and directory service change events or code integrity signals when the host loads it. It fails in practice because the change requires a restart of the authentication service and a reboot, so the registry change and the credential capture can be hours or days apart and no single event looks alarming.",
+  "tags": [
+    "mitre t1556.002",
+    "password filter",
+    "credential access",
+    "active directory",
+    "registry",
+    "domain controller"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Malicious Password Filter DLL Registration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0472/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Malicious Password Filter DLL Registration - EASY",
+      "path": "exercises/det0472/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Malicious Password Filter DLL Registration - MEDIUM",
+      "path": "exercises/det0472/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Malicious Password Filter DLL Registration - HARD",
+      "path": "exercises/det0472/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Malicious Password Filter DLL Registration - EXTREMELY HARD",
+      "path": "exercises/det0472/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A password filter is a small program that Windows loads so it can check new passwords. It runs inside the part of Windows that handles sign in. If an attacker registers their own filter, it can copy each new password as it is set. This detection watches for new filters being registered.",
+    "whyItMatters": "Passwords for many accounts pass through the domain controller, including privileged ones. A filter that records them gives an attacker a large set of working credentials. The filter also runs with high privileges, which is dangerous on its own. This change is rare in most companies, so an alert here is usually important.",
+    "howItWorks": [
+      "Monitoring software watches the registry keys that list authentication and password filter libraries.",
+      "The detection looks for any new library name added to those lists.",
+      "It also watches for new dynamic link library files appearing in system folders on a domain controller.",
+      "It compares the file signature and publisher with the approved list for that host.",
+      "It links the file and the registry change by host and time to build one alert.",
+      "An analyst removes the entry, restarts the authentication service and treats every password changed since as exposed."
+    ],
+    "example": "Think of a bank that adds a second person to check every new account form. Usually that person only checks the form. If a stranger takes that seat, they can copy every form that passes. The branch looks unchanged, but the forms are no longer private. This detection checks who sits in that seat.",
+    "takeaways": [
+      "Password filters run inside the authentication process and can read new passwords.",
+      "The registry change is small and may need a reboot before it takes effect.",
+      "Any unapproved filter on a domain controller should be treated as credential exposure."
+    ]
+  },
+  "objectives": [
+    "Explain what a password filter is and how Windows uses it during authentication.",
+    "Name the registry locations and file events that record filter registration.",
+    "Explain why the technique often needs a restart before it takes effect.",
+    "Describe the incident steps after an unapproved filter is found, including a password reset scope.",
+    "Build an approved list of filter libraries for domain controllers."
+  ],
+  "techniqueId": "t1556-002",
+  "detectsTechniques": [
+    "t1556-002"
+  ],
+  "dataSources": [
+    "Registry monitoring of the LSA configuration key values Notification Packages and Authentication Packages on domain controllers",
+    "Sysmon event 11 file creation recording new dynamic link library files written under system directories on a domain controller",
+    "Sysmon event 7 image loaded showing the path and signature status of libraries loaded by the local security authority process",
+    "Windows directory service change events recording modifications to authentication related configuration",
+    "Change management and software inventory records listing approved authentication libraries per domain controller"
+  ],
+  "logic": "The pattern is a new library name appearing in the authentication or notification package list on a domain controller, especially when it is paired with a newly created unsigned file in a system directory and with a later restart of the authentication service. Correlate the registry value change with the file creation event by host and timestamp, then check the signature and publisher of the referenced file against the approved inventory. In the benign case a third party password policy or smart card product is installed during a documented maintenance window, the installer account is a known administrator, and the library carries a valid vendor signature. In the malicious case the registry write comes from a script host or an unusual process, the file is unsigned or its name imitates a system library, the write happens outside a change window, and the service restart follows soon after.",
+  "pseudoQuery": "# title: New Password Filter DLL Registered on Domain Controller\n# logsource:\n#   product: windows\n#   service: registry\n# detection:\n#   selection_registry:\n#     TargetObject|contains: 'Control\\\\Lsa'\n#     TargetObject|endswith: 'Notification Packages'\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|endswith: '.dll'\n#     TargetFilename|contains: '\\\\System32\\\\'\n#   filter_approved:\n#     Details|contains: 'ApprovedVendorFilter'\n#   condition: (selection_registry or selection_file) and not filter_approved\n# level: critical",
+  "falsePositives": [
+    "Approved third party password policy products installed during a documented maintenance window",
+    "Smart card or multi factor authentication agents that register an authentication package during deployment",
+    "Operating system feature updates or security patches that rewrite an existing approved library path",
+    "Domain controller rebuilds where authentication libraries are restored from a build script"
+  ],
+  "tuningNotes": "Keep this rule scoped to domain controllers and to the specific registry values involved; broadening it to all registry changes elsewhere destroys its value. Baseline the exact library list on each domain controller and filter approved names by publisher and file hash, not by name text alone, and join alerts to change records so planned installations are suppressed with evidence. Add an alert on the authentication service restart that follows an unexpected registry change, because that restart is what activates the filter. The coverage you lose by allowlisting known libraries is detection of a modified copy of an approved file, so pair the rule with file integrity monitoring on those paths and with periodic hash review.",
+  "severity": "critical"
+}

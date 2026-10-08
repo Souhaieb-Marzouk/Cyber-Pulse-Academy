@@ -1,0 +1,107 @@
+{
+  "id": "det0439",
+  "type": "detection",
+  "title": "Detection of Malware Relocation via Suspicious File Movement",
+  "shortTitle": "Detection of Malware Relocation via Suspicious File Movement",
+  "externalId": "DET0439",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects malware that relocates its own files to a new path to break the link between a known bad filename and the running process. Adversaries copy or move a dropped binary, often into a system or temporary directory, then start the copy and delete the original, so indicator lists that name the first path stop matching. The detection relies on file creation telemetry that records a new executable in a directory where it does not belong, on process creation showing execution from that new path, and on file deletion records that show the source file disappearing in the same window. The usual failure is a flood of false positives from software updates, which also write new executables and remove old ones, so the rule must compare the creating process with the folder and the file extension before it alerts.",
+  "tags": [
+    "defense evasion",
+    "file relocation",
+    "indicator removal",
+    "process creation",
+    "sysmon",
+    "t1070.010"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Malware Relocation via Suspicious File Movement",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0439/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Malware Relocation via Suspicious File Movement - EASY",
+      "path": "exercises/det0439/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Malware Relocation via Suspicious File Movement - MEDIUM",
+      "path": "exercises/det0439/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Malware Relocation via Suspicious File Movement - HARD",
+      "path": "exercises/det0439/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Malware Relocation via Suspicious File Movement - EXTREMELY HARD",
+      "path": "exercises/det0439/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a program that moves or copies itself to a new place. It then runs from that new place. The aim is to make the program look different from the file that was reported before. The detection follows the file, not just the name.",
+    "whyItMatters": "A block list based on a file name or folder stops working when the file moves. Attackers use this trick to survive simple clean up. Legitimate software also writes new files often. The detection must therefore look at where and how the file appeared. That context is what makes the alert useful.",
+    "howItWorks": [
+      "A sensor records each new file, with its path, size and creating process.",
+      "The rule keeps new files that end in an executable or script extension.",
+      "It checks if the folder is outside the normal install and update paths.",
+      "A process creation event shows the new file being started soon after.",
+      "The alert lists the source path, the new path and the parent process."
+    ],
+    "example": "Think of a visitor who signs in, then swaps his badge for another one from the drawer. The door log still shows an entry. But the name no longer matches the face. Watching the badge drawer and the door together is what catches him.",
+    "takeaways": [
+      "Indicator lists fail when a file changes location.",
+      "Correlate the file write with the process that ran it.",
+      "A new executable in a temporary folder deserves review."
+    ]
+  },
+  "objectives": [
+    "Explain why relocating a file defeats name based indicators.",
+    "Read a file creation event and identify the creating process and the target path.",
+    "Recognise folders where new executables are unusual.",
+    "Correlate a file write with a later process creation from the same path.",
+    "Add a filter for approved update and deployment tooling.",
+    "Document the source to destination path pair for each alert."
+  ],
+  "techniqueId": "t1070-010",
+  "detectsTechniques": [
+    "t1070-010"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation with target file name, image that created it and file extension",
+    "Sysmon event 1 process creation with image path and parent image",
+    "Sysmon event 23 or event 26 file delete records with the archived target file name",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows Security event 4663 object access for delete and rename actions on executable files"
+  ],
+  "logic": "The detection joins a file creation event in a directory normally reserved for data or temporary content with a process creation event that starts the same path within a short time window, and it looks for the earlier source file being deleted or renamed. Correlating the creating image, the new path, the file extension and the executing parent process is what separates the malicious case from a normal update. A benign update writes a new binary into the product install directory with the product update service as the parent, while the malicious case writes an executable into a user profile or public temporary folder from an unexpected parent such as an office application.",
+  "pseudoQuery": "# title: Executable Relocated To Temporary Path Then Executed\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith: ['.exe', '.dll', '.scr']\n#     TargetFilename|contains: ['\\\\Temp\\\\', '\\\\AppData\\\\Local\\\\Temp\\\\', '\\\\ProgramData\\\\']\n#     Image|endswith: ['\\\\cmd.exe', '\\\\powershell.exe', '\\\\wscript.exe']\n#   condition: selection\n# level: medium",
+  "falsePositives": [
+    "Installer packages that extract a payload binary into a temporary folder before running it.",
+    "Endpoint management agents that stage an update executable in ProgramData and execute it.",
+    "User driven portable application use from a downloads folder.",
+    "Backup restore operations that rebuild an executable in its original program folder."
+  ],
+  "tuningNotes": "Baseline which processes create executables in temporary and program data folders across a two week window, then filter on the exact parent image and the destination folder rather than on the file extension. Add a join condition so the rule only fires when the new path is later executed, which removes most of the noise from extraction tools. Scope the strictest version to servers and to user endpoints that never run portable software. The coverage you give up by requiring execution is a file that is staged now and run after a reboot, so keep a separate low severity report for staged executables.",
+  "severity": "medium"
+}

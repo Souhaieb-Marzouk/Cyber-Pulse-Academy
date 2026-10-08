@@ -1,0 +1,106 @@
+{
+  "id": "det0059",
+  "type": "detection",
+  "title": "Detection Strategy for Data Manipulation",
+  "shortTitle": "Detection Strategy for Data Manipulation",
+  "externalId": "DET0059",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers stored data manipulation, where an adversary changes data in place rather than stealing it, for example editing financial records, altering a configuration file so a service behaves differently, or rewriting log content before it is shipped for review. It matters because the damage is to integrity and trust: reports, access decisions and audits all become wrong while the affected host may look completely normal. Detection is possible by combining file integrity monitoring on sensitive paths with change audit records that name the account and process responsible, then correlating against approved change tickets. The main failure mode is volume: many processes rewrite configuration and data files every day, so a rule that alerts on any modification buries the analyst and a rule tuned too tightly misses the one write that matters.",
+  "tags": [
+    "data-integrity",
+    "file-integrity-monitoring",
+    "impact",
+    "audit",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Data Manipulation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0059/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Data Manipulation - EASY",
+      "path": "exercises/det0059/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Data Manipulation - MEDIUM",
+      "path": "exercises/det0059/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Data Manipulation - HARD",
+      "path": "exercises/det0059/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Data Manipulation - EXTREMELY HARD",
+      "path": "exercises/det0059/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes to important files and records that nobody approved. It catches edits to data that should stay correct, such as money amounts, access settings or log entries. The goal is to know who changed what, and when.",
+    "whyItMatters": "Stolen data is gone, but changed data is worse in some ways, because people keep trusting it. A small edit to a payment file or a rule set can cause real harm. Auditors may never see the change if the records were also rewritten.",
+    "howItWorks": [
+      "A file integrity monitoring tool stores a fingerprint of each protected file, called a hash.",
+      "When a file changes, the tool records the new hash, the account, the process and the time.",
+      "A SIEM (Security Information and Event Management system) collects those change records.",
+      "The rule compares each change against a list of approved change windows and tickets.",
+      "It checks whether the writing process and account normally own that file or directory.",
+      "Matching changes on sensitive paths with an unapproved account raise the alert."
+    ],
+    "example": "Think of a shop till receipt. Each sale prints one line, and the totals must add up at closing. If somebody quietly reprints yesterday's sheet with a smaller number, the day still looks fine. Only a careful check of the paper itself shows the change.",
+    "takeaways": [
+      "Changed data is often more damaging than stolen data, because people still trust it.",
+      "A hash plus the account and process gives you evidence, not just an alert.",
+      "You must compare against approved change windows or the noise will be constant."
+    ]
+  },
+  "objectives": [
+    "Define stored data manipulation and name the file and record types most often targeted.",
+    "Read file integrity monitoring output and identify the changed object plus responsible account.",
+    "Correlate a change event with process creation and logon records on the same host.",
+    "Rank which data stores deserve integrity monitoring first, based on business impact.",
+    "Reduce false alerts by tying changes to approved maintenance windows and owners."
+  ],
+  "techniqueId": "t1565",
+  "detectsTechniques": [
+    "t1565"
+  ],
+  "dataSources": [
+    "File integrity monitoring events listing the changed path, the previous and new hash, the modifying user account and the process identifier",
+    "Windows Security event 4688 process creation with command line auditing enabled, used to tie a write to the binary that performed it",
+    "Windows Security event 4663 object access auditing showing a write attempt against a monitored file or share",
+    "Database audit logs recording schema changes, bulk updates and direct writes from unexpected service accounts",
+    "Configuration management or change ticket records used as an approval reference for expected edits"
+  ],
+  "logic": "The detection joins three facts about the same host within a short window: a monitored file or dataset changed, the change was made by an account or process that does not normally own that object, and no approved change record covers the time. The fields that must line up are the object path, the account and process that performed the write, and the timestamp used to match change tickets. The benign case is a scheduled deployment or a service account updating its own configuration during a documented window, which repeats with the same paths, the same accounts and the same tooling. The malicious case is a one off write to a sensitive object by an interactive or newly seen account, often followed by a service restart or by the clearing of the log that would have shown the original content.",
+  "pseudoQuery": "# title: Unapproved Change to Protected Data File\n# logsource:\n#   product: windows\n#   category: file_event\n# detection:\n#   selection:\n#     TargetFilename|startswith:\n#       - 'C:\\\\ProgramData\\\\AppConfig\\\\'\n#       - 'C:\\\\Finance\\\\Ledger\\\\'\n#   filter_known:\n#     Image|endswith:\n#       - '\\\\svchost.exe'\n#       - '\\\\TiWorker.exe'\n#   filter_window:\n#     User|contains: 'SVC-CONFIG-'\n#   condition: selection and not filter_known and not filter_window\n# level: high",
+  "falsePositives": [
+    "Configuration management agents that rewrite their own settings files on a documented maintenance schedule",
+    "Database maintenance jobs that compact or reindex tables and update statistics inside the data files",
+    "Application installers and patch deployments that replace configuration files with new defaults from a vendor package",
+    "Legitimate administrative scripts run by an operations team under a shared service account during an approved change window"
+  ],
+  "tuningNotes": "Begin with five to ten objects whose corruption would cause real business harm, such as payment files, identity sync configuration and log shipping configuration, instead of watching broad directories. Add filters for the vendor update services and configuration management agents that legitimately touch those objects, and maintain a short list of approved change windows so writes inside a window are downgraded rather than suppressed. The coverage you lose by scoping tightly is manipulation in data stores you did not list, so revisit the list after every incident and pair this rule with alerting on service restarts that follow an unexplained write.",
+  "severity": "high"
+}

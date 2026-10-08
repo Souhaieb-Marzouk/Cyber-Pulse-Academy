@@ -1,0 +1,107 @@
+{
+  "id": "det0353",
+  "type": "detection",
+  "title": "Detection Strategy for Hidden User Accounts",
+  "shortTitle": "Detection Strategy for Hidden User Accounts",
+  "externalId": "DET0353",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects accounts that are deliberately hidden from normal user management tools, which maps to the T1564.002 Hide Artifacts: Hidden Users technique. On Windows, the registry value that hides an account from the logon screen is separate from the account object itself, so an attacker can create a real account, grant it local administrator rights, and then flip the concealment flag so routine reviews and screensaver lock screens never show it. The telemetry that makes this detectable is registry auditing on the account-concealment key, user account creation events, and local or domain group membership change events, because no single one of those proves intent. In practice this fails because coverage is usually incomplete: many environments audit group changes but never enable registry object access auditing, so the concealment write leaves no record at all, and the detection then sees nothing to correlate.",
+  "tags": [
+    "windows",
+    "persistence",
+    "defense evasion",
+    "account management",
+    "registry",
+    "hidden users"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hidden User Accounts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0353/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hidden User Accounts - EASY",
+      "path": "exercises/det0353/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hidden User Accounts - MEDIUM",
+      "path": "exercises/det0353/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hidden User Accounts - HARD",
+      "path": "exercises/det0353/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hidden User Accounts - EXTREMELY HARD",
+      "path": "exercises/det0353/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection finds user accounts that are made invisible to normal administration tools. The account still exists and can still log on, but it no longer appears in the usual lists. It catches this by watching the place where the hide setting is stored and the records of account creation.",
+    "whyItMatters": "A hidden account is a quiet way to keep access to a computer. When staff review the user list, they see nothing unusual. The intruder can come back later and log on again. If nobody checks the underlying settings, the account can stay unknown for a very long time.",
+    "howItWorks": [
+      "A monitoring agent records writes to the registry key that stores the hide setting for local accounts.",
+      "The security log is collected when a new account is created or when an account is added to an administrators group.",
+      "A rule compares the two streams and looks for a concealment write that follows an account change on the same host.",
+      "The name of the hidden account is looked up and compared with the list of approved service and support accounts.",
+      "If the name is not approved, or it holds administrator rights, the rule raises an alert for a human to review."
+    ],
+    "example": "Think of a building directory in a lobby. Every apartment number is listed so visitors know who lives there. A person could move into an empty apartment and ask the manager to leave their number off the board. The apartment is real, the key works, and nobody passing the board knows they are there.",
+    "takeaways": [
+      "Hiding an account does not remove it, and the account can still be used to log on.",
+      "The hide setting lives apart from the account record, so you need both sources to see the trick.",
+      "A new account that is both hidden and privileged deserves a fast human review."
+    ]
+  },
+  "objectives": [
+    "Explain how an account can be hidden from normal user management tools on Windows",
+    "Name the registry key and the account records that together reveal a concealed account",
+    "Correlate account creation and group membership events with concealment registry writes",
+    "Identify which business roles may legitimately own a hidden service account",
+    "Write a filter that removes known service accounts without hiding new activity",
+    "Describe the coverage gap created when registry auditing is not enabled"
+  ],
+  "techniqueId": "t1564-002",
+  "detectsTechniques": [
+    "t1564-002"
+  ],
+  "dataSources": [
+    "Windows registry auditing for set-value operations on the SAM account concealment key",
+    "Windows Security event 4720 account creation with subject and target user names",
+    "Windows Security event 4732 member added to a local security-enabled group",
+    "Windows Security event 4728 member added to a global security group in Active Directory",
+    "Endpoint agent inventory that lists local accounts and their admin flag"
+  ],
+  "logic": "The detection looks for a chained pattern rather than a single event. First, account telemetry shows a local or domain account being created or added to a privileged group. Second, registry auditing shows a set-value operation on the SAM key value that marks an account as hidden from the logon user interface. Third, the affected account name is not on the approved service account list. The malicious case is the combination of concealment with privilege on an unapproved name; the benign case is a known support account whose concealment flag is part of a documented standard build. Analysts must correlate host, account name and time window, because each event alone has innocent explanations.",
+  "pseudoQuery": "# title: Hidden local account created and concealed\n# logsource:\n#   product: windows\n#   service: registry\n# detection:\n#   selection_registry:\n#     EventType: SetValue\n#     TargetObject|contains: 'SAM\\\\Domains\\\\Account\\\\Users'\n#     Details|contains: '0x0001'\n#   selection_account:\n#     EventID: 4720\n#   filter_approved:\n#     TargetUserName|startswith: 'svc_'\n#   condition: selection_registry and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Software installation packages that create a bundled local service account and hide it from the welcome screen as part of their installer",
+    "Helpdesk support accounts used for remote assistance that the team intentionally keeps off the shared logon list",
+    "Legacy application accounts carried over from an old platform where concealment was the vendor default",
+    "Penetration testing or red team engagements that add a concealed account inside an approved scope and time window"
+  ],
+  "tuningNotes": "Start by enabling registry object access auditing on the account concealment key, because without it the rule sees only creation events and almost no concealed accounts. Then build a baseline inventory of approved hidden accounts per site and filter by account name pattern and by host role, so server build standards do not flood the queue. Scope the rule to member servers and administrator workstations first, and add domain controllers later once the volume is understood. Narrowing this way means you may miss a concealed account that is deliberately named to match the approved pattern, so pair the rule with a periodic full comparison of the local account store against your configuration management inventory.",
+  "severity": "high"
+}

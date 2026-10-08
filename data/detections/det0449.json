@@ -1,0 +1,107 @@
+{
+  "id": "det0449",
+  "type": "detection",
+  "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Cloud Instance",
+  "shortTitle": "Detection Strategy for Modify Cloud Compute Infrastructur...",
+  "externalId": "DET0449",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the creation of new cloud compute instances that an adversary uses as capacity for mining, as a staging host for further attacks, or as a disposable proxy in front of their real infrastructure. The controlling telemetry is the cloud control plane audit record for the instance create operation, which names the caller identity, the source address, the region, the instance type and the machine image. Additional value comes from a baseline of which identities normally create instances and in which regions, because the malicious case is usually a first time creation by a principal that never provisions compute, from an address or region the organisation does not use, or with an instance type chosen for graphics processing power. The failure mode is a flat rule that alerts on every creation, which produces a large volume of legitimate autoscaling events and quickly teaches the team to ignore the alert.",
+  "tags": [
+    "cloud",
+    "resource hijacking",
+    "compute instance",
+    "audit logs",
+    "identity monitoring",
+    "t1578.002"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Modify Cloud Compute Infrastructure: Create Cloud Instance",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0449/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Cloud Instance - EASY",
+      "path": "exercises/det0449/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Cloud Instance - MEDIUM",
+      "path": "exercises/det0449/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Cloud Instance - HARD",
+      "path": "exercises/det0449/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Cloud Instance - EXTREMELY HARD",
+      "path": "exercises/det0449/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new virtual machines created in a cloud account. Cloud providers record who created them and where. Attackers create machines to mine cryptocurrency or to attack from. The detection compares the request with normal account behaviour.",
+    "whyItMatters": "New machines cost money and appear in your bill. They can also attack other networks from your name. A stolen cloud key can create them in seconds. Your normal automation also creates machines, so a simple alert is not enough. Comparing the request with a baseline is what makes it useful.",
+    "howItWorks": [
+      "The cloud provider writes an audit record for every instance creation.",
+      "The record holds the caller identity, the region, the size and the image.",
+      "The rule compares those values with the account baseline.",
+      "It looks for new identities, unused regions and unusual machine sizes.",
+      "Alerts are grouped by caller so that a burst of creations is one incident."
+    ],
+    "example": "Think of a company car park with a barrier and a log book. Staff cars arrive every day, so the log is boring. A delivery van booked in at midnight by a cleaner account is the entry you check. The log book, not the barrier, tells you.",
+    "takeaways": [
+      "Cloud control plane logs name the caller for every change.",
+      "Compare creation requests with what the account normally does.",
+      "Group repeated creations into a single review item."
+    ]
+  },
+  "objectives": [
+    "Locate the audit record for an instance creation in a cloud audit log.",
+    "Read the caller identity, source address, region, instance type and image fields.",
+    "Build a baseline of which identities create compute in each account.",
+    "Recognise instance sizes and images chosen for mining or testing.",
+    "Correlate a creation burst with following authentication or network activity.",
+    "Define a response step that quarantines the instance and rotates the key."
+  ],
+  "techniqueId": "t1578-002",
+  "detectsTechniques": [
+    "t1578-002"
+  ],
+  "dataSources": [
+    "Cloud provider control plane audit records for the instance create operation including the caller identity, source address, region and request parameters",
+    "Cloud identity records for the access key or role that made the request and its recent authentication history",
+    "Cloud billing and usage records that show a sudden increase in compute hours or graphics processing instance usage",
+    "Cloud network flow logs from the new instance showing outbound connections to unusual destinations",
+    "Cloud configuration inventory records showing that the new instance is not attached to any approved management tag"
+  ],
+  "logic": "The pattern is an instance creation request from a principal that has no history of provisioning compute, or a request that uses a region, instance family or machine image outside the account baseline, often repeated several times in a short period. The fields to correlate are the caller identity and its access key, the source address, the region, the image identifier, the instance type, the tags applied and the number of creations by that caller in the window. A benign case is a pipeline role that creates instances in known regions from approved images with standard tags during working hours, while the malicious case is a new or long dormant principal, an unusual region, an image that no pipeline references, and no tags or a tag that mimics another team convention.",
+  "pseudoQuery": "# title: Compute Instance Created Outside Account Baseline\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName: RunInstances\n#   filter_baseline:\n#     userIdentity.arn|contains: 'role/approved-pipeline'\n#     awsRegion: 'eu-west-1'\n#   condition: selection and not filter_baseline\n# level: medium",
+  "falsePositives": [
+    "Autoscaling groups that add capacity during a traffic peak in a region you already use.",
+    "Disaster recovery drills that build instances in a secondary region for a short period.",
+    "Data science teams that spin up graphics processing instances for a training job.",
+    "Sandbox accounts where engineers are allowed to create instances freely."
+  ],
+  "tuningNotes": "Export ninety days of creation events and group them by caller identity, region and instance family to form the baseline, then allow list the service roles and pipeline identities that account for the bulk of normal activity. Keep the rule sensitive to new principals rather than to new instance counts, because volume based thresholds break during legitimate peaks. Tag the alert with the owning account and team so the reviewer knows who to contact, and add the following network activity from the new instance as context. Restricting the rule to production accounts reduces noise but misses abuse in sandbox accounts, which are often the easiest to compromise, so run a low severity version there and review spending anomalies weekly.",
+  "severity": "medium"
+}

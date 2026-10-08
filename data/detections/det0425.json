@@ -1,0 +1,108 @@
+{
+  "id": "det0425",
+  "type": "detection",
+  "title": "Suspicious Use of Web Services for C2",
+  "shortTitle": "Suspicious Use of Web Services for C2",
+  "externalId": "DET0425",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers adversary use of legitimate web services, such as paste sites, code repositories, social platforms and hosted messaging interfaces, as a command and control channel. It matters because the traffic is ordinary encrypted HTTPS to a domain your organisation already allows, so the beacon never appears on a blocklist and never needs attacker owned infrastructure. Detection therefore depends on behavioural telemetry: proxy or gateway logs with request metadata, DNS resolution records, transport security metadata such as the server name indication, and flow records showing beacon regularity. The main way it fails in practice is that the signal is statistical rather than definitive, so thresholds tuned for one business unit generate constant noise in another and analysts stop reading the alerts.",
+  "tags": [
+    "command and control",
+    "web services",
+    "t1102",
+    "beaconing",
+    "network detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Suspicious Use of Web Services for C2",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0425/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Suspicious Use of Web Services for C2 - EASY",
+      "path": "exercises/det0425/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Suspicious Use of Web Services for C2 - MEDIUM",
+      "path": "exercises/det0425/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Suspicious Use of Web Services for C2 - HARD",
+      "path": "exercises/det0425/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Suspicious Use of Web Services for C2 - EXTREMELY HARD",
+      "path": "exercises/det0425/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for malware that hides its control traffic inside popular web services. A command and control channel is the link an attacker uses to send orders to a compromised machine. The rule watches the shape of that traffic, not its content.",
+    "whyItMatters": "Most networks allow well known websites, because staff need them. Attackers use that same access to blend in. Blocking the whole service would stop normal work, so you cannot simply deny it. Instead you look for machines that talk to one service in a strange, mechanical rhythm. That pattern is what gives the channel away.",
+    "howItWorks": [
+      "A program on a workstation sends small requests to a popular web service at fixed intervals.",
+      "Your web proxy or secure gateway records the request, the destination and the amount of data.",
+      "Domain name system logs show repeated lookups for the same service name.",
+      "The detection groups this traffic by host, destination and time gap between requests.",
+      "It flags a machine with a very regular rhythm, a constant request size and no human browsing.",
+      "The alert gives the analyst the host, the account, the service and the timeline to investigate."
+    ],
+    "example": "Think of a night watchman walking a large building. People come and go for many reasons, so the door log alone proves little. What stands out is one visitor who arrives every ten minutes, stays ninety seconds and never speaks to anyone. The log cannot tell you what they did. It tells you the rhythm, and rhythm is what makes the guard walk over.",
+    "takeaways": [
+      "Web service abuse hides in traffic you have already chosen to allow.",
+      "Look for regular timing, constant sizes and long idle gaps between contacts.",
+      "This signal supports the case but rarely proves it, so pair it with host evidence."
+    ]
+  },
+  "objectives": [
+    "Explain why allowlisted web services are attractive command and control infrastructure.",
+    "Identify the proxy, DNS and network flow fields that describe beacon behaviour.",
+    "Calculate and compare inter arrival timing and request size variance per host.",
+    "Distinguish automated beaconing from interactive browsing by the same account.",
+    "Correlate a suspected beacon with process and file telemetry on the source host.",
+    "Describe the coverage gap left by encrypted payloads and by domain fronting."
+  ],
+  "techniqueId": "t1102",
+  "detectsTechniques": [
+    "t1102"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway logs recording full URL, host, bytes in, bytes out and user agent",
+    "Domain name system query logs capturing resolved name, query type and requesting internal host",
+    "TLS metadata records exposing the server name indication and certificate issuer for outbound sessions",
+    "Network flow records with connection duration, packet counts and periodicity per internal endpoint",
+    "Endpoint process creation telemetry linking the beaconing process image and parent to the traffic"
+  ],
+  "logic": "The pattern is one internal host contacting a single public web service at a near constant interval, with very low variance in request and response size, over a period far longer than a human session, and often with a session that never loads the supporting assets a browser would fetch. The fields that must be correlated are the internal source address and user account, the resolved service name and server name indication, the request and response byte counts, and the inter arrival timing between consecutive contacts. The malicious case differs from the benign one by identity and uniformity: approved automation runs from server tiers under service accounts and calls an interface endpoint, while a beacon appears on a workstation under an interactive user, uses the same generic user agent every time, and stops and restarts with a rhythm that matches a sleep timer. Content length anomalies and bursts that align with the working hours of the victim are useful secondary signals.",
+  "pseudoQuery": "# title: Regular Outbound Beacon to a Hosted Web Service from a Workstation\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     destination_host|contains:\n#       - 'pastebin'\n#       - 'githubusercontent'\n#       - 'telegram'\n#       - 'discord'\n#     bytes_out|lt: 2000\n#     user_agent|contains: 'python'\n#   filter_baseline:\n#     src_tier: 'server'\n#     process_image|endswith: '/usr/bin/backup-agent'\n#   condition: selection and not filter_baseline\n# level: medium",
+  "falsePositives": [
+    "Developer workstations where command line package managers pull code from public repositories at regular intervals",
+    "Monitoring or chat agents that poll a hosted messaging interface every few seconds with a fixed small payload",
+    "Software updaters that check a vendor repository on a fixed schedule with a consistent small request",
+    "Security tooling that submits file hashes to a public reputation service during scheduled scanning",
+    "Browser extensions and single sign on clients that refresh tokens against a hosted identity provider"
+  ],
+  "tuningNotes": "Baseline first by measuring, for each internal subnet, how many distinct hosts normally contact each hosted service and how regular that traffic already is, then raise the periodicity threshold above the observed automation so only the most mechanical patterns remain, and filter specific approved automation processes rather than the whole destination domain. Scope the rule to workstation subnets and interactive user accounts, where regular machine paced traffic is rare, and keep server tiers in a separate lower severity rule with a tighter size threshold. Enrich each alert with the owning user, the parent process tree and the first seen date of the destination so analysts can dismiss familiar software quickly. You lose coverage for a beacon that hides behind a compromised browser process, for traffic that mimics a legitimate updater, and for payloads that are fully encrypted or use a fronting proxy, so complement this rule with host based process lineage detection and with rarity scoring on destination names that are new to the estate.",
+  "severity": "medium"
+}

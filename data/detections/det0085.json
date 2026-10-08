@@ -1,0 +1,107 @@
+{
+  "id": "det0085",
+  "type": "detection",
+  "title": "Credential Dumping from SAM via Registry Dump and Local File Access",
+  "shortTitle": "Credential Dumping from SAM via Registry Dump and Local F...",
+  "externalId": "DET0085",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects attempts to read the local Security Account Manager (SAM) credential store, either by saving a registry hive with a built-in tool or by opening the hive file directly. Access to SAM yields local account password hashes, so it is a high-value step before lateral movement and privilege escalation. Detection depends on process creation details, registry hive file access, and file creation events being correlated in one view. In practice the rule fails because legitimate backup, forensic and inventory agents read the same hive files on a schedule, so context rather than the single event decides the alert. Treat this guidance as study material, not as an authoritative rule set.",
+  "tags": [
+    "credential access",
+    "windows",
+    "sam",
+    "registry",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Credential Dumping from SAM via Registry Dump and Local File Access",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0085/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Credential Dumping from SAM via Registry Dump and Local File Access - EASY",
+      "path": "exercises/det0085/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Credential Dumping from SAM via Registry Dump and Local File Access - MEDIUM",
+      "path": "exercises/det0085/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Credential Dumping from SAM via Registry Dump and Local File Access - HARD",
+      "path": "exercises/det0085/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Credential Dumping from SAM via Registry Dump and Local File Access - EXTREMELY HARD",
+      "path": "exercises/det0085/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone trying to copy or read the SAM file on a Windows computer. The SAM file is where Windows keeps the scrambled passwords of local user accounts. Attackers who read this file can take those passwords away and crack them later. The detection watches for both the copy command and the moment the file is opened.",
+    "whyItMatters": "Local account passwords are a key that opens many doors in a network. If an attacker reads the SAM file, they can work offline and without making noise on the network. A normal user never needs to touch this file, so a clear alert is valuable. Finding this early can stop an attacker before they move to other computers.",
+    "howItWorks": [
+      "The agent records every new process on the computer, including the full command line that started it.",
+      "The rule looks for registry tools such as reg or esentutl, because these can save a copy of a hive file.",
+      "It checks the command line for the words sam, security or system, which name the sensitive hives.",
+      "It also watches for a process opening the SAM file path directly, which is a different way to read it.",
+      "A second signal, such as a new file in a temporary folder, is joined to the first signal in the SIEM, which is the central place where logs are stored and searched.",
+      "When all signals arrive close together on one computer, the rule raises an alert for a human to review."
+    ],
+    "example": "Think of a hotel front desk that keeps a locked drawer with guest key cards. The manager may copy that drawer list into a safe book at night, which is normal. But a cleaner who opens the drawer at three in the morning, copies the list and walks out with it is a serious problem. The log of who opened the drawer is only useful when you also know who was on shift and what their job is. The SAM detection works the same way: the event alone is weak, and the person plus the time plus the follow-up action tell the real story.",
+    "takeaways": [
+      "The SAM file holds local password hashes, and normal users never need to read it.",
+      "A copy command and a direct file open are two different ways to steal it, so watch both.",
+      "Backup and forensic tools do the same thing, so check the account and the schedule before you panic."
+    ]
+  },
+  "objectives": [
+    "Explain what the SAM credential store is and why reading it matters to an attacker.",
+    "Name the two telemetry patterns that reveal local hive theft, and the fields that link them.",
+    "Judge which accounts and tools may read hive files in your own environment.",
+    "Write a first rule that flags hive copies and then narrow it with an allowlist.",
+    "Describe how to triage a hive access alert without touching attacker infrastructure."
+  ],
+  "techniqueId": "t1003-002",
+  "detectsTechniques": [
+    "t1003-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "Sysmon event 11 file creation showing new hive or dump files written to temporary or user profile paths",
+    "Sysmon event 13 registry value set on SAM, SECURITY or SYSTEM hive related keys",
+    "Windows Security event 4672 special privileges assigned to a new logon for the account that ran the tool"
+  ],
+  "logic": "The pattern is a credential access tool that touches the local SAM store. Two shapes matter. First, a registry or imaging utility such as reg, esentutl, ntdsutil or a copy of the hive file runs with sam, security or system in the command line, which is the on-disk save path. Second, a non-system process opens the SAM hive file path directly, which reads it in place. In both shapes the decisive fields are the process image, the parent image, the command line, the logon account and the immediate follow-on file write. Benign cases separate from malicious ones on three points: the parent process is a known backup, forensic or configuration management agent; the account is a service account with that documented duty; and the activity happens inside a scheduled backup window. Because legitimate tools produce nearly identical command lines, the rule should never live on a single event alone.",
+  "pseudoQuery": "# title: Local SAM Hive Access or Save by Non-System Process\n# logsource:\n#   product: windows\n# detection:\n#   selection_tool:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\reg.exe'\n#       - '\\\\esentutl.exe'\n#     CommandLine|contains:\n#       - 'save'\n#       - 'sam'\n#       - 'security'\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '\\\\config\\\\SAM'\n#       - '\\\\config\\\\SECURITY'\n#   filter_system:\n#     User|endswith:\n#       - 'SYSTEM'\n#       - 'LOCAL SERVICE'\n#   condition: (selection_tool or selection_file) and not filter_system\n# level: high",
+  "falsePositives": [
+    "Endpoint backup agents that snapshot the local SAM and SECURITY hives during a nightly image job",
+    "Digital forensics or incident response tooling that collects hive files with a documented case reference",
+    "Configuration management software that reads registry hives to inventory installed applications",
+    "Password reset utilities used by the service desk that rewrite local account data on the endpoint",
+    "Windows system processes running as SYSTEM that open the hive files as part of normal boot or logon work"
+  ],
+  "tuningNotes": "Start by baselining which accounts and parent processes read hive files in your estate for two weeks, then allowlist those exact process and parent pairs rather than whole directories. Scope the rule to servers that hold no local accounts of value only after you confirm the build standard, because narrowing per asset group is the cheapest way to cut noise. Add a filter for the documented backup window and for signed vendor agents, and keep the direct file open pattern for all workstations. The coverage you lose is insider misuse of approved backup tooling and a patient attacker who waits for the backup window, so retain a low severity copy of the rule without the time filter to review weekly.",
+  "severity": "high"
+}

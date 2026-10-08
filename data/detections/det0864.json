@@ -1,0 +1,106 @@
+{
+  "id": "det0864",
+  "type": "detection",
+  "title": "Detection of Serverless",
+  "shortTitle": "Detection of Serverless",
+  "externalId": "DET0864",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers compromise of serverless compute, meaning functions and container tasks that run on demand without a server the team manages directly. An attacker who controls a function can run code inside your cloud account, reach internal services from a trusted address and often blend into ordinary invocation logs. The telemetry that makes it visible is cloud audit logging for function and role changes, function execution logs with duration and memory metrics, identity audit records for policy attachment and flow logs for outbound connections from function networks. It fails because deployments are frequent and automated, so a code change on its own rarely looks suspicious.",
+  "tags": [
+    "resource development",
+    "serverless",
+    "cloud audit",
+    "identity",
+    "function execution"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Serverless",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0864/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Serverless - EASY",
+      "path": "exercises/det0864/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Serverless - MEDIUM",
+      "path": "exercises/det0864/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Serverless - HARD",
+      "path": "exercises/det0864/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Serverless - EXTREMELY HARD",
+      "path": "exercises/det0864/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Serverless computing runs your code on demand, and you do not manage the computer. A function starts when something calls it and stops when the work is done. Attackers like this because the code runs inside your cloud account. This detection looks for function changes and behaviour that no deployment pipeline produced.",
+    "whyItMatters": "A function often holds powerful permissions and sits inside your network. Its traffic may come from a range that your firewalls trust. If an attacker replaces the code or adds a new function, the activity can look like ordinary automation. There is no endpoint agent to inspect the running code, so cloud audit and execution logs are your only view. Deployment noise is high, so the useful signals are narrow. Look for configuration changes outside the pipeline, new outbound destinations and identity changes attached to a function.",
+    "howItWorks": [
+      "Your cloud provider records every function create, update and permission change in an audit log.",
+      "The function platform writes an execution log line for each invocation, with duration and memory used.",
+      "The detection checks whether each change came from the approved deployment pipeline identity.",
+      "It measures outbound connections from the function network against the normal destinations.",
+      "It also watches for new roles or policies attached to a function outside the pipeline.",
+      "A change from an unexpected identity, or a new external destination, raises an alert with the function name."
+    ],
+    "example": "Think of a vending machine in an office. It works on demand and nobody watches it during the day. A thief opens the back of the machine and adds a small device. The device copies every card used at the front. The machine still sells drinks, so nobody complains. Your detection is the maintenance log. It records who opened the machine, when and with which key. The machine was opened at midnight with a key from a closed contract. The log tells you before the copies are used.",
+    "takeaways": [
+      "Serverless code runs with cloud permissions and no endpoint agent to watch it.",
+      "A function change from outside the pipeline is the strongest single clue.",
+      "New outbound destinations from function networks deserve a review."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers value serverless compute inside a cloud account.",
+    "List the audit events that record function and role changes.",
+    "Describe how to compare the caller identity with the deployment pipeline.",
+    "Baseline normal outbound destinations for function networks.",
+    "Recommend controls that limit the permissions held by a function."
+  ],
+  "techniqueId": "t1584-007",
+  "detectsTechniques": [
+    "t1584-007"
+  ],
+  "dataSources": [
+    "Cloud audit logs for function create, update, configuration and permission change operations, with caller identity",
+    "Function execution logs with function name, invocation count, duration and memory usage",
+    "Cloud identity audit records for role creation and policy attachment to compute resources",
+    "Virtual private cloud flow logs showing outbound connections from function network interfaces",
+    "Deployment pipeline logs listing the code versions and identities approved for release"
+  ],
+  "logic": "The pattern is a serverless function or container task that changes outside the approved deployment pipeline, or that starts making outbound connections to destinations it never used before. The fields that must be correlated are the function name, the caller identity and its source address, the code version or image reference, any role or policy attached in the same session and the destination addresses seen in flow logs. Benign cases include hotfixes applied by an on call engineer, pipeline runs from a new runner and vendor integrations that call external interfaces. The malicious case is a code update from a human identity outside change hours combined with a new role attachment and connections to a hosting provider address.",
+  "pseudoQuery": "# title: Function Code or Role Changed Outside Deployment Pipeline\n# logsource:\n#   product: aws\n# detection:\n#   selection_change:\n#     event_name:\n#       - 'UpdateFunctionCode'\n#       - 'CreateFunction'\n#       - 'AttachRolePolicy'\n#   filter_pipeline:\n#     user_identity_arn|contains: 'deployment-pipeline-role'\n#   filter_break_glass:\n#     change_ticket|exists: true\n#   condition: selection_change and not filter_pipeline and not filter_break_glass\n# level: high",
+  "falsePositives": [
+    "An on call engineer who applies an urgent hotfix outside the normal release pipeline.",
+    "A pipeline migration that runs under a new deployment role name.",
+    "A vendor integration that creates its own function during customer onboarding.",
+    "Infrastructure as code tools that attach policies during a scheduled platform upgrade."
+  ],
+  "tuningNotes": "Start by listing every identity that is allowed to change function code, and filter those identities with the pipeline check rather than by name alone. Scope the outbound destination branch to functions that hold network access, because event driven functions may have none. Baseline destinations for two weeks before you alert on them. If you restrict the rule to production functions only, you lose the staging function that an attacker can use to reach shared internal services, so include staging in the flow branch even when you exclude it from the change branch.",
+  "severity": "high"
+}

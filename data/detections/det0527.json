@@ -1,0 +1,107 @@
+{
+  "id": "det0527",
+  "type": "detection",
+  "title": "Right-to-Left Override Masquerading Detection via Filename and Execution Context",
+  "shortTitle": "Right-to-Left Override Masquerading Detection via Filenam...",
+  "externalId": "DET0527",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy finds file names that use the right to left override character to reverse how the rest of the name is displayed, the behaviour behind right to left override masquerading. A file that appears to be a document can actually carry an executable extension, so the user sees a trusted type while the system runs code. File creation events that carry the Unicode direction control character in the target file name, process image paths and command lines that reference such a name, and archive or mail attachment handling records supply the evidence. The rule fails when it watches only the process name and misses the crafted file name, or when it treats every non Latin file name as suspicious and buries the analyst in false matches.",
+  "tags": [
+    "defense evasion",
+    "masquerading",
+    "file monitoring",
+    "windows",
+    "phishing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Right-to-Left Override Masquerading Detection via Filename and Execution Context",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0527/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Right-to-Left Override Masquerading Detection via Filename and Execution Context - EASY",
+      "path": "exercises/det0527/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Right-to-Left Override Masquerading Detection via Filename and Execution Context - MEDIUM",
+      "path": "exercises/det0527/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Right-to-Left Override Masquerading Detection via Filename and Execution Context - HARD",
+      "path": "exercises/det0527/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Right-to-Left Override Masquerading Detection via Filename and Execution Context - EXTREMELY HARD",
+      "path": "exercises/det0527/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for file names that contain a special hidden character. That character makes the text after it appear backwards on the screen. A file can look like a document but really be a program. The alert fires when a new file, a folder path or a command line contains this character.",
+    "whyItMatters": "People trust what they see in a file list. A hidden control character can make a program look like a report or an invoice. The system does not care how the name looks on screen. It only reads the real file extension at the end. One double click is then enough to run the file. Because the trick targets the user, the crafted name is often the best clue you get.",
+    "howItWorks": [
+      "File monitoring agents record created and renamed files with the full path, including characters that do not print.",
+      "The rule checks the path for the right to left override character and for the related direction control characters.",
+      "Process creation records are searched for the same characters in the image path or in the command line.",
+      "The rule marks paths that arrive from a download folder, a temporary folder, an archive or a mail attachment.",
+      "Confirmed matches are enriched with the file hash, the creating process and the owning user.",
+      "The alert shows the raw characters in the name, so the analyst can see what the user was shown."
+    ],
+    "example": "Think of a sign on a shop door. Someone swaps the letters around so the big sign reads open, while the small print still says closed. The door works exactly the same way as before. Customers read the big letters and walk in. The detection looks for the swapped letters themselves, not for the customers walking through the door.",
+    "takeaways": [
+      "The right to left override character hides the true file extension from the person reading the name.",
+      "Watch file creation and process paths, not just the process name.",
+      "Legitimate right to left languages use direction marks, so filter the exact override character."
+    ]
+  },
+  "objectives": [
+    "Explain how a Unicode direction control character changes the way a file name is displayed",
+    "Identify the telemetry fields that carry the raw file name, including non printable characters",
+    "Detect the same character in created files, renamed files and process image paths",
+    "Separate malicious override use from legitimate right to left language file names",
+    "Scope the rule to folders where a crafted name is most likely to be opened by a user",
+    "Describe the evidence to collect, such as hash, creating process and delivery path, before escalation"
+  ],
+  "techniqueId": "t1036-002",
+  "detectsTechniques": [
+    "t1036-002"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation with the full target file name, including Unicode direction control characters",
+    "Sysmon event 1 process creation where the image path or command line contains direction control characters",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Archive handling and mail gateway records of attachment file names and the names unpacked from archives",
+    "Endpoint file rename telemetry showing the original and the new name of a renamed object"
+  ],
+  "logic": "The pattern is the Unicode right to left override code point, or a related direction control character, appearing inside a file name, folder path, process image path or command line. Correlate the raw name from file creation or rename telemetry with the creating process, the owning user, the signing status of the binary and the folder the file landed in. The benign case is a genuine right to left language file name, or a localisation build directory that stores bidirectional text samples. The malicious case pairs the override character with an executable extension on a file created in a download, temporary or mail attachment folder, especially when the creating process is a browser, an archive tool or a mail client.",
+  "pseudoQuery": "# title: File Or Process Path With Right-To-Left Override Character\n# logsource:\n#   product: windows\ndetection:\n  selection_file:\n    EventID: 11\n    TargetFilename|contains: '\\u202e'\n  selection_proc:\n    EventID: 1\n    CommandLine|contains: '\\u202e'\n  filter_build:\n    TargetFilename|contains: 'Localization'\n  condition: (selection_file or selection_proc) and not filter_build\nlevel: medium",
+  "falsePositives": [
+    "Right to left language users whose genuine file names include direction control characters",
+    "Translation and localisation tools that write bidirectional text test files into a build directory",
+    "Archive tools that preserve control characters when unpacking a file created on another platform",
+    "Accessibility software that saves documents with embedded direction marks"
+  ],
+  "tuningNotes": "Filter on the specific override code point rather than on all bidirectional controls, because direction marks appear in legitimate right to left file names. Scope the rule to file creation in download, temporary and mail attachment folders, and to process paths outside a localisation build folder. Baseline how often your organisation sees the character at all, so that a single weekly match stands out. Narrowing to those folders loses visibility of a crafted name written directly into a system directory, so keep a separate lower severity rule for system directories.",
+  "severity": "medium"
+}

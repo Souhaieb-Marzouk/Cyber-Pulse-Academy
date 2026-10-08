@@ -1,0 +1,105 @@
+{
+  "id": "det0113",
+  "type": "detection",
+  "title": "Detect AS-REP Roasting Attempts (T1558.004)",
+  "shortTitle": "Detect AS-REP Roasting Attempts (T1558.004)",
+  "externalId": "DET0113",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects AS-REP roasting, an attack against Kerberos in which a request for a service ticket is made for an account that has pre-authentication disabled, so the domain controller returns a response encrypted with a key derived from the account password. An attacker who can request that response offline can crack it at leisure without ever authenticating, which makes the technique quiet and hard to spot with authentication failure monitoring alone. Detection depends on domain controller Kerberos ticket events that record the pre-authentication flag, the requested encryption type, the client address and the account, correlated with prior directory lookups of the same account. In practice it fails when pre-authentication auditing is not enabled, when the optional encryption type is not recorded, or when a single request blends into normal Kerberos volume, so rules usually need a count or a correlation window.",
+  "tags": [
+    "kerberos",
+    "credential access",
+    "active directory",
+    "windows",
+    "as-rep roasting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect AS-REP Roasting Attempts (T1558.004)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0113/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect AS-REP Roasting Attempts (T1558.004) - EASY",
+      "path": "exercises/det0113/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect AS-REP Roasting Attempts (T1558.004) - MEDIUM",
+      "path": "exercises/det0113/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect AS-REP Roasting Attempts (T1558.004) - HARD",
+      "path": "exercises/det0113/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect AS-REP Roasting Attempts (T1558.004) - EXTREMELY HARD",
+      "path": "exercises/det0113/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a special kind of Kerberos ticket request on your network. Kerberos is the system Windows uses to prove who you are. The rule catches requests made for accounts that do not need a password check first.",
+    "whyItMatters": "Some accounts are set up so anyone can ask for a ticket without proving who they are first. The reply to that request is encrypted with the account password. An attacker can take that reply away and try to guess the password offline, where you cannot see the attempts. If the password is weak, the account is lost.",
+    "howItWorks": [
+      "A domain controller records an event when it hands out a Kerberos ticket.",
+      "The event says whether the account needed a password check first, which is called pre-authentication.",
+      "The rule keeps only requests where pre-authentication was turned off.",
+      "It also looks at the requested encryption type, because weak types are often asked for.",
+      "The rule notes the source address and the account name from the same event.",
+      "Several such requests from one address in a short time raise an alert."
+    ],
+    "example": "Think of a hotel front desk. A normal guest must show a passport before getting a room key. A few rooms are set up so the clerk hands over a key to anyone who asks. That key is cut to match the room lock. A thief can take the key home and file it down until it fits. The desk log shows only a normal key handover. You need a rule that flags rooms where no passport was checked.",
+    "takeaways": [
+      "This attack needs no login, so failed password alerts will not show it.",
+      "The key clue is a ticket request for an account without pre-authentication.",
+      "Weak account passwords are what make the attack succeed."
+    ]
+  },
+  "objectives": [
+    "Explain how a Kerberos ticket request can expose an account password hash",
+    "Identify the fields in domain controller ticket events that show pre-authentication was disabled",
+    "Correlate directory lookups of an account with the ticket request that follows",
+    "Tune the rule so normal Kerberos volume does not drown the signal",
+    "Respond to an alert by finding and fixing accounts without pre-authentication"
+  ],
+  "techniqueId": "t1558-004",
+  "detectsTechniques": [
+    "t1558-004"
+  ],
+  "dataSources": [
+    "Windows Security event 4768 on domain controllers, which records a Kerberos authentication ticket request with pre-authentication status, requested encryption type and client address",
+    "Windows Security event 4798 or 4799, which records that a user account or group membership was enumerated",
+    "Sysmon event 1 process creation for command lines that reference Kerberos ticket tooling",
+    "Network flow records showing one internal host contacting many domain controllers in a short window"
+  ],
+  "logic": "The detection looks for a Kerberos ticket request recorded on a domain controller where the event shows that pre-authentication was not required, which cannot happen for a correctly configured account. Several fields must line up: the pre-authentication flag in the ticket event, the requested encryption type, the client address and the target account name. To separate abuse from noise, count the number of such requests per client address inside a short window, and treat a burst as the alert. The benign case is a legacy application or appliance account that was deliberately configured this way and authenticates from a stable address on a predictable schedule, while the malicious case is one unfamiliar host asking for several accounts it has just enumerated.",
+  "pseudoQuery": "# title: Kerberos ticket request for account without pre-authentication\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4768\n#     PreAuthType: '0'\n#     TicketEncryptionType:\n#       - '0x17'\n#       - '0x1'\n#   timeframe: 5m\n#   condition: selection | count() by IpAddress > 3\n# level: high",
+  "falsePositives": [
+    "Legacy line of business applications that were configured without Kerberos pre-authentication on purpose",
+    "Appliance and service accounts that authenticate from a fixed management address on a scheduled task",
+    "Penetration test or security assessment activity that has been scheduled but not shared with the monitoring team",
+    "Vulnerability scanners that request tickets for every account they discover during an inventory sweep"
+  ],
+  "tuningNotes": "Start by baselining which accounts in the directory have pre-authentication disabled, and put those accounts in a filter rather than disabling the rule, because the list is normally short and stable. Scope the rule to domain controllers only and to a short counting window so scanner sweeps do not fire it. Then add a filter for the known source addresses of legacy applications. Narrowing this way means you lose visibility if an approved legacy account is later abused, so review the filtered accounts each quarter and alert on any host that suddenly requests tickets for many accounts instead of one.",
+  "severity": "high"
+}

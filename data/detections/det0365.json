@@ -1,0 +1,106 @@
+{
+  "id": "det0365",
+  "type": "detection",
+  "title": "Detect Registry and Startup Folder Persistence (Windows)",
+  "shortTitle": "Detect Registry and Startup Folder Persistence (Windows)",
+  "externalId": "DET0365",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects registry Run key and Start-up folder persistence, the T1547.001 sub-technique Boot or Logon Autostart Execution. It covers both halves of the same behaviour: a value written under one of the Run or RunOnce keys in the registry, and a shortcut or executable placed in a user or machine Start-up folder, either of which causes attacker code to run at logon. The telemetry needed is registry auditing or Sysmon registry set-value events for the autostart keys, file creation records and shortcut file writes for the Start-up folders, process creation records identifying the writing process, and image load or network events from the auto-started payload. It fails in practice for the opposite reason to most rules: the keys are used constantly by legitimate installers, so an unfiltered rule is unusable, while a heavily filtered one quietly stops seeing the technique.",
+  "tags": [
+    "windows",
+    "persistence",
+    "registry",
+    "startup folder",
+    "logon"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Registry and Startup Folder Persistence (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0365/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Registry and Startup Folder Persistence (Windows) - EASY",
+      "path": "exercises/det0365/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Registry and Startup Folder Persistence (Windows) - MEDIUM",
+      "path": "exercises/det0365/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Registry and Startup Folder Persistence (Windows) - HARD",
+      "path": "exercises/det0365/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Registry and Startup Folder Persistence (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0365/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the places Windows uses to start programs at logon. Some are in the registry, which is the system settings database. Others are folders called Start-up that hold shortcuts and programs. Intruders add entries there to come back after a restart.",
+    "whyItMatters": "Persistence is what turns a single incident into a long visit. These locations are simple, well known and work on every Windows computer. Adding one entry takes a second and gives the intruder a way back in after cleanup if it is missed.",
+    "howItWorks": [
+      "Registry auditing or a monitoring agent records every new value under the autostart keys.",
+      "File auditing records new files and shortcuts in the Start-up folders.",
+      "The rule names the process that created the entry and the file or command it points to.",
+      "Known software deployment paths and signed vendor binaries are filtered out.",
+      "A new entry that points to a user writable folder, or that was written by a scripting host, raises the alert."
+    ],
+    "example": "Think of the notes people leave on a fridge door so nobody forgets the morning jobs. Anyone can add a note. A note in unfamiliar handwriting telling you to open the back door at seven every morning deserves a second look.",
+    "takeaways": [
+      "Persistence entries are small and easy to miss during a hurried cleanup.",
+      "The value's target path matters more than the name of the entry.",
+      "Record both the writer process and the target file, then verify the target after removal."
+    ]
+  },
+  "objectives": [
+    "Name the registry autostart keys and Start-up folders that Windows reads at logon",
+    "Use registry and file auditing to capture new autostart entries with the writing account",
+    "Correlate a new entry with the process that created it and the file it points to",
+    "Build a baseline of approved autostart targets for each asset class",
+    "Explain why deleting the entry alone is not enough after a confirmed intrusion",
+    "Decide which severity to assign to user level versus machine level persistence"
+  ],
+  "techniqueId": "t1547-001",
+  "detectsTechniques": [
+    "t1547-001"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set records for Run, RunOnce, RunServices and policy autostart keys",
+    "Windows registry auditing for set-value operations with the subject account and process identifier when object access auditing is enabled",
+    "Sysmon event 11 file creation records for executables and shortcut files written to user and machine Start-up folders",
+    "Sysmon event 1 or Windows Security event 4688 process creation records naming the process that wrote the autostart entry",
+    "Windows Security event 4657 registry value modification records where that auditing subcategory is enabled"
+  ],
+  "logic": "The pattern is a new autostart entry whose target is not part of the asset's known software set. Analysts select registry set-value records for the autostart keys and file creation records in the Start-up folders, then resolve the target path or command they contain and compare it with a baseline of approved entries per operating system build and asset class. They also look at the writing process, its parent and the account. The benign case is a signed installer running from the software distribution service, writing a value that points into programme files, or a user pinning an approved application they installed from the company portal; the malicious case is a value or shortcut pointing to a user profile, temporary or download folder, created by a scripting host or an office application, especially when the same file was written minutes earlier and the host shows no corresponding deployment record.",
+  "pseudoQuery": "# title: Autostart entry created pointing to a user writable path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_reg:\n#     EventID: 13\n#     TargetObject|contains:\n#       - '\\\\CurrentVersion\\\\Run'\n#       - '\\\\CurrentVersion\\\\RunOnce'\n#   selection_path:\n#     Details|contains:\n#       - '\\\\AppData\\\\'\n#       - '\\\\Temp\\\\'\n#       - '\\\\Users\\\\Public\\\\'\n#   filter_deploy:\n#     Image|endswith: '\\\\msiexec.exe'\n#   condition: selection_reg and selection_path and not filter_deploy\n# level: high",
+  "falsePositives": [
+    "Signed application installers that register an updater or tray helper in the Run key",
+    "Users who place a shortcut for an approved business application in their own Start-up folder",
+    "Remote monitoring or virtual desktop agents that add a machine level autostart entry during provisioning",
+    "Legacy line of business software that writes a RunOnce entry to finish configuration at next logon"
+  ],
+  "tuningNotes": "Collect a full baseline of autostart targets across the estate and filter those exact target paths, including their expected signer, instead of blocking whole folders such as programme files. Keep the user Start-up folder in scope but raise severity only when the target file is unsigned or was created within the last hour. Restrict machine level keys to servers and to the highest risk user groups, and forward all new entries to a weekly review so that slow or deliberately boring entries still get looked at. The coverage you lose by filtering approved paths is an intruder who overwrites an approved target, so add file integrity monitoring of the approved targets and alert on any change to their hash.",
+  "severity": "high"
+}

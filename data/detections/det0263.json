@@ -1,0 +1,107 @@
+{
+  "id": "det0263",
+  "type": "detection",
+  "title": "Detecting Bulk or Anomalous Access to Private Code Repositories via SaaS Platforms",
+  "shortTitle": "Detecting Bulk or Anomalous Access to Private Code Reposi...",
+  "externalId": "DET0263",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses bulk or anomalous access to private code repositories hosted on a software as a service platform, tracked as T1213.003. Source code is valuable on its own and often contains credentials and internal design detail, so a single account can cause serious loss in a short time. The telemetry lives in the platform audit log, which records clone, fetch, and archive download events with the actor, the address, and the token used. The strategy fails when the platform audit log is not collected, when tokens are shared between people, or when the collection is slow and steady enough to stay inside normal engineering behaviour.",
+  "tags": [
+    "source code",
+    "t1213.003",
+    "saas audit log",
+    "data theft",
+    "token abuse",
+    "collection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Bulk or Anomalous Access to Private Code Repositories via SaaS Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0263/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Bulk or Anomalous Access to Private Code Repositories via SaaS Platforms - EASY",
+      "path": "exercises/det0263/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Bulk or Anomalous Access to Private Code Repositories via SaaS Platforms - MEDIUM",
+      "path": "exercises/det0263/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Bulk or Anomalous Access to Private Code Repositories via SaaS Platforms - HARD",
+      "path": "exercises/det0263/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Bulk or Anomalous Access to Private Code Repositories via SaaS Platforms - EXTREMELY HARD",
+      "path": "exercises/det0263/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A private code repository is an online store for a company's programming work. Only invited people can open it. Bulk access means one account copies many repositories in a short time. This detection watches the platform's own record of who copied what, and when.",
+    "whyItMatters": "Program code often hides passwords, addresses, and design details. An attacker who copies many repositories at once can carry away years of work. A single stolen token is often enough, because tokens rarely ask for a second factor. Normal developers clone a few repositories a day, so a sudden wide copy stands out. The platform record is the best evidence you will have, and it is usually kept for only a short time.",
+    "howItWorks": [
+      "The platform writes an audit entry for every clone, download, and token change.",
+      "Those entries are sent to your central logging system, where they are stored and searched.",
+      "The rule counts clone events per account over a rolling window, such as one hour.",
+      "It compares that count with a baseline built from the same account in earlier weeks.",
+      "It also looks at how many different repositories one account touched in that window.",
+      "An alert fires when the count, the spread, or both pass the baseline by a wide margin."
+    ],
+    "example": "Think of a library where members may borrow a few books at a time. The librarian knows each member's usual habit. A member who suddenly borrows two hundred books in one afternoon is probably not reading them. They are emptying a shelf. The borrowing record alone does not prove a crime, but it tells the librarian exactly whom to ask.",
+    "takeaways": [
+      "The platform audit log is the primary evidence, and it is often short lived.",
+      "Compare each account with its own history, not with a single company-wide number.",
+      "A new token followed by wide cloning is a stronger signal than either event alone."
+    ]
+  },
+  "objectives": [
+    "Explain why source code repositories are a high value target",
+    "Collect and retain source control platform audit logs for clone and download events",
+    "Establish per-account baselines for repository access volume and spread",
+    "Correlate new token creation with a following burst of clone activity",
+    "Describe why shared tokens make attribution difficult"
+  ],
+  "techniqueId": "t1213-003",
+  "detectsTechniques": [
+    "t1213-003"
+  ],
+  "dataSources": [
+    "Source control platform audit logs recording repository clone, fetch, and archive download events with actor and source address",
+    "Platform audit entries for access token creation and scope changes with the actor and the token label",
+    "Identity provider sign-in logs for the account used against the source control platform",
+    "Network proxy logs showing version control sessions over HTTPS or SSH to the platform with byte counts",
+    "Endpoint process creation for version control clients and archive utilities run against cloned repositories"
+  ],
+  "logic": "The pattern is an account that touches far more private repositories than its own history suggests, especially shortly after a token is created or its scope is widened. The rule aggregates platform audit entries by actor over a rolling window and compares three values with the account baseline: the number of clone or archive download events, the number of distinct repositories, and the number of distinct source addresses. The malicious case usually shows a wide spread across unrelated repositories, a narrow time band, and a new or unusual token, while legitimate work repeats the same few repositories the team owns. Service accounts and automation must be excluded by identity, not by volume, because their normal rate is already high.",
+  "pseudoQuery": "# title: Wide private repository cloning by a single account\n# logsource:\n#   product: network\n#   service: source_control_audit\n# detection:\n#   selection:\n#     event_type: 'repo.clone'\n#     repo_visibility: 'private'\n#   filter:\n#     actor: 'ci-automation-account'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "A new engineer onboarding who clones every repository their team owns on the first day",
+    "A build pipeline service account that mirrors private repositories to an internal server",
+    "An incident responder who clones several repositories to search for leaked secrets",
+    "A migration project that copies repositories to a new platform under an approved change"
+  ],
+  "tuningNotes": "Exclude service accounts and build identities from the volume rule, but keep them in a separate rule that alerts on new token creation and on cloning from a new address. Set thresholds per team rather than per company, because teams differ in how many repositories they own. Baseline for at least thirty days so onboarding bursts and sprint activity are included in the normal range. Narrowing to interactive human accounts loses coverage for a compromised automation token, which is one of the most common ways this technique is carried out, so review that gap with the platform owner.",
+  "severity": "medium"
+}

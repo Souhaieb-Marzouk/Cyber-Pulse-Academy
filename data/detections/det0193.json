@@ -1,0 +1,108 @@
+{
+  "id": "det0193",
+  "type": "detection",
+  "title": "Detection Strategy for Stored Data Manipulation across OS Platforms.",
+  "shortTitle": "Detection Strategy for Stored Data Manipulation across OS...",
+  "externalId": "DET0193",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects stored data manipulation, where an adversary modifies the data or content at rest rather than stealing it, altering records, configuration, invoices or published pages to serve a financial or operational goal. It matters because the damage is silent: no data leaves, so data loss prevention never fires, and the change may sit in a database or a content file for weeks before anyone notices an inconsistency. Detection depends on file integrity monitoring with a known good baseline, database and object storage audit records for write operations, and endpoint file events that show which process performed the write. The main failure is that legitimate applications rewrite the same files and records constantly, so a rule without a stable baseline and a process context will be pure noise.",
+  "tags": [
+    "impact",
+    "data integrity",
+    "file integrity",
+    "databases",
+    "cloud storage",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Stored Data Manipulation across OS Platforms.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0193/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Stored Data Manipulation across OS Platforms. - EASY",
+      "path": "exercises/det0193/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Stored Data Manipulation across OS Platforms. - MEDIUM",
+      "path": "exercises/det0193/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Stored Data Manipulation across OS Platforms. - HARD",
+      "path": "exercises/det0193/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Stored Data Manipulation across OS Platforms. - EXTREMELY HARD",
+      "path": "exercises/det0193/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for data being changed on purpose by the wrong person. The data is not stolen. It is edited. A bank balance, an invoice or a web page then says something false. The rule compares important files and records against a known good copy. It also checks which program made the change.",
+    "whyItMatters": "Stolen data causes a clear problem. Changed data causes a quiet one, because systems keep working with wrong values. Staff may trust a false invoice or a false report. Detection tools that watch for data leaving will not see it at all. Comparing against a trusted copy is the only reliable way to notice. Fast detection limits how many decisions are made on false information.",
+    "howItWorks": [
+      "You record a trusted copy or a fingerprint of an important file or record.",
+      "The monitoring tool checks that fingerprint again on a schedule.",
+      "A difference means something changed the content, configuration or data.",
+      "The tool then looks for the process and account that performed the write.",
+      "The rule checks whether that process normally writes to that location.",
+      "A change made by an unexpected process on a protected file raises the alert."
+    ],
+    "example": "Think of the printed price list in a shop window. Nobody steals it. One night someone edits the price of a television from eight hundred to eighty. The shop still opens, the till still works, and the mistake is only found when a customer pays. The manager's answer is a dated copy of the list in the office, so any change can be compared.",
+    "takeaways": [
+      "Data manipulation is quiet, so a trusted baseline is the core of the detection.",
+      "The process and account that wrote the file matter as much as the change itself.",
+      "Plan for recovery of the original data, not only for the alert."
+    ]
+  },
+  "objectives": [
+    "Explain why data manipulation is harder to notice than data theft.",
+    "Build and maintain a baseline for files and records that must not change unexpectedly.",
+    "Correlate a content change with the process, account and host that performed it.",
+    "Identify database and object storage audit records that capture write operations.",
+    "Distinguish application driven updates from out of band modification of the same data.",
+    "Describe the recovery step that must follow a confirmed manipulation alert."
+  ],
+  "techniqueId": "t1565-001",
+  "detectsTechniques": [
+    "t1565-001"
+  ],
+  "dataSources": [
+    "File integrity monitoring hashes for configuration, content and script files compared against a known good baseline",
+    "Sysmon event 11 file create or overwrite recording the writing process and target path",
+    "Windows Security event 4663 object access attempts with write access on shared data files",
+    "Database audit logs recording update and delete statements with the executing account and client host",
+    "Cloud object storage audit records for write operations on business data buckets"
+  ],
+  "logic": "The pattern is a write to data that is normally read only or written only by a known application, especially when the writing process lives outside the application directory, runs from a temporary path, or uses an account that does not own the data. The fields that must be correlated are the file or record identifier, the previous and new content hash where available, the writing process image and command line, the executing account, the source host, and the timestamp relative to the application's normal update schedule. The malicious case changes content outside the change window, uses a scripting interpreter or a database client directly rather than the application, removes or rewrites audit metadata such as a modification timestamp, and often touches many records or files in a single burst. The benign case is the owning application performing a scheduled write with its service account, producing a predictable volume of changes at a predictable time.",
+  "pseudoQuery": "# title: Protected Content Rewritten by Script\n# logsource:\n#   product: windows\n# detection:\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|contains|any:\n#       - '\\\\inetpub\\\\wwwroot\\\\'\n#       - '\\\\ProgramData\\\\AppData\\\\'\n#       - '\\\\Shares\\\\Finance\\\\'\n#   selection_process:\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\cscript.exe'\n#       - '\\\\sqlcmd.exe'\n#   filter_app_owner:\n#     Image|contains: '\\\\Program Files\\\\LineOfBusinessApp\\\\'\n#     User|endswith: '$'\n#   condition: (selection_write and selection_process) and not filter_app_owner\n# level: high",
+  "falsePositives": [
+    "Content management systems that publish scheduled updates to web pages through a scripting task",
+    "Finance team scripts that correct bulk data errors in a shared spreadsheet under an approved process",
+    "Application patching that rewrites configuration files in ProgramData during a maintenance window",
+    "Data import jobs that regenerate reference tables from a nightly feed using a database client"
+  ],
+  "tuningNotes": "The baseline is the rule: collect hashes for protected files and record counts for critical tables for at least a month, then alert only on changes that fall outside the observed update window for each asset, which removes most application driven noise without weakening coverage. Filter on the owning application image and service account pair rather than on directory paths, and keep direct database client use by an interactive account unfiltered because that is the behaviour worth reviewing. Scope the rule to systems of record, such as finance, billing and published content, where integrity matters most. The coverage you lose by trusting the owning application is manipulation performed through that application's own interface by a compromised administrator, so pair this rule with database audit logging that records the client host for every write and a weekly report of changes made by accounts outside the application service identity.",
+  "severity": "high"
+}

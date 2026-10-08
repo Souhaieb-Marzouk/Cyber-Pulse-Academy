@@ -1,0 +1,106 @@
+{
+  "id": "det0141",
+  "type": "detection",
+  "title": "Detect Time-Based Evasion via Sleep, Timer Loops, and Delayed Execution",
+  "shortTitle": "Detect Time-Based Evasion via Sleep, Timer Loops, and Del...",
+  "externalId": "DET0141",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1497.003, time-based evasion, where code deliberately waits before it acts so that a sandbox, an automated analysis run, or a short-lived monitoring window sees nothing but harmless idle time. The telemetry that makes detection possible is process creation with full command lines, image load events, and, where the platform exposes it, API monitoring and call-stack data that reveals long pause and timer calls inside a process. The main failure mode in practice is that legitimate installers, patching agents, and update services also wait between steps, so any rule keyed only on delay has to be joined to a second behaviour, such as an unsigned process that sleeps and then downloads or writes a payload, before it produces something an analyst should act on.",
+  "tags": [
+    "t1497.003",
+    "evasion",
+    "endpoint",
+    "process-behaviour",
+    "detection-engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Time-Based Evasion via Sleep, Timer Loops, and Delayed Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0141/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Time-Based Evasion via Sleep, Timer Loops, and Delayed Execution - EASY",
+      "path": "exercises/det0141/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Time-Based Evasion via Sleep, Timer Loops, and Delayed Execution - MEDIUM",
+      "path": "exercises/det0141/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Time-Based Evasion via Sleep, Timer Loops, and Delayed Execution - HARD",
+      "path": "exercises/det0141/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Time-Based Evasion via Sleep, Timer Loops, and Delayed Execution - EXTREMELY HARD",
+      "path": "exercises/det0141/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that quietly wait before they act. An attacker uses a delay to hide from automated analysis tools, which often stop watching after a short time. The detection watches for unusual pause behaviour that is followed by suspicious actions.",
+    "whyItMatters": "Malicious programs often do nothing useful for the first few minutes. Analysis systems may give up before anything happens. If nobody watches for delayed execution, the bad action can happen after the alarm window has closed. Catching the delay gives you a chance to look closer before the damage is done.",
+    "howItWorks": [
+      "A monitoring agent records every new process that starts on a computer.",
+      "The agent also records calls that make a program wait. These include sleep calls and timer calls, when that data is available.",
+      "The detection measures how long the process stayed inactive before it did anything else.",
+      "It then checks whether the process is signed by a trusted publisher and whether its path is normal.",
+      "A long idle period may be followed by a download, a script launch, or a new file. That combination is raised for review."
+    ],
+    "example": "Think of a night watchman who walks past a locked shop. A thief waits inside, completely still, until the footsteps fade. The watchman sees an empty shop and writes nothing in the log. Only a camera that keeps recording shows the thief standing motionless for an hour and then moving. That camera is the behaviour record this detection reads.",
+    "takeaways": [
+      "Attackers use waiting to outlast short observation windows.",
+      "A delay alone is normal, so pair it with a later harmful action.",
+      "Record process behaviour long enough to see what happens after the pause."
+    ]
+  },
+  "objectives": [
+    "Explain how time-based evasion hides malicious actions from short analysis windows",
+    "Identify the telemetry sources that reveal long pauses inside a running process",
+    "Distinguish a legitimate delayed installer from a hostile process that waits",
+    "Write a rule that combines a delay with a second suspicious behaviour",
+    "Describe the coverage limits of monitoring only process creation events",
+    "Choose an appropriate severity for a suspected evasion attempt"
+  ],
+  "techniqueId": "t1497-003",
+  "detectsTechniques": [
+    "t1497-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled and parent process recorded",
+    "Sysmon event 1 process creation including process image, parent image, command line, and process GUID",
+    "Sysmon event 7 image load events showing modules loaded into a process over time",
+    "Endpoint detection and response sensor telemetry that records wait and timer calls with process identifiers",
+    "Security information and event management correlation of process start times against first network or file activity"
+  ],
+  "logic": "The pattern is a newly created process that shows a long period of inactivity, meaning no file writes, no network calls, and no child processes, followed later by a high-impact action such as a download from an external address, an encoded script launch, or a write to a startup location. The fields that must be correlated are the process identifier or process GUID, the account that launched it, the image path and signer, the delay duration, and the first meaningful action after the pause. The malicious case differs from the benign one because unsigned or unusually located code waits and then immediately performs one of those actions, while legitimate installers and update agents are signed, sit in known vendor paths, and resume with expected file changes inside their own install directories.",
+  "pseudoQuery": "# title: Process Waits Then Acts With Encoded Or Remote Content\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - '-enc'\n#       - 'FromBase64String'\n#       - 'DownloadString'\n#   pause:\n#     IdleSeconds|gte: 120\n#   filter:\n#     Image|startswith: 'C:\\\\Program Files'\n#     Signed: 'true'\n#   condition: selection and pause and not filter\n# level: medium",
+  "falsePositives": [
+    "Software deployment tooling that starts an installer, waits for a licence check, and then runs the real setup step with encoded arguments",
+    "Backup agents that pause on a retry schedule before writing archives to a network share",
+    "Long-running management scripts that sleep between polling loops and then call a remote configuration service",
+    "Thin client or point of sale software that retries a download after a backoff period when the network is busy"
+  ],
+  "tuningNotes": "Start by baselining how long signed business applications normally idle before their next action, and set the delay threshold above the ninety-fifth percentile for your estate. Add a filter for known installer and updater publishers, and scope the rule to servers and jump hosts where interactive waiting is rare. Then require the follow-up action to be a download or a write outside the vendor directory. Narrowing this way loses coverage of highly patient custom malware that sleeps for hours and copies files only within its own folder, so keep a low-severity version of the rule on the whole estate and a high-severity version on sensitive asset groups.",
+  "severity": "medium"
+}

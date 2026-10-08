@@ -1,0 +1,106 @@
+{
+  "id": "det0579",
+  "type": "detection",
+  "title": "Detection Strategy for Device Driver Discovery",
+  "shortTitle": "Detection Strategy for Device Driver Discovery",
+  "externalId": "DET0579",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects T1652, Device Driver Discovery, the reconnaissance step in which an adversary lists loaded kernel drivers and device objects to find vulnerable or unsigned ones for later abuse. The activity is nearly invisible to network sensors because it is local, read-only, and uses built-in operating system utilities. Detection rests on process command lines, loadable module queries, and driver service registry reads. The practical difficulty is prevalence: administrators, inventory agents, and monitoring software legitimately run these same commands, so the rule is only useful when it is anchored to the parent process, the user context, and the host role.",
+  "tags": [
+    "discovery",
+    "windows",
+    "linux",
+    "kernel",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Device Driver Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0579/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Device Driver Discovery - EASY",
+      "path": "exercises/det0579/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Device Driver Discovery - MEDIUM",
+      "path": "exercises/det0579/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Device Driver Discovery - HARD",
+      "path": "exercises/det0579/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Device Driver Discovery - EXTREMELY HARD",
+      "path": "exercises/det0579/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Device drivers are small programs that let the operating system talk to hardware and to security tools. This detection looks for someone listing all drivers on a machine. It catches the research step an intruder does before trying to abuse a weak driver.",
+    "whyItMatters": "Drivers run with deep privileges, so a flawed driver can be used to disable protections. Listing them is the easiest way to find a weak one. The command itself is harmless, which is exactly why it is easy to miss. Alerting on it early can stop an attack before the driver is misused.",
+    "howItWorks": [
+      "The operating system records each program that starts, along with its command line and parent process.",
+      "A driver listing command appears in that record with a distinctive set of arguments.",
+      "The rule also watches queries against the driver service registry area and module files.",
+      "It records who ran the command and which program launched it.",
+      "The event is scored against the host role, for example a user laptop compared with a server.",
+      "A matching event with an unusual parent raises an alert in your security information and event management (SIEM) platform."
+    ],
+    "example": "Picture a night watchman who carries a ring of master keys. A visitor asks the front desk for a printed list of every lock in the building and which key opens it. Nobody is harmed and nothing is taken. Still, the request is strange, because only a person planning to try each lock would need that full list.",
+    "takeaways": [
+      "Driver discovery is read-only and local, so it rarely shows up in network monitoring.",
+      "The parent process and the user account are what separate research from routine administration.",
+      "Attackers often enumerate drivers right before loading a vulnerable one, so treat it as an early warning."
+    ]
+  },
+  "objectives": [
+    "Describe what device driver discovery is and why it precedes driver abuse",
+    "Name the built-in commands and registry areas that reveal loaded drivers on Windows",
+    "Identify the equivalent module listing behaviour on Linux hosts",
+    "Judge whether a discovery event is routine administration or suspicious reconnaissance",
+    "Tune an alert that uses parent process and host role to cut noise"
+  ],
+  "techniqueId": "t1652",
+  "detectsTechniques": [
+    "t1652"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation capturing the command line and parent image for driver query tools",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows registry auditing events for reads under the services key that describes kernel drivers",
+    "Linux auditd execve records for module listing commands run by interactive users",
+    "Endpoint detection and response driver load events listing the image path and signature state"
+  ],
+  "logic": "The pattern is a driver or module enumeration command executed from an unexpected parent process or user context. Process creation records supply the image name, the full command line, the parent image, and the account. The rule matches known enumeration patterns, such as a driver query utility with verbose arguments, a PowerShell call that filters the service list for kernel drivers, or a Linux module list command run through a remote shell, and then joins that to the parent chain. The malicious case usually shows a scripting host, an office application, or a web server process as the parent, or a non-administrative interactive session on a server. The benign case shows an approved inventory agent or a signed administrative console whose normal schedule already includes such queries.",
+  "pseudoQuery": "# title: Kernel Driver Enumeration from Unexpected Parent Process\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'driverquery'\n#       - 'Get-CimInstance Win32_SystemDriver'\n#       - 'EnumDeviceDrivers'\n#   filter_admin:\n#     ParentImage|endswith:\n#       - '\\Program Files\\InventoryAgent\\agent.exe'\n#       - '\\Windows\\System32\\mmc.exe'\n#   condition: selection and not filter_admin\n# level: low",
+  "falsePositives": [
+    "Endpoint management and asset inventory agents that enumerate drivers on a fixed schedule",
+    "Helpdesk technicians running driver queries while troubleshooting printing or graphics faults",
+    "Driver update utilities from hardware vendors that scan installed drivers before offering an upgrade",
+    "Security scanners performing a routine configuration check against a published hardening baseline"
+  ],
+  "tuningNotes": "Suppress known inventory agents by exact image path and signature rather than by file name alone, because names are easy to imitate. Scope the rule to servers and to administrative workstations first, where driver enumeration by a standard user is genuinely rare, and leave general user laptops in a lower severity report-only tier. Baseline the frequency of these commands per host for two weeks so you know what normal looks like before switching to alerting. Narrowing this way costs you visibility on a careful intruder who runs an enumeration utility you have not yet listed, so review the command patterns quarterly.",
+  "severity": "low"
+}

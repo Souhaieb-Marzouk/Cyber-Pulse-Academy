@@ -1,0 +1,106 @@
+{
+  "id": "det0360",
+  "type": "detection",
+  "title": "Behavioral Detection of Domain Group Discovery",
+  "shortTitle": "Behavioral Detection of Domain Group Discovery",
+  "externalId": "DET0360",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects domain group discovery, the T1069.002 sub-technique where an intruder enumerates Active Directory groups and their membership to find privileged accounts and plan the next step. The behaviour is easy to describe and hard to scope: the same command that an administrator runs during a routine review can be used by an attacker mapping the domain, and the underlying directory queries are also produced by every management tool in the estate. The telemetry that makes attribution possible is process creation with the command line, Windows Security event 4799 for group membership enumeration, directory service access auditing for object reads that return membership attributes, and lightweight directory access protocol (LDAP) query logs from domain controllers. The rule fails most often because directory read auditing is not enabled by default, so the query leaves no trace and only the command line remains.",
+  "tags": [
+    "windows",
+    "active directory",
+    "discovery",
+    "domain controller",
+    "ldap"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Domain Group Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0360/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Domain Group Discovery - EASY",
+      "path": "exercises/det0360/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Domain Group Discovery - MEDIUM",
+      "path": "exercises/det0360/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Domain Group Discovery - HARD",
+      "path": "exercises/det0360/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Domain Group Discovery - EXTREMELY HARD",
+      "path": "exercises/det0360/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for someone listing the groups inside an Active Directory domain and who belongs to them. Active Directory is the service that stores user accounts and permissions on a Windows network. The listing itself is allowed, so the detection looks at who is asking and how often.",
+    "whyItMatters": "Group membership shows an intruder where the power is. Privileged groups such as Domain Admins reveal which accounts are worth stealing. The same listing also reveals which service accounts exist. With this map, an intruder can choose the easiest path to control the network.",
+    "howItWorks": [
+      "Endpoint agents record every new process with its full command line.",
+      "Domain controllers record group membership enumeration when that auditing is switched on.",
+      "A rule matches group listing commands and privileged group names.",
+      "It checks whether the requesting account is an approved administrative workstation or user.",
+      "Repeated enumeration from one ordinary workstation, especially outside working hours, raises the alert."
+    ],
+    "example": "Think of the sign-in sheet at a conference. Anyone may read the guest list, and that is fine. It becomes a problem when one visitor copies the whole list of speakers and their room keys, three times, at two in the morning.",
+    "takeaways": [
+      "Group discovery is legal activity used for illegal planning, so context is everything.",
+      "Privileged group names in a command line are a strong hint even without directory auditing.",
+      "A workstation that suddenly maps the whole domain is more suspicious than a management server doing it."
+    ]
+  },
+  "objectives": [
+    "Describe how domain group enumeration supports privilege escalation planning",
+    "List the command line patterns and audit events that indicate group discovery",
+    "Enable and interpret directory service access auditing for membership reads",
+    "Establish which hosts and accounts are authorised to enumerate domain groups",
+    "Separate legitimate management tooling from interactive enumeration on workstations",
+    "Explain why server-side directory auditing is required for reliable coverage"
+  ],
+  "techniqueId": "t1069-002",
+  "detectsTechniques": [
+    "t1069-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 or Windows Security event 4688 process creation including full command line and parent image",
+    "Windows Security event 4799 group membership was enumerated with the requesting account and group name",
+    "Windows Security event 4662 operation was performed on an Active Directory object with read membership access",
+    "Domain controller LDAP query logging or directory service diagnostic logging showing query filters for group objects",
+    "Windows Security event 4624 logon records used to confirm the interactive or remote session behind the query"
+  ],
+  "logic": "The pattern is enumeration of privileged group membership by an account or host that has no administrative reason to ask. Analysts match process creation records for directory group listing commands against the group names in the command line, then join domain controller audit records for membership enumeration within the same short window and from the same account or host. The benign case is a tier zero administrative jump host running documented access reviews during a change window, or an inventory system with a service account that reads group objects on a schedule. The malicious case is an ordinary user workstation or an application server account that lists several privileged groups in a short period, particularly when followed by authentication attempts or remote service creation against other hosts.",
+  "pseudoQuery": "# title: Domain privileged group enumeration from a workstation\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_cmd:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'net group'\n#       - 'Get-ADGroupMember'\n#       - 'dsquery group'\n#   selection_target:\n#     CommandLine|contains:\n#       - 'Domain Admins'\n#       - 'Enterprise Admins'\n#   filter_admin_hosts:\n#     Computer|startswith: 'PAW-'\n#   condition: selection_cmd and selection_target and not filter_admin_hosts\n# level: medium",
+  "falsePositives": [
+    "Identity and access management teams performing scheduled group membership reviews from jump hosts",
+    "Backup, monitoring or configuration management service accounts that read group objects on a fixed schedule",
+    "Helpdesk staff who check whether a user was added to a group after a permission complaint",
+    "Audit and compliance scripts that run quarterly and list every privileged group on the domain"
+  ],
+  "tuningNotes": "Make directory service access auditing for membership reads a precondition, then filter by the host and account pair that legitimately performs reviews, and keep the rule focused on privileged group names rather than on all groups. Scope to workstation source hosts and non-privileged accounts, because tier zero administration hosts produce steady expected noise. Add a frequency condition such as three distinct privileged groups in ten minutes to remove one-off trouble tickets. The trade-off is that an intruder who enumerates slowly, one group per day, will not trip a frequency rule, so pair it with a weekly report of first-time enumerating accounts and with alerts on the authentication activity that usually follows discovery.",
+  "severity": "medium"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0526",
+  "type": "detection",
+  "title": "Detect Archiving and Encryption of Collected Data (T1560)",
+  "shortTitle": "Detect Archiving and Encryption of Collected Data (T1560)",
+  "externalId": "DET0526",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the staging step where an attacker packs collected files into an archive and often protects it with a password, the behaviour behind archive collected data. The archive is created on the victim host shortly before exfiltration, so it is one of the last chances to interrupt a theft. Process creation for archiving utilities with password switches, file creation events for archive extensions, and file read volume on the same host give the pattern. The common failure is alerting on every compressed file, because backup agents, log rotation and developers produce archives constantly, so password protection, archive creation and read volume must be weighed together rather than separately.",
+  "tags": [
+    "collection",
+    "endpoint",
+    "windows",
+    "file monitoring",
+    "exfiltration"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Archiving and Encryption of Collected Data (T1560)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0526/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Archiving and Encryption of Collected Data (T1560) - EASY",
+      "path": "exercises/det0526/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Archiving and Encryption of Collected Data (T1560) - MEDIUM",
+      "path": "exercises/det0526/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Archiving and Encryption of Collected Data (T1560) - HARD",
+      "path": "exercises/det0526/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Archiving and Encryption of Collected Data (T1560) - EXTREMELY HARD",
+      "path": "exercises/det0526/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a program that packs many files into one file, often with a password. Attackers do this before they steal data. One small file is easier to move and harder for you to read. The alert fires when a machine creates a password protected archive, or packs many files in a short time.",
+    "whyItMatters": "Data theft usually happens in stages. First the attacker gathers the files they want. Then they pack them into one file and send it out. The packing step happens on the machine, before the data leaves your network. Stopping it there keeps the data inside. It also gives you a list of the exact files the attacker wanted. That helps you judge the damage and warn the right people.",
+    "howItWorks": [
+      "Endpoint agents record process starts with full command lines, including archiving tools and their switches.",
+      "The rule looks for switches that set a password on the archive, which normal compression jobs do not use.",
+      "File creation events flag new files with archive extensions, and the rule records the folder and the creating process.",
+      "File access auditing or endpoint read data counts how many different files the process read before the archive appeared.",
+      "The rule raises an alert when three things appear together on one machine. They are password protection, archive creation and a high file read count.",
+      "The alert lists the archive path, the file count and the account, so the analyst can find the staging folder."
+    ],
+    "example": "Think of a till receipt at the end of a busy day. A cashier who rings up two hundred items in one minute is doing something unusual. Every single one of those sales still looks normal. The receipt does not prove a crime. It shows a bulk action that no ordinary customer performs. Here the bulk action is packing many files into one protected archive.",
+    "takeaways": [
+      "Password protection plus archive creation plus a high file read count is far stronger than a file extension alone.",
+      "Staging happens before exfiltration, so this is a chance to keep data inside the network.",
+      "The file list in the alert tells you what the attacker wanted and who to notify."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers archive and encrypt collected data before exfiltration",
+    "Identify archiving tool command line switches that indicate password protection",
+    "Correlate archive file creation with the process that created it and the files it read",
+    "Build a baseline of normal archive creation from backup, build and log rotation jobs",
+    "Choose thresholds that keep routine compressed files out of the queue",
+    "Describe how to hand the file list from an alert to an incident responder"
+  ],
+  "techniqueId": "t1560",
+  "detectsTechniques": [
+    "t1560"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation for archiving utilities including full command line and parent image",
+    "Sysmon event 11 file creation showing new files with archive extensions and the creating process",
+    "Windows Security event 4663 object access for file reads on sensitive shares, with subject and object fields",
+    "File server audit records of read volume per account over a short window",
+    "Endpoint detection and response (EDR) file read telemetry with process and path context"
+  ],
+  "logic": "The pattern is one process reading many distinct files and then writing a protected archive on the same host in a short window. Correlate process creation for the archiving tool, its command line switches, the file creation event for the new archive, and the count of distinct source files read by that process or account. The benign case is a backup or log rotation job that archives a folder on a schedule, or a developer packaging release artefacts. The malicious case is an interactive account, or a service account used outside its normal window, compressing user data or finance shares into a password protected file in a temporary directory.",
+  "pseudoQuery": "# title: Password Protected Archive Created After Bulk File Reads\n# logsource:\n#   product: windows\ndetection:\n  selection_tool:\n    EventID: 1\n    Image|endswith:\n      - '\\rar.exe'\n      - '\\7z.exe'\n      - '\\makecab.exe'\n    CommandLine|contains:\n      - ' -hp'\n      - ' -p'\n  selection_file:\n    EventID: 11\n    TargetFilename|endswith:\n      - '.7z'\n      - '.rar'\n      - '.zip'\n  condition: selection_tool and selection_file\nlevel: high",
+  "falsePositives": [
+    "Backup and log rotation jobs that compress application logs on a fixed schedule",
+    "Developers packaging build output or release artefacts with a password as part of a normal release",
+    "Users protecting personal documents with a password before storing them on a network share",
+    "Incident responders who archive evidence from a host and protect it with a case password"
+  ],
+  "tuningNotes": "Baseline which tools and parent processes create archives on each asset group, then allow your backup product and build agents by name and path. Require the password switch rather than the archive extension alone, and add a threshold on the number of distinct files read in the same window to remove single file compression. Scope the highest severity to servers holding regulated data and to accounts that rarely write archives. Filtering out the backup service account removes a lot of noise but also hides an attacker who runs tools under a stolen backup identity, so watch for that account used from an interactive session.",
+  "severity": "high"
+}

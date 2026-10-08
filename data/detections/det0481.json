@@ -1,0 +1,105 @@
+{
+  "id": "det0481",
+  "type": "detection",
+  "title": "Windows COM Hijacking Detection via Registry and DLL Load Correlation",
+  "shortTitle": "Windows COM Hijacking Detection via Registry and DLL Load...",
+  "externalId": "DET0481",
+  "theme": "Detection Strategy",
+  "summary": "COM hijacking redirects a component object model class identifier to an attacker supplied library, most often by writing a user level registry key that takes precedence over the machine level mapping for the same identifier. This strategy correlates registry value writes under the Classes CLSID hive with the later load of the library they name, because a stray key without a load is usually leftover installer noise while a key plus an in process server load is a live hijack. Analysts struggle here because productivity software registers per user components constantly, so the rule needs a baseline of legitimate current user CLSID entries and a strong preference for unsigned libraries in user writable paths.",
+  "tags": [
+    "windows",
+    "persistence",
+    "registry",
+    "com",
+    "dll"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Windows COM Hijacking Detection via Registry and DLL Load Correlation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0481/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Windows COM Hijacking Detection via Registry and DLL Load Correlation - EASY",
+      "path": "exercises/det0481/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Windows COM Hijacking Detection via Registry and DLL Load Correlation - MEDIUM",
+      "path": "exercises/det0481/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Windows COM Hijacking Detection via Registry and DLL Load Correlation - HARD",
+      "path": "exercises/det0481/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Windows COM Hijacking Detection via Registry and DLL Load Correlation - EXTREMELY HARD",
+      "path": "exercises/det0481/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows programs share code through objects called component object model (COM) components. Each component has a long identifier and a registry entry that says which file to load. This plan finds a change that points an existing identifier at a different file. That change lets an unwanted file run inside a trusted program.",
+    "whyItMatters": "Many trusted Windows programs load COM components when they start. If you redirect one of those entries, your own software loads the attacker file for you. No new service and no scheduled task is created. The change lives in the registry and can survive a restart. Watching these entries gives you a chance to stop it early.",
+    "howItWorks": [
+      "The endpoint agent records registry value set events, including the key path, the value name and the data written.",
+      "The rule selects writes under the CLSID, InprocServer32 and LocalServer32 paths of the Classes hive.",
+      "A second source, the image load event, records which library each running process loads and from which folder.",
+      "The detection highlights writes made in the current user hive, because those entries win over machine level ones.",
+      "It then waits for that same library path to be loaded. The load usually comes from a long running process such as the desktop shell.",
+      "A match on both, from an unsigned or newly written file, becomes the alert you review."
+    ],
+    "example": "Think of a school cloakroom with numbered hooks. Each hook has a label that says which coat belongs to it. Someone peels off a label and sticks it on a different coat. The child still looks for the number and takes the wrong coat home. Nothing about the hook changed, only the label. In the same way, Windows looks up a number in the registry. It then loads whatever file the label points to.",
+    "takeaways": [
+      "COM hijacking changes a pointer in the registry, not a program.",
+      "A user level registry key beats a machine level key for the same identifier.",
+      "A registry write alone is weak, so pair it with a library load."
+    ]
+  },
+  "objectives": [
+    "Explain what a component object model identifier and its registry mapping are.",
+    "Locate the registry paths that map an identifier to a library file.",
+    "Correlate a CLSID registry write with a following image load.",
+    "Recognise legitimate per user COM registrations to reduce noise.",
+    "Prioritise unsigned libraries in user writable folders during triage."
+  ],
+  "techniqueId": "t1546-015",
+  "detectsTechniques": [
+    "t1546-015"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for the Classes CLSID and InprocServer32 keys",
+    "Sysmon event 7 image load with the image path, hash and signing status of the loaded library",
+    "Windows Security event 4657 registry value modification with object access auditing enabled",
+    "Windows Security event 4688 process creation showing the process that performed the registration"
+  ],
+  "logic": "This detection is a correlation rather than a single event match. A registry value set under the Classes CLSID path shows a new or changed mapping, and it matters most when the write lands in the current user hive, because a user level mapping overrides the machine level mapping for the same identifier. The second half of the pattern is an image load for the file named in that mapping, arriving in the same logon session and usually within minutes, by a process such as the desktop shell or a scheduled task host. Benign installers also register identifiers, but they typically write machine level keys and place signed libraries under Program Files. The malicious case shows a user hive write pointing at a temporary or user writable folder, loaded by a process that never loaded it before, which is why host name, key path, mapped library path and load time must all be joined before the alert is trusted.",
+  "pseudoQuery": "# title: CLSID InprocServer32 Pointing At A User Writable Library\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains: 'Classes\\CLSID'\n#     TargetObject|endswith: 'InprocServer32'\n#   filter:\n#     Details|startswith:\n#       - 'C:\\Program Files\\'\n#       - 'C:\\Windows\\'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Per user COM registrations created by office suites and browser plugins during a normal installation",
+    "Virtual desktop and remote access clients that register per user components on first launch",
+    "Application repair operations that rewrite an existing InprocServer32 value with the same path",
+    "Endpoint agent upgrades that re-register their own shell extension libraries in the user hive"
+  ],
+  "tuningNotes": "Begin with the current user hive and a filter for signed libraries under Program Files, then baseline which identifiers your standard image registers per user so you know what normal looks like. Exclude the recorded installer accounts and maintenance windows so patch nights do not flood the queue. If you scope only to the user hive the rule stays quiet but misses hijacks performed at machine level by an administrator, so keep a second lower severity rule for machine level writes and review it weekly.",
+  "severity": "medium"
+}

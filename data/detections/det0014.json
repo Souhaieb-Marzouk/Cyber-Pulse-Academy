@@ -1,0 +1,109 @@
+{
+  "id": "det0014",
+  "type": "detection",
+  "title": "Detection of Data Staging Prior to Exfiltration",
+  "shortTitle": "Detection of Data Staging Prior to Exfiltration",
+  "externalId": "DET0014",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects data staging, the step where an adversary gathers what they intend to steal into one place before moving it out (T1074, Data Staged). Staging matters because it is the last point at which the theft is still visible on the endpoint: after the transfer begins, the only remaining evidence is network metadata for encrypted traffic. The behaviour to catch is a burst of reads across many unrelated directories followed by the creation of one large file or archive in a location the user does not normally use. Detection works best when file creation telemetry and process creation telemetry are joined, and it fails when backup and compression jobs run constantly on the same host, when file auditing is limited to writes, and when the staging directory is a legitimate temporary folder.",
+  "tags": [
+    "collection",
+    "exfiltration",
+    "data staging",
+    "t1074",
+    "file access",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Data Staging Prior to Exfiltration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0014/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Data Staging Prior to Exfiltration - EASY",
+      "path": "exercises/det0014/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Data Staging Prior to Exfiltration - MEDIUM",
+      "path": "exercises/det0014/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Data Staging Prior to Exfiltration - HARD",
+      "path": "exercises/det0014/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Data Staging Prior to Exfiltration - EXTREMELY HARD",
+      "path": "exercises/det0014/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Staging means putting things in one place before moving them. An attacker copies files from many folders into a single folder, then packs them into an archive such as a compressed file. This detection looks for that gathering step. It uses file records and program records on the computer.",
+    "whyItMatters": "Copying files inside a machine is faster and quieter than sending them out one by one. Attackers stage data so the transfer can be short and simple. During staging, the evidence is still local and still readable by your tools. After the transfer, an encrypted channel may hide everything. This makes staging the best moment to intervene, and also the last comfortable one.",
+    "howItWorks": [
+      "The endpoint agent records every file created, together with the process that created it and the folder.",
+      "It records the programs that run, so archiving tools and scripting hosts are visible with their command lines.",
+      "The detection looks for a pattern where many files are read from different folders and one large file appears.",
+      "It checks whether the new file sits in a staging location, such as a temporary folder or a share that the user does not normally use.",
+      "It compares the size and count with what the same user and host usually produce.",
+      "Related events are grouped into a single alert that lists the source folders and the new archive."
+    ],
+    "example": "Think of someone leaving a shared office. Instead of carrying items out one at a time, they pile everything into one box by the service door. The pile is visible inside the building. Once the box leaves, only the door log remains.",
+    "takeaways": [
+      "Staging is a local, visible step that happens before the hidden transfer.",
+      "The signal is many reads plus one large new file in an unusual location.",
+      "Backup jobs create the same shape, so host role and schedule matter."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers stage data locally before exfiltration.",
+    "Identify the file creation and process creation telemetry that reveals staging.",
+    "Describe how to profile normal file creation volume per host and per user.",
+    "Recognise archiving tool command lines that collect files from multiple directories.",
+    "Correlate staged files with later network transfers from the same host.",
+    "Distinguish staging from legitimate backup and deployment activity."
+  ],
+  "techniqueId": "t1074",
+  "detectsTechniques": [
+    "t1074"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation recording target file name, size context and creating process",
+    "Sysmon event 1 process creation showing archiving and compression utilities with their command lines and parent image",
+    "Sysmon event 3 network connection made by the same host shortly after a large file is created",
+    "Windows Security event 4663 object access audit records showing bulk reads across user data folders",
+    "Cloud storage audit logs recording large uploads that follow local archive creation on a synchronised device"
+  ],
+  "logic": "The rule looks for the shape of a collection operation rather than a single file. The primary selection is creation of a large file, or an archive format, by an archiving utility or scripting host, combined with evidence of reads across many distinct source directories beforehand. Fields that must be correlated are the creating process image and command line, its parent, the target path, the file extension and size, the account, the host role, the number of distinct source directories touched in the preceding window, and any network connection from the same host in the following minutes. The malicious case is a compressed archive written to a temporary, public or user profile folder, built from directories the user does not usually read, followed by an upload or transfer to an external destination. The benign case is a scheduled backup writing to a backup share, a developer packaging a project, or a help desk user compressing files for an email, so the distinguishing factors are the destination path, the timing against the host schedule and whether the source directories are within the user's normal scope.",
+  "pseudoQuery": "# title: Bulk Collection Into Archive in Staging Path\n# logsource:\n#   product: windows\n# detection:\n#   selection_archive:\n#     EventID: 1\n#     Image|endswith:\n#       - 'rar.exe'\n#       - '7z.exe'\n#       - 'tar.exe'\n#     CommandLine|contains: '-r '\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.zip'\n#       - '.7z'\n#     TargetFilename|contains:\n#       - 'Temp'\n#       - 'Public'\n#   filter_schedule:\n#     Image|endswith: 'backup-agent'\n#   condition: selection_archive and selection_write and not filter_schedule\n# level: high",
+  "falsePositives": [
+    "Scheduled backup jobs that compress a set of directories into the same share every night",
+    "Developers packaging build output or source releases before sharing with a team",
+    "Help desk staff creating archives of logs or documents at a user request",
+    "Application installers that bundle their payload into a temporary archive during setup",
+    "Accounting and payroll teams that gather quarterly records into a single archive for reporting"
+  ],
+  "tuningNotes": "Baseline file creation volume per host and per user for at least two weeks, including the largest file each host normally produces, then alert only when a new archive exceeds that baseline significantly. Allow list your backup and deployment agents by signer and by destination path, and exclude their service windows from scoring. Raise severity when the staging path is a temporary or public folder and the source directories span more than one user profile. Scope the high severity rule to servers holding regulated data. The coverage you lose by allow listing backup agents is staging performed under a legitimate backup tool name, so keep a watch for archives written outside the normal backup destination and schedule.",
+  "severity": "high"
+}

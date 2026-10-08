@@ -1,0 +1,107 @@
+{
+  "id": "det0478",
+  "type": "detection",
+  "title": "User Execution – multi-surface behavior chain (documents/links → helper/unpacker → LOLBIN/child → egress)",
+  "shortTitle": "User Execution – multi-surface behavior chain (documents/...",
+  "externalId": "DET0478",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects user execution as a behavioural chain rather than a single file event, following the path from a document or link the user opened, through a helper or unpacker process, to a living off the land binary or child process, and finally to outbound network activity. It covers the user execution technique, where the adversary depends on a person to open a file or click a link, and accepts that no single event is conclusive. Detection joins endpoint process creation with parent and child relationships and command lines, file creation events for dropped payloads, and proxy or firewall records for the egress step. It fails in practice because document readers, browsers and archive tools spawn helper processes constantly for legitimate reasons, so the chain must be scored on rarity, timing and the reputation of the destination rather than on any one link.",
+  "tags": [
+    "mitre t1204",
+    "user execution",
+    "behavior chain",
+    "phishing",
+    "lolbin",
+    "egress"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: User Execution – multi-surface behavior chain (documents/links → helper/unpacker → LOLBIN/child → egress)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0478/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "User Execution – multi-surface behavior chain (documents/links → helper/unpacker → LOLBIN/child → egress) - EASY",
+      "path": "exercises/det0478/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "User Execution – multi-surface behavior chain (documents/links → helper/unpacker → LOLBIN/child → egress) - MEDIUM",
+      "path": "exercises/det0478/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "User Execution – multi-surface behavior chain (documents/links → helper/unpacker → LOLBIN/child → egress) - HARD",
+      "path": "exercises/det0478/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "User Execution – multi-surface behavior chain (documents/links → helper/unpacker → LOLBIN/child → egress) - EXTREMELY HARD",
+      "path": "exercises/det0478/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "User execution means the attacker needs you to open something, such as a document, an installer or a link. This detection follows the whole story after that click. It watches which programs start next and whether anything reaches out to the internet.",
+    "whyItMatters": "Most intrusions still begin with a person opening a file or following a link. A single alert about one process can be hard to judge. Following the chain shows intent, because those separate steps rarely appear together by accident. This approach also survives small changes in the attacker tools, because it tracks behaviour rather than names.",
+    "howItWorks": [
+      "The endpoint records every new process with its parent, its command line and the user account.",
+      "The detection starts when a document reader, browser, mail client or archive tool starts a child process.",
+      "It follows the child processes for a short time and records any scripting hosts or system utilities.",
+      "It records files written to temporary or user folders during that window.",
+      "It joins proxy and firewall logs to see whether the same host contacted a new or rare destination.",
+      "A scored chain above the threshold becomes one alert with the full timeline for the analyst."
+    ],
+    "example": "Picture a kitchen where each single step looks normal. Someone opens the fridge, takes out a box, uses a knife and turns on the oven. A good chef watches the whole sequence, not one step. Using a knife means little on its own. The full sequence tells you that a meal is being made. A strange sequence tells you something else is going on.",
+    "takeaways": [
+      "One process event is weak evidence; the sequence is what carries meaning.",
+      "Chain detection survives small changes in attacker tooling because it tracks behaviour.",
+      "The egress step is the part that shows the chain was not ordinary work."
+    ]
+  },
+  "objectives": [
+    "Explain why user execution is best detected as a chain of behaviours.",
+    "Identify the process, file and network telemetry needed to join the chain.",
+    "Describe how parent and child relationships reveal the execution path after a click.",
+    "Score a chain by parent context, child rarity and destination reputation.",
+    "Present a chain alert as a timeline that an analyst can review quickly."
+  ],
+  "techniqueId": "t1204",
+  "detectsTechniques": [
+    "t1204"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, child image, full command line and user account",
+    "Sysmon event 11 file creation recording dropped files in temporary, download and startup directories",
+    "Proxy or secure web gateway logs recording the destination host, category and reputation for outbound requests",
+    "Windows Security event 4688 process creation with command line auditing enabled and the creating process identifier",
+    "Sysmon event 3 network connection showing the process identifier, destination address and destination port"
+  ],
+  "logic": "The pattern is a short lived sequence in one host and one user session: an office document, web page, mail message or archive opens, a helper or unpacker process starts, a scripting host or system binary runs with a suspicious command line, a file is written to a user writable location, and the host contacts a destination it has not used before. Correlate the process identifiers and parent identifiers across the process creation events, then join file creation and network connection events by process identifier and a time window measured in minutes. In the benign case the parent is an approved application doing an update, the child is a signed vendor binary, the destination is a known content delivery or update service, and the same pattern appears on thousands of hosts. In the malicious case the parent is a document reader or browser, the child is a script host or archive tool with encoded arguments, the dropped file appears in a temporary folder, and the destination is a new or rare domain.",
+  "pseudoQuery": "# title: Document Spawning Script Host with Subsequent Egress\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_parent:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\\\winword.exe'\n#       - '\\\\excel.exe'\n#       - '\\\\outlook.exe'\n#   selection_child:\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\cmd.exe'\n#       - '\\\\mshta.exe'\n#   filter_signed_updaters:\n#     Company: 'Microsoft Corporation'\n#     CommandLine|contains: '\\\\Program Files'\n#   condition: selection_parent and selection_child and not filter_signed_updaters\n# level: high",
+  "falsePositives": [
+    "Office add-ins and templates from trusted vendors that start helper processes when a document is opened",
+    "Software updaters launched by a browser or a document link that run signed installers from a program folder",
+    "Business macro workbooks that call approved signed tools to refresh data from an internal server",
+    "Legacy line of business applications whose launcher opens a web page and then starts a local agent"
+  ],
+  "tuningNotes": "Score rather than block: start with the parent to child relationship, then add points for encoded or obfuscated arguments, dropped files in user writable paths, and first seen or newly registered destinations. Filter by publisher and signature for the updaters and add-ins you actually run, and keep the filters in a reviewable list with owners. Baseline how often each parent process starts each child in your estate so you can see which pairs are rare enough to matter, and use that rarity as a weight in the rule. Narrowing by signature means a signed but abused binary will slip through, so keep the destination reputation and encoded argument checks active for all processes.",
+  "severity": "high"
+}

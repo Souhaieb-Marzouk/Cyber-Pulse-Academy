@@ -444,13 +444,74 @@ def build_catalog(topics, site_version):
         "labs": [],
         "glossary": [],
         "quizzes": [],
-        "topics": ordered_topics,
+        "topics": [lean_topic(topic) for topic in ordered_topics],
     }
 
 
 def write_json(path: Path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- #
+# The published index is deliberately NOT a copy of the topic files.
+#
+# data/catalog.json is what every visitor's browser downloads, so it carries only
+# what the listing, search and coverage pages actually read. The article text,
+# the plain-language block, the sources and the reference lists all stay in
+# data/<type>/<id>.json, where the page generator reads them when it renders the
+# topic pages. Nothing is lost: the pages are built from the source files.
+#
+# The saving is large and grows with the catalogue. On the full ATT&CK import the
+# difference is roughly 1.5 MB instead of 14 MB, and a 14 MB file would also be
+# committed to git on every content change.
+# --------------------------------------------------------------------------- #
+INDEX_SUMMARY_CHARS = 500
+
+
+def lean_topic(topic):
+    """Project one topic down to the fields the browser needs."""
+    exercises = []
+    for _label, exercise in exercise_entries(topic):
+        exercises.append({
+            "difficulty": exercise.get("difficulty"),
+            "kind": exercise.get("kind") or "exam",
+            "status": exercise.get("status") or "published",
+            "minutes": exercise.get("minutes"),
+        })
+
+    chapters = []
+    for chapter in (topic.get("chapters") or []):
+        chapters.append({
+            "number": chapter.get("number"),
+            "title": chapter.get("title"),
+            "weight": chapter.get("weight"),
+            "exercises": len(chapter.get("exercises") or []),
+        })
+
+    summary = str(topic.get("summary") or "")
+    lean = {
+        "id": topic.get("id"),
+        "type": topic.get("type"),
+        "title": topic.get("title"),
+        "shortTitle": topic.get("shortTitle"),
+        "externalId": topic.get("externalId"),
+        "theme": topic.get("theme"),
+        "difficulty": topic.get("difficulty"),
+        "tags": topic.get("tags") or [],
+        "summary": summary[:INDEX_SUMMARY_CHARS],
+        "hasBeginner": bool(topic.get("beginner")),
+        # A chapter list is a certification concept, so it stays empty elsewhere.
+        "exercises": exercises,
+        "chapters": chapters,
+    }
+
+    # Only a certification card renders objectives, so only certifications carry
+    # them. At full catalogue size that keeps about 1.3 MB out of the index.
+    if topic.get("type") == "certification":
+        lean["objectives"] = topic.get("objectives") or []
+
+    return lean
 
 
 def build_sitemap(catalog, base_url, exercise_paths):

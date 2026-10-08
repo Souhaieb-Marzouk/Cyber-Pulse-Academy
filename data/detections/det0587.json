@@ -1,0 +1,106 @@
+{
+  "id": "det0587",
+  "type": "detection",
+  "title": "Enumeration of User or Account Information Across Platforms",
+  "shortTitle": "Enumeration of User or Account Information Across Platforms",
+  "externalId": "DET0587",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1087, Account Discovery, where an adversary enumerates local, domain, or cloud identities to plan lateral movement and privilege escalation. Enumeration is woven into normal administration, so the signal comes from burst rate, breadth, and the acting account rather than from the query content. Detection uses Windows local group and directory query auditing, command line telemetry for the tools involved, Linux account file and directory query records, and cloud identity audit logs. The main practical failure is volume: vulnerability scanners, inventory systems, and identity governance platforms query the same interfaces continuously, so an unbaselined rule produces far more noise than insight.",
+  "tags": [
+    "discovery",
+    "active directory",
+    "windows",
+    "linux",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Enumeration of User or Account Information Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0587/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Enumeration of User or Account Information Across Platforms - EASY",
+      "path": "exercises/det0587/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Enumeration of User or Account Information Across Platforms - MEDIUM",
+      "path": "exercises/det0587/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Enumeration of User or Account Information Across Platforms - HARD",
+      "path": "exercises/det0587/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Enumeration of User or Account Information Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0587/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "An account is a name that can log in to a system. This detection looks for a program or person listing many accounts at once. It catches the map making step that comes before an intruder decides which account to steal.",
+    "whyItMatters": "Knowing which accounts exist tells an intruder where the power sits. Service accounts and administrators are the valuable targets. The listing itself changes nothing, so nothing breaks and nobody complains. Spotting the survey gives your team time to protect the accounts that matter most.",
+    "howItWorks": [
+      "Systems record when a tool reads the local account list or queries the directory service.",
+      "Those records are forwarded to your security information and event management (SIEM) platform.",
+      "The rule counts directory and account queries per user, host, and client program.",
+      "It also looks for unusual sources, such as a web server process reading the account list.",
+      "The count is compared against what that identity normally does at that hour.",
+      "Activity far above the normal level is raised for analyst review."
+    ],
+    "example": "Think of a tourist in a small town who asks the hotel desk for a list of every resident, every business, and every doctor. Each question on its own sounds harmless. Asking all of them in one afternoon is not normal, and the desk clerk would remember the visitor. The pattern of questions is the clue, not any single question.",
+    "takeaways": [
+      "Account discovery changes nothing, so only rate, breadth, and source make it visible.",
+      "A service or web server process reading user lists is unusual and worth a look.",
+      "Baseline your directory query tools first, or the alert will be unusable."
+    ]
+  },
+  "objectives": [
+    "Describe what account discovery is and how it supports later attack stages",
+    "List the audited events that record local and domain account queries",
+    "Apply rate and breadth thresholds to separate automation from manual exploration",
+    "Recognise enumeration from an unexpected process or service account",
+    "Document a baseline process for directory query tooling"
+  ],
+  "techniqueId": "t1087",
+  "detectsTechniques": [
+    "t1087"
+  ],
+  "dataSources": [
+    "Windows Security event 4798 recording enumeration of a user's local group memberships",
+    "Windows Security event 4799 recording enumeration of local group membership on a host",
+    "Directory service access auditing events that record lightweight directory access protocol search operations and the querying account",
+    "Linux auditd records for reads of the local account and shadow files and for directory lookups by user query tools",
+    "Microsoft Entra ID audit logs and AWS CloudTrail identity listing calls such as ListUsers and ListRoles"
+  ],
+  "logic": "The pattern is a high rate or wide scope of identity queries from a single actor that exceeds its own history. The rule normalises account query records into fields for acting account, source host or address, query type, and target scope, then groups them over a short window. The malicious case shows one session or one process touching many distinct accounts or groups, often mixing local and directory queries, sometimes from a host whose role does not include identity administration, and often at an unusual hour. The benign case shows a scheduled scanner or governance platform querying steadily with a stable pattern and a known client program.",
+  "pseudoQuery": "# title: High Volume Account Enumeration from Single Host\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID:\n#       - 4798\n#       - 4799\n#   filter_scanner:\n#     SubjectUserName|endswith:\n#       - 'svc-vulnscan'\n#       - 'svc-identitygov'\n#   condition: selection and not filter_scanner | count() by SubjectUserName, WorkstationName > 100\n# level: medium",
+  "falsePositives": [
+    "Vulnerability scanners and configuration assessment tools that enumerate local group membership on every host",
+    "Identity governance platforms reconciling directory accounts with the human resources system overnight",
+    "Helpdesk staff checking group membership while investigating a single user's access problem",
+    "Monitoring agents that count accounts and groups as part of a compliance report"
+  ],
+  "tuningNotes": "Baseline each known query tool by client program name and service account, and set the threshold from the ninety-fifth percentile of that tool's normal hourly volume rather than from a guessed number. Filter out approved scanner accounts but keep the events in a low severity index so you can still investigate after an incident. Scope the alerting rule to servers that do not host identity services, since a directory administration host will always look noisy. The coverage you lose is a slow intruder who stays under the threshold, so pair this rule with a weekly first-seen account query report.",
+  "severity": "low"
+}

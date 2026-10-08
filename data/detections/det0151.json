@@ -1,0 +1,106 @@
+{
+  "id": "det0151",
+  "type": "detection",
+  "title": "Behavior-chain, platform-aware detection strategy for T1124 System Time Discovery",
+  "shortTitle": "Behavior-chain, platform-aware detection strategy for T11...",
+  "externalId": "DET0151",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1124, system time discovery, where an intruder reads the local clock and time zone to schedule actions, to reason about log timestamps, and to make stolen authentication material usable. The technique is almost never malicious on its own, so the detection is deliberately behaviour chained: a time query is only interesting when it comes from an unusual parent process, is repeated, or sits next to other discovery actions on the same host in a short window. Telemetry comes from process creation with command line auditing, script block logging, shell history records, and clock configuration change events. The failure mode is obvious and severe, because nearly every program reads the time, so an unchained rule drowns the analyst and the chained rule must be built on a good baseline of what normally queries time on each platform.",
+  "tags": [
+    "t1124",
+    "discovery",
+    "endpoint",
+    "command-line",
+    "behaviour-chain"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain, platform-aware detection strategy for T1124 System Time Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0151/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1124 System Time Discovery - EASY",
+      "path": "exercises/det0151/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1124 System Time Discovery - MEDIUM",
+      "path": "exercises/det0151/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1124 System Time Discovery - HARD",
+      "path": "exercises/det0151/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1124 System Time Discovery - EXTREMELY HARD",
+      "path": "exercises/det0151/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for programs that ask a computer what time it is. Asking once is normal. Asking from an odd program, or asking again and again beside other snooping actions, is not. The rule links the time question to what happens next.",
+    "whyItMatters": "Timing matters to an attacker. They may need a stolen entry pass to stay valid. They may also want to act between two scheduled jobs. A quick time check is often one of the first things a newcomer does on a host. Seeing it gives you an early hint, provided you can filter out the noise.",
+    "howItWorks": [
+      "Host agents record every new process with its full command line and its parent process.",
+      "The detection matches commands that read the clock or the time zone on each platform.",
+      "It records which program asked and how often the same host asks.",
+      "It then looks for other discovery actions, such as listing users or network settings, close in time.",
+      "Only the combination of a time query with that surrounding behaviour produces an alert."
+    ],
+    "example": "Imagine a new contractor in an office who asks a colleague for the time. Nobody cares. But suppose the same person also asks for the fire door code. Then they ask for the server room and the cleaner's schedule. Within ten minutes the first question is part of a pattern. One question is noise, a chain of questions is a story.",
+    "takeaways": [
+      "Time discovery is weak alone and useful in a chain.",
+      "The parent process tells you far more than the command.",
+      "Expect high volume, so build a baseline before you alert."
+    ]
+  },
+  "objectives": [
+    "Explain why an intruder checks the system clock and time zone",
+    "Identify the platform commands and events that record time queries",
+    "Chain a time query with adjacent discovery behaviour to build signal",
+    "Use parent process and signer information to judge a time query",
+    "Baseline legitimate agents that read the clock constantly",
+    "Set an honest severity for a discovery step that causes no direct harm"
+  ],
+  "techniqueId": "t1124",
+  "detectsTechniques": [
+    "t1124"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing showing time and time zone query commands",
+    "PowerShell script block logging capturing time related cmdlets with the invoking process and user",
+    "Sysmon event 1 process creation including parent image, user, and full command line",
+    "Linux process accounting or audit records of time and time zone query commands with the invoking session",
+    "Shell history and command audit records for interactive discovery command sequences on servers"
+  ],
+  "logic": "The detection first matches commands that read the clock or the time zone, then scores the context around them. The fields that must be correlated are the command line, the parent process image and signature, the user account, the frequency of similar queries from that host in a short window, and the presence of other discovery commands in the same process tree or session. The benign case is a monitoring agent, backup job, or build tool whose parent is a service and whose time queries repeat on a known schedule. The malicious case is a time query issued by a script host or command shell whose parent is an office application, a mail client, or an archive tool, especially when user or network discovery commands appear within minutes on the same host.",
+  "pseudoQuery": "# title: System Time Discovery Chained With Other Discovery Commands\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   timequery:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'Get-Date'\n#       - 'systeminfo'\n#       - 'w32tm'\n#   discovery:\n#     CommandLine|contains:\n#       - 'whoami'\n#       - 'net user'\n#       - 'ipconfig'\n#   condition: timequery and discovery\n# level: low",
+  "falsePositives": [
+    "Backup and scheduling agents that read the system time before and after each job run",
+    "Log collection scripts that stamp events with the local time during their polling loop",
+    "Build and deployment pipelines that check the clock before releasing a scheduled artefact",
+    "Administrators troubleshooting a clock skew problem on a domain joined workstation"
+  ],
+  "tuningNotes": "Baseline which parent processes run time queries on each platform, then allow list those parents and require the query to come from an interactive shell or script host before alerting. Use the chain condition rather than the time query alone, and keep the alert severity low so that volume stays manageable while you measure. If noise persists, scope the rule to servers and to hosts in sensitive network segments. The coverage you lose is a patient intruder who reads the clock in a way that matches your allow list, so retain the raw process creation events and revisit the parent process baseline every quarter as software changes.",
+  "severity": "low"
+}

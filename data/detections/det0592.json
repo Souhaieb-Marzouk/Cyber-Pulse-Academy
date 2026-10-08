@@ -1,0 +1,108 @@
+{
+  "id": "det0592",
+  "type": "detection",
+  "title": "Detection Strategy for Data from Configuration Repository on Network Devices",
+  "shortTitle": "Detection Strategy for Data from Configuration Repository...",
+  "externalId": "DET0592",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the collection of configuration data held on network devices, which ATT&CK tracks as T1602. Router, switch and firewall configurations describe the entire topology, address plan, access control lists, virtual private network settings and frequently reusable management credentials, so a single successful read is often equivalent to a network map. Detection depends on three telemetry streams that rarely share a platform: authentication and command accounting from the device itself through syslog or terminal access controller style accounting, configuration change notifications and simple network management protocol traps, and file integrity or access telemetry on the servers where configuration backups are stored. The pattern worth alerting on is a read or transfer action against configuration storage from an unusual account, host or time, and routine change windows are the dominant source of noise. The common failure mode is that many organisations do not centralise device logs at all, so collection must be proven before the rule can be trusted.",
+  "tags": [
+    "t1602",
+    "network devices",
+    "configuration",
+    "collection",
+    "syslog",
+    "change management"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Data from Configuration Repository on Network Devices",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0592/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Data from Configuration Repository on Network Devices - EASY",
+      "path": "exercises/det0592/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Data from Configuration Repository on Network Devices - MEDIUM",
+      "path": "exercises/det0592/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Data from Configuration Repository on Network Devices - HARD",
+      "path": "exercises/det0592/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Data from Configuration Repository on Network Devices - EXTREMELY HARD",
+      "path": "exercises/det0592/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Network devices such as routers and firewalls keep a settings file called a configuration. That file is the device's recipe book. This detection looks for people or programs reading, copying or changing those settings without a good reason. It also watches the servers that store copies of the settings.",
+    "whyItMatters": "A network configuration often lists every subnet, every firewall rule and sometimes a shared password. An attacker who reads it can plan the next step without touching a single host. They can also change it to open a path for themselves. If nobody watches configuration access, that work is invisible. The damage is quiet and can last for months before anyone notices network behaviour that should not happen.",
+    "howItWorks": [
+      "Network devices send log messages to a central collector. These messages record logins, commands and settings changes.",
+      "The rule reads those messages and looks for commands that display or copy the running configuration.",
+      "It notes the account name, the source address and the time of the action.",
+      "It also watches servers that hold configuration backups for file reads or downloads by unexpected accounts.",
+      "Each action is compared with the approved change windows and the list of administrators.",
+      "Anything that is not an approved administrator or an approved window becomes an alert."
+    ],
+    "example": "Think of a hospital sign in sheet at the pharmacy. Every nurse who takes out medicine writes their name, the time and the amount. The sheet alone does not stop theft. It does mean that a missing box can be traced to a name and a minute. If someone signs in at three in the morning with a name nobody recognises, that line stands out at once. Network device logging works the same way. The device logs are the sign in sheet, and the approved change window is the shift roster.",
+    "takeaways": [
+      "Device settings are as sensitive as the passwords inside them, so reading them counts as an event.",
+      "You must collect device logs centrally, or the activity happens only in a local buffer nobody reads.",
+      "Separate routine change windows from everything else first, or the alert list will be unusable."
+    ]
+  },
+  "objectives": [
+    "Describe why network device configuration data is a high value collection target",
+    "Name the telemetry that records configuration access on routers, switches and firewalls",
+    "Explain how command accounting differs from authentication logging on network devices",
+    "Correlate configuration read or copy actions with account, source address and change window",
+    "Identify configuration backup repositories as a second place the same data can be stolen from",
+    "Build an approved administrator and change window baseline to keep false alerts low"
+  ],
+  "techniqueId": "t1602",
+  "detectsTechniques": [
+    "t1602"
+  ],
+  "dataSources": [
+    "Network device syslog messages that record administrative sessions and executed commands on routers, switches and firewalls",
+    "Terminal access controller access control system plus or remote authentication dial in user service accounting records for network device administration",
+    "Simple network management protocol traps and configuration change notifications sent by network devices to the monitoring platform",
+    "File access and download telemetry from the server or repository that stores network device configuration backups",
+    "Change management or ticketing records used as a baseline of approved configuration access windows"
+  ],
+  "logic": "The detection looks for administrative actions against network device configuration from a session that does not match the approved baseline. The relevant events are authentication and command accounting records from the device, which contain the account name, the source address, the privileged level and the exact command text, plus configuration change notifications and file access records on the backup repository. The pattern is a show running configuration, copy running configuration or configuration export command, or an equivalent read of a stored configuration file, executed by an account outside the administrator list or outside an approved change window, or from an unexpected source address. The benign case is a change ticket, a known jump host and an on duty engineer during a maintenance window. The malicious case is the same command from a workstation subnet at an unusual hour, or a bulk export that appears in the backup repository without any matching ticket.",
+  "pseudoQuery": "# title: Network Device Configuration Read Outside Approved Change Window\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     action: command\n#     command|contains:\n#       - 'show running-config'\n#       - 'copy running-config'\n#       - 'display current-configuration'\n#   filter_approved:\n#     src_ip|startswith:\n#       - '10[.]20[.]0[.]'\n#     user|endswith: '-admin'\n#   condition: selection and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Scheduled configuration backup jobs that read device settings every night from a management server account",
+    "Network engineers performing approved maintenance during a documented change window from an authorised jump host",
+    "Network monitoring platforms that poll device configuration or interface state over read only management credentials",
+    "Disaster recovery testing that exports configuration sets to a staging repository outside normal business hours"
+  ],
+  "tuningNotes": "Begin by proving collection: confirm that device logs actually reach the platform and that command accounting, not just login events, is enabled, because a quiet rule against missing telemetry looks identical to a rule with no findings. Then add a filter that allow lists the documented management jump hosts and the automation accounts used for nightly backup, and scope the rule to the privileged command set instead of all commands. Baseline the normal read volume per device and per engineer so that a bulk export stands out. Narrowing to jump hosts costs you visibility into an insider who uses an approved host but an unapproved account, so keep a second lower severity rule that alerts on new or first seen account and device pairs.",
+  "severity": "high"
+}

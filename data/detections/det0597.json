@@ -1,0 +1,108 @@
+{
+  "id": "det0597",
+  "type": "detection",
+  "title": "Detect Unauthorized Access to Password Managers",
+  "shortTitle": "Detect Unauthorized Access to Password Managers",
+  "externalId": "DET0597",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects access to password manager stores and browser saved credential databases, which ATT&CK covers as T1555.005. The value of these files is immediate and does not require any obfuscation: a copied vault or login database can be cracked offline or imported directly. Detection hinges on file access telemetry joined to process context, because the raw read is indistinguishable from the legitimate application opening its own data. The pattern is a process that is not the password manager, not the browser, and not an approved backup agent reading the vault file or the login database, especially when the read is followed by a copy, a compression step, or an outbound network connection. Endpoint agents that log sensitive file reads or credential store access give the cleanest signal; where they are absent, process creation with command line arguments and file integrity monitoring are the fallback. The strategy routinely fails because endpoint file read auditing is expensive and often disabled on user workstations, and because the account performing the read is usually already the file owner, so permissions raise no objection.",
+  "tags": [
+    "t1555.005",
+    "password managers",
+    "credential access",
+    "file access",
+    "endpoint",
+    "browser credentials"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Unauthorized Access to Password Managers",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0597/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Unauthorized Access to Password Managers - EASY",
+      "path": "exercises/det0597/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Unauthorized Access to Password Managers - MEDIUM",
+      "path": "exercises/det0597/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Unauthorized Access to Password Managers - HARD",
+      "path": "exercises/det0597/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Unauthorized Access to Password Managers - EXTREMELY HARD",
+      "path": "exercises/det0597/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A password manager keeps all your logins in one locked file. Browsers keep a similar file for saved website passwords. This detection watches for other programs opening or copying those files. The password manager opening its own file is normal, because that is its job. Anything else deserves a look.",
+    "whyItMatters": "One copied file can hand over hundreds of passwords at once. The attacker does not need to crack anything online, where alerts and lockouts would stop them. They can work offline at their own speed. The victim also sees no failed login, so nothing looks wrong until much later. Because the file belongs to the user, normal permission checks allow the read without complaint. That is why a dedicated detection is needed.",
+    "howItWorks": [
+      "The endpoint agent records when a process opens a file in a protected folder, such as a vault directory.",
+      "The record includes the program path, the user, the file path and sometimes the file hash.",
+      "The rule keeps reads of known password manager and browser credential file paths.",
+      "It removes the programs that are allowed to do this, such as the password manager and the browser itself.",
+      "It looks for the read being followed by a copy, an archive command or a network upload.",
+      "Any remaining event is raised with the process details so an analyst can judge the intent."
+    ],
+    "example": "Think of a hotel safe in each room. The guest opens their own safe many times a day, and nobody finds that strange. The cleaner also has a master key, and using it once to check a room is part of the job. What would worry the manager is a cleaner opening forty safes in one corridor in ten minutes with a bag. The safe did not complain, and no alarm sounded. Only the door log reveals the pattern. This detection is that door log for your password files.",
+    "takeaways": [
+      "Password files are valuable the moment they are copied, so the copy is the moment to detect.",
+      "Permissions will not stop this, because the person reading the file often owns it already.",
+      "The process that opens the file is the decisive clue, so collect process context with file access."
+    ]
+  },
+  "objectives": [
+    "Identify where password managers and browsers store their credential files on each platform",
+    "Explain why file permissions and access control lists do not prevent this activity",
+    "Collect file read telemetry with the process path, user and target file for vault locations",
+    "Correlate a vault read with a following copy, archive or network transfer action",
+    "Reduce false alerts by allow listing the applications that own those data files",
+    "Respond to a suspected vault theft by forcing credential rotation as well as host containment"
+  ],
+  "techniqueId": "t1555-005",
+  "detectsTechniques": [
+    "t1555-005"
+  ],
+  "dataSources": [
+    "Endpoint detection agent sensitive file access records including process image path, user account, target file path and file hash",
+    "Sysmon event 1 process creation showing archive, copy or scripting utilities with command line arguments naming vault or credential file paths",
+    "Windows Security event 4663 object access auditing for the password manager data directory and browser profile folders",
+    "Linux auditd open and openat records for password manager store paths under user home directories",
+    "File integrity monitoring baselines covering password manager installation directories and browser credential database files"
+  ],
+  "logic": "The detection compares a file access event against the small set of processes that legitimately own the target file. The access record supplies the target path, the acting process image, the account and the time; the allow list maps each protected path to the applications permitted to read it. The malicious pattern is a read of a vault or login database by a process outside that set, particularly a script interpreter, a file archiver, a remote access tool or an unsigned binary in a temporary directory, and especially when the read is followed within seconds by a copy to a staging path, a compressed archive, or an outbound network connection from the same process tree. The benign case is the password manager or browser reading its own store, a documented enterprise backup agent, or endpoint security software performing a scan. Intent is decided by what happens next: reading the file in place is often a mistake, while archiving and uploading it is theft.",
+  "pseudoQuery": "# title: Password Vault Or Browser Credential Store Read By Odd Process\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4663\n#     ObjectName|contains:\n#       - '\\\\KeePass'\n#       - '\\\\1Password'\n#       - '\\\\Login Data'\n#       - '\\\\logins.json'\n#   filter_owner_apps:\n#     ProcessName|endswith:\n#       - '\\\\KeePassXC.exe'\n#       - '\\\\1Password.exe'\n#       - '\\\\chrome.exe'\n#   filter_backup:\n#     ProcessName|contains: 'backup'\n#   condition: selection and not filter_owner_apps and not filter_backup\n# level: high",
+  "falsePositives": [
+    "Enterprise backup or endpoint management agents that read user profile folders, including vault and browser data, on a documented schedule",
+    "Browser profile migration or password export performed by the user through the browser's own export feature",
+    "Endpoint security or data loss prevention software scanning credential files as part of a routine content inspection",
+    "Password manager support or upgrade tooling that reads and rewrites the vault during a documented application update"
+  ],
+  "tuningNotes": "Enumerate the exact vault and credential store paths in use across the estate, including portable password manager copies, third party browsers and synchronisation folders, because a rule that only names one product will miss the rest. Allow list by process image path plus signature or hash rather than by file name, since a dropped binary in a temporary directory can carry any name. If file read auditing is too costly to enable everywhere, restrict it to user profile directories and to hosts in the finance and administrative groups first, and accept that other workstations are uncovered. Suppressing known backup agents costs you visibility into an attacker who abuses a signed agent binary, so pair this rule with an alert on that agent reading credential files outside its normal schedule.",
+  "severity": "high"
+}

@@ -1,0 +1,109 @@
+{
+  "id": "det0514",
+  "type": "detection",
+  "title": "Detection Strategy for Exploitation for Privilege Escalation",
+  "shortTitle": "Detection Strategy for Exploitation for Privilege Escalation",
+  "externalId": "DET0514",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets exploitation for privilege escalation, the technique tracked as T1068. The attacker uses a flaw in an operating system component, a driver or a service running with higher rights to move from a normal user context to administrator or system level, which is often the step that turns a limited foothold into full control of the host. The telemetry that makes it visible is process creation showing an unexpected child of a privileged service or driver process, host crash and service failure records, new services or drivers appearing shortly before the escalation, and process token or integrity level changes recorded by the endpoint agent. The strategy deliberately avoids depending on exploit signatures, because the specific flaw changes constantly, and it fails in practice when patching and administration generate the same process and service churn that the rule looks for.",
+  "tags": [
+    "privilege escalation",
+    "t1068",
+    "exploitation",
+    "windows security",
+    "process creation",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exploitation for Privilege Escalation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0514/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exploitation for Privilege Escalation - EASY",
+      "path": "exercises/det0514/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Privilege Escalation - MEDIUM",
+      "path": "exercises/det0514/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Privilege Escalation - HARD",
+      "path": "exercises/det0514/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Privilege Escalation - EXTREMELY HARD",
+      "path": "exercises/det0514/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for a normal user gaining higher rights by abusing a fault in another program. That fault is called a vulnerability, and using it is called exploitation. The rule does not search for one known bug, because those change all the time. Instead it watches the behaviour around a process that suddenly runs with much higher rights than its parent.",
+    "whyItMatters": "Most first access arrives with the rights of one ordinary user. Those rights are not enough to read other accounts or change security settings. Gaining higher rights is the step that turns a small problem into a serious one. Because the exact bug varies, detection has to focus on how the escalation looks rather than on one signature.",
+    "howItWorks": [
+      "The agent records every new process, including the account and integrity level it runs under.",
+      "The rule compares the rights of the new process with the rights of its parent process.",
+      "A large jump in rights, such as a user process producing a system level process, is unusual.",
+      "It then looks back a few minutes for a crash or a service install on that host.",
+      "It also checks whether the parent is a privileged service such as the print spooler or a task scheduler.",
+      "The jump plus the crash or service change on one host in a short window becomes the alert."
+    ],
+    "example": "Think of an office where cleaners may enter the lobby but not the records room. A cleaner finds that a stuck door in the lobby opens into the records room, and walks through. This rule does not watch for one specific broken door. It watches for a cleaner appearing somewhere a cleaner should never be.",
+    "takeaways": [
+      "Escalation is the step that turns one user account into control of the whole machine.",
+      "Behaviour and context beat exploit signatures, because new flaws appear every week.",
+      "A crash followed by a new service in a short window deserves a closer look."
+    ]
+  },
+  "objectives": [
+    "Describe what privilege escalation means and why it changes the impact of an intrusion.",
+    "Read process creation telemetry to compare the account and integrity level of a child and its parent.",
+    "Recognise privileged services and drivers whose unexpected child processes are worth alerting on.",
+    "Use crash, service install and driver load records as supporting context for an escalation event.",
+    "Explain why hard coded exploit signatures age badly and what behavioural signals last longer.",
+    "Plan a response that contains the host before the attacker uses the new rights."
+  ],
+  "techniqueId": "t1068",
+  "detectsTechniques": [
+    "t1068"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation including account name, integrity level and parent process",
+    "Sysmon event 1 process creation with user, integrity level and command line",
+    "Windows application and system crash records plus service control manager event 7045 for new service installs",
+    "Sysmon event 6 driver load and event 7 image load showing newly loaded modules on the host",
+    "Linux auditd execve records with user and group identifiers for privilege escalation checks"
+  ],
+  "logic": "The pattern is a process that starts with substantially higher privileges than the process that launched it, combined within a short window with a crash, an unexpected service installation or a new driver load on the same host. The fields that must be correlated are the parent and child image and command line, the account name and integrity level or user identifier on both events, and the service or driver record, joined on host across a window of a few minutes. The malicious case usually shows a user context process causing a system level child process, a service installed from a user writable directory, and a crash in a component that had no update activity that day. The benign case is patch management and software installation, where the service, the driver and the new process all appear inside one maintenance window from a signed installer in a management share.",
+  "pseudoQuery": "# title: User Context Process Spawning System Level Child After Service Install\n# logsource:\n#   product: windows\n# detection:\n#   selection_child:\n#     EventID: 1\n#     IntegrityLevel: 'System'\n#     ParentIntegrityLevel: 'Medium'\n#   selection_service:\n#     EventID: 7045\n#     ImagePath|contains:\n#       - '\\Temp\\'\n#       - '\\Users\\Public\\'\n#   condition: selection_child or selection_service\n# level: high",
+  "falsePositives": [
+    "Patch management and software deployment inside a documented maintenance window where a signed installer elevates and starts helper processes from a management share",
+    "Backup agents and monitoring products that restart their own service and spawn a privileged worker process",
+    "Driver updates from a hardware vendor utility that installs a kernel component and restarts a service",
+    "Scheduled maintenance scripts that run as system and call command line utilities on a fixed timetable",
+    "Application crash recovery tooling that restarts a failed service and logs the event as a system process"
+  ],
+  "tuningNotes": "Scope the rule to hosts where users have local administrator rights, since that is where escalation attempts concentrate, and suppress the known patch and deployment windows by source account and share path. Require two of the three signals, the privilege jump, the crash and the new service or driver, before alerting at high severity, so that single crashes do not page anyone. Baseline which services legitimately start from which directories in your estate. The coverage you lose is exploitation of an already running privileged process, which may never start a new process and therefore produces no event in this pattern.",
+  "severity": "high"
+}

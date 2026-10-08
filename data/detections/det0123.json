@@ -1,0 +1,105 @@
+{
+  "id": "det0123",
+  "type": "detection",
+  "title": "Detection of Data Exfiltration via Removable Media",
+  "shortTitle": "Detection of Data Exfiltration via Removable Media",
+  "externalId": "DET0123",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects exfiltration of data onto removable media such as universal serial bus storage devices. The technique matters because physical media can bypass network egress controls entirely, and it is a favoured route for insiders, contractors and attackers who already have interactive access to a system. Detection depends on device connection telemetry, file creation events that carry the target drive path, and file copy auditing that records the volume and count of files written to a removable volume. It fails in practice because the same events occur whenever anyone plugs in a memory stick, so the useful signal is the volume and type of data written to the device in a short window rather than the connection itself.",
+  "tags": [
+    "exfiltration",
+    "removable media",
+    "usb",
+    "data loss",
+    "file creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Data Exfiltration via Removable Media",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0123/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Data Exfiltration via Removable Media - EASY",
+      "path": "exercises/det0123/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Data Exfiltration via Removable Media - MEDIUM",
+      "path": "exercises/det0123/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Data Exfiltration via Removable Media - HARD",
+      "path": "exercises/det0123/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Data Exfiltration via Removable Media - EXTREMELY HARD",
+      "path": "exercises/det0123/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at data being copied onto a memory stick or another removable device. Removable media means storage you can unplug and carry, such as a universal serial bus drive. The rule watches what is written to those devices.",
+    "whyItMatters": "Data leaving on a small device never crosses your network, so your web and email filters cannot see it. A single memory stick can hold thousands of documents. This is a common route for insiders and for attackers who already have access to a computer.",
+    "howItWorks": [
+      "The rule reads records of a device being connected to the computer.",
+      "It notes the device type and the drive letter it was given.",
+      "It collects file creation events whose path starts with that drive letter.",
+      "It counts the files and the total size written within a short window.",
+      "It also looks for sensitive file types such as documents, archives and database exports.",
+      "A large copy to a newly connected device raises an alert."
+    ],
+    "example": "Think of a shop till. Every sale prints a receipt, and the manager checks the receipts at the end of the day. One receipt is normal. Forty receipts for the same item in ten minutes is odd. The device connection is the first receipt, and the file copy events are the rest of them.",
+    "takeaways": [
+      "Removable media bypasses your network controls completely.",
+      "The connection matters, but the copied volume matters more.",
+      "Track which user and which device did the copying."
+    ]
+  },
+  "objectives": [
+    "Explain why removable media is a hard channel to control",
+    "Identify the device connection and file creation fields needed for this detection",
+    "Measure copied volume and file types to separate routine use from exfiltration",
+    "Correlate a device connection with the account signed in at that time",
+    "Respond to an alert by locating the device and the copied files"
+  ],
+  "techniqueId": "t1052",
+  "detectsTechniques": [
+    "t1052"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation where the target file name begins with a removable drive letter",
+    "Windows event records for device installation and universal serial bus mass storage connection, including device instance identifier",
+    "Windows Security file share and object access auditing enabled for removable volumes, which records files written to that volume",
+    "Windows Security event 4688 process creation showing command line copy utilities targeting a removable drive letter"
+  ],
+  "logic": "The detection combines a device connection event with the file writes that follow it. Fields that must be correlated are the device type and instance identifier, the assigned drive letter, the signed in account, the target file paths, and the count and total size of files written within a short window. The benign case is a user backing up a handful of personal files or a technician loading drivers from a vendor stick, which produces a small count and a narrow set of file types; the malicious case is a burst of file creations covering document, archive and database export formats on a device that has never been seen on that host before, or a copy of an entire directory tree. Volume, file type mix and first time device together carry the signal, and the account tells you who to talk to.",
+  "pseudoQuery": "# title: Large file copy to newly connected removable drive\n# logsource:\n#   product: windows\n#   category: file_event\n# detection:\n#   selection:\n#     TargetFilename|contains: 'E:\\\\'\n#     TargetFilename|endswith:\n#       - '.zip'\n#       - '.xlsx'\n#       - '.pdf'\n#       - '.sql'\n#   timeframe: 10m\n#   condition: selection | count() by User > 50\n# level: high",
+  "falsePositives": [
+    "Technicians loading driver packages from an approved vendor universal serial bus drive",
+    "Photographers or designers moving large media projects between machines as part of their normal work",
+    "Meeting room systems where a presenter copies a presentation onto a shared stick before a session",
+    "Backup routines that copy a nightly database export to an encrypted removable disk kept in a safe"
+  ],
+  "tuningNotes": "Filter the drive letters and device identifiers of approved encrypted media, and filter the accounts that perform your documented offline backup, which removes most legitimate noise. Then set the count threshold from a measured baseline of your busiest file copying workflow rather than from a guess. Scope to hosts that hold sensitive data, such as finance, human resources and engineering workstations, and keep servers at low severity unless they store regulated data. The coverage you lose is exfiltration by an approved user to an approved device, so pair this rule with an alert on the same account reading unusual file shares before the copy.",
+  "severity": "high"
+}

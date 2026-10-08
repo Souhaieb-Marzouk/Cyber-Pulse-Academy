@@ -1,0 +1,106 @@
+{
+  "id": "det0492",
+  "type": "detection",
+  "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Modify Cloud Compute Configurations",
+  "shortTitle": "Detection Strategy for Modify Cloud Compute Infrastructur...",
+  "externalId": "DET0492",
+  "theme": "Detection Strategy",
+  "summary": "Modifying cloud compute configurations covers changes that reshape or hide running infrastructure, such as altering instance attributes, disabling termination protection, changing metadata or machine types, and stopping or redeploying virtual machines so that logs, agents and evidence disappear with the host. The detection strategy aggregates compute control plane write events in cloud audit logs by principal, resource and time, then compares them with the change record and the principal's normal behaviour, because a single attribute change is routine engineering while a burst of protective setting changes by an unusual identity is not. Its weakness is that these are legitimate administrative interfaces, so the rule depends on a maintained baseline of automation identities and on knowing which settings should never change in production.",
+  "tags": [
+    "cloud",
+    "aws",
+    "azure",
+    "gcp",
+    "defense evasion",
+    "compute"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Modify Cloud Compute Infrastructure: Modify Cloud Compute Configurations",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0492/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Modify Cloud Compute Configurations - EASY",
+      "path": "exercises/det0492/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Modify Cloud Compute Configurations - MEDIUM",
+      "path": "exercises/det0492/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Modify Cloud Compute Configurations - HARD",
+      "path": "exercises/det0492/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Modify Cloud Compute Configurations - EXTREMELY HARD",
+      "path": "exercises/det0492/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud computing lets you create and change virtual machines by calling an interface. This plan watches for changes to how those machines are configured. Examples include turning off protection against deletion or changing what a machine runs at start up. Such changes can be normal, but they can also prepare a machine for abuse or hide evidence.",
+    "whyItMatters": "An attacker with cloud rights can reshape infrastructure instead of attacking it. Switching off protection lets a machine be destroyed, taking its logs with it. Changing start up data can add code that runs every time the machine boots. These actions are allowed by design, so permission checks alone will not stop them. Reviewing the pattern of changes is how you catch them.",
+    "howItWorks": [
+      "The cloud provider records every configuration change in its audit service, with the caller and the resource.",
+      "The detection selects the write operations that affect a virtual machine or its protection settings.",
+      "It groups the changes by identity and resource over a short window, so single edits are not enough.",
+      "Settings that should not change in production, such as termination protection, are given extra weight.",
+      "The caller identity is compared with the automation accounts that normally perform such work.",
+      "Changes without a matching change record, or made by an unfamiliar identity, are raised for review."
+    ],
+    "example": "Think of a building where tenants may repaint their own office. Repainting is allowed and harmless. Removing the fire door is also a change a tenant could make. So is switching off the sprinkler system. Both destroy the safety of the whole floor. The facilities team only notices if it reviews the alteration log against the list of approved works. In the same way, judge cloud changes by what they switch off. Do not judge them only by who may call the interface.",
+    "takeaways": [
+      "Cloud configuration changes can be an attack step rather than routine maintenance.",
+      "Disabling protections and altering start up data are the changes that matter most.",
+      "Compare the change log with approved change records to find the gap."
+    ]
+  },
+  "objectives": [
+    "Explain how compute configuration changes can support an intrusion.",
+    "Name the settings that deserve the highest priority in this detection.",
+    "Aggregate compute write events by principal and resource.",
+    "Identify the automation identities that legitimately change compute settings.",
+    "Describe how to enrich the alert with change management records."
+  ],
+  "techniqueId": "t1578-005",
+  "detectsTechniques": [
+    "t1578-005"
+  ],
+  "dataSources": [
+    "AWS CloudTrail events for ModifyInstanceAttribute, StopInstances and ModifySnapshotAttribute with the caller identity",
+    "Azure activity logs for virtual machine update, redeploy and delete operations with the calling principal",
+    "GCP Cloud Audit Logs for compute.instances.setMetadata and compute.instances.setMachineType",
+    "Cloud change management records used to confirm whether a compute change was approved"
+  ],
+  "logic": "The detection looks for a cluster of compute configuration writes rather than a single call. In the audit log each event names the principal, the resource, the parameter that changed and the source address, so grouping by principal and resource over a short window shows whether someone made one adjustment or reshaped a machine. Benign automation changes machine types for cost, rotates images on a schedule and always works from pipeline service accounts with consistent source addresses and change records. The malicious pattern is a principal that has never touched compute before disabling deletion protection, editing user data or metadata that runs at boot, stopping instances whose agents produce the logs you rely on, and doing several of these within minutes from an unfamiliar address. Correlating principal, resource, changed parameter, source address and the presence of an approved change record is what turns a permitted interface call into a defensible alert.",
+  "pseudoQuery": "# title: Compute Protection Disabled Or Boot Metadata Rewritten\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventSource: 'ec2.amazonaws.com'\n#     eventName:\n#       - 'ModifyInstanceAttribute'\n#       - 'StopInstances'\n#       - 'ModifySnapshotAttribute'\n#   filter_automation:\n#     userIdentity.arn|contains: 'role/pipeline-automation'\n#     sourceIPAddress|in: 'corporate_egress_ranges'\n#   condition: selection and not filter_automation\n# level: high",
+  "falsePositives": [
+    "Cost optimisation automation that stops development instances overnight and resizes them on a schedule",
+    "Image and patch pipelines that update instance metadata or user data as part of a normal release",
+    "Disaster recovery drills that stop and restart production instances during a documented window",
+    "Incident response actions that isolate or power off a compromised host as part of containment"
+  ],
+  "tuningNotes": "Baseline the service accounts and roles that perform compute changes, together with the source addresses and the schedule they use, then exclude those patterns. Give the highest priority to changes that disable termination protection, rewrite boot metadata or stop instances that host logging agents, and add the change record check before the alert reaches an analyst. Excluding automation removes most volume but allows an attacker who has taken over a pipeline role to move quietly, so alert separately when a pipeline identity changes a protection setting that it never changed before.",
+  "severity": "high"
+}

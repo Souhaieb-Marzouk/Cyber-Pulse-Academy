@@ -1,0 +1,106 @@
+{
+  "id": "det0408",
+  "type": "detection",
+  "title": "Detection Strategy for Reflection Amplification DoS (T1498.002)",
+  "shortTitle": "Detection Strategy for Reflection Amplification DoS (T149...",
+  "externalId": "DET0408",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses reflection amplification denial of service, matching the network denial of service sub technique where an adversary sends small requests with a spoofed source address to many third party services. The large replies are then delivered to the victim. It matters because the attack traffic is legitimate looking response data from real servers, so blocking it also risks blocking useful services. The volume can saturate a link within seconds. The telemetry that exposes it is network flow records showing one destination receiving a one directional burst from many distinct sources on a single service port, and border router interface counters and drop counters. It fails in practice because telling an amplification flood from a legitimate traffic spike is hard.",
+  "tags": [
+    "denial of service",
+    "network monitoring",
+    "mitre t1498.002",
+    "flow analysis",
+    "udp"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Reflection Amplification DoS (T1498.002)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0408/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Reflection Amplification DoS (T1498.002) - EASY",
+      "path": "exercises/det0408/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Reflection Amplification DoS (T1498.002) - MEDIUM",
+      "path": "exercises/det0408/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Reflection Amplification DoS (T1498.002) - HARD",
+      "path": "exercises/det0408/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Reflection Amplification DoS (T1498.002) - EXTREMELY HARD",
+      "path": "exercises/det0408/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a flood of network replies that arrive at one victim. The victim never asked for them. The attacker sends small requests to many open services on the internet. The attacker writes the victim's address as the sender, so all the replies go to the victim. The alert means one address is buried in unwanted replies.",
+    "whyItMatters": "This kind of flood can take a website or an office connection offline in seconds. The replies come from real servers, so simple blocking rules are dangerous. The victim has no relationship with those servers and cannot fix the problem alone. Fast detection lets your provider start filtering close to the source instead of at your own border.",
+    "howItWorks": [
+      "Routers and network sensors record each flow with the protocol, the port, the packet and byte counts and the direction.",
+      "Those records are exported to your monitoring platform, where they are summarised per destination address.",
+      "The rule looks for a very large one directional burst on one service port toward a single address.",
+      "It counts the number of distinct source addresses taking part and checks that the traffic is replies, not requests.",
+      "The pattern is compared with the normal profile for that address and with known busy services.",
+      "When the ratio of replies to requests is extreme, an alert is raised for the network team."
+    ],
+    "example": "Think of a shop that offers free stamped reply postcards. Someone posts a hundred thousand requests using your home address as the return address. You receive mountains of post that you never asked for, and the post office cannot simply stop delivering mail. Your address is the victim of everyone else's letters.",
+    "takeaways": [
+      "Amplification floods are mostly inbound replies, so inbound volume and source spread are the signals.",
+      "The third party servers are innocent, so blocking by source list is a poor response.",
+      "Flow data with ports and counters is the practical telemetry for detecting this quickly."
+    ]
+  },
+  "objectives": [
+    "Explain reflection and amplification and why the victim receives unsolicited replies.",
+    "Identify the flow record fields needed to measure one directional bursts per destination and port.",
+    "Use source address spread and reply to request ratio to separate a flood from a traffic spike.",
+    "Describe how interface counters and drop counters confirm link saturation.",
+    "Outline the escalation path to a network or hosting provider for filtering."
+  ],
+  "techniqueId": "t1498-002",
+  "detectsTechniques": [
+    "t1498-002"
+  ],
+  "dataSources": [
+    "Network flow records exported from border routers including protocol, source and destination port, packet count and byte count per flow",
+    "Border router or switch interface counters and packet drop counters sampled at short intervals",
+    "Firewall or load balancer session logs recording inbound connection attempts per source address and service port",
+    "Network sensor capture statistics summarising inbound packet rate and unique source addresses per destination address",
+    "Upstream provider mitigation notices or scrubbing centre reports naming the protected address and the attack profile"
+  ],
+  "logic": "The pattern is a sharp rise in inbound traffic toward one destination address, concentrated on a single UDP service port that the destination does not normally offer or receive, arriving from a very large number of distinct source addresses with small average request size and much larger reply size, with no matching outbound requests from the victim. The fields that must be correlated are the destination address and port, the protocol, the count of distinct source addresses, the ratio of inbound to outbound bytes for that address, the average packet size, and the interface drop counters on the link that serves the victim. The benign case is a genuine surge toward a public service after an announcement or a software release, which comes from a narrower set of networks with a normal request to response ratio and no spoofing indicators; the malicious case is one directional volume from unrelated hosting networks on a port the victim never uses, accompanied by link saturation and drops.",
+  "pseudoQuery": "# title: Inbound UDP Reply Flood to Single Destination on Unused Service Port\n# logsource:\n#   product: network\n#   service: netflow\n# detection:\n#   selection:\n#     direction: 'inbound'\n#     protocol: 'udp'\n#     bytes: '> 100000000'\n#   filter_expected:\n#     dst_port:\n#       - 53\n#       - 123\n#   condition: selection and not filter_expected | count(distinct src_ip) by dst_ip > 1000 within 5m\n# level: high",
+  "falsePositives": [
+    "A public service that suddenly becomes popular, such as a media stream or a software release",
+    "A scheduled internet wide scan or load test launched from a monitoring provider against your own address",
+    "A misconfigured device on your network that replies to broadcast requests from many hosts at once",
+    "Large scale domain name or time service traffic during a network outage that triggers mass client retries"
+  ],
+  "tuningNotes": "Establish a normal profile for each public address: which ports receive inbound traffic, the typical distinct source address count per five minutes, and the usual inbound to outbound byte ratio, then alert on deviations from that profile instead of on raw volume alone. Allow list the service ports you genuinely publish, and require the source address count to rise at the same time as volume so a single large transfer does not fire. Coordinate the thresholds with your upstream provider, since filtering decisions happen there. The coverage you lose is a small but sustained flood aimed at a specific application port, so keep a second rule that watches reply to request ratios on published ports over a longer window.",
+  "severity": "high"
+}

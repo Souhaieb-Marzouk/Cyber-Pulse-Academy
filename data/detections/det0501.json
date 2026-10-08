@@ -1,0 +1,106 @@
+{
+  "id": "det0501",
+  "type": "detection",
+  "title": "Detection Strategy for Compile After Delivery - Source Code to Executable Transformation",
+  "shortTitle": "Detection Strategy for Compile After Delivery - Source Co...",
+  "externalId": "DET0501",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects compile after delivery, where an adversary sends readable source code to a target and has the target host build it into a working executable, so that no known bad file ever crosses the perimeter. The signal is a compiler or script compiler running from a user writable directory, followed by a new executable or library appearing in the same path and then executing from it. Telemetry includes process creation with parent image and command line, file creation events, image load records and script compilation traces. It fails in practice because developers compile code all day long, so the rule only works once build hosts and developer workstations are separated from ordinary user endpoints.",
+  "tags": [
+    "compile after delivery",
+    "obfuscation",
+    "process creation",
+    "file creation",
+    "developer host"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Compile After Delivery - Source Code to Executable Transformation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0501/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Compile After Delivery - Source Code to Executable Transformation - EASY",
+      "path": "exercises/det0501/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Compile After Delivery - Source Code to Executable Transformation - MEDIUM",
+      "path": "exercises/det0501/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Compile After Delivery - Source Code to Executable Transformation - HARD",
+      "path": "exercises/det0501/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Compile After Delivery - Source Code to Executable Transformation - EXTREMELY HARD",
+      "path": "exercises/det0501/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Compile after delivery means the attacker sends source code instead of a finished program. The target computer then builds the program on the spot. This detection looks for that build step on a normal user computer. The aim is to catch a program that appears out of nowhere.",
+    "whyItMatters": "Finished programs are easy to spot, because security tools keep lists of known bad files. Source code looks harmless and changes every single time, so no list can match it. The build step leaves a clear trace, however, because most office computers never compile anything. Watching for the build turns a hidden trick into a loud event.",
+    "howItWorks": [
+      "The endpoint agent records each new process, together with its full command line.",
+      "It records each new file, including the folder where that file appears.",
+      "The rule looks for a compiler or script compiler started by an office or browser process.",
+      "It then looks for a new executable in the same user folder within a short window.",
+      "A later process started from that new file confirms the chain.",
+      "The alert shows the source file, the compiler and the new program."
+    ],
+    "example": "Imagine a parcel arriving at an office. The courier brings a flat pack of wood and a set of instructions, not a finished chair. A worker in the corner builds the chair and leaves it at a desk. Security sees only wood entering the building, which looks harmless. This detection is the camera over the workshop, where furniture suddenly starts being made.",
+    "takeaways": [
+      "Source code defeats file lists, but the build step is hard to hide.",
+      "Correlate a compiler process with a new executable in a user folder.",
+      "Separate developer and build hosts before you enable the rule."
+    ]
+  },
+  "objectives": [
+    "Explain why delivering source code helps an attacker avoid detection.",
+    "Name the process and file events that show a build on the host.",
+    "Identify compiler and script compiler process names worth watching.",
+    "Correlate file creation with later execution from the same folder.",
+    "Scope the rule so developer and build hosts do not flood the queue."
+  ],
+  "techniqueId": "t1027-004",
+  "detectsTechniques": [
+    "t1027-004"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image path, parent image and full command line",
+    "Sysmon event 11 file creation recording the new executable or library path",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows image load auditing events recording modules loaded from user writable directories",
+    "Endpoint detection agent records of script compilation inside a scripting engine process"
+  ],
+  "logic": "The pattern is a build tool chain executing on a host that does not normally build software, followed by execution of the freshly written binary. Analysts correlate the compiler image, its parent process and its working directory from process creation records with file creation events in the same user writable path, and then with a later process whose image is that new file. Developer workstations and build servers show the same sequence constantly, from known tool chains and version control directories. The malicious case shows an office document, a script host or a browser as the parent, a source file dropped in a temporary folder, and the new executable launched seconds later before connecting to the internet.",
+  "pseudoQuery": "# title: Local Compilation Followed by Execution From User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection_compiler:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\csc.exe'\n#       - '\\vbc.exe'\n#       - '\\gcc.exe'\n#   filter_dev:\n#     ParentImage|contains:\n#       - '\\devenv.exe'\n#       - '\\msbuild.exe'\n#   condition: selection_compiler and not filter_dev\n# level: medium",
+  "falsePositives": [
+    "Developer forcing a build from the command line instead of using the integrated development environment",
+    "Automated test runner that compiles a small helper program inside a temporary directory",
+    "Package manager installing and building a native module during a routine software update",
+    "Student or trainer following a programming tutorial on a corporate laptop"
+  ],
+  "tuningNotes": "Scope the rule to endpoints that are not registered developer or build machines, and maintain that asset group automatically from your inventory rather than by hand. Allow list the parent processes and working directories that normal builds use on the machines that remain in scope. Require the second stage, execution of the new file, before alerting, because compilation alone produces too many benign hits. Narrowing this way removes almost all developer noise, but you lose visibility of an attacker who compiles on a genuine build server that your asset group excludes.",
+  "severity": "medium"
+}

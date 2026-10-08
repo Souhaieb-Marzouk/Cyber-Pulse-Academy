@@ -1,0 +1,108 @@
+{
+  "id": "det0410",
+  "type": "detection",
+  "title": "Detection Strategy for Data from Network Shared Drive",
+  "shortTitle": "Detection Strategy for Data from Network Shared Drive",
+  "externalId": "DET0410",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects collection of data from network shared drives, the behaviour described by T1039, where an adversary who already has access to a file server browses and copies documents rather than deploying new tooling. It matters because shared drives usually hold the most sensitive business records in an organisation, and theft from them looks like ordinary file access, so it is often discovered only after data appears elsewhere. The telemetry that makes detection possible is file server auditing: Windows Security event 5140 and 5145 for share and detailed file access, Sysmon event 11 for file creation on endpoints, and access logs from storage appliances that record the client address and the share name. The main way this fails is sheer volume, because normal business units read thousands of files a day, so a useful rule must model per user and per share read ratios rather than alert on any single file read.",
+  "tags": [
+    "windows",
+    "file server",
+    "collection",
+    "data theft",
+    "shared drive"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Data from Network Shared Drive",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0410/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Data from Network Shared Drive - EASY",
+      "path": "exercises/det0410/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Data from Network Shared Drive - MEDIUM",
+      "path": "exercises/det0410/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Data from Network Shared Drive - HARD",
+      "path": "exercises/det0410/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Data from Network Shared Drive - EXTREMELY HARD",
+      "path": "exercises/det0410/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A network shared drive is a folder on a server that many people can open over the network. This detection watches for a computer or user reading far more files from such a share than usual. It catches an attacker who is stealing documents, not breaking in. The collection step is what this rule sees.",
+    "whyItMatters": "Shared drives often hold contracts, finance files and personal data. An attacker who reaches one can copy years of work in minutes. The activity uses normal file access, so a firewall or anti virus product sees nothing wrong. File servers are also busy, so the reading hides among real work. Seeing the pattern early gives you time to block the copy and find the stolen data.",
+    "howItWorks": [
+      "The server writes an audit record when someone opens a file on a share. It includes the account, the file path and the client address.",
+      "Those records are sent to the central log platform, which is the system that stores and searches security events.",
+      "The rule counts how many different files each account reads per share in a set period, for example ten minutes.",
+      "It compares that count with the normal number for the same account on the same share at the same hour.",
+      "A large jump, or many files from folders the account never uses, increases the score for the event.",
+      "When the score passes the threshold, an analyst gets an alert. The alert names the account, the client machine and the files."
+    ],
+    "example": "Picture a hospital sign in sheet at a records office. Each clerk who takes a patient folder writes it down, and the office is busy all day. One visitor signs for folder after folder from shelves they have no reason to touch. No single signature is strange. The pattern of hundreds of folders in an hour tells the supervisor to step in.",
+    "takeaways": [
+      "Theft from a shared drive looks like normal work, so you must measure volume and scope, not just access.",
+      "Per user and per share baselines are what make the rule usable on a busy file server.",
+      "Client address and file path are the two fields that connect the reading to a real person."
+    ]
+  },
+  "objectives": [
+    "Describe how share access auditing records who opened which file from which client.",
+    "Build a simple per user baseline of distinct files read per share per hour.",
+    "Identify the file paths and folder owners that should always be treated as sensitive.",
+    "Correlate share read activity with later outbound network transfer from the same client.",
+    "Choose thresholds that separate bulk copying from ordinary document review.",
+    "Explain to a business owner why the file server audit policy must stay enabled."
+  ],
+  "techniqueId": "t1039",
+  "detectsTechniques": [
+    "t1039"
+  ],
+  "dataSources": [
+    "Windows Security event 5140 network share object was accessed, including share name, account name and source address",
+    "Windows Security event 5145 detailed file share access with the relative target name of each file opened",
+    "Sysmon event 11 file create on the workstation that receives the copied data",
+    "File server or storage appliance access log recording client address, share and object path",
+    "Windows Security event 4624 network logon to the file server used to place the file reads in a session"
+  ],
+  "logic": "The pattern is a single account, or a small set of accounts, reading an unusually large number of distinct files from one share within a short window, especially when the paths sit outside that account's normal folder set and the client address is a workstation that does not usually mount that share. The fields to correlate are the account name, the share name, the relative target path, the source address and the session that holds the reads. Benign access is broad but shallow and repeats the same folder day after day, while collection is deep and widening, often touching many folders the account has never opened before. The distinction that matters is the ratio of new paths to previously seen paths for that account and share, not the raw count of file opens.",
+  "pseudoQuery": "# title: Bulk file read from shared drive by single account\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: [5140, 5145]\n#     ShareName|endswith: '$'\n#     AccessMask|contains: 'ReadData'\n#   filter_service:\n#     SubjectUserName|endswith: '$'\n#   condition: selection and not filter_service | count(RelativeTargetName) by SubjectUserName, ShareName > 200 in 10m\n# level: medium",
+  "falsePositives": [
+    "Backup software that walks every file on the share with a dedicated service account on a nightly schedule",
+    "Data loss prevention or indexing tools that read the whole share once to build a searchable catalogue",
+    "A finance team closing the quarter, where several staff open hundreds of spreadsheets in one afternoon",
+    "A user migrating to a new laptop who copies their entire personal folder from the share in one session",
+    "Anti virus scanning on the file server that opens many files with a system account outside business hours"
+  ],
+  "tuningNotes": "Filter out accounts that end with the machine account suffix and the documented backup and indexing service accounts first, because they are responsible for most of the raw volume. Then scope the alert to shares that the data classification register marks as sensitive, which reduces the population to a few hundred folders and makes baselining realistic. Baseline distinct file paths per account per share over thirty days and alert only when a session reads more than three times the ninety fifth percentile for that account and hour. Add a filter for the scanning schedule window if backup runs inside your alerting window. Narrowing to sensitive shares means you lose visibility of collection on working project shares, so keep a lower severity weekly digest for those so an unusual pattern is still visible to a human.",
+  "severity": "high"
+}

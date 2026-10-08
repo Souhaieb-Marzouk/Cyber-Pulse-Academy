@@ -1,0 +1,107 @@
+{
+  "id": "det0532",
+  "type": "detection",
+  "title": "Detection of Event Log Clearing on Windows via Behavioral Chain",
+  "shortTitle": "Detection of Event Log Clearing on Windows via Behavioral...",
+  "externalId": "DET0532",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the clearing of Windows event logs and the commands that do it, the behaviour behind event log clearing. Clearing a log removes the record of everything the attacker did on that host, and the clearing action itself is one of the few remaining traces. The audit log cleared event in the security log, the log file cleared event in other channels, unexpected log service restarts, and process creation for log management utilities together describe the action. The rule fails in two ways: on hosts where log rotation legitimately clears channels, and when an attacker stops the logging service instead, which leaves a gap rather than a clearing event, so both patterns must be covered.",
+  "tags": [
+    "defense evasion",
+    "windows",
+    "event log",
+    "audit",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Event Log Clearing on Windows via Behavioral Chain",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0532/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Event Log Clearing on Windows via Behavioral Chain - EASY",
+      "path": "exercises/det0532/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Event Log Clearing on Windows via Behavioral Chain - MEDIUM",
+      "path": "exercises/det0532/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Event Log Clearing on Windows via Behavioral Chain - HARD",
+      "path": "exercises/det0532/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Event Log Clearing on Windows via Behavioral Chain - EXTREMELY HARD",
+      "path": "exercises/det0532/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone who erases the Windows event logs. These logs hold the record of what happened on the computer. Attackers clear them to hide their tracks. The alert fires when a log is cleared, or when a tool that clears logs is started.",
+    "whyItMatters": "The event log is the main evidence of activity on a Windows machine. If an attacker erases it, you lose the history and may never know what was done. Clearing a log is also loud, so it usually means the attacker knows you are watching. A missing log is a signal in itself. Catching the moment of clearing lets you move to other evidence. The network logs and the central security platform may still hold the story.",
+    "howItWorks": [
+      "Windows writes a special record when the security audit log is cleared. It writes a different record when another log file is cleared.",
+      "Agents also record process starts, so the clearing command appears with its full arguments and its parent process.",
+      "The rule matches the clearing records and the clearing commands, then looks up the account and the session behind them.",
+      "It checks for related activity in the same minute. Examples are a log service stop, a restart or an archive of the log folder.",
+      "The alert is raised at high severity, because clearing a log destroys evidence.",
+      "The analyst is directed to the central copy of the logs, which the attacker cannot delete."
+    ],
+    "example": "Think of a visitor sign-in sheet at a hospital. Someone tears out the page that holds their name. The torn edge and the missing page number tell you that a page is gone. A careful desk clerk also keeps a copy in the office, so the visit is still known. The detection watches for the torn page, not for the visit itself.",
+    "takeaways": [
+      "Clearing a log destroys local evidence, so the clearing action itself must raise a high severity alert.",
+      "Keep the security log clearing record free of exclusions, because no routine job should clear it.",
+      "Stopping the log service leaves a gap instead of a clearing event, so cover both patterns."
+    ]
+  },
+  "objectives": [
+    "Identify the Windows records that show an audit log or another log file was cleared",
+    "Explain why clearing the security log should never occur during routine operations",
+    "Detect the command line tools and script commands that clear logs, with their parent process",
+    "Describe how a logging service stop produces a gap rather than a clearing record",
+    "Build a rotation allow list for the channels your environment clears on a schedule",
+    "Explain why the central log copy is the responder's first step after this alert"
+  ],
+  "techniqueId": "t1685-005",
+  "detectsTechniques": [
+    "t1685-005"
+  ],
+  "dataSources": [
+    "Windows Security event 1102 recording that the audit log was cleared, with the account and the host",
+    "System log records that a log file was cleared, including the log name and the clearing process",
+    "Sysmon event 1 process creation for log management utilities with the full command line and parent image",
+    "Service control manager records showing that the event log service stopped or restarted unexpectedly",
+    "PowerShell operational or script block logging records showing a clear event log command"
+  ],
+  "logic": "The pattern is a deliberate removal of log data or of the ability to record it. Correlate the log clearing records in the security and system channels with process creation for log management tools, then add related events in the same minute such as a log service stop or an archive of the log directory. The benign case is a scheduled rotation script that archives an application channel before clearing it, or an installer that resets its own private channel. The malicious case is the security log being cleared, a clearing command run from a script host or an office application, or a log service that stops shortly after a suspicious logon.",
+  "pseudoQuery": "# title: Windows Event Log Cleared Or Clearing Command Run\n# logsource:\n#   product: windows\ndetection:\n  selection_clear:\n    EventID:\n      - 1102\n      - 104\n  selection_tool:\n    EventID: 1\n    CommandLine|contains:\n      - 'wevtutil cl'\n      - 'Clear-EventLog'\n      - 'Clear-WinEvent'\n  filter_rotation:\n    CommandLine|contains: 'rotate-app-log'\n  condition: (selection_clear or selection_tool) and not filter_rotation\nlevel: high",
+  "falsePositives": [
+    "Log rotation scripts that archive and clear a verbose application channel on a fixed schedule",
+    "Application installers that clear their own private log channel before a maintenance run",
+    "Administrators clearing a test or lab machine log before a training session",
+    "Backup or monitoring agents that restart the event log service and cause a channel reset"
+  ],
+  "tuningNotes": "Confirm which channels your environment rotates on a schedule, then allow those channel names and the script account that performs the rotation. Keep the security log clearing record at the highest severity with no exclusions, because no routine process should clear it. Scope the command condition to servers and administrative workstations first. Filtering rotated application channels reduces noise but removes visibility of an attacker who clears the same channel by hand, so keep a lower severity alert for a clearing command whose parent is a script host or a document application.",
+  "severity": "high"
+}

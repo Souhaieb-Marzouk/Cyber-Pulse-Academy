@@ -1,0 +1,106 @@
+{
+  "id": "det0363",
+  "type": "detection",
+  "title": "Detection of Credential Dumping from LSASS Memory via Access and Dump Sequence",
+  "shortTitle": "Detection of Credential Dumping from LSASS Memory via Acc...",
+  "externalId": "DET0363",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects credential dumping from the memory of the Local Security Authority Subsystem Service (LSASS) process. It maps to T1003.001 OS Credential Dumping: LSASS Memory, and the detection is built on a sequence rather than a single event: a process opens LSASS with read memory access rights, then a dump or copy of that memory appears on disk, and often the dump is later archived or moved. The telemetry comes from Sysmon event 10 process access records with granted access masks, Sysmon file creation and image load events, endpoint protection alerts and file auditing for dump file extensions. It fails in practice because trusted software, including endpoint protection and backup agents, also reads LSASS memory, so access alone produces a high volume of benign alerts unless the granted access right, the requesting image path and the resulting file are correlated together.",
+  "tags": [
+    "windows",
+    "credential access",
+    "lsass",
+    "memory",
+    "sysmon"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Credential Dumping from LSASS Memory via Access and Dump Sequence",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0363/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Credential Dumping from LSASS Memory via Access and Dump Sequence - EASY",
+      "path": "exercises/det0363/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Credential Dumping from LSASS Memory via Access and Dump Sequence - MEDIUM",
+      "path": "exercises/det0363/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Credential Dumping from LSASS Memory via Access and Dump Sequence - HARD",
+      "path": "exercises/det0363/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Credential Dumping from LSASS Memory via Access and Dump Sequence - EXTREMELY HARD",
+      "path": "exercises/det0363/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for attempts to read the memory of LSASS, a Windows process that keeps login secrets. It also watches for the files that such a read produces. A memory dump is a copy of what a program held in memory at one moment, saved as a file.",
+    "whyItMatters": "The memory of LSASS can contain password hashes, which are coded forms of passwords, and other login material. In one step an intruder can obtain many accounts, not just one. Those accounts then allow movement to other computers without any exploit.",
+    "howItWorks": [
+      "A monitoring agent records when one process opens another process, including the rights it asks for.",
+      "The rule selects opens of the LSASS process that request read memory rights.",
+      "It records the program that asked and where that program is stored on disk.",
+      "File creation records are checked for dump files, which often use the name of the target process and a dump extension.",
+      "When a read of LSASS memory is followed by a new dump file, the rule raises a critical alert."
+    ],
+    "example": "Think of the payroll office safe. Many people walk past the door every day. What matters is the person who asks for the safe key, carries out a full copy of every payslip, and then hides the copy in a cupboard.",
+    "takeaways": [
+      "Reading LSASS memory is the signal; the dump file is the proof.",
+      "Always look at the requesting program path, because that is where trusted tools and intruder tools differ.",
+      "Treat a confirmed dump as a credential compromise and plan re-imaging, not just cleanup."
+    ]
+  },
+  "objectives": [
+    "Explain what LSASS holds and why its memory is a high value target",
+    "Identify the requested access rights that indicate memory reading rather than status checking",
+    "Correlate process access records with the creation of dump files on the same host",
+    "List the legitimate tools that read LSASS memory and how their paths are recognised",
+    "Describe containment steps that assume the credentials on the host are already exposed",
+    "Recognise the difference between a memory dump for support and a dump taken by an unknown process"
+  ],
+  "techniqueId": "t1003-001",
+  "detectsTechniques": [
+    "t1003-001"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access records for the LSASS process including source image, granted access mask and call trace",
+    "Sysmon event 11 file creation records for files with a dump extension written to temporary or user profile paths",
+    "Sysmon event 1 process creation records for the process that opened LSASS, with parent image and command line",
+    "Windows Security event 4656 handle request records when object access auditing for the target process is enabled",
+    "Endpoint protection or memory protection alerts reporting suspicious reads of the LSASS process"
+  ],
+  "logic": "The detection requires a chain. Analysts first select process access records where the target is LSASS and the granted access includes read memory rights, then filter the small set of approved security and backup products by image path and signature. They then look for a dump file created on the same host within minutes, and for process creation records showing a scripting host, an administrative utility or an unsigned binary as the source. The benign case is a documented endpoint protection agent or a support engineer using an approved diagnostic tool during a logged session; the malicious case is an unsigned or user profile path binary with a command line naming the target process and an output file, followed by compression or archiving of that file and outbound transfer.",
+  "pseudoQuery": "# title: LSASS memory read followed by dump file creation\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_access:\n#     EventID: 10\n#     TargetImage|endswith: '\\\\lsass.exe'\n#     GrantedAccess|contains:\n#       - '0x1010'\n#       - '0x1410'\n#       - '0x143a'\n#   filter_trusted:\n#     SourceImage|endswith:\n#       - '\\\\MsMpEng.exe'\n#       - '\\\\backupagent.exe'\n#   selection_dump:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.dmp'\n#       - '.dump'\n#   condition: selection_access and not filter_trusted and selection_dump\n# level: critical",
+  "falsePositives": [
+    "Endpoint protection and endpoint detection agents that inspect LSASS memory as part of their normal monitoring",
+    "Backup or disaster recovery software that captures process memory during a full system backup",
+    "Support engineers using an approved diagnostic tool to investigate a crashed authentication service",
+    "Application crash handlers that write a dump file for a service account process during a fault"
+  ],
+  "tuningNotes": "Enumerate and approve every product that legitimately reads LSASS memory, and filter by signed image path rather than by file name, then require a dump file creation before raising severity to critical. Keep a lower severity alert for unexpected LSASS readers on servers only, which gives useful early warning without flooding the queue with workstation noise. Protect the approved filter list with change control, because it is the exact list an intruder would try to imitate. The coverage you lose by requiring a dump file is in memory dumping to a remote share or a named pipe, so also monitor for large outbound transfers from authentication servers and for named pipe creation whose name matches the target process.",
+  "severity": "critical"
+}

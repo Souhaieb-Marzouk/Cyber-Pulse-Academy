@@ -1,0 +1,109 @@
+{
+  "id": "det0003",
+  "type": "detection",
+  "title": "T1136.002 Detection Strategy - Domain Account Creation Across Platforms",
+  "shortTitle": "T1136.002 Detection Strategy - Domain Account Creation Ac...",
+  "externalId": "DET0003",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the creation of new domain accounts used for persistence (T1136.002, Create Account: Domain Account). A domain account outlives most other footholds: it survives reboots, credential rotation elsewhere and even the removal of the host that created it, which is why defenders treat unexpected directory writes as high value. Detection is possible because directory services keep strong audit trails, and all major platforms expose account creation as a discrete, well logged event. The main practical failure is noise from help desk and identity governance workflows, so the rule must pivot from the raw creation event to what happens next, such as group membership or logon behaviour, rather than alerting on creation alone.",
+  "tags": [
+    "persistence",
+    "active directory",
+    "account creation",
+    "t1136.002",
+    "identity",
+    "cloud identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: T1136.002 Detection Strategy - Domain Account Creation Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0003/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "T1136.002 Detection Strategy - Domain Account Creation Across Platforms - EASY",
+      "path": "exercises/det0003/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "T1136.002 Detection Strategy - Domain Account Creation Across Platforms - MEDIUM",
+      "path": "exercises/det0003/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "T1136.002 Detection Strategy - Domain Account Creation Across Platforms - HARD",
+      "path": "exercises/det0003/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "T1136.002 Detection Strategy - Domain Account Creation Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0003/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A domain account is a user identity that works across many computers joined to the same directory. Creating one is a normal administrative task. An attacker who creates an account can log in again later, even after the first break in is fixed. This detection looks for new accounts that nobody asked for.",
+    "whyItMatters": "New accounts are quiet. No malware runs, no file changes, and no alert fires on the target machine. The account simply exists and waits. Because it lives in the directory, it keeps working when the compromised host is rebuilt. Most organisations create accounts every day, which is why the raw event is hard to act on. The useful question is who created it and what it can do.",
+    "howItWorks": [
+      "The directory service writes an audit event every time an account object is created, and it records the actor and the new account name.",
+      "Your central log platform collects these events from each domain controller and from cloud identity services.",
+      "The detection looks up whether the actor is a human administrator, a known automation service or an unexpected process account.",
+      "It then checks what happens to the new account in the next hour, such as being added to a privileged group.",
+      "It also checks where the request came from, because a directory write from a workstation rather than a management host is unusual.",
+      "If the new account gains rights or logs on from a strange place, the rule raises an alert and links the events."
+    ],
+    "example": "Imagine a staff sign-in sheet at a hospital. New nurses join every week, so a new name is normal. The guard still reads the sheet. A new name written at three in the morning, added to the list of people who can open the drug store, is the event worth a phone call.",
+    "takeaways": [
+      "A new domain account is quiet persistence that survives rebuilding the host.",
+      "Account creation alone is too common to alert on, so group changes matter more.",
+      "Always record which identity created the account and from where."
+    ]
+  },
+  "objectives": [
+    "Explain why a domain account is valuable for persistence and hard to remove.",
+    "Identify the directory audit events that record account creation and group membership changes.",
+    "Describe how to distinguish a help desk workflow from an unexpected directory write.",
+    "Correlate a new account with privileged group changes and first logon activity.",
+    "Compare account creation telemetry across on-premises directories and cloud identity providers.",
+    "Decide which accounts are allowed to create accounts in your environment."
+  ],
+  "techniqueId": "t1136-002",
+  "detectsTechniques": [
+    "t1136-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4720 recording a user account object being created, with subject and target user names",
+    "Windows Security event 4728 and related group membership events showing an account added to a privileged group",
+    "Windows Security event 4624 and 4625 logon events for the newly created account",
+    "Directory service change auditing or an equivalent object change feed from the identity platform",
+    "Cloud identity audit logs recording user creation and license or role assignment such as a new IAM user"
+  ],
+  "logic": "The detection watches directory write operations that create an identity, then enriches the actor and follows the new account for a short window. The primary selection is any account creation event in the directory or cloud identity audit log. Fields that must be correlated are the actor identity from the subject fields, the new account name from the target fields, the source address of the request, the domain controller or tenant involved, and the time. The malicious case is an actor that is a workstation account or a process identity rather than a person or approved automation, a creation time outside working hours, a request from a non administrative source, or a new account that is immediately added to a privileged group or used to authenticate within minutes. The benign case is a help desk ticket or an identity governance process creating an account during service hours and granting ordinary group membership.",
+  "pseudoQuery": "# title: Domain or Cloud Account Created Then Added to Privileged Group\n# logsource:\n#   product: windows\n# detection:\n#   selection_create:\n#     EventID: 4720\n#   selection_group:\n#     EventID: 4728\n#     GroupName|contains: 'Domain Admins'\n#   filter_automation:\n#     SubjectUserName|endswith: '$'\n#   condition: selection_create and selection_group and not filter_automation\n# level: high",
+  "falsePositives": [
+    "Help desk staff creating accounts for new starters during onboarding batches",
+    "Identity governance platforms provisioning accounts automatically from the human resources system",
+    "Migration scripts that recreate accounts during a directory consolidation project",
+    "Break glass or emergency administrator accounts created during an agreed incident response procedure",
+    "Service accounts created by approved deployment pipelines that register a new application identity"
+  ],
+  "tuningNotes": "Baseline first: record which actor accounts create identities in your environment over thirty days and how many they create per day, then alert on actors outside that set. Add a filter for your provisioning engine and help desk group, and require the new account to reach a privileged group or authenticate within one hour before raising high severity. Scope the high severity rule to tier zero and server administrative units, and keep a lower severity version across the whole directory. Carefully exclude machine accounts, which end with a dollar sign, but do not filter them from the group change event as well or you will lose visibility of computer accounts being added to privileged groups.",
+  "severity": "high"
+}

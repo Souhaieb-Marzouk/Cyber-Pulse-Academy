@@ -1,0 +1,107 @@
+{
+  "id": "det0388",
+  "type": "detection",
+  "title": "Detection Strategy for T1548.002 – Bypass User Account Control (UAC)",
+  "shortTitle": "Detection Strategy for T1548.002 – Bypass User Account Co...",
+  "externalId": "DET0388",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers user account control bypass, where an adversary escalates from a normal user to an administrator level context without the consent prompt that the operating system would normally show. The behaviour is visible in three places: registry keys under the current user profile that trusted signed binaries read when they launch, elevation of a system binary by a non elevated parent, and changes to the control settings that govern when prompts appear. Registry modification auditing, process creation records with integrity level and token details, and endpoint elevation telemetry supply the evidence. The strategy most often fails because the allowed keys are so numerous that a rule without a tight baseline either misses the specific key in use or buries the analyst in registry noise, and because many endpoint agents do not record the integrity level of the launching process.",
+  "tags": [
+    "privilege escalation",
+    "defense evasion",
+    "windows",
+    "uac",
+    "registry",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1548.002 – Bypass User Account Control (UAC)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0388/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1548.002 – Bypass User Account Control (UAC) - EASY",
+      "path": "exercises/det0388/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1548.002 – Bypass User Account Control (UAC) - MEDIUM",
+      "path": "exercises/det0388/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1548.002 – Bypass User Account Control (UAC) - HARD",
+      "path": "exercises/det0388/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1548.002 – Bypass User Account Control (UAC) - EXTREMELY HARD",
+      "path": "exercises/det0388/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "User account control is the Windows feature that asks for permission before a program runs with full administrator rights. A bypass is a way to get those rights without the question appearing. This detection looks for the record changes and program starts that a bypass needs.",
+    "whyItMatters": "A bypass turns a limited user into a full administrator, so every later step becomes easier. The user sees no prompt, so the activity looks ordinary. Catching the record change that a bypass depends on gives the team a chance to respond before the new rights are used.",
+    "howItWorks": [
+      "The monitoring agent records changes inside registry keys under the current user profile.",
+      "The rule keeps changes in the parts of the registry that trusted signed programs read at launch.",
+      "Process creation records show a signed system program starting from a parent that is not elevated.",
+      "The rule checks the integrity level and token details to confirm the new process runs at a higher level.",
+      "A matched change plus a matched elevation in the same short window becomes one high priority alert."
+    ],
+    "example": "Think of a locked records room that opens only with a supervisor card. A visitor finds that the door also opens when a particular form is left on the desk inside. No alarm sounds and no card is used. The guard only notices because someone changed the contents of that desk.",
+    "takeaways": [
+      "A bypass leaves traces in the current user registry, not in the system wide policy.",
+      "The strongest alert pairs a suspicious record change with a signed program starting at a higher level.",
+      "Recording process integrity level is a prerequisite, so check that field is populated."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between a consent prompt and an automatic elevation decision",
+    "Identify the registry locations that trusted signed binaries consult at launch",
+    "Use process integrity level and token information to confirm an unexpected elevation",
+    "Correlate a registry change with the elevated process start that follows it on the same host",
+    "Recognise legitimate installers and management agents that elevate without a prompt",
+    "Describe the collection changes needed when a sensor does not record integrity level"
+  ],
+  "techniqueId": "t1548-002",
+  "detectsTechniques": [
+    "t1548-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with token elevation information and the creating process recorded",
+    "Sysmon event 1 process creation including integrity level, parent image, and full command line",
+    "Sysmon event 13 registry value set events covering keys under the current user hive",
+    "Windows registry auditing events for object modification in the current user classes and policy keys",
+    "Endpoint detection agent elevation and token change telemetry that records the before and after integrity level"
+  ],
+  "logic": "The pattern is a registry write that a trusted signed program will follow, immediately followed by that program starting at a higher integrity level than its parent. The rule first matches registry modification events for the current user keys that auto elevating system binaries read at launch, then looks for a process creation record within a short window on the same host where a known signed binary starts with a higher integrity level or a changed token and where the parent is an ordinary user context such as a document reader or a script host. It also scores changes to the control settings that determine when prompts appear, because lowering the prompt level is a supporting step. The benign case is a legitimate installer, a printer driver package, or a management agent that writes those keys and then starts a signed system binary, which normally happens during a change window and from a signed installer parent. The malicious case is a script host or office application that writes the key and then triggers the auto elevating binary with no matching change record.",
+  "pseudoQuery": "# title: Trusted Binary Auto Elevation After User Registry Write\n# logsource:\n#   product: windows\n#   service: registry_set\n# detection:\n#   selection_key:\n#     TargetObject|contains:\n#       - '\\\\Classes\\\\ms-settings\\\\shell\\\\open\\\\command'\n#       - '\\\\Classes\\\\exefile\\\\shell\\\\open\\\\command'\n#   selection_binary:\n#     Image|endswith:\n#       - '\\\\computerdefaults.exe'\n#       - '\\\\fodhelper.exe'\n#   filter_install:\n#     Image|endswith: '\\\\msiexec.exe'\n#   condition: selection_key and selection_binary and not filter_install\n# level: high",
+  "falsePositives": [
+    "Software installers and driver packages that write current user shell command keys before launching a signed system binary",
+    "Enterprise management agents that repair or rewrite shell open command values during a policy refresh",
+    "Accessibility and assistive technology tools that register handlers under the current user classes hive",
+    "Application compatibility shims and virtualisation layers that redirect system binary launch paths"
+  ],
+  "tuningNotes": "Baseline which processes write these keys on each host image and filter the signed installer and management agent parents rather than an entire registry path, because the same path is used by both legitimate software and a bypass. Require the paired elevation for the high severity tier, and keep a lower severity tier for the registry write alone so you still see activity when process telemetry is missing on a host. Restrict the rule to hosts where users do not have local administrator rights, because on those hosts every elevation is expected and the rule cannot discriminate. The coverage you lose is an elevation that uses a key path you did not list, so review the vendor documentation for auto elevating binaries each time you refresh the platform baseline.",
+  "severity": "high"
+}

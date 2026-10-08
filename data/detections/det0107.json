@@ -1,0 +1,107 @@
+{
+  "id": "det0107",
+  "type": "detection",
+  "title": "Detection Strategy for Spearphishing Links",
+  "shortTitle": "Detection Strategy for Spearphishing Links",
+  "externalId": "DET0107",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses T1566.002, spearphishing links, where a targeted user is persuaded to open a link that leads to a credential harvesting page, a malicious download or a signed but attacker controlled cloud application. It matters because a link needs no attachment to pass mail filtering, and the resulting page can take over a valid session or deliver the next stage while all traffic looks like ordinary browsing. The telemetry that makes detection possible is email security gateway records for delivered messages with rewritten or scored links, web proxy and DNS records for the first visit to a newly registered or low reputation domain, and process creation telemetry showing a mail client or browser handing off to a download or a scripting host. It fails in practice because user clicks are only visible if the proxy or the endpoint sees the request, and because cloud hosted phishing pages on legitimate platforms carry valid certificates and clean reputations.",
+  "tags": [
+    "phishing",
+    "initial-access",
+    "email",
+    "web-proxy",
+    "credential-theft"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Spearphishing Links",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0107/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Spearphishing Links - EASY",
+      "path": "exercises/det0107/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Spearphishing Links - MEDIUM",
+      "path": "exercises/det0107/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Spearphishing Links - HARD",
+      "path": "exercises/det0107/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Spearphishing Links - EXTREMELY HARD",
+      "path": "exercises/det0107/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection targets phishing emails that carry a link instead of a file. Phishing is a message that pretends to be trusted so a person will act. The rule watches what happens after the link is clicked.",
+    "whyItMatters": "A link can point to a fake login page that steals a real password and session. It can also start a download that no attachment scanner ever saw. Because the page sits on a normal looking website, filters may allow it. Catching the click and what follows is often the fastest warning you get.",
+    "howItWorks": [
+      "The mail gateway records each delivered message, the link it contained and any threat score it assigned.",
+      "The web proxy, meaning the system that handles company internet requests, records the first visit to each address.",
+      "The endpoint records when a mail program starts a browser. It also records when a browser starts a download or a script host.",
+      "Domain records show whether the visited name is newly registered or has almost no history.",
+      "All of this reaches the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule joins a delivered link with a first time visit and a suspicious follow up process. It then alerts with all three facts."
+    ],
+    "example": "Think of a receptionist who checks parcels for known sender addresses. A letter with no parcel arrives instead, telling the reader to collect a package from a shop across town. Nothing suspicious crossed the desk. This detection waits at the shop door and notes who walked in. The harm happens at the destination, not in the post.",
+    "takeaways": [
+      "Links carry the attack, so mail scanning alone cannot stop them.",
+      "The strongest evidence is the join between a delivered link, a first visit and a follow up action.",
+      "Cloud hosted phishing pages look legitimate, so reputation scores are not enough."
+    ]
+  },
+  "objectives": [
+    "Explain why a link based lure can pass mail filtering that blocks attachments",
+    "Name the mail, network and endpoint telemetry that captures a user click and its result",
+    "Identify the fields that join a delivered message to the request it caused",
+    "Describe the domain age and reputation signals that raise suspicion on a first visit",
+    "Recognise follow up behaviour such as a browser spawning a scripting host or an installer",
+    "Design a response that resets the user session before the harvested credential is reused"
+  ],
+  "techniqueId": "t1566-002",
+  "detectsTechniques": [
+    "t1566-002"
+  ],
+  "dataSources": [
+    "Email security gateway logs listing delivered messages, sender, recipient and the URLs contained in the body",
+    "Web proxy request logs with user, host, full URL, category, reputation score and response size",
+    "DNS query logs from internal resolvers showing the requested hostname, client address and first seen time",
+    "Sysmon event 1 process creation showing a browser or mail client spawning a downloader or scripting host",
+    "Sysmon event 3 network connection records linking a specific process to an external destination address"
+  ],
+  "logic": "The pattern is a message delivered to a specific user that contains a link, followed within a short period by a first time request from that same user to that host from a host with no prior history for the domain, and optionally by a browser or mail client spawning a process that retrieves or executes content. The fields that must be correlated are the recipient address, the URL host and path, the requesting workstation and account, the proxy reputation and category verdict, the registration age of the domain, and the child process or downloaded file. The benign case is an established business partner domain that many users visit regularly and that resolves from the same proxy with a normal category, so a link to a newly registered domain visited once, by the recipient of an unusual message, with a follow up download is what distinguishes the malicious case.",
+  "pseudoQuery": "# title: Clicked Email Link To Newly Registered Domain Followed By Download\n# logsource:\n#   product: network\n# detection:\n#   selection_proxy:\n#     EventType: 'http_request'\n#     DomainAgeDays: '<30'\n#   selection_referrer:\n#     Referrer|contains: 'mail'\n#   selection_child:\n#     ParentImage|endswith: ['\\\\outlook.exe', '\\\\chrome.exe', '\\\\firefox.exe']\n#     Image|endswith: ['\\\\powershell.exe', '\\\\cmd.exe', '\\\\mshta.exe']\n#   condition: (selection_proxy and selection_referrer) or selection_child\n# level: medium",
+  "falsePositives": [
+    "Marketing campaigns and newsletters that use short lived tracking domains and are clicked by many staff",
+    "Newly onboarded software as a service vendor portals that users reach for the first time from a mail invitation",
+    "Legitimate document sharing invitations that open a browser and start a file download inside a collaboration suite",
+    "Help desk or password portal links that a user opens from a message and that redirect to an internal login page"
+  ],
+  "tuningNotes": "Begin by baselining the domains your organisation genuinely uses and the proxy categories that are never business related, then restrict alerting to messages sent from outside the organisation to a small number of recipients. Add a filter for approved mail tracking and marketing domains, and require the first visit to be by the message recipient rather than by any user. Scope the strict version to finance and executive groups, where targeting is most likely. Filtering known tracking domains means a phishing page hosted on a compromised marketing domain could pass, so keep the domain age and first visit condition as a separate lower severity signal on all users.",
+  "severity": "medium"
+}

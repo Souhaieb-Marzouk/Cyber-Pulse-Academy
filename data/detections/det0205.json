@@ -1,0 +1,106 @@
+{
+  "id": "det0205",
+  "type": "detection",
+  "title": "Detect XSL Script Abuse via msxsl and wmic",
+  "shortTitle": "Detect XSL Script Abuse via msxsl and wmic",
+  "externalId": "DET0205",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects code execution through extensible stylesheet language transformations, covering T1220 XSL Script Processing. The technique matters because a stylesheet can carry embedded script, so a signed Microsoft utility that processes it will run attacker code while the process creation record still shows only a trusted binary reading a data file. The telemetry that reveals it is process creation for the stylesheet engine or the management instrumentation tool, joined with the file creation event that produced the stylesheet and the network connection that follows. The usual failure is that these engines are also used by application packaging and reporting, so the rule must weigh the origin of the file and the arguments rather than treating every invocation as hostile.",
+  "tags": [
+    "mitre t1220",
+    "execution",
+    "windows",
+    "defense evasion",
+    "scripting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect XSL Script Abuse via msxsl and wmic",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0205/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect XSL Script Abuse via msxsl and wmic - EASY",
+      "path": "exercises/det0205/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect XSL Script Abuse via msxsl and wmic - MEDIUM",
+      "path": "exercises/det0205/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect XSL Script Abuse via msxsl and wmic - HARD",
+      "path": "exercises/det0205/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect XSL Script Abuse via msxsl and wmic - EXTREMELY HARD",
+      "path": "exercises/det0205/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a stylesheet file that runs script code. A stylesheet is a file that tells a program how to reshape data, usually text or a web page. It can also carry a small script inside it. A signed Windows tool will run that script when you ask it to. The rule watches the tool, the stylesheet file, and the network calls that follow.",
+    "whyItMatters": "The tool that processes the stylesheet is genuine and signed. Application control often allows it to run. The malicious part hides inside a data file rather than a program file. Network tools may see only a normal query or a normal update. This mixture makes the technique hard to spot. You need the tool, the file, and the network view together.",
+    "howItWorks": [
+      "The agent records process creation for known stylesheet engines and data query tools.",
+      "It records the arguments, which include the path to the stylesheet file being used.",
+      "The detection keeps file creation events so it can find where that file came from.",
+      "It flags a stylesheet created by a browser, an email client, or an archive tool.",
+      "It then looks for a network connection or a new child process within the next minute.",
+      "Files from approved build directories with a signed transform are filtered out."
+    ],
+    "example": "Imagine a document that looks like a harmless shopping list. The courier is allowed to carry any document into the building, because documents are just paper. This list, however, has a note at the bottom that says open the back door at nine. The courier is trusted, and the paper is only paper. The message inside it is the real problem. A stylesheet works in the same way. The tool is trusted, and the stylesheet carries the order.",
+    "takeaways": [
+      "A trusted tool can run code that hides inside a data file.",
+      "The origin of the stylesheet file matters more than the tool name.",
+      "Join file, process, and network telemetry to see the whole chain."
+    ]
+  },
+  "objectives": [
+    "Explain how stylesheet transformations can carry embedded script.",
+    "Recognise the utilities that process stylesheets from the command line.",
+    "Trace a stylesheet from download to execution using file and process events.",
+    "Separate build pipeline use from user driven or remote driven use.",
+    "Describe which controls reduce the risk without breaking packaging."
+  ],
+  "techniqueId": "t1220",
+  "detectsTechniques": [
+    "t1220"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with image, full command line, and parent image",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 11 file create recording new stylesheet files and the creating process",
+    "Sysmon event 3 network connection made by the process shortly after it starts"
+  ],
+  "logic": "The pattern is a signed stylesheet or data query utility launched with an argument that points at a stylesheet file which arrived from outside the build pipeline, followed quickly by a network connection or a child process. The fields that must be correlated are the process image, the full command line including the stylesheet path, the parent image, the file creation event for that path and its creating process, and the outbound connection made by the same process identifier within a short window. The malicious case differs from the benign one by origin: transforms on a build server that come from a version controlled directory and run under a service account are routine, while a stylesheet written into a download, temporary, or user profile folder by a browser or an archive tool and then executed by the same user is not. The network connection immediately afterwards is what separates code execution from a harmless formatting job.",
+  "pseudoQuery": "# title: Stylesheet Processing Engine Launched With Remote Content\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     image|endswith:\n#       - '\\msxsl.exe'\n#       - '\\wmic.exe'\n#     command_line|contains: '.xsl'\n#   filter_build:\n#     parent_image|endswith: '\\devenv.exe'\n#   condition: selection and not filter_build\n# level: high",
+  "falsePositives": [
+    "Build pipelines that transform inventory data with a stylesheet held in the repository",
+    "System management scripts that format query output with a saved stylesheet",
+    "Report generation tools that call the stylesheet engine on a schedule",
+    "Software packaging that applies a transform during an installation",
+    "Administrators who format hardware inventory output for an asset spreadsheet"
+  ],
+  "tuningNotes": "Filter on the parent process and on file origin rather than on the engine, and allow the build server group by host name, because packaging pipelines use the same tools with the same file extension. Require that the stylesheet path sits inside a temporary, download, or user profile directory before you raise the high severity alert, and keep a low severity rule for everything else. Excluding trusted build hosts means a compromise there would be quiet, so cover new stylesheets in those directories with file integrity monitoring instead.",
+  "severity": "high"
+}

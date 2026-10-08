@@ -1,0 +1,107 @@
+{
+  "id": "det0196",
+  "type": "detection",
+  "title": "Domain Fronting Behavior via Mismatched TLS SNI and HTTP Host Headers",
+  "shortTitle": "Domain Fronting Behavior via Mismatched TLS SNI and HTTP ...",
+  "externalId": "DET0196",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects domain fronting, where a client connects to a content delivery network address but asks, inside the encrypted request, for a different service than the name it presented during the TLS handshake. It matters because the technique lets command and control traffic blend into traffic to a widely trusted and often allowlisted provider, defeating both name based blocking and reputation checks. Detection requires session metadata that keeps the TLS server name, the HTTP host header and the server certificate identity attached to the same connection, usually from a proxy, a network security monitor or a cloud load balancer with logging. The practical failure is that multi tenant content delivery networks legitimately serve several names from one address, so the rule must compare names within one flow and ignore the shared address space.",
+  "tags": [
+    "command and control",
+    "domain fronting",
+    "tls",
+    "network monitoring",
+    "proxy",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Domain Fronting Behavior via Mismatched TLS SNI and HTTP Host Headers",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0196/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Domain Fronting Behavior via Mismatched TLS SNI and HTTP Host Headers - EASY",
+      "path": "exercises/det0196/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Domain Fronting Behavior via Mismatched TLS SNI and HTTP Host Headers - MEDIUM",
+      "path": "exercises/det0196/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Domain Fronting Behavior via Mismatched TLS SNI and HTTP Host Headers - HARD",
+      "path": "exercises/det0196/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Domain Fronting Behavior via Mismatched TLS SNI and HTTP Host Headers - EXTREMELY HARD",
+      "path": "exercises/det0196/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection finds requests where two names in the same connection do not match. The first name is used to start the secure connection. The second name is used inside it to ask for a website. Attackers can make these two names different to hide where their traffic really goes. The rule compares them and flags the difference.",
+    "whyItMatters": "Many networks allow traffic to large content providers because so much normal work depends on them. Domain fronting hides harmful traffic inside that allowed path. Blocking addresses would break real business services. Comparing the two names is a way to tell the two cases apart. It catches quiet channels that would otherwise look like ordinary web browsing.",
+    "howItWorks": [
+      "A device opens a secure connection to a server address.",
+      "During the handshake it gives the name of the server it wants, in the clear.",
+      "Inside the encrypted connection it sends a request naming a website.",
+      "Your proxy or network monitor records both names for that one connection.",
+      "The rule compares the outside name with the inside name.",
+      "If they belong to different providers, or the inside name is unexpected, it alerts."
+    ],
+    "example": "Think of a hotel reception desk. A guest states at the desk that they are visiting the conference on the second floor. The desk gives them a key for that floor. Later the key is used to open the managers office. Any single step looks fine. The reception log, which records both the stated reason and the door that was opened, is what shows the mismatch.",
+    "takeaways": [
+      "Domain fronting is a mismatch between two names inside one connection.",
+      "You need session metadata that keeps both names tied to the same flow.",
+      "Shared content provider addresses are normal, so only the mismatch matters."
+    ]
+  },
+  "objectives": [
+    "Explain how a TLS server name and an HTTP host header can legitimately differ.",
+    "Identify telemetry that binds both names to a single network connection.",
+    "Write a comparison rule that joins handshake metadata with request metadata.",
+    "Recognise content delivery network behaviour that produces benign name differences.",
+    "Correlate a mismatch with certificate identity and destination reputation.",
+    "Describe the limits of encrypted traffic analysis when no proxy decrypts the session."
+  ],
+  "techniqueId": "t1090-004",
+  "detectsTechniques": [
+    "t1090-004"
+  ],
+  "dataSources": [
+    "Network security monitor session records capturing the TLS server name and the server certificate subject for one flow",
+    "Web proxy logs recording the HTTP host header, the destination address and the connection identifier",
+    "Flow or load balancer logs that join destination address, server name and request host within a single connection",
+    "DNS query logs recording resolution of the front domain and its content delivery network aliases"
+  ],
+  "logic": "The pattern is a single connection in which the name presented during the TLS handshake differs from the host name requested inside the session, and the two names resolve to different service providers. The fields that must be correlated are the connection or flow identifier, the destination address, the TLS server name, the HTTP host header and the subject of the server certificate, all joined on that identifier rather than on address alone. The malicious case shows a handshake name belonging to a large content network while the inner host name belongs to an unrelated domain, often a small or newly observed one, and the connection is long lived, periodic and to a single destination with low request volume, which is typical of a beacon. The benign case is a content delivery network that serves multiple tenant names behind one certificate, a redirector that forwards to a regional endpoint, or a service that legitimately presents an apex name in the handshake and a specific subdomain inside.",
+  "pseudoQuery": "# title: TLS Server Name Mismatch With Inner HTTP Host Header\n# logsource:\n#   product: network\n# detection:\n#   selection_fronting:\n#     tls.server_name|endswith: '.cloudfront.net'\n#     http.host|not_endswith: '.cloudfront.net'\n#   selection_mismatch:\n#     tls.server_name: 'cdn.provider.example'\n#     http.host|not_endswith: 'provider.example'\n#   filter_cdn_tenants:\n#     http.host|endswith|any:\n#       - '.partner-portal.example'\n#       - '.media-download.example'\n#   condition: (selection_fronting or selection_mismatch) and not filter_cdn_tenants\n# level: medium",
+  "falsePositives": [
+    "A content delivery network serving several customer names behind one shared certificate and address",
+    "Applications that connect through a generic ingress name and then request a specific regional service host",
+    "Software update clients that present a vendor download name during the handshake and request a regional mirror inside",
+    "Single sign on redirect flows where the handshake uses an authentication broker name and the inner request names the application"
+  ],
+  "tuningNotes": "Start by collecting all mismatches for two weeks without alerting and group them by the handshake name and inner host pair, which almost always collapses to a small list of legitimate pairs you can filter by exact value. Filter on those exact pairs rather than on the content provider name, because the provider name appears in a huge share of benign traffic and blocking it would remove most of your coverage. Add certificate subject and connection periodicity to the alert: a mismatch on a connection that repeats on a near constant interval with tiny data volumes is far more interesting than one inside a busy browsing session, so score beacon like repetition higher. Scope the first version to egress monitoring at the network edge where all outbound sessions are visible. The coverage you lose by approving known pairs is a new pair introduced by an adversary after your baseline, so re-run the discovery query on a schedule and review every newly appearing pair.",
+  "severity": "medium"
+}

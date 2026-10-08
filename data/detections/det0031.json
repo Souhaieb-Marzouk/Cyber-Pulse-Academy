@@ -1,0 +1,107 @@
+{
+  "id": "det0031",
+  "type": "detection",
+  "title": "Invalid Code Signature Execution Detection via Metadata and Behavioral Context",
+  "shortTitle": "Invalid Code Signature Execution Detection via Metadata a...",
+  "externalId": "DET0031",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects execution of binaries whose code signature is missing, invalid, or inconsistent with their metadata, the masquerading behaviour tracked as T1036.001 alongside signature validation gaps. Signatures are a trust shortcut for both operating system policy and human reviewers, so an attacker who ships an unsigned or repackaged file while claiming a trusted product name defeats allow listing and makes triage slower. The telemetry is loaded image and process creation data that carries signature state, signer identity, file metadata, and the original file name of the binary. It fails in practice because signature status is not always collected, many legitimate internal tools are unsigned, and file metadata fields are attacker controlled, so a rule that trusts a claimed product name alone will both miss forged files and flag harmless homegrown software.",
+  "tags": [
+    "code signing",
+    "masquerading",
+    "t1036.001",
+    "endpoint",
+    "binary metadata",
+    "allow listing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Invalid Code Signature Execution Detection via Metadata and Behavioral Context",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0031/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Invalid Code Signature Execution Detection via Metadata and Behavioral Context - EASY",
+      "path": "exercises/det0031/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Invalid Code Signature Execution Detection via Metadata and Behavioral Context - MEDIUM",
+      "path": "exercises/det0031/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Invalid Code Signature Execution Detection via Metadata and Behavioral Context - HARD",
+      "path": "exercises/det0031/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Invalid Code Signature Execution Detection via Metadata and Behavioral Context - EXTREMELY HARD",
+      "path": "exercises/det0031/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A code signature is a digital seal that shows who made a program and that nobody changed it. This detection looks for programs that run without a valid seal. It also compares the seal with the details the file claims about itself.",
+    "whyItMatters": "Many teams trust signed programs and block the rest. If a file has a broken seal but pretends to be a known product, that trust is misplaced. This check helps you see files that should not be running.",
+    "howItWorks": [
+      "The endpoint agent records each program when it starts and each module when it loads.",
+      "It stores the signature state, the signer name, and the product details inside the file.",
+      "The rule selects events where the signature state is not valid.",
+      "It then checks the file details, such as the product name and original file name.",
+      "It looks for a mismatch, for example a claim to be a system tool with no valid signer.",
+      "Events are grouped by the parent program and the file path to show context."
+    ],
+    "example": "Think of a delivery van with a company logo. The logo alone proves nothing. A guard checks the paperwork and the driver badge. This rule checks the seal on the file and the story the file tells about itself.",
+    "takeaways": [
+      "A broken or missing signature is a signal, not proof of an attack.",
+      "Compare the signer with the product name the file claims to avoid easy forgeries.",
+      "Baseline your own unsigned internal tools before you switch the rule on."
+    ]
+  },
+  "objectives": [
+    "Explain what a code signature proves and what it does not prove.",
+    "Identify the telemetry fields that carry signature state and signer identity.",
+    "Detect a mismatch between a claimed product name and the actual signer.",
+    "Separate unsigned in house tooling from forged files using path and parent context.",
+    "Describe why attackers repackage signed binaries instead of writing new ones.",
+    "Plan a baseline period before enforcing an unsigned binary alert."
+  ],
+  "techniqueId": "t1036-001",
+  "detectsTechniques": [
+    "t1036-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including Signature, SignatureStatus, Company, Product, and OriginalFileName fields",
+    "Sysmon event 7 image load recording signer name and signature status for each module loaded into a process",
+    "Windows Defender Application Control or AppLocker block and audit events showing policy decisions on unsigned binaries",
+    "File hash inventory from a software management system used to compare known good binaries against the observed binary"
+  ],
+  "logic": "The pattern is a process or module that runs with a signature state that is not valid, correlated with file metadata that claims a trusted identity. The fields that must be joined are the image or original file name, the signature and signature status, the signer or company name, the parent image, and the file path. The malicious case shows a mismatch: a file claims to be a Microsoft or known vendor component in its product and description fields but has no valid signer, or it carries a valid signature from a vendor unrelated to the claimed product, and it runs from a user writable path such as a temporary or public folder. The benign case is an in house tool signed by your own internal certificate, or a signed vendor binary that the agent cannot validate because the certificate chain is not cached, which appears as unverified rather than invalid. Grouping by signer and parent process turns a burst of module loads into one readable alert instead of hundreds.",
+  "pseudoQuery": "# title: Unsigned Binary Claiming Trusted Metadata\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     SignatureStatus: 'Unavailable'\n#     OriginalFileName|endswith: '.exe'\n#   trusted_claim:\n#     Company|contains:\n#       - 'Microsoft'\n#       - 'Adobe'\n#   filter:\n#     Image|startswith:\n#       - 'C:\\Windows\\'\n#       - 'C:\\Program Files\\'\n#   condition: selection and trusted_claim and not filter\n# level: medium",
+  "falsePositives": [
+    "In house or line of business applications built by your own developers that are never signed because the build pipeline has no certificate",
+    "Software patched by a packaging team so the original vendor signature breaks even though the change was approved",
+    "Driver and firmware helper binaries from smaller hardware vendors that ship without an extended validation certificate",
+    "Binaries whose certificate chain could not be validated offline because the endpoint had no network path to the certificate status service"
+  ],
+  "tuningNotes": "Start in audit mode and group the results by signer name, file path, and parent process for at least two weeks, then allow list the exact hashes of your internal tools rather than whole folders. Scope the enforced version of the rule to user writable paths and to processes whose parent is an office application, a script host, or a mail client, because those are the realistic delivery routes. Add a filter for signature status values that mean unverified rather than invalid, since those are usually a certificate chain problem. The coverage you lose is the signed but malicious binary, which this rule cannot see at all and which needs behaviour based detection instead.",
+  "severity": "medium"
+}

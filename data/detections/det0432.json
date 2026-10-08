@@ -1,0 +1,108 @@
+{
+  "id": "det0432",
+  "type": "detection",
+  "title": "Detection Strategy for NTFS File Attribute Abuse (ADS/EAs)",
+  "shortTitle": "Detection Strategy for NTFS File Attribute Abuse (ADS/EAs)",
+  "externalId": "DET0432",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of NTFS file attributes, where an adversary hides payload or stolen data inside an alternate data stream or an extended attribute attached to an otherwise ordinary file. It matters because the trick hides content from casual inspection, from some scanners and from users who only see the file size of the main stream, and it is used for both staging and defence evasion. Detection depends on file creation telemetry that preserves the stream name, on process command lines that name a stream with the colon syntax or the attribute utilities, and on file integrity monitoring that compares streams as well as file contents. The main way it fails in practice is that the operating system itself creates alternate streams for downloaded files and documents, so the rule must weigh which process created the stream and where rather than alerting on the stream alone.",
+  "tags": [
+    "ntfs",
+    "alternate data streams",
+    "t1564-004",
+    "defense evasion",
+    "file integrity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for NTFS File Attribute Abuse (ADS/EAs)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0432/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for NTFS File Attribute Abuse (ADS/EAs) - EASY",
+      "path": "exercises/det0432/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for NTFS File Attribute Abuse (ADS/EAs) - MEDIUM",
+      "path": "exercises/det0432/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for NTFS File Attribute Abuse (ADS/EAs) - HARD",
+      "path": "exercises/det0432/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for NTFS File Attribute Abuse (ADS/EAs) - EXTREMELY HARD",
+      "path": "exercises/det0432/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for hidden data attached to an ordinary file on a Windows disk. Windows permits several data streams inside one file, and a program can hide content in the extra streams. The rule reports writes to those extra streams when the writer looks unusual.",
+    "whyItMatters": "Hidden content may be a payload or a copy of stolen data. It can survive a quick look at the file because the main content looks normal. Some scanning tools check only the main content, so the trick can slip past them. The good news is that creating the extra stream leaves a record. That record is what this rule reads.",
+    "howItWorks": [
+      "A program writes data to a file, but names one of the extra streams inside that file.",
+      "Endpoint monitoring records the file creation event and keeps the full name including the stream part.",
+      "The name contains a colon, which shows that a secondary stream was written.",
+      "The rule also matches command lines that use the stream syntax or the attribute tools.",
+      "It removes the cases where a signed downloader or office program created the stream.",
+      "A remaining event names the writer, the host, the file and the stream, and raises an alert."
+    ],
+    "example": "Think of a postcard with an envelope glued to the back. The front looks like an ordinary holiday card, and anyone glancing at it sees nothing odd. Slide a second sheet into the hidden sleeve, and a careful inspector finds a message. The card was real. The hidden sleeve was the trick.",
+    "takeaways": [
+      "Windows files can carry extra data streams that most people never see.",
+      "A colon in the file name of a creation event reveals a secondary stream.",
+      "Windows and browsers create these streams too, so check the writer and the location."
+    ]
+  },
+  "objectives": [
+    "Explain what an alternate data stream is and how it differs from the main file content.",
+    "Identify the file telemetry fields that reveal a stream name in a creation event.",
+    "Recognise command line syntax and attribute utilities commonly used to create streams.",
+    "Separate operating system generated streams from streams written by unusual processes.",
+    "Correlate a stream write with a later read or copy of the same stream.",
+    "Describe why some file scanners miss content in secondary streams."
+  ],
+  "techniqueId": "t1564-004",
+  "detectsTechniques": [
+    "t1564-004"
+  ],
+  "dataSources": [
+    "Sysmon event 15 alternate data stream creation recording the target filename and stream name",
+    "Sysmon event 1 process creation with the full command line of the process that wrote the stream",
+    "File integrity monitoring that records stream names and sizes alongside the main file content",
+    "Windows Security event 4663 object access audit for write access to a named stream",
+    "Endpoint quarantine metadata listing downloaded files and the zone identifier stream added by browsers"
+  ],
+  "logic": "The pattern is a write that targets a named secondary stream or an extended attribute on a file that already exists, where the writing process is a script interpreter, a command shell, an office application or an unsigned binary, and where the stream name is not one of the well known operating system streams. The fields that must be correlated are the target file path and stream name, the writing process image and parent, the command line, the file location, and any later read or copy of the same stream. The benign case is dominated by the zone identifier stream that browsers and mail clients add to downloaded files, by the resource streams that document editors rely on, and by backup products that copy whole files including their streams. The malicious case is distinguished by process and placement: a stream created by a script host on a file inside a temporary folder, a user profile or an archive directory, with a large stream size relative to the host file, and often followed by either execution of the host file or by copying to a removable drive.",
+  "pseudoQuery": "# title: Alternate Data Stream Created by Script Host in User Writable Directory\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 15\n#     TargetFilename|contains: ':'\n#     TargetFilename|contains:\n#       - '\\\\AppData\\\\'\n#       - '\\\\Temp\\\\'\n#       - '\\\\Downloads\\\\'\n#   filter_system:\n#     StreamName:\n#       - 'Zone.Identifier'\n#       - 'SmartScreen'\n#   condition: selection and not filter_system\n# level: medium",
+  "falsePositives": [
+    "Web browsers and mail clients marking downloaded files with a zone identifier stream",
+    "Office and document editors that store resource or recovery streams alongside the main document",
+    "Backup and archiving tools that copy complete files, including every secondary stream, to a repository",
+    "Application installers that attach vendor metadata streams to files during deployment",
+    "Developer tooling that writes extended attributes for build caching inside a project directory"
+  ],
+  "tuningNotes": "Start by measuring how many stream creation events your estate produces in a week and what the usual stream names are, because the well known system streams account for most of the volume and can be filtered by exact name without losing anything meaningful. Filter on the writing process path and signature where the process is a signed backup or document product, and keep stream writes by script hosts, command shells and unsigned binaries in scope regardless of location. Scope the high severity version to streams written on servers, in shared data directories and on machines that handle regulated data, where legitimate stream creation is rare, and treat ordinary user workstations as an enrichment only case unless the stream is later executed. You lose coverage for a payload hidden in a stream created by a signed utility that has been abused, and for hiding in extended attributes other than named streams, so also review file size discrepancies between the main stream and total on disk size, and alert when a file with a large stream is copied to external media.",
+  "severity": "medium"
+}

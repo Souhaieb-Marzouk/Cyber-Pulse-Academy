@@ -1,0 +1,109 @@
+{
+  "id": "det0320",
+  "type": "detection",
+  "title": "Detection of System Network Connections Discovery Across Platforms",
+  "shortTitle": "Detection of System Network Connections Discovery Across ...",
+  "externalId": "DET0320",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects host based network connection discovery, the technique recorded in the assignment as t1049, where an attacker lists active connections, listening ports and routing tables to understand what a compromised host can reach. The commands involved are built into every operating system, so nothing new is installed and antivirus signatures rarely apply. Detection therefore relies on process creation with command line capture, augmented by shell history or audit records on servers, and it becomes useful only after you filter the administrative scripts and monitoring agents that run the same commands on a schedule. Correlating the executing parent process with the account and the host role is what turns a very noisy command line match into a reliable signal.",
+  "tags": [
+    "discovery",
+    "network connections",
+    "command line",
+    "windows",
+    "linux",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of System Network Connections Discovery Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0320/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of System Network Connections Discovery Across Platforms - EASY",
+      "path": "exercises/det0320/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of System Network Connections Discovery Across Platforms - MEDIUM",
+      "path": "exercises/det0320/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of System Network Connections Discovery Across Platforms - HARD",
+      "path": "exercises/det0320/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of System Network Connections Discovery Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0320/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for commands that list the network connections of a computer. Such a list shows which programs are talking to which addresses, and which ports are open. Attackers run these commands to learn how they can move further.",
+    "whyItMatters": "After entering one computer, an attacker needs a map of the network around it. Built in commands provide that map in seconds. Because the tools already exist on the system, downloaded software is not required. This detection is often the first sign that someone is exploring inside your network.",
+    "howItWorks": [
+      "An attacker runs a built in command, such as a port listing tool, on a computer they control.",
+      "The operating system starts the command as a new process and records its full command line.",
+      "The endpoint agent sends that process record to your central logging platform.",
+      "The rule matches the command name, its arguments and the parent program that started it.",
+      "It removes known administration scripts, monitoring agents and inventory tools by name and by schedule.",
+      "What remains is scored. An alert is raised when that host or account runs this kind of command for the first time."
+    ],
+    "example": "Think of a guest in a hotel who wants to know which rooms are occupied. They pick up the house phone and dial every room number one at a time. The phone system records each call. The front desk notices the pattern of many short calls from one handset, not any single call.",
+    "takeaways": [
+      "Discovery uses commands that already exist, so file based detection rarely helps.",
+      "Command line logging is essential, because the arguments show what was requested.",
+      "Known administrative and monitoring scripts must be filtered or the alert volume is unusable."
+    ]
+  },
+  "objectives": [
+    "Describe what host based connection discovery reveals to an attacker",
+    "Identify the built in commands on Windows and Linux that list connections and ports",
+    "Explain why parent process and account context improve detection fidelity",
+    "Build a baseline of scheduled inventory and monitoring commands per host role",
+    "Write a rule that matches command arguments rather than tool names alone",
+    "Decide how to respond when discovery appears on a server that never runs such commands"
+  ],
+  "techniqueId": "t1049",
+  "detectsTechniques": [
+    "t1049"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with command line and parent image for Windows hosts",
+    "Windows Security event 4688 process creation with command line auditing enabled where Sysmon is not deployed",
+    "Linux auditd execve records capturing the executed binary and its arguments on servers",
+    "Endpoint agent shell history or script block logging that records interpreter based discovery commands",
+    "Asset inventory and scheduled task data identifying hosts that run network inventory commands on a regular basis"
+  ],
+  "logic": "The rule matches the small set of operating system commands and interpreter one liners that enumerate connections, listening ports and routing entries, then scores each match using the parent process, the account and the host role. Discovery performed by an interactive administrator on a jump host is expected, while the same command issued by a document reader, a web server worker process or a database service account is unusual and indicates code execution inside that process. Time based clustering matters as well: attackers typically run several discovery commands within a few minutes of each other, so grouping matches per host over a short window distinguishes reconnaissance from a single troubleshooting command.",
+  "pseudoQuery": "# title: Host Network Connection Discovery Commands\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_cmd:\n#     EventID: 1\n#     CommandLine|contains:\n#       - netstat -ano\n#       - netstat -rn\n#       - net use\n#       - Get-NetTCPConnection\n#       - Get-NetRoute\n#   filter_admin_tools:\n#     ParentImage|endswith:\n#       - \\inventory-agent.exe\n#       - \\monitoring-probe.exe\n#   filter_system:\n#     User|endswith: $\n#   condition: selection_cmd and not filter_admin_tools and not filter_system\n# level: low",
+  "falsePositives": [
+    "Help desk troubleshooting scripts that collect network state from a user computer before escalating a ticket",
+    "Configuration management agents that inventory listening ports on a schedule and log the command they ran",
+    "Backup and database clients that check open connections before restarting a service during maintenance",
+    "Vulnerability scanners that run local enumeration as part of an authenticated scan of a server",
+    "Developers debugging a service locally who list connections and routes repeatedly in a short period"
+  ],
+  "tuningNotes": "Collect at least thirty days of process records and allowlist the parent processes, accounts and schedules of your inventory and monitoring agents, which will remove the bulk of the volume before you enable alerting. Keep the severity low by default and raise it only when discovery comes from a process that never spawns command shells, or when several discovery commands run on the same host inside a five minute window, because that cluster is far more predictive than a single match. Filtering by account rather than by parent process is tempting but costs more coverage, since attackers routinely operate under service accounts they have compromised.",
+  "severity": "low"
+}

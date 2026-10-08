@@ -1,0 +1,107 @@
+{
+  "id": "det0029",
+  "type": "detection",
+  "title": "Detect Persistence via Outlook Custom Forms Triggered by Malicious Email",
+  "shortTitle": "Detect Persistence via Outlook Custom Forms Triggered by ...",
+  "externalId": "DET0029",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets persistence through custom Microsoft Outlook forms, the technique tracked as T1137.003. A custom form is a saved definition that Outlook can be told to open automatically for a chosen message class, so when a specially crafted message is received and opened the form can run its own instructions the next time Outlook starts. Telemetry that makes this visible is registry modification inside the user Outlook profile, file creation in the Outlook forms store, and process creation where an Office application spawns an unexpected child such as a script host. The usual failure mode is that the form write lands under a user profile that is not centrally collected, and inbound mail metadata is not joined to endpoint events, so the detection only fires after execution rather than at install time.",
+  "tags": [
+    "outlook",
+    "persistence",
+    "t1137.003",
+    "registry",
+    "endpoint",
+    "phishing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Persistence via Outlook Custom Forms Triggered by Malicious Email",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0029/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Persistence via Outlook Custom Forms Triggered by Malicious Email - EASY",
+      "path": "exercises/det0029/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Persistence via Outlook Custom Forms Triggered by Malicious Email - MEDIUM",
+      "path": "exercises/det0029/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Persistence via Outlook Custom Forms Triggered by Malicious Email - HARD",
+      "path": "exercises/det0029/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Persistence via Outlook Custom Forms Triggered by Malicious Email - EXTREMELY HARD",
+      "path": "exercises/det0029/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for a hidden trick that lets an attacker stay inside Outlook mail. Outlook can store a small custom form and run it when mail arrives. The rule watches for that form being written and for Outlook starting an odd child program.",
+    "whyItMatters": "Mail is one of the few programs a user opens every day. If an attacker can make Outlook run their code, the access comes back on its own, even after a reboot. It also blends in with normal mail traffic, so it is easy to miss.",
+    "howItWorks": [
+      "The endpoint agent records every change to the Windows registry and every new file in the user Outlook folders.",
+      "The rule checks if the registry path is inside the Outlook forms area for that user profile.",
+      "It also checks the value name for the word IPM, which is the name space Outlook uses for its own items.",
+      "A hit is raised when an external address has recently sent mail to the same mailbox.",
+      "A second rule watches Outlook for a child process such as a script host starting a command shell.",
+      "Both signals in one short window are treated as one high confidence alert."
+    ],
+    "example": "Think of a hotel front desk. Staff may leave a forwarding note so future calls go to a different room. That note is useful, but a stranger could leave one too. The rule reads the note book and asks who wrote the note and why.",
+    "takeaways": [
+      "Persistence in a mail client survives reboots and password changes.",
+      "The writing of the form is quieter than the later execution, so alert there first.",
+      "Correlate mail arrival with the registry write, or the alert is just noise."
+    ]
+  },
+  "objectives": [
+    "Explain what a custom Outlook form is and why it can act as persistence.",
+    "Identify the registry location where a user form definition is stored.",
+    "Join mail flow metadata with endpoint registry events for one mailbox.",
+    "Recognise a script host spawning from an Office application as a late stage signal.",
+    "Decide which user groups need this rule and which can be filtered out.",
+    "Write a follow up response step that removes the form safely."
+  ],
+  "techniqueId": "t1137-003",
+  "detectsTechniques": [
+    "t1137-003"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set including TargetObject and Details fields",
+    "Sysmon event 1 process creation including parent image and command line",
+    "Sysmon event 11 file creation inside the user Outlook forms store",
+    "Mail gateway or Microsoft 365 message trace records showing sender address and recipient mailbox"
+  ],
+  "logic": "The pattern is a write to the Outlook forms area of a user profile, where the value name sits in the IPM name space that Outlook reserves for its own item types, combined with an Office process that later starts a child process such as a script host. The fields that must be correlated are the registry TargetObject and Details on the endpoint side, and the sender address plus recipient mailbox on the mail side, joined on the user account and a short time window. The malicious case usually shows a newly arrived external message shortly before the write, and the child process is a script or command interpreter that the ordinary user never triggers from Outlook. The benign case is a managed mail form deployment pushed by an administrator, which appears at the same instant for many mailboxes from an internal automation account rather than after a single external message.",
+  "pseudoQuery": "# title: Outlook Custom Form Persistence Write Followed by Office Child Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains: '\\Outlook\\Forms\\'\n#     Details|contains: 'IPM.'\n#   condition: selection\n# level: high",
+  "falsePositives": [
+    "A managed mail form or signature template deployment that writes the same form definition to many mailboxes from an internal automation account",
+    "Line of business add-ins installed by a help desk technician with a documented change ticket",
+    "Development or test mailboxes where staff deliberately load custom forms to build mail workflows",
+    "Third party customer relationship management tools that register their own Outlook item classes"
+  ],
+  "tuningNotes": "Filter by change record first: exclude writes performed by the software deployment account and by the help desk group, and require the value name to sit under the user IPM subtree rather than any Outlook key. Scope the rule to mailboxes that receive external mail and are not part of a development tenant. Baseline the form paths and item class names your organisation already uses for at least two weeks, then allow list those exact strings, not whole keys. The coverage you lose is a legitimate new business form that is rolled out by script, because it will look like the first malicious write until the deployment is added to the filter.",
+  "severity": "high"
+}

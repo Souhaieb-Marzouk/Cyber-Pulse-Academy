@@ -1,0 +1,106 @@
+{
+  "id": "det0120",
+  "type": "detection",
+  "title": "Account Access Removal via Multi-Platform Audit Correlation",
+  "shortTitle": "Account Access Removal via Multi-Platform Audit Correlation",
+  "externalId": "DET0120",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the removal or disabling of accounts and access rights as an impact action, using audit records from several platforms at once. The technique matters because an attacker who removes accounts or strips permissions can lock out responders and administrators, and the damage continues after the intrusion itself is contained. Detection depends on directory account change events, cloud identity audit records for user and role assignment changes, group membership events, and authentication records that show the affected users suddenly failing to log on. It fails in practice because deprovisioning is a normal daily activity, so the rule has to weigh who made the change, whether a ticket exists, and whether the change targets privileged or service accounts, rather than alerting on deletion alone.",
+  "tags": [
+    "impact",
+    "account removal",
+    "identity",
+    "cloud audit",
+    "active directory"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Account Access Removal via Multi-Platform Audit Correlation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0120/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Account Access Removal via Multi-Platform Audit Correlation - EASY",
+      "path": "exercises/det0120/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Account Access Removal via Multi-Platform Audit Correlation - MEDIUM",
+      "path": "exercises/det0120/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Account Access Removal via Multi-Platform Audit Correlation - HARD",
+      "path": "exercises/det0120/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Account Access Removal via Multi-Platform Audit Correlation - EXTREMELY HARD",
+      "path": "exercises/det0120/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for accounts and permissions being taken away when that should not happen. An account is a login identity. Permissions decide what that identity can do. Attackers remove them to lock other people out.",
+    "whyItMatters": "If an attacker disables your administrator accounts, nobody can fix the problem quickly. If they remove access to backup or recovery systems, restoring data becomes harder. These changes look like normal staff movements, so they are easy to miss until users complain.",
+    "howItWorks": [
+      "The rule collects records that show an account being disabled, deleted or removed from a group.",
+      "It collects records that show a role or permission assignment being taken away in a cloud service.",
+      "It notes who made each change and from which address.",
+      "It checks whether the change happened outside normal working hours or in a burst.",
+      "It looks for the affected accounts failing to log on soon afterwards.",
+      "A burst of removals by one identity, with failed logons after, raises an alert."
+    ],
+    "example": "Imagine a night manager who collects all the staff door cards and cancels them at once. Nothing is broken and no alarm sounds. In the morning, no one can enter the building. The card system log shows the cancellations, and the queue at the door shows the effect.",
+    "takeaways": [
+      "Removing access is damage even when nothing is deleted.",
+      "Judge the change by who made it and on which accounts.",
+      "Failed logons by many users soon after a change confirm the impact."
+    ]
+  },
+  "objectives": [
+    "List the account and permission removal actions that cause operational impact",
+    "Select directory, cloud identity and authentication telemetry for this detection",
+    "Correlate a change burst with the identity that performed it",
+    "Recognise privileged and service accounts that should never be changed this way",
+    "Support recovery by identifying every change made during the incident window"
+  ],
+  "techniqueId": "t1531",
+  "detectsTechniques": [
+    "t1531"
+  ],
+  "dataSources": [
+    "Windows Security event 4720 account creation, 4726 account deletion and group membership change events recorded in the directory",
+    "Windows Security event 4625 failed logon records for the affected accounts after the change",
+    "AWS CloudTrail management events for identity and access management changes such as policy detach and user deletion",
+    "Microsoft Entra ID or equivalent cloud directory audit logs for user, role and group assignment removal",
+    "Linux auditd records for user modification commands and edits to local account files"
+  ],
+  "logic": "The detection looks for a cluster of account or permission removal actions rather than a single change. Fields to correlate are the acting identity, the source address, the affected accounts, the affected permissions, and the time window, joined with authentication failures for the affected accounts. What separates abuse from routine deprovisioning is the actor and the target set: a human resources or identity team performs single changes during business hours against ordinary users and follows a ticket, while the malicious case is one account removing many rights in minutes, targeting administrators, service accounts or recovery roles, often from an unfamiliar address. Counting removals per acting identity in a short window is the primary signal, and the failed logon burst is the confirmation.",
+  "pseudoQuery": "# title: Burst of account and permission removals by one identity\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID:\n#       - 4726\n#       - 4729\n#       - 4733\n#   timeframe: 10m\n#   condition: selection | count() by SubjectUserName > 3\n# level: high",
+  "falsePositives": [
+    "Identity teams performing a scheduled leaver process that disables several accounts in one batch",
+    "Automated joiner mover leaver workflows that reconcile directory groups each morning",
+    "Response to a suspected compromised account, where an analyst disables the account and removes its group memberships",
+    "Cloud cost reduction projects that delete unused service principals in bulk"
+  ],
+  "tuningNotes": "Filter the service accounts and automation identities that own your joiner mover leaver workflow, and require a change record for bulk removals, which removes most of the routine noise. Keep the rule at full sensitivity for privileged groups such as domain administrators, backup operators and cloud administrator roles, and add the failed logon correlation to cut false alarms further. Baseline the normal daily removal count per platform. The coverage you lose by trusting your automation identity is the case where that identity is compromised, so keep a separate rule for it authenticating from a new address or outside its usual schedule.",
+  "severity": "high"
+}

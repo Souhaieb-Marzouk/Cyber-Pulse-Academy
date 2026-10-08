@@ -1,0 +1,106 @@
+{
+  "id": "det0506",
+  "type": "detection",
+  "title": "Detecting Mshta-based Proxy Execution via Suspicious HTA or Script Invocation",
+  "shortTitle": "Detecting Mshta-based Proxy Execution via Suspicious HTA ...",
+  "externalId": "DET0506",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects proxy execution through Mshta, the signed Microsoft HTML Application host, which runs script content contained in an HTA file from a local path, a remote address or an inline script argument. The signal is mshta.exe started by an office document, a browser, a script host or an unusual parent, with an argument that is a remote address, a script protocol handler or a long inline script, followed by outbound network connections from the same process. Telemetry includes process creation with parent image and command line, network connection events, file creation of the HTA file and endpoint script detections. It fails in practice because a small number of legitimate business applications still run HTA files, and they must be identified and excluded first.",
+  "tags": [
+    "mshta",
+    "signed binary proxy execution",
+    "hta",
+    "process creation",
+    "script host"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Mshta-based Proxy Execution via Suspicious HTA or Script Invocation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0506/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Mshta-based Proxy Execution via Suspicious HTA or Script Invocation - EASY",
+      "path": "exercises/det0506/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Mshta-based Proxy Execution via Suspicious HTA or Script Invocation - MEDIUM",
+      "path": "exercises/det0506/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Mshta-based Proxy Execution via Suspicious HTA or Script Invocation - HARD",
+      "path": "exercises/det0506/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Mshta-based Proxy Execution via Suspicious HTA or Script Invocation - EXTREMELY HARD",
+      "path": "exercises/det0506/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Mshta is a Windows program that runs HTML Application files, which can contain script. This detection looks for Mshta starting in a strange way. It catches script that runs from a web address instead of a local file. The goal is to spot abuse of a signed and trusted tool.",
+    "whyItMatters": "Mshta is signed by Microsoft, so many security tools simply trust it. An attacker can use it to run script without bringing any tool of their own. The file it runs can sit on a web server outside your network. Watching who starts Mshta and what it points at turns a trusted helper into a clear warning.",
+    "howItWorks": [
+      "Windows records the new process, its parent and its full command line.",
+      "The rule looks at the parent program that started Mshta.",
+      "It checks whether the argument is a local file, a remote address or inline script.",
+      "It records any network connection made by Mshta after it starts.",
+      "It records new files that appear in temporary folders at the same time.",
+      "A remote or inline argument, or an unusual parent, raises the alert."
+    ],
+    "example": "Think of a delivery company that hires a well known courier. Building security waves the courier through, because the uniform is familiar. A thief buys the same uniform and walks in carrying a parcel. Nobody checks the parcel, because the uniform was enough to pass. This detection checks the parcel and the sender, not only the uniform.",
+    "takeaways": [
+      "Signed system tools attract attackers, because defenders already trust them.",
+      "Check the parent process and the argument, not only the program name.",
+      "HTA use is rare today, so treat it as low volume and high value."
+    ]
+  },
+  "objectives": [
+    "Explain what Mshta is and why attackers abuse signed binaries.",
+    "Name the telemetry that shows the parent process and the command argument.",
+    "Distinguish a local HTA file from a remote or inline script argument.",
+    "Correlate Mshta execution with the network connection that follows it.",
+    "Write a pseudo-rule that flags Mshta started by an office or script host."
+  ],
+  "techniqueId": "t1218-005",
+  "detectsTechniques": [
+    "t1218-005"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, image and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 3 network connection from mshta.exe with destination address and port",
+    "Sysmon event 11 file creation of HTA or script files in temporary and download folders",
+    "Endpoint protection records of script based detections raised inside the HTA host process"
+  ],
+  "logic": "The pattern is mshta.exe running with an argument that is not a plain local HTA file, or running as the child of a process that has no business starting it. Analysts correlate the parent image, the mshta image and the full command line from process creation records, then look for a network connection from the same process identifier and for any HTA file written to a user writable folder just before execution. Line of business HTA files appear from a fixed application path with a fixed parent and a local argument, and they repeat identically across many hosts. The malicious case shows a parent such as an office application, a browser or a script host, a remote or script protocol argument, or a long inline script, followed by outbound connections to an address with no business relationship.",
+  "pseudoQuery": "# title: Mshta Proxy Execution With Remote or Inline Script Argument\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: '\\mshta.exe'\n#     CommandLine|contains:\n#       - 'http'\n#       - 'javascript:'\n#       - 'vbscript:'\n#   filter_app:\n#     CommandLine|contains: '\\Program Files\\ApprovedApp\\'\n#   condition: selection and not filter_app\n# level: high",
+  "falsePositives": [
+    "Internal web application that opens a local HTA file through a documented intranet link",
+    "Legacy business tool that uses a script protocol argument to display a report window",
+    "Administrator testing an update to an approved HTA based tool during a maintenance window",
+    "Software installer that runs a small HTA based configuration wizard from a trusted network share"
+  ],
+  "tuningNotes": "Inventory every HTA file your organisation uses, then filter by the full local path of the approved HTA and by its parent application, rather than by mshta.exe itself. Scope the rule to endpoints that receive email and browse the internet, and keep a separate alert for mshta.exe with any argument that contains a remote address. Add the network connection as a second condition to raise severity when the destination is external. Removing approved local files eliminates most benign hits, but you lose coverage of an attacker who replaces an approved HTA file in place.",
+  "severity": "high"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0564",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow using Path Interception by Search Order Hijacking",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow using Path I...",
+  "externalId": "DET0564",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses hijack execution flow through path interception by search order hijacking, tracked as T1574.008. The adversary drops a file with a trusted name in a directory that the operating system searches before the real location, so a later, legitimate launch resolves to the attacker file instead. Coverage depends on process creation records with parent and image paths, file creation events in user-writable directories, image load events that expose the resolved module path, and service or scheduled task creation records that show which binary will be executed later. It fails in practice because software installation, updates and portable tools legitimately place new executables in writable directories, so the volume of matching events is high and analysts tune the rule until the malicious case is no longer visible.",
+  "tags": [
+    "persistence",
+    "privilege-escalation",
+    "search-order-hijacking",
+    "windows",
+    "dll-loading",
+    "t1574.008"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow using Path Interception by Search Order Hijacking",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0564/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Path Interception by Search Order Hijacking - EASY",
+      "path": "exercises/det0564/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Path Interception by Search Order Hijacking - MEDIUM",
+      "path": "exercises/det0564/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Path Interception by Search Order Hijacking - HARD",
+      "path": "exercises/det0564/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Path Interception by Search Order Hijacking - EXTREMELY HARD",
+      "path": "exercises/det0564/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for a file that is placed in a folder the system checks too early. When a trusted program starts later, the system finds the wrong file first and runs it. The technique is called search order hijacking because it abuses the order in which folders are searched.",
+    "whyItMatters": "The program that runs is a trusted one, so users and many tools see nothing wrong. The attacker gains the rights of that trusted program without breaking it open. It is also a quiet way to keep access after a reboot, because the hijacked program starts again and again.",
+    "howItWorks": [
+      "The agent records every new process, including the full path of the program and the path of the parent that started it.",
+      "A second feed records new files written to folders that users can write to, such as temporary and download folders.",
+      "The platform joins the two feeds when a new file appears shortly before a trusted program runs from a folder with the same name.",
+      "It also checks image load events, which show the real path of each library the process loaded.",
+      "The rule compares the folder of the loaded file with the expected folder for that program.",
+      "An alert fires when the file sits outside the trusted folder, or when the file name matches a known system tool."
+    ],
+    "example": "Think of a library shelf where the first book with a given title is the one readers take. Someone puts their own book with the same title at the front of the shelf. Every reader now takes the wrong book, and the shelf still looks tidy. The librarian only notices by checking the order of the shelf, not the books themselves.",
+    "takeaways": [
+      "A trusted name does not prove a trusted file, so check the full path.",
+      "Order of folders is the real weakness that this rule watches.",
+      "Pair the alert with the parent process to see who started it."
+    ]
+  },
+  "objectives": [
+    "Describe how search order determines which file a program actually runs.",
+    "Name the telemetry fields that prove which file was executed.",
+    "Explain why parent process information changes the meaning of a file creation event.",
+    "Separate a normal installation from a hijack attempt using timing and location.",
+    "State which folders should be monitored and which should be excluded."
+  ],
+  "techniqueId": "t1574-008",
+  "detectsTechniques": [
+    "t1574-008"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image path, parent image and current directory",
+    "Sysmon event 11 file creation events for executables and libraries in user-writable directories",
+    "Sysmon event 7 image load events showing the resolved path of each loaded module",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows Security event 4697 service installation records naming the service binary path"
+  ],
+  "logic": "The pattern is a new executable or library that appears in a directory earlier in the search order than the legitimate copy, followed within a short window by a trusted process or service launching that name. You must correlate the file path, the file name, the process image path and the parent image, because a new file alone means nothing while a new file that is loaded by an unrelated signed service is a strong signal. The malicious case usually differs from the benign one by location and timing: the dropped file lands in a temporary or user profile folder, while the launching process is a privileged service whose normal binary lives in a system directory.",
+  "pseudoQuery": "# title: Trusted Binary Name Executed From Writable Directory\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|contains: '\\\\svchost.exe'\n#   filter_system:\n#     Image|startswith: 'C:\\\\Windows\\\\System32\\\\'\n#   filter_vendor:\n#     Image|startswith: 'C:\\\\Program Files\\\\'\n#   condition: selection and not (filter_system or filter_vendor)\n# level: high",
+  "falsePositives": [
+    "Software deployment tooling that installs an application into a user profile folder and then starts its service from there",
+    "Portable versions of administrative tools that are launched from a download or temporary directory",
+    "Vendor support utilities that ship their own copy of a common library next to the executable",
+    "Backup or inventory agents updated in place, where a new binary briefly runs from a staging folder"
+  ],
+  "tuningNotes": "Baseline the legitimate install roots for each business application and add them as a path exclusion, then scope the rule to privileged parents such as service hosts and scheduled task engines, because those are the only parents that give the hijack real value. Filter out signed binaries from known vendors once you can verify the signature, and keep an unsigned or newly written file condition in the rule so that a signed installer does not drown the alert. The coverage you lose is a hijack performed by a signed but unusual binary, which will then only appear in the weekly review report rather than as an alert.",
+  "severity": "high"
+}

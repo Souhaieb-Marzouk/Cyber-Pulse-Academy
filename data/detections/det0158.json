@@ -1,0 +1,107 @@
+{
+  "id": "det0158",
+  "type": "detection",
+  "title": "Detection of Msiexec Abuse for Local, Network, and DLL Execution",
+  "shortTitle": "Detection of Msiexec Abuse for Local, Network, and DLL Ex...",
+  "externalId": "DET0158",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of msiexec, the Windows Installer service host, to run attacker supplied packages either from a local file, from a remote address, or as a loaded dynamic link library. The covered technique matters because msiexec is a signed Microsoft binary that is present everywhere and is trusted by application control policy, so it lets an attacker install or execute code with a legitimate parent process and little user interaction. Endpoint process creation telemetry with full command lines makes the behaviour visible, and file creation events show the package and the unpacked payload. The main failure mode is that software deployment tooling uses exactly the same switches, so the rule must weigh the source of the package, the parent process and the spelling of the arguments rather than matching msiexec alone.",
+  "tags": [
+    "windows",
+    "execution",
+    "defense evasion",
+    "signed binary",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Msiexec Abuse for Local, Network, and DLL Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0158/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Msiexec Abuse for Local, Network, and DLL Execution - EASY",
+      "path": "exercises/det0158/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Msiexec Abuse for Local, Network, and DLL Execution - MEDIUM",
+      "path": "exercises/det0158/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Msiexec Abuse for Local, Network, and DLL Execution - HARD",
+      "path": "exercises/det0158/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Msiexec Abuse for Local, Network, and DLL Execution - EXTREMELY HARD",
+      "path": "exercises/det0158/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for misuse of a built in Windows installer program called msiexec. Attackers use it to run their own package files. Because the program is signed and trusted, security tools often allow it.",
+    "whyItMatters": "Attackers prefer trusted programs, because those are less likely to be blocked. An installer can fetch a package from a web address and run it without a normal setup wizard. The same program can also load a library file, which starts attacker code inside a signed process. Quiet installation switches hide all of this from the user.",
+    "howItWorks": [
+      "Windows records every new process together with the exact command line that started it.",
+      "The detection keeps events where the process is the Windows installer host.",
+      "It looks for switches that mean quiet install, remote package or uninstall.",
+      "It separates packages that come from a trusted management share from other locations.",
+      "It correlates the parent process, so an office document or script parent stands out.",
+      "Related file creation events show the package and anything it unpacked to disk."
+    ],
+    "example": "Think of a courier company your building already trusts, so the lobby never checks its parcels. A criminal hires the same courier to deliver a parcel with no return address and no paperwork. The lobby waves it through, because the uniform looked correct.",
+    "takeaways": [
+      "An ordinary program becomes suspicious when the arguments and the package source are unusual.",
+      "Always check the parent process, because that reveals what really launched the installer.",
+      "Allow package sources from management shares and investigate everything else."
+    ]
+  },
+  "objectives": [
+    "List the msiexec command line switches that indicate a quiet, remote or library based install.",
+    "Explain how a remote package location turns a local installer into a download and execute path.",
+    "Correlate the installer command line with its parent process to separate tooling from delivery.",
+    "Identify the file creation events that show the installed package and its unpacked components.",
+    "Write a rule that allows a management server as a source and alerts on other sources."
+  ],
+  "techniqueId": "t1218-007",
+  "detectsTechniques": [
+    "t1218-007"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image, current directory and full command line",
+    "Sysmon event 11 file creation for the temporary installer package and files unpacked during installation",
+    "Sysmon event 3 network connection from the installer process to a remote host when a package is fetched over the network",
+    "Software deployment or configuration management server records listing packages legitimately pushed to each endpoint"
+  ],
+  "logic": "The pattern is the Windows Installer host running with arguments that fetch or execute something from outside the normal software distribution path. The telemetry is process creation with the full command line, plus file creation in temporary directories and network connections made by the installer process, and the fields that must be correlated are the process image path, the parsed command line switches, the package path or uniform resource locator, the parent process image and the account that launched it. Benign deployment shows msiexec launched by a management agent or a logged on administrator, with a package path on an approved distribution share or a signed vendor package in the software cache. Malicious use shows msiexec launched by a browser, a mail client, a script interpreter or an office application, pointing at a user writable directory, a temporary folder, or a remote address, often combined with a quiet switch and a log file redirected into a temporary path. The combination of an untrusted parent, a non distribution package source and a quiet install switch is what lifts an ordinary installer event into an alert.",
+  "pseudoQuery": "# title: Msiexec loading a package outside the software distribution share\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     Image|endswith: '\\msiexec.exe'\n#     CommandLine|contains:\n#       - '/q'\n#       - '/i'\n#       - 'http'\n#   filter_mgmt:\n#     ParentImage|endswith:\n#       - '\\ccmexec.exe'\n#       - '\\services.exe'\n#     CommandLine|contains: '\\\\software$\\\\'\n#   condition: selection and not filter_mgmt\n# level: medium",
+  "falsePositives": [
+    "Software deployment tooling that executes installers with quiet arguments from an approved management share",
+    "Third party patch management agents that run repair or uninstall operations through the Windows Installer service",
+    "A help desk technician reinstalling a vendor application from a download folder on the user's own machine",
+    "Application self repair, where an office suite detects a damaged component and silently reloads its package",
+    "Development or test workflows that build and install local installer packages on engineering workstations"
+  ],
+  "tuningNotes": "Build an allow list of the management agents that are permitted to be the parent of an installer and the distribution shares and vendor cache folders that count as trusted package sources, then alert on everything else and treat network based packages as high priority. Scope the rule to server and user workstation groups rather than every asset, and separate the library load case into its own rule because the arguments differ. Baseline which applications in your estate use quiet installs so the allow list stays small. The coverage you lose is an attacker who uses an approved parent process or drops the package into a trusted distribution share, so add detection for new files appearing in those shares and review installer events with no matching deployment record even when the parent looks legitimate.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0570",
+  "type": "detection",
+  "title": "Detection Strategy for Exfiltration to Cloud Storage",
+  "shortTitle": "Detection Strategy for Exfiltration to Cloud Storage",
+  "externalId": "DET0570",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets exfiltration to cloud storage, tracked as T1567.002, in which an adversary copies collected data into a file sharing or object storage service so that it leaves the network inside ordinary encrypted web traffic. It matters because the upload destination is a legitimate business service, so the transfer rarely trips egress controls that block unknown hosts, and the volume is often the only visible clue. Detection depends on proxy or secure web gateway logs that record the requested host, the upload byte count and the user identity, combined with cloud audit logs showing object writes, endpoint evidence of archiving tools, and data loss prevention alerts on sensitive content. The practical failure is scale and encryption: many organisations have legitimate bulk uploads to approved cloud services, and without payload inspection the rule can only reason about volume, host reputation and timing.",
+  "tags": [
+    "exfiltration",
+    "cloud-storage",
+    "proxy-logs",
+    "data-loss",
+    "t1567.002"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exfiltration to Cloud Storage",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0570/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exfiltration to Cloud Storage - EASY",
+      "path": "exercises/det0570/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Cloud Storage - MEDIUM",
+      "path": "exercises/det0570/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Cloud Storage - HARD",
+      "path": "exercises/det0570/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Cloud Storage - EXTREMELY HARD",
+      "path": "exercises/det0570/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for large amounts of data being sent to an online file storage service. Cloud storage means files kept on the internet instead of on your own servers. The technique is exfiltration because data is leaving your organisation without permission.",
+    "whyItMatters": "It is easy to send a large file to a cloud service, and the connection looks like normal browsing. Firewalls often allow these services because staff use them for work. The data is gone quickly and can be shared with anyone. Seeing the upload early may be the last chance to stop the loss.",
+    "howItWorks": [
+      "The proxy records every web request, including the site name, the user and the size of the upload.",
+      "A filter selects requests to file storage and file sharing services.",
+      "The platform checks the amount of data sent up in a single session or in a short period.",
+      "It compares the volume with the normal amount for that user and that team.",
+      "Cloud audit logs are checked for new files written by the same account.",
+      "An alert fires when the volume is far above the baseline or the destination is a service the team does not use."
+    ],
+    "example": "Think of a till receipt at a shop. Every sale prints a line with the time and the amount. One cashier has a receipt with a single item worth more than the whole day of the other tills. The item is legal, and the sale is legal, yet the number is what makes the manager look closer.",
+    "takeaways": [
+      "The destination can be a trusted service, so focus on volume and timing.",
+      "A baseline per user makes a large upload stand out from daily work.",
+      "Cloud audit logs confirm what the network logs only suggest."
+    ]
+  },
+  "objectives": [
+    "Explain why legitimate cloud services are used for exfiltration.",
+    "Identify the proxy log fields that show who uploaded what and how much.",
+    "Describe how to set a per-user upload baseline.",
+    "Correlate a network upload with a cloud side object write event.",
+    "Describe the limits of volume based detection when traffic is encrypted."
+  ],
+  "techniqueId": "t1567-002",
+  "detectsTechniques": [
+    "t1567-002"
+  ],
+  "dataSources": [
+    "Secure web gateway or forward proxy logs recording destination host, category, user identity and upload byte count",
+    "Cloud storage audit logs for object put and file upload operations with the acting identity and object size",
+    "Endpoint process creation records for archiving and compression tools producing large output files",
+    "Data loss prevention alerts for sensitive content matching policy in outbound file transfers",
+    "Netflow or firewall records showing sustained outbound byte counts from an internal host to a cloud service address range"
+  ],
+  "logic": "The signal is a sustained outbound upload from one internal identity to a file sharing or object storage service that exceeds that identity's normal pattern, particularly when the same account also writes new objects on the cloud side or runs a compression tool beforehand. You must correlate the user, the destination host or service, the uploaded byte count, the session duration and the endpoint process that produced the file, because a marketing team uploading a video to an approved service is normal while an engineering account with no history uploads a multi-gigabyte archive to a personal storage service at an unusual hour. The malicious case is distinguished by the combination of an unapproved destination, a volume far above baseline, and archiving activity on the endpoint shortly before the transfer.",
+  "pseudoQuery": "# title: Large Upload to File Sharing Service Above User Baseline\n# logsource:\n#   product: network\n#   service: proxy\n# detection:\n#   selection:\n#     url_category: 'file-storage-and-sharing'\n#     bytes_out: '> 500000000'\n#   filter_approved:\n#     destination_host|endswith:\n#       - 'storage.example[.]com'\n#   condition: selection and not filter_approved\n# level: high",
+  "falsePositives": [
+    "A design team uploading large media files to an approved client sharing service",
+    "Backup or archive jobs that copy datasets to cloud storage on a nightly schedule",
+    "Developers pushing container images or build artifacts to a cloud registry",
+    "Staff transferring a large file to a colleague through a corporate file sharing account"
+  ],
+  "tuningNotes": "Baselining per user and per department is the highest value step: compute the ninety-fifth percentile of daily upload volume for each identity and alert only above it, then add the approved storage destinations as explicit exclusions and require either a new destination or an unusual hour for high severity. Scope the rule to identities with access to sensitive repositories, because generic shared drives and media teams generate legitimate large transfers every day. The coverage you lose is a slow exfiltration that stays just under the threshold, so complement the rule with a weekly trend report on cumulative upload volume per identity rather than relying on the alert alone.",
+  "severity": "high"
+}

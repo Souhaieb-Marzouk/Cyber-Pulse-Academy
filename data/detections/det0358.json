@@ -1,0 +1,106 @@
+{
+  "id": "det0358",
+  "type": "detection",
+  "title": "Programmatic and Excessive Access to Confluence Documentation",
+  "shortTitle": "Programmatic and Excessive Access to Confluence Documenta...",
+  "externalId": "DET0358",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects bulk or automated collection from Atlassian Confluence, the T1213.001 sub-technique for information repositories. Confluence pages often hold architecture notes, runbooks, credentials in code blocks and internal network detail, so an intruder with a valid account can harvest years of design documentation in a few minutes with the representational state transfer (REST) interface, which most audit programmes never review. Detection depends on Confluence audit log entries, web and proxy access logs that capture user agent and request path, personal access token records and export or attachment download records. It fails in practice because automated read access is also how integrations, backup jobs and search indexers work, so a rule that only measures request rate flags the company's own tooling and drowns the analyst.",
+  "tags": [
+    "confluence",
+    "collection",
+    "saas",
+    "audit log",
+    "api abuse"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Programmatic and Excessive Access to Confluence Documentation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0358/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Programmatic and Excessive Access to Confluence Documentation - EASY",
+      "path": "exercises/det0358/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Programmatic and Excessive Access to Confluence Documentation - MEDIUM",
+      "path": "exercises/det0358/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Programmatic and Excessive Access to Confluence Documentation - HARD",
+      "path": "exercises/det0358/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Programmatic and Excessive Access to Confluence Documentation - EXTREMELY HARD",
+      "path": "exercises/det0358/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for a person or program reading a very large amount of documentation from Confluence, a shared wiki. Normal reading is slow and spread out. Bulk reading looks like many pages, spaces or attachments collected in a short time.",
+    "whyItMatters": "Internal documentation often contains the details an intruder needs. It can describe how systems are built, what the network looks like and who has access. One stolen account can copy all of it in minutes. The copy is quiet and the account is real.",
+    "howItWorks": [
+      "Confluence records each user action, including page views, searches and exports.",
+      "The web or proxy log records the request path, the account and the client program name.",
+      "A rule counts requests and distinct pages per account over a rolling window.",
+      "It filters out known integration accounts and the normal client program a browser uses.",
+      "If the count is far above the account baseline and the client looks like a script, an alert is raised."
+    ],
+    "example": "Think of a library sign-in sheet. One reader who borrows three books a month is normal. Another reader who carries out the whole reference shelf in one trip, using a trolley instead of a bag, is worth a conversation.",
+    "takeaways": [
+      "Bulk documentation reads are quiet, and the account used is usually legitimate.",
+      "The client program name is often the clearest sign that a script is reading instead of a person.",
+      "Compare each account with its own history, not with a single global number."
+    ]
+  },
+  "objectives": [
+    "Explain why internal documentation is a high-value collection target",
+    "Identify the audit, access and token telemetry that reveals programmatic Confluence use",
+    "Build a per-account baseline of pages viewed and exports per day",
+    "Distinguish approved integrations from scripted collection using client and token attributes",
+    "Describe how to scope and time limit an investigation into bulk documentation access",
+    "Recommend access review actions that reduce the value of a single stolen account"
+  ],
+  "techniqueId": "t1213-001",
+  "detectsTechniques": [
+    "t1213-001"
+  ],
+  "dataSources": [
+    "Atlassian Confluence audit log entries for content views, searches, exports and permission changes with acting user",
+    "Web server or forward proxy access logs capturing request path, response size, user agent string and authenticated user",
+    "Confluence personal access token inventory showing token owner, creation date and last used time",
+    "Attachment download and space export records with file name, size and requesting account",
+    "Identity provider sign-in logs for the same account showing device, address and multi-factor result"
+  ],
+  "logic": "The pattern is a volume and breadth anomaly in authenticated content access. Analysts group Confluence audit and access log records by account over a rolling window and measure the number of distinct pages or spaces touched, the total response bytes and the count of export or attachment operations. They then compare the shape of the requests to the account's history and to the client program that made them. The benign case is a backup or integration account with a stable daily pattern, a consistent user agent and a token that is documented in the service inventory; the malicious case is an interactive user account that suddenly reads across many unrelated spaces at an unusual hour, using a script style client and requesting raw content representations rather than rendered pages. Permission changes, such as adding a group to a space, shortly before the reads make the case much stronger.",
+  "pseudoQuery": "# title: Excessive programmatic Confluence content access\n# logsource:\n#   product: confluence\n#   service: audit\n# detection:\n#   selection_read:\n#     event_type:\n#       - page_view\n#       - content_export\n#       - attachment_download\n#     groupby: actor_account\n#     timeframe: 15m\n#     threshold: count(distinct content_id) by actor_account > 120\n#   filter_integration:\n#     user_agent|contains:\n#       - 'backup'\n#       - 'indexer'\n#   condition: selection_read and not filter_integration\n# level: medium",
+  "falsePositives": [
+    "Search indexer or backup service accounts that crawl every space on a schedule",
+    "A new employee onboarding who reads a large part of the wiki during their first week",
+    "Documentation migration projects that export spaces in bulk before a platform move",
+    "Incident responders who open many related runbook pages quickly during a major outage"
+  ],
+  "tuningNotes": "Enumerate every integration and service account that reads Confluence and record its expected user agent, source address and daily volume, then filter those by account rather than by path. Keep user accounts in scope but set the threshold from the ninety-fifth percentile of their own history, which is far lower than an integration's. Add a required second condition of an out-of-hours timestamp or a new client user agent so that a busy but ordinary day does not fire. Narrowing this way means you may miss a slow collection spread over weeks, so schedule a monthly report of unusual space coverage per account to catch that pattern instead.",
+  "severity": "medium"
+}

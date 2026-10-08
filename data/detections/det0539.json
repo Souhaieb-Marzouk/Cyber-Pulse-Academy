@@ -1,0 +1,105 @@
+{
+  "id": "det0539",
+  "type": "detection",
+  "title": "Detection Strategy for Cloud Application Integration",
+  "shortTitle": "Detection Strategy for Cloud Application Integration",
+  "externalId": "DET0539",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers abuse of cloud application integration, matching technique T1671, where an adversary connects an external application to a cloud tenant so that it receives a durable token and can act as a trusted first party. It matters because the resulting access survives a password reset, often bypasses multi factor authentication, and appears in logs as a legitimate integrated application rather than as a suspicious login. The telemetry that makes it possible is cloud audit records for consent grants, application registrations, service principal creation, role assignment and refresh token issuance, joined with the inventory of applications the tenant actually sanctioned. It fails in practice because business teams add approved integrations through the very same consent flow, so the detection must weigh the requesting user, the tenant of the application and the permissions requested rather than the event type alone.",
+  "tags": [
+    "cloud",
+    "identity",
+    "oauth consent",
+    "t1671",
+    "persistence"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Cloud Application Integration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0539/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Cloud Application Integration - EASY",
+      "path": "exercises/det0539/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Cloud Application Integration - MEDIUM",
+      "path": "exercises/det0539/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Cloud Application Integration - HARD",
+      "path": "exercises/det0539/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Cloud Application Integration - EXTREMELY HARD",
+      "path": "exercises/det0539/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a new application being connected to your cloud environment. Such an application receives a token, which is a key that lets it act inside your tenant. Attackers use this to keep access even after a password change.",
+    "whyItMatters": "Cloud tenants trust applications that users approve. A token can read mail, files or directory data and it does not need a password again. Because an administrator did not create the application, nobody is watching it. This is a quiet way to stay inside a company for a long time.",
+    "howItWorks": [
+      "The cloud provider writes an audit record when an application is registered or when a user grants it consent.",
+      "The record names the application, its publisher, the permissions requested and the user who approved it.",
+      "An inventory service lists every application and token that already exists in the tenant.",
+      "The platform compares each new grant with that inventory and with the approved integration list.",
+      "The rule flags grants with high risk permissions, unusual publishers, or users who never approve applications.",
+      "An alert shows the application, the permissions and the account that consented."
+    ],
+    "example": "Think of a visitor who is given a spare office key. Once the key is cut, changing the front door code does not take the key back. Someone must find the key and remove it. An application token that a user approved is that spare key.",
+    "takeaways": [
+      "An application token is durable access, and a password reset does not revoke it.",
+      "Review who can grant consent, not only who can sign in.",
+      "Inventory your tenant applications, because detection needs a baseline to compare against."
+    ]
+  },
+  "objectives": [
+    "Explain what cloud application integration is and why a consent grant creates persistent access",
+    "Identify the audit records for consent grants, application registration, service principal creation and token issuance",
+    "Interpret requested permissions and application publisher data to judge the risk of a grant",
+    "Correlate a new application with the tenant inventory and the user who approved it",
+    "Write a detection rule for risky consent grants and tune it against sanctioned integrations"
+  ],
+  "techniqueId": "t1671",
+  "detectsTechniques": [
+    "t1671"
+  ],
+  "dataSources": [
+    "Cloud identity audit records for user consent grants and administrator consent grants to an application",
+    "Directory audit records for application registration, service principal creation and application role assignment",
+    "Cloud audit records for token issuance and refresh token use by an application identity",
+    "Inventory exports of existing tenant applications, their publishers and their granted permissions"
+  ],
+  "logic": "The pattern is a consent grant or application registration in the tenant that was not part of an approved integration project: the requesting account has no history of granting consent, the application publisher is an unverified or unfamiliar identity, and the permissions requested include broad mail, file or directory read access. The fields that must be correlated are the consenting user and their normal working hours and location, the application identifier and its publisher tenant, the permission scope list, and whether the application appears in the sanctioned inventory. The benign case is a documented integration approved by the platform team with a verified publisher and a narrow permission set; the malicious case shows a first time grant by a non administrator, an unverified publisher, and wide scopes granted in a single step.",
+  "pseudoQuery": "# title: Suspicious application consent grant in cloud tenant\n# logsource:\n#   product: azure\n#   service: audit\n# detection:\n#   selection:\n#     operation: Consent to application\n#   filter_known_apps:\n#     application_name: approved-integration-catalog\n#   filter_privileged_actors:\n#     actor: approved-identity-automation\n#   condition: selection and not filter_known_apps and not filter_privileged_actors\n# level: medium",
+  "falsePositives": [
+    "Sanctioned business integrations approved by the platform team during a project that the security team was not told about",
+    "Software as a service products that request directory read access as part of a standard trial sign up by a business user",
+    "Developer tenants where engineers register test applications and grant them broad scopes in a non production subscription",
+    "Automated provisioning pipelines that create a service principal and assign a role during a normal infrastructure deployment"
+  ],
+  "tuningNotes": "Build the allow list from your integration catalogue rather than from observed events, and include the publisher tenant identifier as well as the application name, because display names are easy to imitate. Raise severity only when the granted scopes include mail, file or directory read access and the consenting user is not in the platform administration group. Restrict administrator consent workflow to a known group and alert on every grant by that group outside a change window. You lose coverage for a low privilege grant that later escalates through a separate role assignment, so keep role assignment to service principals in a second rule rather than folding it into this one.",
+  "severity": "medium"
+}

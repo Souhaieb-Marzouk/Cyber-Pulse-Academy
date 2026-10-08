@@ -1,0 +1,108 @@
+{
+  "id": "det0553",
+  "type": "detection",
+  "title": "Detection Strategy for Obfuscated Files or Information: Binary Padding",
+  "shortTitle": "Detection Strategy for Obfuscated Files or Information: B...",
+  "externalId": "DET0553",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Obfuscated Files or Information: Binary Padding, where an attacker inflates the size of a file with junk bytes so that hash based detection, size limits and some scanning tools stop recognising it. It matters because padding costs the attacker almost nothing and defeats a large class of defences that depend on exact file identity, while the padding itself is content that no legitimate binary normally carries. The telemetry that makes it visible is file creation metadata including size and entropy, the ratio of a file's size to its declared internal size, hash comparison against known good copies of the same software, and the process creation that follows when the padded file runs. It fails in practice because padding is invisible to behaviour monitoring, file sizes are noisy in normal business, and you must know what the uncompressed size should have been to notice the mismatch.",
+  "tags": [
+    "defense-evasion",
+    "obfuscation",
+    "file-analysis",
+    "malware",
+    "hash"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Obfuscated Files or Information: Binary Padding",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0553/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Obfuscated Files or Information: Binary Padding - EASY",
+      "path": "exercises/det0553/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Obfuscated Files or Information: Binary Padding - MEDIUM",
+      "path": "exercises/det0553/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Obfuscated Files or Information: Binary Padding - HARD",
+      "path": "exercises/det0553/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Obfuscated Files or Information: Binary Padding - EXTREMELY HARD",
+      "path": "exercises/det0553/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Padding means adding junk data to a file so it becomes larger and its fingerprint changes. The program still works, but tools that recognise it by fingerprint no longer match. This detection looks for files that are much larger than they should be for what they do.",
+    "whyItMatters": "Many defences decide whether a file is safe by looking at its fingerprint, called a hash. Change one byte and that fingerprint changes completely. An attacker who pads a file can slip past lists of known bad files without changing how the program behaves.",
+    "howItWorks": [
+      "When a file is created, your monitoring records its name, folder, size and the process that wrote it.",
+      "A SIEM, which is a central system that collects and searches log events, stores that file creation record with its size and hash.",
+      "The rule compares the file size with the size the file claims to have inside itself, and with the image size reported when it loads.",
+      "It also compares the hash of the file with the hash of the same program from a trusted source, such as the vendor package.",
+      "A file that keeps its name and purpose but has grown a lot, and never runs the padding, is worth a look.",
+      "When a padded file also executes from an unusual folder or by an unusual parent process, the alert is raised."
+    ],
+    "example": "Picture a parcel that should weigh one kilogram. Someone stuffs it with newspaper until it weighs ten. The address label is rewritten too, so the delivery office no longer recognises it. This detection is the scale at the counter, plus a check of what is actually inside the box.",
+    "takeaways": [
+      "Padding changes a file's identity without changing what the file does.",
+      "Size alone is weak evidence, so pair it with an internal size mismatch or a hash that differs from the vendor copy.",
+      "Detection must happen at file creation, because after execution the padding is just part of the file."
+    ]
+  },
+  "objectives": [
+    "Explain how binary padding defeats hash based detection and file size limits.",
+    "Identify the file metadata fields that reveal a size or hash mismatch.",
+    "Compare a file's on disk size with its internal size fields and its loaded image size.",
+    "Correlate an oversized or mismatched file with the process that created it and the process that ran it.",
+    "Describe why behavioural monitoring alone cannot detect padding.",
+    "Set thresholds for size anomaly alerts that survive normal software updates."
+  ],
+  "techniqueId": "t1027-001",
+  "detectsTechniques": [
+    "t1027-001"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create recording the target file path, the creating process and the file hash",
+    "File metadata collected by the endpoint agent, including logical size, entropy value and the internal image size fields of the executable",
+    "Software inventory or package records holding the expected size and hash of legitimate versions of the same binary",
+    "Sysmon event 1 process creation for the process that runs the padded file, with image path and parent image",
+    "Antivirus or endpoint scan results showing a detection that was suppressed or a file whose signature no longer matches a known sample"
+  ],
+  "logic": "The pattern is a file whose size has grown far beyond the size expected for its function, while its internal size fields, its loaded image size or its vendor hash do not agree with the outer size. You correlate the file creation event, which gives the path, size, hash and creating process, with package inventory records for the same file name and version, and with process creation events showing the same path being executed. The malicious case shows a large trailing or leading run of bytes that the program never references, a hash that differs from every known copy while the file name and icon stay the same, and frequently a recent write by a scripting host or an office application. The benign case is a legitimately large installer, a self extracting archive, a signed binary whose version has genuinely changed size between releases, or a file with embedded resources such as a debug database.",
+  "pseudoQuery": "# title: Executable Size Far Above Expected For Known Binary\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith: '.exe'\n#   filter_known:\n#     Image|endswith: '\\\\softwareinstaller.exe'\n#   condition: selection and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Self extracting installers and archive wrappers that legitimately append a compressed payload to a small launcher",
+    "Signed binaries that grow substantially between versions because debug symbols or embedded resources were added",
+    "Application packages built by internal teams that embed large asset bundles such as images or language files",
+    "Virtual machine disk images and database files that are written repeatedly at large sizes and have nothing to do with executables",
+    "Game or simulation software that ships with large padding like data files for compatibility with older loaders"
+  ],
+  "tuningNotes": "Do not alert on raw file size. Anchor the rule to a comparison: same file name or same product as a known package, but with a hash mismatch, or an on disk size that exceeds the internal size fields by a wide margin. Restrict the rule to executable and script extensions in user writable and temporary directories, and baseline the size distribution of approved software so updates do not raise alerts. Where you have file hash allow lists, keep the mismatch condition rather than replacing it, and forward flagged files to a sandbox for a behavioural verdict. The coverage you lose by scoping to executables is padding applied to archives, documents or virtual machine images, so keep a low severity informational copy of the rule for archive and document formats.",
+  "severity": "medium"
+}

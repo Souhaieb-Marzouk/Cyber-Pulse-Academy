@@ -1,0 +1,104 @@
+{
+  "id": "det0881",
+  "type": "detection",
+  "title": "Detection of SEO Poisoning",
+  "shortTitle": "Detection of SEO Poisoning",
+  "externalId": "DET0881",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers search engine optimisation poisoning, where an adversary shapes search results so that a query for a popular download, tool or document returns a page they control. It matters because the victim chooses the visit themselves, which removes the need for a phishing email and defeats many mail controls, and because the resulting traffic looks like ordinary web browsing until a file is written and run. The telemetry that makes it possible includes web proxy logs with referrer and destination fields, DNS query logs for newly registered domains, endpoint process creation showing an archive or document reader spawning a child process, and file creation events recording what was extracted. It fails in practice because you cannot see the search results themselves, so the detection rests on inference from network and endpoint events, and because ordinary search driven downloads look exactly the same.",
+  "tags": [
+    "mitre t1608.006",
+    "resource development",
+    "seo poisoning",
+    "web proxy",
+    "endpoint execution"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of SEO Poisoning",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0881/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of SEO Poisoning - EASY",
+      "path": "exercises/det0881/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of SEO Poisoning - MEDIUM",
+      "path": "exercises/det0881/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of SEO Poisoning - HARD",
+      "path": "exercises/det0881/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of SEO Poisoning - EXTREMELY HARD",
+      "path": "exercises/det0881/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Search engine optimisation poisoning means an attacker pushes their own page to the top of search results. A person searching for a popular tool finds the fake page and downloads a harmful file. This detection looks for the download and the file that runs afterwards.",
+    "whyItMatters": "The user trusts a search result more than an email. They chose to look for the tool themselves. No message needs to pass your mail filter. The harmful file often arrives inside an archive, so the first evidence appears on the endpoint. Catching the moment a downloaded file starts a program lets you block it before the malicious code runs widely.",
+    "howItWorks": [
+      "Your web proxy records the page the user came from and the address of the file they downloaded.",
+      "Your endpoint agent records the file being written and any process that starts from it.",
+      "The rule links the download to the process that follows within a short time window on the same host.",
+      "It adds context such as the age of the site, the file type and how the file was launched.",
+      "When a download leads straight to execution, the alert shows the page, the file and the process so the analyst can contain the host."
+    ],
+    "example": "Think of a market where a new stall appears beside a well known one and copies its sign. Shoppers who came for the known brand walk to the wrong stall and buy a box they never open. The market register shows the stall, the sale and the time. The shoppers cannot tell the difference, but the register can.",
+    "takeaways": [
+      "The victim starts this attack, so mail controls give no warning at all.",
+      "The strongest signal is a download followed by execution within seconds.",
+      "Domain age and referrer data are the cheapest way to add context to the alert."
+    ]
+  },
+  "objectives": [
+    "Explain how search result manipulation replaces a phishing email as a delivery path",
+    "Name the proxy, DNS and endpoint fields that record a search driven download",
+    "Correlate a download event with the process that runs from it on the same host",
+    "Assess the risk of an archive or script download using domain age and file type",
+    "Describe user awareness steps that help staff recognise a poisoned search result"
+  ],
+  "techniqueId": "t1608-006",
+  "detectsTechniques": [
+    "t1608-006"
+  ],
+  "dataSources": [
+    "Web proxy logs recording the search referrer, the requested download URL, the file name and the destination host",
+    "DNS resolver query logs for first time resolution of newly registered or uncategorised domains",
+    "Sysmon event 1 process creation showing an archive tool, document reader or installer spawning a child process",
+    "Sysmon event 11 file creation records for the extracted file path and the process that wrote it"
+  ],
+  "logic": "The pattern is a user downloading a file after arriving from a search engine, followed within seconds by a process starting from that downloaded file, where the destination domain is newly registered and the parent process is an archive tool, a document reader or a browser. The fields to correlate are the referrer, the download URL and host, the resulting file path and hash, the parent process and the child command line. The benign case is a vendor site with a long registration history where an installer is run manually minutes later, while the malicious case shows a very new domain, a password protected or recently registered archive, an immediate child process and a command line that includes a script interpreter.",
+  "pseudoQuery": "# title: Search referrer download leading to immediate child process\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     event_type: process_created\n#     parent_image|endswith:\n#       - '\\\\winrar.exe'\n#       - '\\\\7zFM.exe'\n#       - '\\\\explorer.exe'\n#     image|endswith:\n#       - '.exe'\n#       - '.js'\n#       - '.cmd'\n#     download_referrer|contains: 'search'\n#   filter:\n#     image|in: approved_installer_hashes\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "A user installing a legitimate open source utility downloaded from its official project page",
+    "A help desk engineer downloading a vendor tool and running it during a support call",
+    "A scheduled software deployment that extracts and runs an installer from a management share",
+    "An anti malware product that extracts and scans the contents of a downloaded archive, which appears as a child process"
+  ],
+  "tuningNotes": "Suppress the hashes of approved installers and the management share paths used by deployment tooling, and scope the rule to hosts that are not expected to install software. Baseline which parent processes usually start installers in your estate, because preferences differ between teams. Narrowing to archive and document readers loses coverage for the case where a user runs a downloaded script directly, so keep a second rule for script interpreters started by a browser even though it needs more tuning.",
+  "severity": "medium"
+}

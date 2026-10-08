@@ -1,0 +1,107 @@
+{
+  "id": "det0331",
+  "type": "detection",
+  "title": "Detection Strategy for ListPlanting Injection on Windows",
+  "shortTitle": "Detection Strategy for ListPlanting Injection on Windows",
+  "externalId": "DET0331",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects ListPlanting (T1055.015), a process injection variant where an adversary writes shellcode into the memory of another process and then manipulates it through a list view control, so the code runs inside a trusted process and leaves the original file clean on disk. Because the technique does not create a new thread in the classic sense, detection leans on the process access, memory write and thread or callback telemetry that surrounds it: Sysmon process access events with powerful access rights, image load and file writes as supporting evidence, and process creation of the injecting parent. It fails when endpoint agents do not audit memory operations or when the target is a process that legitimately receives such access from monitoring tools, which makes baselining mandatory.",
+  "tags": [
+    "mitre t1055.015",
+    "process injection",
+    "memory",
+    "sysmon",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for ListPlanting Injection on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0331/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for ListPlanting Injection on Windows - EASY",
+      "path": "exercises/det0331/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for ListPlanting Injection on Windows - MEDIUM",
+      "path": "exercises/det0331/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for ListPlanting Injection on Windows - HARD",
+      "path": "exercises/det0331/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for ListPlanting Injection on Windows - EXTREMELY HARD",
+      "path": "exercises/det0331/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for one program that quietly puts its own code inside another running program. The second program then carries out the hidden instructions. Nothing new appears on disk, so file scans alone will not find it.",
+    "whyItMatters": "Hidden code inside a trusted program looks like normal activity to many tools. It can also survive simple cleanup, because the original file is not malicious. Detecting it early shows you that someone already has a foothold. This detection focuses on the unusual memory actions that must happen first.",
+    "howItWorks": [
+      "The computer records when one program asks for access to another running program.",
+      "The detection checks the level of access requested, because some levels allow reading and writing memory.",
+      "It looks for memory writes into another process, especially from a program that rarely does this.",
+      "It follows the source program to see what started it and what it did next.",
+      "It matches the two events, access and write, against a baseline of trusted tools that monitor other programs.",
+      "Events that do not fit the baseline are grouped by host and shown to an analyst with the process tree."
+    ],
+    "example": "Imagine a bank where every teller has a drawer. A stranger cannot open a drawer, but a teller can. The stranger quietly hands the teller a note that changes what the teller does. The money then leaves through a trusted pair of hands. The camera that shows who reached into the drawer is what catches it.",
+    "takeaways": [
+      "Injection needs memory access, so watch who asks for it.",
+      "Trusted tools also touch other programs, so you must baseline before you alert.",
+      "Link the access event, the write and the process tree into one story."
+    ]
+  },
+  "objectives": [
+    "Explain what process injection is and why file scanning cannot find it",
+    "Read a process access event and judge the access rights that enable memory writing",
+    "Correlate process access, memory write and thread activity from the same source process",
+    "Build a baseline of legitimate tools that inspect or modify other processes",
+    "Describe why the injecting binary may look completely clean on disk"
+  ],
+  "techniqueId": "t1055-015",
+  "detectsTechniques": [
+    "t1055-015"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access including source image, target image and granted access rights",
+    "Sysmon event 8 create remote thread including the source and target process identifiers",
+    "Sysmon event 1 process creation for the injecting parent process with its command line and user",
+    "Sysmon event 7 image load events for unsigned modules loaded into a trusted process",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is a process that is not a known security or debugging tool requesting write-capable access to another process, followed by memory modification or thread creation against that same target process. The fields to correlate are the source process identifier and image, the target process identifier and image, the granted access mask, the user account and the time between events. The benign case is endpoint protection, backup software or a developer debugger that opens target processes with similar access from a consistent install path and parent service; the malicious case is a user-writable or temporary path as the source, a frequently targeted host process such as a shell or browser as the target, and the access repeating across several targets within a short window.",
+  "pseudoQuery": "# title: Write-Capable Process Access From Untrusted Image\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 10\n#     GrantedAccess|contains: ['0x1F0FFF', '0x1F1FFF', '0x0040', '0x0008']\n#   filter_security_tools:\n#     SourceImage|endswith: ['\\\\MsMpEng.exe', '\\\\csrss.exe', '\\\\Procmon.exe', '\\\\backupagent.exe']\n#   filter_user_paths:\n#     SourceImage|startswith: ['C:\\\\Program Files', 'C:\\\\Program Files (x86)']\n#   condition: selection and not filter_security_tools and not filter_user_paths\n# level: high",
+  "falsePositives": [
+    "Endpoint protection agents that open browser and shell processes to inject their own inspection library",
+    "Accessibility and input-method software that reads window memory of other desktop applications",
+    "Application compatibility shims and screen readers that attach to running programs at logon",
+    "Software packaging tools that capture application state by inspecting another process during a build",
+    "Live debugging by developers on engineering workstations using approved debugging tools"
+  ],
+  "tuningNotes": "Build the baseline first by listing every source image and target image pair with write-capable access over thirty days, then allow only the pairs that map to signed security or accessibility software installed under protected paths. Keep the rule excluding user-writable and temporary source paths permanently, because signed tools do not run from there. If volume remains high on engineering subnets, scope the rule to server subnets and to workstations that hold regulated data. The coverage you lose is injection performed by a legitimate signed tool that an attacker has hijacked through a vulnerable plugin, so retain a lower-severity variant that watches for a single source touching many targets.",
+  "severity": "high"
+}

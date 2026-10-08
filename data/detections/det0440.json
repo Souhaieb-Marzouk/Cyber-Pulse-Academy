@@ -1,0 +1,107 @@
+{
+  "id": "det0440",
+  "type": "detection",
+  "title": "Detecting PowerShell Execution via SyncAppvPublishingServer.vbs Proxy Abuse",
+  "shortTitle": "Detecting PowerShell Execution via SyncAppvPublishingServ...",
+  "externalId": "DET0440",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of a signed Microsoft Visual Basic script that ships with Windows, SyncAppvPublishingServer.vbs, as a proxy launcher for PowerShell. Because the script is signed and lives in a trusted system directory, a process created through it inherits the appearance of legitimate Microsoft activity, and the PowerShell command line is passed as a script argument rather than typed by the user. Detection depends on process creation telemetry that keeps the full command line for the script host and for the child PowerShell process, plus script block logging if it is enabled. The common failure is that the same script performs genuine App-V publishing tasks in managed environments, so the rule must match the argument shape and the presence of encoded or download style commands instead of the script name alone.",
+  "tags": [
+    "defense evasion",
+    "system script proxy",
+    "powershell",
+    "process creation",
+    "living off the land",
+    "t1216.002"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting PowerShell Execution via SyncAppvPublishingServer.vbs Proxy Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0440/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting PowerShell Execution via SyncAppvPublishingServer.vbs Proxy Abuse - EASY",
+      "path": "exercises/det0440/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting PowerShell Execution via SyncAppvPublishingServer.vbs Proxy Abuse - MEDIUM",
+      "path": "exercises/det0440/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting PowerShell Execution via SyncAppvPublishingServer.vbs Proxy Abuse - HARD",
+      "path": "exercises/det0440/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting PowerShell Execution via SyncAppvPublishingServer.vbs Proxy Abuse - EXTREMELY HARD",
+      "path": "exercises/det0440/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches a trusted Windows script that can start PowerShell for an attacker. The script is signed by Microsoft and is normal on many systems. Attackers pass their own commands to it as an argument. The detection looks at what was passed, not only at the script.",
+    "whyItMatters": "Security tools often trust signed Microsoft binaries. That trust is exactly what the attacker borrows here. A single script path can run almost any command. Without command line logging you cannot see the payload. The detection turns a trusted path into a visible one.",
+    "howItWorks": [
+      "Windows records the parent process, the script host and the full command line.",
+      "The rule looks for the script host running the publishing script by path.",
+      "It then inspects the argument text for downloads, encoded blocks or hidden windows.",
+      "It matches the child PowerShell process to the same parent and time window.",
+      "Filters allow only the documented App-V service account usage."
+    ],
+    "example": "Think of a staff entrance that opens with a manager key. The key is real and the door is real. But a visitor who borrows the key at midnight is still a visitor. You check who used the key and when, not whether the key is valid.",
+    "takeaways": [
+      "Signed system scripts can still launch hostile commands.",
+      "Command line logging is required for this detection to work.",
+      "The argument tells you more than the script path."
+    ]
+  },
+  "objectives": [
+    "Identify the script host processes that can run a Visual Basic script file.",
+    "Locate the trusted publishing script path in process creation telemetry.",
+    "Describe which argument patterns indicate encoded or remote content.",
+    "Trace the child PowerShell process back to its parent script host.",
+    "Write a filter that permits documented App-V publishing jobs only.",
+    "Explain the limits of this detection when command line auditing is off."
+  ],
+  "techniqueId": "t1216-002",
+  "detectsTechniques": [
+    "t1216-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, image path and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "PowerShell script block logging event 4104 with the script block text",
+    "Windows PowerShell operational event 400 and event 800 for engine start and pipeline execution",
+    "Windows Security event 4688 for the child powershell.exe with the recorded parent process identifier"
+  ],
+  "logic": "The pattern is a script host process, such as wscript.exe or cscript.exe, whose command line names the App-V publishing script, followed immediately by a PowerShell child process in the same process tree. The fields to correlate are the parent image, the parent command line, the script path argument, the account running it and the encoded or download style switches in the argument text. The benign case is a scheduled App-V publishing job that runs under a service account with a fixed argument list, while the malicious case shows an interactive user, an office document parent, an encoded argument or a remote download string that no publishing job would use.",
+  "pseudoQuery": "# title: PowerShell Launched Through Signed Publishing Script Proxy\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     ParentImage|endswith: ['\\\\wscript.exe', '\\\\cscript.exe']\n#     ParentCommandLine|contains: 'SyncAppvPublishingServer.vbs'\n#   filter:\n#     User|endswith: '$'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Managed App-V or MSIX publishing jobs that start PowerShell as part of application streaming.",
+    "Software deployment scripts written by internal teams that reuse Microsoft script hosts.",
+    "Configuration management agents that wrap commands in a Visual Basic script launcher.",
+    "Legacy logon scripts that call PowerShell through a script host for compatibility."
+  ],
+  "tuningNotes": "Confirm that command line auditing and PowerShell script block logging are both on before you rely on this rule, because without them the alert shows only a script host with no visible purpose. Baseline the parent and child pairs that occur in your environment for two weeks, then allow list the exact service account and argument prefix used by your publishing jobs. Keep the rule at high severity for interactive user accounts and at low severity for service accounts, so a copied tool still surfaces. Narrowing to the known argument prefix costs you coverage of new publishing syntaxes, so review that prefix after every platform upgrade.",
+  "severity": "high"
+}

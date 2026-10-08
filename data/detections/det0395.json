@@ -1,0 +1,105 @@
+{
+  "id": "det0395",
+  "type": "detection",
+  "title": "macOS AuthorizationExecuteWithPrivileges Elevation Prompt Detection",
+  "shortTitle": "macOS AuthorizationExecuteWithPrivileges Elevation Prompt...",
+  "externalId": "DET0395",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the deprecated macOS authorization service path that lets a program ask the operating system to run a helper tool with administrator rights, which maps to abuse of the elevation control mechanism technique for macOS. It matters because a single approval click by the user turns a normal process into a privileged one, so the only durable evidence is the authorization request itself plus the child process that follows it. The telemetry that makes this possible is the macOS unified log authorization subsystem records, Endpoint Security framework process execution events, and the parent and child relationship between the requesting bundle and the tool it launches. In practice it fails in two ways: the log records the prompt but not always the signed identity of the caller, and noisy software management agents trigger identical prompts during routine patching, so analysts drown in expected approvals.",
+  "tags": [
+    "macos",
+    "privilege escalation",
+    "mitre t1548.004",
+    "unified log",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: macOS AuthorizationExecuteWithPrivileges Elevation Prompt Detection",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0395/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "macOS AuthorizationExecuteWithPrivileges Elevation Prompt Detection - EASY",
+      "path": "exercises/det0395/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "macOS AuthorizationExecuteWithPrivileges Elevation Prompt Detection - MEDIUM",
+      "path": "exercises/det0395/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "macOS AuthorizationExecuteWithPrivileges Elevation Prompt Detection - HARD",
+      "path": "exercises/det0395/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "macOS AuthorizationExecuteWithPrivileges Elevation Prompt Detection - EXTREMELY HARD",
+      "path": "exercises/det0395/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for programs on a Mac that ask the system for administrator rights. It uses an old service that is now deprecated. It catches the privilege request and the helper tool that runs after it. The alert means a process asked for a password prompt instead of running as a normal user.",
+    "whyItMatters": "Administrator rights let a program change almost anything on the computer. When an attacker has a normal account, asking the system for rights is the shortest path to full control. The system shows a password prompt, so a careless click is enough. Because the request itself is recorded, you can still see what happened even when the user clicked yes. Without this detection, privilege escalation on Macs often leaves no useful trace.",
+    "howItWorks": [
+      "The Mac writes authorization events to the unified log, including the path of the program that asked for rights.",
+      "A log collector forwards those records to your security monitoring platform, where it stores the time and host name.",
+      "The rule looks for a helper tool launched through the deprecated security authorization service.",
+      "It then correlates the request with a process creation event that shows a child process running as the root user.",
+      "The rule drops known software management and installer paths that legitimately prompt every day.",
+      "What remains becomes an alert for an analyst to review against the change record."
+    ],
+    "example": "Think of a hotel front desk. A guest can only open their own room with their key card. If the guest wants the master key, they must ask the front desk and sign for it. This detection is the sign-in sheet that records every request for the master key. It also notes which staff member walked to the room afterward with that key.",
+    "takeaways": [
+      "Privilege requests on macOS are recorded even when the user approves them, so they are worth collecting.",
+      "Any unexpected program asking for administrator rights deserves a look at the tool it launches.",
+      "Software management agents cause the same prompts, so a filter list is essential."
+    ]
+  },
+  "objectives": [
+    "Explain why an authorization request is useful evidence even when the user approves the prompt.",
+    "Identify the macOS log sources that record privilege requests and helper tool launches.",
+    "Correlate an authorization event with the privileged child process it produced.",
+    "Build a filter list of approved software management tools that prompt for rights.",
+    "Describe the limits of this detection when log collection is partial or delayed."
+  ],
+  "techniqueId": "t1548-004",
+  "detectsTechniques": [
+    "t1548-004"
+  ],
+  "dataSources": [
+    "macOS unified log authorization and security subsystem messages recording privilege requests and helper tool launches",
+    "Endpoint Security framework process execution events with parent process, signing identifier and effective user",
+    "macOS unified log records for the SecurityAgent password prompt showing the requesting process path",
+    "macOS system log entries recording execution of a helper tool from a temporary directory with root privilege"
+  ],
+  "logic": "The pattern is a program that is not a signed installer or a managed software agent asking the deprecated authorization service to launch a helper tool with root rights, followed by a process creation event where that helper runs as the root user from a user writable path. The fields that must be correlated are the requesting process path and signing identifier from the authorization record, the effective user and parent process from the process execution event, and the short time gap between the two. The benign case is a vendor installer, a package management tool or an endpoint agent that requests the same rights as part of routine patching, which is why the allow list must be based on signed identifiers and known install locations rather than process names alone.",
+  "pseudoQuery": "# title: macOS Privileged Helper Launch via Deprecated Authorization Service\n# logsource:\n#   product: macos\n#   service: unified_log\n# detection:\n#   selection:\n#     subsystem: 'com.apple.securityd'\n#     message|contains: 'AuthorizationExecuteWithPrivileges'\n#   filter_known:\n#     process_path|startswith:\n#       - '/Library/Application Support/ManagedSoftwareUpdate/'\n#       - '/System/Library/CoreServices/Installer.app/'\n#   condition: selection and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Enterprise software deployment agents that install packages on a schedule and always request administrator rights",
+    "User initiated application installers downloaded by staff from a vendor support portal",
+    "Endpoint protection or backup agents that elevate a helper tool during every policy refresh",
+    "Developer tooling that installs command line utilities and requests rights through the same deprecated service"
+  ],
+  "tuningNotes": "Start by collecting the authorization events for two weeks without alerting, then build an allow list keyed on the requesting process signing identifier and the helper tool path rather than on process names, because names are easy to reuse. Scope the rule to staff workstations first and leave server class Macs out until you understand their baseline, since build agents there elevate constantly. Add a filter for helper tools that run from a user writable path only when that path is a known package manager staging area. The coverage you lose is any legitimate new installer until you review it, so route those to a low priority queue instead of suppressing them silently.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0833",
+  "type": "detection",
+  "title": "Detection of Code Signing Certificates",
+  "shortTitle": "Detection of Code Signing Certificates",
+  "externalId": "DET0833",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Code Signing Certificates, the resource development technique in which an adversary obtains or abuses a signing certificate so that malicious code appears trusted. It matters because a valid signature defeats many reputation and blocklist controls and can make a binary look like a legitimate vendor update, so this is a high impact capability rather than simple reconnaissance. Detection relies on process creation and image load events that record signature status, Windows registry and certificate store change events, certificate authority issuance logs, and command line evidence of self signed certificate creation. It fails most often because ephemeral certificates, internal public key infrastructure, and test signing generate the same artefacts, so the rule needs signer reputation and parent process context rather than a single field.",
+  "tags": [
+    "resource development",
+    "mitre attack",
+    "code signing",
+    "certificate abuse",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Code Signing Certificates",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0833/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Code Signing Certificates - EASY",
+      "path": "exercises/det0833/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Code Signing Certificates - MEDIUM",
+      "path": "exercises/det0833/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Code Signing Certificates - HARD",
+      "path": "exercises/det0833/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Code Signing Certificates - EXTREMELY HARD",
+      "path": "exercises/det0833/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for software that claims to be signed but is not. A code signing certificate is a digital stamp that proves who made a program. Attackers want that stamp, because a stamped program looks safe. The detection checks the stamp and the program together.",
+    "whyItMatters": "Many security tools trust signed software more than unsigned software. So a stolen or fake signature can help malware slip past them. A signature is also hard for a user to question, so a fake one helps in social engineering. Detecting misuse early prevents a whole class of quiet intrusions. It also protects the value of your own signing keys.",
+    "howItWorks": [
+      "Each time a process starts, the endpoint agent records the signature state of that program.",
+      "The rule flags programs that are signed but by an unknown or unexpected publisher.",
+      "It also watches for new certificates added to the local certificate store.",
+      "Command lines that create self signed certificates are treated as suspicious context.",
+      "The parent process is checked, because installers and script hosts often launch such files.",
+      "Strong matches are collected with the file path and hash for analyst review."
+    ],
+    "example": "Think of a parcel with a company seal on the box. Delivery staff trust the seal and do not open the box. A thief who copies the seal can send anything. The seal is not fake in appearance, which is exactly why it works. Checking whether the seal belongs to a company you actually deal with is the whole point of the detection.",
+    "takeaways": [
+      "A valid signature is a trust shortcut, so abusing one has high impact.",
+      "Signature status alone is not enough; the publisher and the parent process must be considered.",
+      "New or self signed certificates in the local store are useful supporting evidence."
+    ]
+  },
+  "objectives": [
+    "Explain what a code signing certificate proves and why adversaries want one",
+    "Locate process creation and image load telemetry that records signature status and publisher",
+    "Recognise certificate store changes and self signed certificate generation commands",
+    "Correlate an unknown signer with the parent process that launched the signed file",
+    "Assess severity using the trust level granted to signed software in your environment"
+  ],
+  "techniqueId": "t1587-002",
+  "detectsTechniques": [
+    "t1587-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with signature status, signer name, and original file name",
+    "Sysmon event 7 image load events showing unsigned or wrongly signed modules loaded into signed processes",
+    "Windows Security event 4688 process creation with command line auditing and the launching account",
+    "Windows registry monitoring of certificate store keys under the local machine certificate paths",
+    "Certificate authority issuance and audit logs recording code signing certificate requests and approvals"
+  ],
+  "logic": "The pattern is trust signal abuse: a process that presents a valid signature from a publisher the organisation does not use, a module loaded into a trusted process whose signature does not match the host process signer, or a new certificate written into the local machine store immediately followed by process execution from an unusual path. The fields to correlate are the signer name, the certificate thumbprint, the file path, the parent process, and the user account. Benign cases come from internal public key infrastructure, software vendors whose certificates rotate, and developer machines that create self signed certificates for testing. The malicious case combines an unknown or recently created signer, execution from a temporary or user writable path, and a parent process such as a script host or document reader.",
+  "pseudoQuery": "# title: Execution Of Binary With Unknown Valid Signature\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     Signed: 'true'\n#   filter:\n#     Signer|contains:\n#       - 'Microsoft Windows'\n#       - 'ApprovedInternalCA'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Software vendors whose code signing certificates rotate and whose new thumbprint is not yet allowlisted",
+    "Internal application teams signing builds with a development certificate before release signing",
+    "Developer and test machines that create self signed certificates for local transport security",
+    "Third party updaters that arrive with a signed installer from a publisher not seen before"
+  ],
+  "tuningNotes": "Baseline the set of publishers observed in production and allowlist them by certificate thumbprint and signer subject, refreshing the list when vendors rotate keys. Scope the alert to user workstations and servers, and treat build and developer networks separately, because self signed generation is normal there. Add the parent process and file path as secondary conditions so that a signed binary launched from a temporary directory outranks a signed binary launched from program files. Narrowing by publisher reduces noise but will miss a stolen certificate from a publisher you already trust, so also watch for unusual parent processes even when the signer is allowlisted.",
+  "severity": "high"
+}

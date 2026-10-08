@@ -1,0 +1,108 @@
+{
+  "id": "det0073",
+  "type": "detection",
+  "title": "Detection Strategy for System Services: Systemctl",
+  "shortTitle": "Detection Strategy for System Services: Systemctl",
+  "externalId": "DET0073",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers abuse of the systemctl command on Linux hosts, where an operator uses the service manager to start a program, create a new unit, or install a timer so their code survives a reboot. It matters because the service manager is a trusted broker: a unit file that it loads runs as root, is restarted automatically, and blends with the hundreds of other units a normal server carries. The telemetry that makes the abuse visible is auditd process execution of systemctl and the shell that spawned it, systemd journal entries recording unit start, enable and reload operations, and file creation or modification events under the system unit directories and their timer paths. The signal worth alerting on is a new or changed unit file paired with a start or enable action in the same short window, attributed to a process that is not a configuration management tool or a package manager. It fails in practice for a familiar reason: systemctl is used constantly by legitimate automation, so any rule that keys on the command name alone produces unusable volume.",
+  "tags": [
+    "linux",
+    "persistence",
+    "systemd",
+    "auditd",
+    "service",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for System Services: Systemctl",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0073/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for System Services: Systemctl - EASY",
+      "path": "exercises/det0073/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for System Services: Systemctl - MEDIUM",
+      "path": "exercises/det0073/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for System Services: Systemctl - HARD",
+      "path": "exercises/det0073/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for System Services: Systemctl - EXTREMELY HARD",
+      "path": "exercises/det0073/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "systemctl is the command used to manage services on Linux. A service is a program that runs in the background, such as a web server. This detection looks for signs that someone used that command to run their own program. It also looks for that program being set to stay running.",
+    "whyItMatters": "A program started as a service runs with high rights. It starts again after a reboot, so it is a lasting foothold. Normal administrators use the same command every day, so the action itself is not strange. You must therefore look at what was started and who started it.",
+    "howItWorks": [
+      "A host tool called auditd records each command and the account that ran it.",
+      "The detection follows the parent process. This shows who started the command.",
+      "The system service manager writes a log entry when a service is started or enabled.",
+      "A file watcher reports new or edited unit files in the service folders.",
+      "The rule joins the file write with the start action by unit name and time.",
+      "Files written by the package manager or the configuration tool are filtered out."
+    ],
+    "example": "Think of an office building with one master key cabinet. Staff sign the book to open a door. An intruder signs the same book and takes a key. They then fit a new lock that only their key opens. The book shows a normal entry, and every door still works. Nobody notices until the fitter asks who ordered the extra lock.",
+    "takeaways": [
+      "A new Linux service is a lasting way to stay on a host, because it restarts.",
+      "Judge a service change by the unit file and the parent process, not the command name.",
+      "Package manager and automation actions are expected, so filter them before you page anyone."
+    ]
+  },
+  "objectives": [
+    "Explain how a Linux service manager provides persistence and why that matters after a reboot.",
+    "Locate the unit and timer file paths that should be monitored for new or changed content.",
+    "Correlate an auditd command record with the unit file write and the journal start entry.",
+    "Distinguish package manager and configuration management activity from interactive service creation.",
+    "Describe triage steps for a suspicious unit, including reading the unit file and checking what it launches."
+  ],
+  "techniqueId": "t1569-003",
+  "detectsTechniques": [
+    "t1569-003"
+  ],
+  "dataSources": [
+    "auditd execve process execution records including the full command line and the parent process",
+    "systemd journal entries for unit start, enable, disable and daemon reload operations with the requesting account",
+    "File integrity monitoring on the system unit directories and the system timer directories",
+    "Linux authentication records linking the interactive session to the account that ran the command",
+    "Configuration management and package manager logs identifying the automated changes that should be filtered"
+  ],
+  "logic": "Alert when a unit file is created or modified in a system service or timer directory and the same unit is started, enabled or reloaded shortly afterwards, especially when the requesting process is an interactive shell rather than the package manager or a configuration management agent. The correlated fields are the unit name from the file path, the unit name in the service manager log, the account running the command and the parent process of that command. Benign change looks like a batch of units owned by a known automation account, arriving with a package installation or a deployment run, and usually consistent with a repository. Malicious change is typically one unit, an unusual name that imitates a system service, a path under a temporary or home directory, and a parent that is a shell, a scripting host or a web server process. A timer paired with a service is worth extra weight because it provides scheduled re-execution, which is rarely how standard distribution packages are delivered.",
+  "pseudoQuery": "# title: New Systemd Unit Started Outside Package Management\n# logsource:\n#   product: linux\n# detection:\n#   unit_change:\n#     type: FILE\n#     name|contains: '/etc/systemd/system/'\n#   start_action:\n#     exe|endswith: 'systemctl'\n#     a0|contains:\n#       - 'start'\n#       - 'enable'\n#   filter_pkg:\n#     exe|endswith:\n#       - '/usr/bin/dpkg'\n#       - '/usr/bin/apt'\n#   condition: unit_change and start_action and not filter_pkg\n# level: high",
+  "falsePositives": [
+    "Configuration management runs that deploy a new application service on a documented schedule",
+    "Package manager upgrades that legitimately add or rewrite unit files during a maintenance window",
+    "Container runtime and orchestration agents that register a node level service during installation",
+    "Administrators enabling an existing disabled service during troubleshooting or capacity work",
+    "Monitoring and backup agents whose installers create both a service unit and a matching timer"
+  ],
+  "tuningNotes": "First decide which accounts and parent processes own service management on the fleet, and express that as a filter on the parent executable and the account, because the systemctl command name itself carries no signal. Exclude the package manager, the configuration management agent and the container runtime outright, then alert on everything else with the unit path included in the alert so triage can read it. Baseline the normal rate of unit file changes per host per week, since a stable server should be close to zero and any change there is meaningful. High value assets such as externally reachable servers deserve a lower threshold than general developer machines. Narrowing this way means you will not alert when an attacker uses the same automation account or plants a unit through the package manager, so pair the rule with content monitoring of unit directories and with checks for services whose executable sits in a writable path.",
+  "severity": "high"
+}

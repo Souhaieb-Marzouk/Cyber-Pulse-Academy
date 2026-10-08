@@ -1,0 +1,107 @@
+{
+  "id": "det0441",
+  "type": "detection",
+  "title": "Detection of Suspicious Scheduled Task Creation and Execution on Windows",
+  "shortTitle": "Detection of Suspicious Scheduled Task Creation and Execu...",
+  "externalId": "DET0441",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the creation and execution of suspicious scheduled tasks on Windows, a technique used for persistence, for privilege escalation through a higher privileged account and for recurring execution of a payload without any interactive logon. The headline event is 4698, which records a new task being registered and includes the task definition in its task content field, and it is far more useful than process creation alone because the definition shows the action, the trigger and the author. Supporting telemetry includes the process that created the task, the task engine service image spawning the action, and the resulting child process with its full command line. It fails in practice for two reasons: task creation on its own is extremely common in managed fleets, and when the creating process is svchost.exe, the identity behind the request is often unavailable, so attribution has to come from a logon event correlated by time and host.",
+  "tags": [
+    "persistence",
+    "scheduled task",
+    "windows",
+    "process creation",
+    "privilege escalation",
+    "t1053.005"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Suspicious Scheduled Task Creation and Execution on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0441/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Suspicious Scheduled Task Creation and Execution on Windows - EASY",
+      "path": "exercises/det0441/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Suspicious Scheduled Task Creation and Execution on Windows - MEDIUM",
+      "path": "exercises/det0441/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Suspicious Scheduled Task Creation and Execution on Windows - HARD",
+      "path": "exercises/det0441/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Suspicious Scheduled Task Creation and Execution on Windows - EXTREMELY HARD",
+      "path": "exercises/det0441/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for new scheduled tasks on Windows. A scheduled task tells the computer to run something later, or to run it again and again. Attackers use tasks to keep their program alive after a reboot. The detection reads the task details, not just the fact that one was created.",
+    "whyItMatters": "A task that runs as a system account is very powerful. It can start code without anyone logging in. A task also looks normal in a task list. Many real tools create tasks, so the details matter. The details are what let you tell a patch job from a payload.",
+    "howItWorks": [
+      "Windows records a new task together with its definition text.",
+      "The rule reads the action, the trigger and the account in that definition.",
+      "It looks for hidden settings or unusual command lines in the action.",
+      "It then watches for the task engine starting that action.",
+      "The child process command line is added to the alert for context."
+    ],
+    "example": "Think of a note left on the kitchen wall that says feed the cat at six. The note is normal. A note that says run this sealed envelope at six, signed by no one, is worth a question. You read the note, not just the fact that a note exists.",
+    "takeaways": [
+      "The task definition field is the evidence you need.",
+      "Hidden tasks and short repeat intervals are strong signals.",
+      "Correlate creation with the execution that follows."
+    ]
+  },
+  "objectives": [
+    "Describe what a scheduled task is and how Windows records a new one.",
+    "Read the task content field and identify the action, trigger and author.",
+    "Recognise hidden task settings and disguised system task names.",
+    "Correlate a task creation event with the process it later starts.",
+    "Separate user created tasks from software deployment tasks.",
+    "Explain why the creating process is often shown as a shared host process."
+  ],
+  "techniqueId": "t1053-005",
+  "detectsTechniques": [
+    "t1053-005"
+  ],
+  "dataSources": [
+    "Windows Security event 4698 scheduled task creation with the task name, author and task content definition",
+    "Windows Security event 4699 and event 4700 or event 4702 for removed, enabled and updated scheduled tasks",
+    "Sysmon event 1 process creation with parent image taskeng.exe or the task host process and the full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Task Scheduler operational log events that record the task action being launched"
+  ],
+  "logic": "The pattern is a newly registered scheduled task whose action launches a script interpreter or a binary from a user writable folder, especially when the task is marked hidden, runs at a very short interval or uses a name that imitates a Microsoft task. The fields to correlate are the task name, the task content action and arguments, the run as account, the author, the creating process and the child process command line that appears when the trigger fires. A benign case is a deployment tool that creates a task under a service account with a descriptive name, a single future trigger and an installer path in a program directory, while the malicious case uses a random name, a hidden flag, a repeat interval of minutes and a command line that encodes or downloads content.",
+  "pseudoQuery": "# title: Suspicious Scheduled Task Registered And Executed\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4698\n#     TaskContent|contains: ['powershell', 'cmd.exe /c', 'wscript', 'mshta']\n#   filter:\n#     TaskContent|contains: ['\\\\Program Files\\\\', '\\\\ProgramData\\\\VendorUpdate\\\\']\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Software deployment suites that register a temporary task to install an update on next boot.",
+    "Backup and inventory agents that refresh their own scheduled task after an upgrade.",
+    "Administrators creating a documented maintenance task with a clear name and owner.",
+    "Monitoring platforms that write a health check task under a service account."
+  ],
+  "tuningNotes": "Collect every 4698 for two weeks and cluster the results by author, run as account and action path before you enable alerting. Allow list the deployment service accounts and their known program directories, then keep a separate rule for tasks that run from user profiles, public folders or temporary paths. Scope the high severity rule to servers, domain controllers and privileged workstations, and let ordinary desktops report at low severity. Requiring the task to actually start closes most noise but loses tasks that fire only at the next reboot, so alert on creation as well and accept the extra review.",
+  "severity": "high"
+}

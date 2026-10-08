@@ -32,6 +32,12 @@ ROOT = SCRIPT_DIR.parent
 DATA_DIR = ROOT / "data"
 CATALOG_PATH = DATA_DIR / "catalog.json"
 CACHE_PATH = DATA_DIR / ".cache" / "topics.json"
+
+# The pages are rendered from the source topic files, not from data/catalog.json.
+# catalog.json is the lean index the browser downloads and no longer carries the
+# article text, so reading it here would produce pages with empty sections.
+sys.path.insert(0, str(SCRIPT_DIR))
+from build_catalog import load_topics  # noqa: E402  (path set just above)
 TOPICS_DIR = ROOT / "topics"
 PAGES_DIR = ROOT / "pages"
 CONFIG_JS = ROOT / "assets" / "js" / "config.js"
@@ -440,24 +446,50 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
         flat_exercises.append((exercise, None))
 
     KIND_LABEL = {"lesson": "Lesson", "quiz": "Quiz", "lab": "Lab", "exam": "Exam", "scenario": "Scenario"}
+    # The four reserved exercise tiers. Named TIER_*, not DIFFICULTY_*, because
+    # DIFFICULTY_LABEL already means the whole topic's difficulty (hard,
+    # very-hard, extreme) and shadowing it here would break the page header.
+    # The tier is always written as visible text, never as colour alone, so it
+    # survives a monochrome screen or a screen reader; the class only adds the
+    # colour hint on top of the words.
+    TIER_LABEL = {
+        "easy": "Easy",
+        "medium": "Medium",
+        "hard": "Hard",
+        "extremely-hard": "Extremely hard",
+    }
+    TIER_CLASS = {
+        "easy": "cm-badge--diff-easy",
+        "medium": "cm-badge--diff-medium",
+        "hard": "cm-badge--diff-hard",
+        "extremely-hard": "cm-badge--diff-extreme",
+    }
 
     def exercise_card(exercise, index, chapter_title=None):
         status = exercise.get("status") or "published"
         kind = exercise.get("kind") or "exam"
+        tier = exercise.get("difficulty")
         badge_class = {"published": "cm-badge--ok", "draft": "cm-badge--warn"}.get(status, "cm-badge--bad")
         symbol = {"published": "\u2713", "draft": "\u25CB"}.get(status, "\u2014")
         label = {"published": "Ready", "draft": "Draft"}.get(status, "Not published yet")
         summary = exercise.get("summary") or ""
         minutes = exercise.get("minutes")
+        difficulty_badge = ""
+        if tier in TIER_LABEL:
+            difficulty_badge = (
+                f'<span class="cm-badge {TIER_CLASS[tier]}">'
+                f'{esc(TIER_LABEL[tier])}</span>'
+            )
         if status == "missing":
             action = ('<span class="cm-exercise__soon">Coming soon</span>')
         else:
             action = (f'<button type="button" class="cm-btn cm-btn--primary cm-btn--sm" '
                       f'data-cm-exercise="{index}" data-cm-path="{esc(exercise.get("path", ""))}">'
                       f'Start exercise</button>')
-        return f"""<article class="cm-exercise" data-cm-status="{esc(status)}">
+        return f"""<article class="cm-exercise" data-cm-status="{esc(status)}"{f' data-cm-difficulty="{esc(tier)}"' if tier else ''}>
   <div class="cm-exercise__body">
     <div class="cm-row cm-mb1">
+      {difficulty_badge}
       <span class="cm-badge">{esc(KIND_LABEL.get(kind, "Exercise"))}</span>
       <span class="cm-badge {badge_class}">{symbol} {esc(label)}</span>
       {f'<span class="cm-badge cm-badge--theme">{esc(chapter_title)}</span>' if chapter_title else ''}
@@ -920,15 +952,25 @@ def main():
         print("FAIL: data/catalog.json is missing. Run: python scripts/build_catalog.py", file=sys.stderr)
         return 1
 
+    # Full topic objects, straight from data/<type>/<id>.json. load_topics returns
+    # (topics, errors); build_catalog.py has already failed the run if any error
+    # was found, so the list is safe to render here.
+    topics, load_errors = load_topics()
+    if load_errors:
+        print(f"FAIL: {len(load_errors)} data problem(s). Run python scripts/build_catalog.py",
+              file=sys.stderr)
+        return 1
+    # The published index, used only for the totals that get injected into the
+    # hand-written pages. Its per-topic entries are the lean projection.
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    index = {t["id"]: t for t in catalog["topics"]}
+    index = {t["id"]: t for t in topics}
     site_version = read_site_version()
     repo_url = read_repo_url()
     base_url = base_url_from(repo_url)
 
     TOPICS_DIR.mkdir(parents=True, exist_ok=True)
 
-    targets = [index[args.only]] if args.only and args.only in index else catalog["topics"]
+    targets = [index[args.only]] if args.only and args.only in index else topics
     if args.only and args.only not in index:
         print(f"FAIL: no topic with id '{args.only}'", file=sys.stderr)
         return 1

@@ -1,0 +1,107 @@
+{
+  "id": "det0199",
+  "type": "detection",
+  "title": "Detection Strategy for Virtual Machine Discovery",
+  "shortTitle": "Detection Strategy for Virtual Machine Discovery",
+  "externalId": "DET0199",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects enumeration of virtual machines from an endpoint or a management plane, covering T1673 Virtual Machine Discovery. Discovery matters because it is the quiet step between initial access and lateral movement: an operator who maps the hypervisor inventory learns which guests hold the domain controllers and which management interfaces are reachable from the foothold. The telemetry is largely local, made up of hypervisor command line tools, management service audit records, and process creation events that name known virtualisation binaries. The strategy fails most often because the same tools are in daily use by administrators and backup software, so the alert has to be built on unexpected lineage, unexpected hosts, or unusual argument patterns rather than on the binary name.",
+  "tags": [
+    "mitre t1673",
+    "discovery",
+    "virtualization",
+    "endpoint detection",
+    "hypervisor"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Virtual Machine Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0199/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Virtual Machine Discovery - EASY",
+      "path": "exercises/det0199/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Virtual Machine Discovery - MEDIUM",
+      "path": "exercises/det0199/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Virtual Machine Discovery - HARD",
+      "path": "exercises/det0199/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Virtual Machine Discovery - EXTREMELY HARD",
+      "path": "exercises/det0199/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for commands that list virtual machines. A virtual machine is a computer that runs inside another computer. An attacker uses these commands to learn what else is running in the environment. The rule watches the tool, the account, and the host that ran it.",
+    "whyItMatters": "Before attackers move sideways they like to know where to go. A list of virtual machines shows them the servers and the management systems. The commands are simple and usually need no special tool. Many of them leave only a local log entry, so nothing appears on the network. If you do not watch for them, the first clear sign of trouble may be a stolen server.",
+    "howItWorks": [
+      "Your agents collect process creation events from servers and from the management hosts.",
+      "The detection checks the process name and command line against a list of known virtualisation tools.",
+      "It also reads the management platform log for inventory and list requests.",
+      "The rule then compares the account and the host with the expected administrator set.",
+      "A backup service running on a backup host is expected, so the rule ignores that pattern.",
+      "A listing tool run by a web server account at night becomes an alert for review."
+    ],
+    "example": "Think of a new contractor in an office building. Before doing any work she walks every floor and reads the name plate on each door. Reading name plates is not a crime, and she may have a good reason for it. What worries the security desk is the pattern. Someone with no reason to be on the sixth floor reads every server room door in order. Virtual machine discovery is that walk. The name plates are the list of guests, and the security desk is your process log.",
+    "takeaways": [
+      "Discovery is quiet, and it usually comes before movement.",
+      "The tool name alone is weak evidence, so use the account and the host.",
+      "Baseline which systems legitimately run virtualisation tools."
+    ]
+  },
+  "objectives": [
+    "Explain why virtual machine discovery usually precedes lateral movement.",
+    "List the local and management plane telemetry that records discovery activity.",
+    "Correlate a discovery command with its account, host, and parent process.",
+    "Build an allow list of hosts and accounts that may legitimately enumerate guests.",
+    "Tune the rule to keep coverage while reducing administrator noise."
+  ],
+  "techniqueId": "t1673",
+  "detectsTechniques": [
+    "t1673"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with command line, parent image, and acting user",
+    "Linux auditd execve records for hypervisor command line tools with full arguments",
+    "Hypervisor management platform audit logs recording inventory and list API requests",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Endpoint sensor records of authenticated sessions against the virtualisation management interface"
+  ],
+  "logic": "The pattern is enumeration of the virtual machine inventory by a tool, account, or host that has no operational reason to perform it. The fields that must be correlated are the process image and full command line, the acting account, the host it ran on, and the parent process that launched it. The malicious case differs from the benign one in placement and ownership rather than in syntax: backup services, monitoring sensors, and the virtualisation team run the same binaries on the same management network every day, so the interesting signal is a listing command run from a workload host, by a service account that belongs to an application, or with argument patterns that appear nowhere in the historical baseline. A short burst of enumeration across several management endpoints in one session strengthens the case considerably.",
+  "pseudoQuery": "# title: Virtual Machine Enumeration by Unexpected Account\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     event_type: process_creation\n#     image|endswith:\n#       - '/virsh'\n#       - '/vim-cmd'\n#       - '/govc'\n#     command_line|contains: 'list'\n#   filter_ops:\n#     user|startswith: 'svc-backup'\n#   condition: selection and not filter_ops\n# level: low",
+  "falsePositives": [
+    "Backup agents that enumerate guests before starting a snapshot job",
+    "Configuration management runs that inventory virtual machines on a schedule",
+    "Capacity planning scripts run by the virtualisation team each month",
+    "Monitoring sensors that poll the hypervisor interface for guest health",
+    "Migration tooling that checks the source and target inventory before a move"
+  ],
+  "tuningNotes": "Scope the rule to hosts that are not part of the virtualisation administration group, and allow the backup and monitoring service accounts by name so that scheduled inventory stays quiet. Baseline the normal argument patterns for each administrator tool and alert on new flags instead of on the binary path. The coverage you lose is a compromised administrator workstation, where discovery now looks legitimate, so keep an audit only copy of the rule running on the administration group and review it weekly.",
+  "severity": "low"
+}

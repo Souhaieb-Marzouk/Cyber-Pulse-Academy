@@ -1,0 +1,105 @@
+{
+  "id": "det0057",
+  "type": "detection",
+  "title": "Detect Suspicious Access to securityd Memory for Credential Extraction",
+  "shortTitle": "Detect Suspicious Access to securityd Memory for Credenti...",
+  "externalId": "DET0057",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets credential material held in memory by securityd, the macOS daemon that brokers access to the system keychain, on behalf of the Keychain Access technique. Credentials in memory are attractive because they bypass file encryption entirely, so an operator who reaches that memory can walk away with stored passwords and tokens. Coverage depends on endpoint telemetry that records which process requested access to securityd and how that process is signed, plus process creation records that show what was executed moments before. In practice this strategy fails for two reasons: the same access calls are made by many legitimate Apple tools, and locally built or unsigned binaries are common on developer machines, so the rule needs a reliable baseline before it can alert.",
+  "tags": [
+    "macos",
+    "credential-access",
+    "keychain",
+    "process-memory",
+    "endpoint-detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Suspicious Access to securityd Memory for Credential Extraction",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0057/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Suspicious Access to securityd Memory for Credential Extraction - EASY",
+      "path": "exercises/det0057/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Suspicious Access to securityd Memory for Credential Extraction - MEDIUM",
+      "path": "exercises/det0057/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Suspicious Access to securityd Memory for Credential Extraction - HARD",
+      "path": "exercises/det0057/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Suspicious Access to securityd Memory for Credential Extraction - EXTREMELY HARD",
+      "path": "exercises/det0057/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for unusual programs that read the memory of securityd, a background service on Apple computers. securityd is the part of macOS that looks after saved passwords and keys. Reading its memory is a sign that someone is trying to steal those secrets.",
+    "whyItMatters": "Saved passwords and tokens let an attacker move to other systems without cracking anything. On an Apple computer these secrets sit in memory, not only in files. The tools that normally touch them are few and known. So an unexpected program asking for them is a strong warning sign.",
+    "howItWorks": [
+      "A security sensor on the Apple endpoint records each request a process makes to securityd.",
+      "The record includes the process that asked, the request it made, and the code signing status.",
+      "The sensor sends these records to the central logging platform, called a SIEM (Security Information and Event Management system).",
+      "A baseline lists the few programs that normally read this memory, such as the keychain tools.",
+      "The rule raises an alert when a program outside that baseline makes a read request.",
+      "The alert adds the parent process and any file the program wrote recently, so you can judge intent."
+    ],
+    "example": "Think of a hospital medicine cabinet. Only a few named nurses carry the key, and the pharmacy keeps a list of them. If the log shows someone else opening the cabinet at midnight, you do not wait to see what they took. You go and look at once.",
+    "takeaways": [
+      "Apple computers keep saved secrets in the memory of a service, not only in files.",
+      "Very few programs read that memory by design, so you can list the normal ones.",
+      "An alert is strongest when an unusual or newly downloaded program asks for it."
+    ]
+  },
+  "objectives": [
+    "Explain how macOS stores credentials in the securityd service and why memory is a target.",
+    "Name the telemetry that proves one process requested another process memory on macOS.",
+    "List the legitimate tools that normally access the keychain and build a baseline from them.",
+    "Judge whether a process touching securityd memory is suspicious from its signing and parent.",
+    "Tune the rule so that common developer and administration tools do not drown the queue."
+  ],
+  "techniqueId": "t1555-002",
+  "detectsTechniques": [
+    "t1555-002"
+  ],
+  "dataSources": [
+    "macOS Endpoint Security framework event ES_EVENT_TYPE_NOTIFY_PROC_CHECK showing the process requesting access to securityd memory and the requesting process identity",
+    "macOS unified log entries from the securityd subsystem recording keychain operations and the client process name",
+    "Process creation telemetry on macOS including the executable path, code signing status and parent process identifier",
+    "Gateway or EDR records of new unsigned binaries written to disk shortly before the memory access"
+  ],
+  "logic": "The detection looks for a process that asks securityd for credential data and then checks that requester against a baseline of code signed Apple tools. The events that must be joined are the endpoint security record that names the requesting process, the process creation record that gives its path, signer and parent, and the baseline list of expected clients. What separates the malicious case from the benign one is the identity of the requester: keychain tools, system settings, browsers and single sign on clients query securityd constantly on a normal Mac, while a process that is unsigned, lives in a temporary or download directory, or was started by an office document or script interpreter has no reason to read that memory.",
+  "pseudoQuery": "# title: Unsigned Process Reading securityd Credential Memory\n# logsource:\n#   product: macos\n#   category: process_access\n# detection:\n#   selection:\n#     TargetImage|endswith: '/securityd'\n#     Access|contains: 'read'\n#   filter_known:\n#     SourceImage|endswith:\n#       - '/usr/bin/security'\n#       - '/System/Library/CoreServices/Keychain Access.app/Contents/MacOS/Keychain Access'\n#   condition: selection and not filter_known\n# level: high",
+  "falsePositives": [
+    "IT scripts that read keychain items in bulk during a managed password rotation on a shared admin workstation",
+    "Software packaging tools that build signed installers on a developer laptop and query the keychain for signing certificates",
+    "Third party single sign on clients that store session tokens in the keychain and refresh them on every login",
+    "Backup software running as the local user that copies keychain items from the home directory to an external volume"
+  ],
+  "tuningNotes": "Build the allow list from two weeks of observed requesters before enabling alerts, and scope the rule to endpoints that handle privileged accounts rather than every laptop in the fleet. Add filters for signed processes from known developer tool families and for any binary running under an approved code signing identity, then keep the unfiltered variant as an audit level rule so you can still see drift. Narrowing this way costs you visibility into abuse of a legitimately signed tool, for example a signed administration utility driven by an attacker through a script, so pair it with a second rule that alerts on unusual parent processes, notably office applications or script interpreters spawning anything that talks to the keychain.",
+  "severity": "high"
+}

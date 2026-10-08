@@ -1,0 +1,108 @@
+{
+  "id": "det0299",
+  "type": "detection",
+  "title": "Multi-Platform File and Directory Permissions Modification Detection Strategy",
+  "shortTitle": "Multi-Platform File and Directory Permissions Modificatio...",
+  "externalId": "DET0299",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers modification of file and directory permissions, mapped to T1222, a defence evasion and access technique in which an adversary changes access control on files or folders to grant themselves or their tooling rights they were not given. It matters because permission changes are the quiet enabler for later steps: once a service account or a low-privileged user can write to a protected directory, the attacker can plant code or read data without touching an obviously sensitive object. Detection is possible from object access auditing on Windows that records permission changes, file permission telemetry from Linux auditd and change attribution from network attached storage, plus the metadata fields that name the target and the new access mask. The main practical failure is that permission changes are frequent and legitimate, so the rule depends heavily on scoping to sensitive paths and unusual actors, and it degrades badly wherever object access auditing is turned off or the editing account is not recorded.",
+  "tags": [
+    "mitre t1222",
+    "permissions",
+    "defence evasion",
+    "file access control",
+    "audit policy"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Platform File and Directory Permissions Modification Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0299/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Platform File and Directory Permissions Modification Detection Strategy - EASY",
+      "path": "exercises/det0299/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Platform File and Directory Permissions Modification Detection Strategy - MEDIUM",
+      "path": "exercises/det0299/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Platform File and Directory Permissions Modification Detection Strategy - HARD",
+      "path": "exercises/det0299/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Platform File and Directory Permissions Modification Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0299/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Every file and folder has a list of who may read it, change it or run it. That list is called the permissions. This rule looks for changes to that list on important files and folders. It is most interested when the change gives more access to someone who should not have it.",
+    "whyItMatters": "Attackers rarely break into a locked folder directly. They change the lock first, then walk in later as if they belonged there. The folder still looks normal, so nobody notices that the door is now open. Watching the lock itself, rather than the folder, catches the problem at the moment it appears.",
+    "howItWorks": [
+      "The operating system can be told to record when the permissions of an object are changed.",
+      "That record names the object, the account that made the change and the new access rights.",
+      "The rule filters these records down to sensitive paths, such as system folders, backup folders and shared data folders.",
+      "It compares the account making the change against the accounts that normally manage that path.",
+      "It also checks whether the new rights include write, take ownership or full control. Those are the rights attackers want most.",
+      "If an unexpected account grants broad rights on a sensitive path, the system raises an alert for review."
+    ],
+    "example": "Picture an office where each storeroom has a sign listing who holds a key. A thief does not break the door. They quietly add their own name to the sign, then come back at night and unlock the door normally. The cleaner who checks the signs each evening would spot the new name, even though the door was never forced.",
+    "takeaways": [
+      "Permission changes are a stepping stone, not the theft itself, so they are easy to miss without a rule.",
+      "The useful fields are the object, the account that made the change and the new rights granted.",
+      "You must scope to sensitive paths, because permission changes happen constantly everywhere else."
+    ]
+  },
+  "objectives": [
+    "Explain what file and directory permissions control and why attackers change them.",
+    "Identify the audit records on each platform that capture permission changes and who made them.",
+    "Interpret a new access mask to judge whether it grants dangerous rights such as write or full control.",
+    "Correlate a permission change with later write or execution activity against the same path.",
+    "Define the sensitive path list and the approved owner accounts for your environment.",
+    "Recognise why disabled object access auditing is itself a detection gap worth tracking."
+  ],
+  "techniqueId": "t1222",
+  "detectsTechniques": [
+    "t1222"
+  ],
+  "dataSources": [
+    "Windows Security event 4670, which records that the permissions on an object were changed, including the object name, the changing account and the new access rights",
+    "Windows Security event 4688 process creation and Sysmon event 1 process creation for permission management utilities with their command lines, such as icacls and takeown on Windows",
+    "Linux auditd records for the chmod, chown and setfacl system calls, including the path, the acting user and the requested mode",
+    "Sysmon event 11 file creation and command line audit records showing attribute changes on files in sensitive directories",
+    "Network attached storage or file server audit logs that attribute share and folder permission changes to a user account"
+  ],
+  "logic": "The pattern is a permission change on a sensitive file or directory, in which the acting account is not one of the accounts that normally manages that path, or the resulting rights grant broad access such as full control, write or take ownership to a broad group. The fields that must be correlated are the target object path, the acting account and its logon session, the previous and new access rights, and the process that performed the change. Correlating the change with later activity on the same path strengthens the case: a new write right followed by the creation of an executable file or a service binary is far more suspicious than the permission change alone. The benign case is a file server administrator or a configuration management tool applying a documented access request to a whole directory tree in one batch, largely during business hours. The malicious case is a narrow, often single-object change made by an interactive session on a host that does not own the file, granting rights to a service account, a local group or a newly created user, and frequently followed by writing to that path.",
+  "pseudoQuery": "# title: Sensitive Path Permission Change by Unexpected Account\n# logsource:\n#   product: windows\n# detection:\n#   selection_change:\n#     EventID: 4670\n#     ObjectType: 'File'\n#     NewSddl|contains:\n#       - 'FA'\n#       - 'WD'\n#   selection_path:\n#     ObjectName|startswith:\n#       - 'C:\\\\Windows\\\\System32'\n#       - 'C:\\\\Program Files'\n#       - 'D:\\\\Shares'\n#   filter_owner:\n#     SubjectUserName|endswith: '$'\n#   condition: selection_change and selection_path and not filter_owner\n# level: high",
+  "falsePositives": [
+    "Configuration management tooling that resets folder access control lists across many servers on a fixed schedule",
+    "An application upgrade that rewrites the permissions of its own program directory during installation",
+    "A file server administrator applying an approved access request for a team share during business hours",
+    "Migration or archiving projects that take ownership of old user home directories before moving the data",
+    "Backup software that temporarily grants itself access to locked files during a nightly job"
+  ],
+  "tuningNotes": "Before enabling this rule, inventory the sensitive paths that matter, such as system directories, backup repositories, script and configuration shares, and the accounts that legitimately own them. Filter out machine and service accounts that end with a dollar sign, and aggregate bursts so that a single change affecting thousands of objects across a directory tree alerts once as a summary event rather than thousands of times. Add a correlation condition that raises severity only when a newly granted write right is followed by file creation on that path, which removes most administrative noise. Scoping to a small sensitive path list will lose coverage of an attacker who instead loosens permissions on an ordinary data folder, so keep a separate low-severity rule for permission changes in user data areas, and check regularly that object access auditing is actually enabled on the hosts you rely on.",
+  "severity": "high"
+}

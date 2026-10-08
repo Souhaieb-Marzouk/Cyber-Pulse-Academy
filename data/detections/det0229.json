@@ -1,0 +1,108 @@
+{
+  "id": "det0229",
+  "type": "detection",
+  "title": "Enumeration of Global Address Lists via Email Account Discovery",
+  "shortTitle": "Enumeration of Global Address Lists via Email Account Dis...",
+  "externalId": "DET0229",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects enumeration of email accounts and address lists, tracked as ATT&CK T1087.003, where an adversary queries the mail platform to learn which people exist in the organisation. It matters because the global address list is effectively a validated target list: it confirms naming conventions, team structure, and which accounts are worth phishing or password spraying, and the queries are made with ordinary authenticated user permissions. The telemetry that makes it detectable is mail platform audit logging for directory search and mailbox metadata operations, PowerShell script block and module logging for cmdlets that enumerate recipients, and identity provider or cloud API logs showing directory read volume per principal. The main way this fails in practice is volume and entitlement: many legitimate users and line of business tools hold directory read permissions, so the rule must be based on a per-user baseline of query counts and object types rather than on the presence of any single cmdlet.",
+  "tags": [
+    "identity",
+    "discovery",
+    "email",
+    "cloud",
+    "audit logging"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Enumeration of Global Address Lists via Email Account Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0229/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Enumeration of Global Address Lists via Email Account Discovery - EASY",
+      "path": "exercises/det0229/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Enumeration of Global Address Lists via Email Account Discovery - MEDIUM",
+      "path": "exercises/det0229/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Enumeration of Global Address Lists via Email Account Discovery - HARD",
+      "path": "exercises/det0229/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Enumeration of Global Address Lists via Email Account Discovery - EXTREMELY HARD",
+      "path": "exercises/det0229/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for someone pulling a large list of email accounts from the mail system. Every company has a shared address book, and anyone inside can search it. Reading the full list is normal for administrators and unusual for most other people. This detection looks at who is reading that book, how often, and how much they take.",
+    "whyItMatters": "The address book is a ready made target list for an attacker. It confirms who works at the company and how addresses are built. With that list, an attacker can send credible messages to many people at once. Catching the listing early can warn you before a campaign starts.",
+    "howItWorks": [
+      "The mail system records when a user searches the shared address book or asks for account details.",
+      "The rule counts these searches per user over a period of days.",
+      "It compares each user with their own normal level of activity.",
+      "It also watches the command line for tools that list all mail recipients at once.",
+      "It adds weight when the search results are large or cover the whole company.",
+      "An alert opens when one account reads far more than its normal pattern."
+    ],
+    "example": "Think of a hotel guest asking the front desk for the guest list. Asking about one friend is normal. Asking for every name on every floor, twice in an hour, is not. The request itself is allowed, but the size and pattern give it away.",
+    "takeaways": [
+      "Email account discovery uses normal permissions, so behaviour is the only signal.",
+      "Compare each account with its own history, not with a fixed daily number.",
+      "A sudden large directory read often comes before a phishing campaign."
+    ]
+  },
+  "objectives": [
+    "Explain how the global address list and mailbox directory are queried in mail platforms",
+    "Identify audit events that record directory searches, recipient lookups and mailbox enumeration",
+    "Establish per-account baselines for directory read volume and object types",
+    "Detect command line use of recipient enumeration cmdlets and their parameters",
+    "Correlate enumeration activity with subsequent mail sending or authentication failures",
+    "Decide which service accounts legitimately require broad directory read access"
+  ],
+  "techniqueId": "t1087-003",
+  "detectsTechniques": [
+    "t1087-003"
+  ],
+  "dataSources": [
+    "Mail platform audit log entries for directory search and address list operations performed by a mailbox",
+    "Cloud identity provider audit events for directory read API calls with the calling principal and object count",
+    "PowerShell script block logging and module logging capturing recipient enumeration cmdlets and parameters",
+    "Windows Security event 4688 process creation for command line auditing of mail administration tools",
+    "Mailbox access or message trace records showing bulk recipient resolution before sending"
+  ],
+  "logic": "The detection aggregates mail platform audit events per authenticated principal and looks for a directory search rate and result volume that greatly exceeds that principal's own baseline, especially when the queries return the whole organisation rather than a single user, or when a single session issues many distinct recipient lookups in a short window. The fields that must be correlated are the acting principal, the client application or user agent string, the source address, the query type, the number of objects returned, and any prior authentication anomalies for the same account. Benign cases are administrators provisioning mailboxes with a documented change ticket, address book clients refreshing a cached offline list at predictable intervals, and mobile device mail clients resolving contacts, whereas malicious discovery shows a scripted client or PowerShell session, a burst of distinct lookups with no human pause, a small result set harvested over many calls to stay under volume thresholds, and a source address that does not match the user's normal location.",
+  "pseudoQuery": "# title: Bulk Mailbox and Address List Enumeration\n# logsource:\n#   product: azure\n# detection:\n#   selection_cmdlet:\n#     EventID: 4104\n#     ScriptBlockText|contains:\n#       - 'Get-GlobalAddressList'\n#       - 'Get-Recipient'\n#       - 'Get-Mailbox'\n#       - 'Get-User'\n#   selection_audit:\n#     Operation|contains:\n#       - 'Search-Mailbox'\n#       - 'GetRecipient'\n#   filter_admin:\n#     UserId|contains: 'svc-exchange-admin'\n#   condition: (selection_cmdlet or selection_audit) and not filter_admin\n# level: medium",
+  "falsePositives": [
+    "Exchange or mail administrators running directory reports during mailbox provisioning work covered by a change record",
+    "Automated identity governance jobs that read recipient lists nightly to reconcile licences and group membership",
+    "Migration projects that enumerate every mailbox while moving users between tenants or on premise and cloud",
+    "Meeting room and resource booking tools that resolve all delegates once per day at a fixed hour",
+    "Recruitment or human resources systems that query the directory to keep the staff directory current"
+  ],
+  "tuningNotes": "Baselining is mandatory here: export thirty days of directory read events per principal, note the peak daily count for each, and set the alert threshold above that peak with a margin, then recheck monthly because directory size grows. Allowlist the service accounts and admin roles you identify, but keep them in a lower severity channel so an abused administrator account is still visible. Add context fields to the alert, such as whether the account recently failed many logons or is signing in from a new country, and use those to raise priority instead of raising the raw threshold. The coverage you lose by allowlisting broad readers is an attacker who has taken over one of those accounts, so pair this rule with detection of changes to mail forwarding rules and inbox delegation.",
+  "severity": "medium"
+}

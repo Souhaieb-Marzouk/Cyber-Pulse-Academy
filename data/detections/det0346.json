@@ -1,0 +1,107 @@
+{
+  "id": "det0346",
+  "type": "detection",
+  "title": "Detect Screen Capture via Commands and API Calls",
+  "shortTitle": "Detect Screen Capture via Commands and API Calls",
+  "externalId": "DET0346",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Screen Capture (T1113), where an adversary takes images of what is displayed on a host to collect credentials, documents or internal application data. The technique matters because the screen often shows content that is never written to disk, such as a password vault, an email body or a database console, and a single image can hold many secrets. Detection relies on endpoint interface call telemetry for capture functions, process creation for capture utilities and scripting hosts, the image files that appear afterwards, and host privacy consent records that show which applications may record the screen. It fails most often because conferencing, support and accessibility tools capture the screen as a normal part of their job.",
+  "tags": [
+    "screen capture",
+    "collection",
+    "api monitoring",
+    "endpoint",
+    "t1113"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Screen Capture via Commands and API Calls",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0346/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Screen Capture via Commands and API Calls - EASY",
+      "path": "exercises/det0346/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Screen Capture via Commands and API Calls - MEDIUM",
+      "path": "exercises/det0346/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Screen Capture via Commands and API Calls - HARD",
+      "path": "exercises/det0346/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Screen Capture via Commands and API Calls - EXTREMELY HARD",
+      "path": "exercises/det0346/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that take pictures of the screen. A picture of the screen can hold passwords, emails and internal pages. Most programs never need to do this unless the user asked for it.",
+    "whyItMatters": "People often have secrets open on the screen that are never saved to a file. One picture can capture all of them at once. The action is quick, and the image can be small enough to hide in a temporary folder. Because many work tools also capture the screen, the rule needs context to be useful. A good alert tells you which program captured the screen and what it did with the image.",
+    "howItWorks": [
+      "The endpoint agent records calls to the system functions that read the screen into memory.",
+      "Each record carries the process image, its parent, the user account and the host.",
+      "The rule removes programs that capture the screen only when the user starts a share or a support session.",
+      "It then watches for image files written to temporary, downloads or user folders.",
+      "It also looks at how often captures happen, because a script may take one image every few minutes.",
+      "When the pattern repeats without a user session, the rule raises an alert for review."
+    ],
+    "example": "Think of a photocopier in an office. Copying a page is normal and nobody notices. But if one person copies a hundred pages at midnight, the copier log becomes interesting. The capture call is the copy, and the count is the clue.",
+    "takeaways": [
+      "A screen capture can steal data that was never saved to a file.",
+      "Frequency and timing matter more than a single capture event.",
+      "Keep an approved list of meeting, support and accessibility tools."
+    ]
+  },
+  "objectives": [
+    "Explain why screen content is valuable to an adversary who already runs code on a host",
+    "Identify interface call, process and file telemetry produced by screen capture activity",
+    "Build an allowlist of conferencing, remote support and accessibility applications that capture the screen",
+    "Write a rule that scores capture frequency, process type and nearby image file creation",
+    "Triage a match by locating the captured images and checking whether a user session explains them",
+    "Describe how scoping the rule to non interactive accounts reduces coverage of interactive capture"
+  ],
+  "techniqueId": "t1113",
+  "detectsTechniques": [
+    "t1113"
+  ],
+  "dataSources": [
+    "Endpoint detection and response interface call telemetry for screen capture functions such as device context and bitmap copy calls",
+    "Sysmon event 1 process creation of capture utilities and scripting hosts with parent image and command line",
+    "Sysmon event 11 file creation of image files in temporary, downloads and user profile folders",
+    "macOS privacy consent records showing which applications hold screen recording permission",
+    "Linux auditd execve records for command line capture tools together with the display environment in use"
+  ],
+  "logic": "The pattern is a process reading screen content into memory, repeated several times or written out as image files, from a program that is not a meeting, support or accessibility tool, and often while no interactive user session exists. The fields that must be correlated are the calling process image and parent, the capture interface used, the user account and session state, the number of captures in a short window, and the image files created nearby. The benign case is a video call sharing a window, a technician taking one screenshot during a support call, or an automated interface test on a build agent. The malicious case is a scripting host taking images at a fixed interval, saving them under a temporary path, and then sending them over the network or adding them to an archive.",
+  "pseudoQuery": "# title: Repeated Screen Capture By Script Host Or Unknown Binary\n# logsource:\n#   product: windows\n# detection:\n#   selection_api:\n#     api_call|contains:\n#       - 'BitBlt'\n#       - 'PrintWindow'\n#       - 'GetDC'\n#   filter_known:\n#     Image|endswith:\n#       - '\\\\Teams.exe'\n#       - '\\\\Zoom.exe'\n#       - '\\\\snippingtool.exe'\n#   condition: selection_api and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Conferencing clients that capture the screen whenever a user shares a window in a meeting",
+    "Remote support software that grabs a screenshot to attach to a help desk ticket",
+    "Automated user interface test suites that capture the screen at each test step on a build agent",
+    "Accessibility and screen reading tools that read the display to describe it to the user"
+  ],
+  "tuningNotes": "Start from a baseline of capture interface calls per application, then allowlist the meeting, support and accessibility tools by signed image path and publisher. Require at least two captures inside a short window, or a capture followed by an image file write and an outbound connection, so that a single screenshot never pages anyone. Scope the strict version to servers and service accounts, where screen capture has almost no legitimate use. The coverage you lose is a single deliberate capture by a signed application that already appears in the allowlist, so keep image file creation monitoring in temporary folders as a compensating control.",
+  "severity": "medium"
+}

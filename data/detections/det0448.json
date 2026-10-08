@@ -1,0 +1,107 @@
+{
+  "id": "det0448",
+  "type": "detection",
+  "title": "Detection Strategy for VDSO Hijacking on Linux",
+  "shortTitle": "Detection Strategy for VDSO Hijacking on Linux",
+  "externalId": "DET0448",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects manipulation of the dynamic shared object that the Linux kernel maps into every process, which an adversary can abuse to run code inside a target process without writing a file to disk. Because the object is memory resident and populated by the kernel at process start, the attacker must either alter the process memory after it is running or influence how the mapping is built, which leaves traces in process memory records, in the use of memory writing utilities and in changes to the directories that hold libraries. Detection depends on process execution auditing with full argument lists, on file integrity monitoring for those library directories, and on the ability to collect process memory map records for sensitive processes. The main failure is that the most direct evidence sits in volatile memory, so the rule must be built from the weaker surrounding signals and will usually be investigative rather than conclusive.",
+  "tags": [
+    "process injection",
+    "linux",
+    "vdso",
+    "memory tampering",
+    "auditd",
+    "t1055.014"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for VDSO Hijacking on Linux",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0448/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for VDSO Hijacking on Linux - EASY",
+      "path": "exercises/det0448/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for VDSO Hijacking on Linux - MEDIUM",
+      "path": "exercises/det0448/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for VDSO Hijacking on Linux - HARD",
+      "path": "exercises/det0448/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for VDSO Hijacking on Linux - EXTREMELY HARD",
+      "path": "exercises/det0448/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches a small piece of shared code that Linux puts into every program. The kernel provides it, so it is trusted. An attacker can change it inside a running program. The changed code then runs with that program rights.",
+    "whyItMatters": "This trick can leave no file behind on disk. Many endpoint tools look at files first. A memory only change can slip through those checks. It also hides inside a trusted process. Catching it early depends on watching the actions that must come first.",
+    "howItWorks": [
+      "The system records each program that starts, with all of its arguments.",
+      "The rule matches tools that can write into another running program memory.",
+      "It checks whether the target is a sensitive process such as a web server.",
+      "It also watches library folders and preload settings for unexpected changes.",
+      "Related events within a short window are grouped into one investigation."
+    ],
+    "example": "Think of a shared photocopier that every office uses. Nobody checks the copier itself. If someone swaps its internal settings, every copy made afterwards carries the change. You watch who opened the copier panel, not the paper.",
+    "takeaways": [
+      "This technique lives in memory, not on disk.",
+      "Watch the tools that write to running processes.",
+      "Group related events because one event alone proves little."
+    ]
+  },
+  "objectives": [
+    "Explain what the kernel provided shared object is and why processes trust it.",
+    "Identify process execution arguments that indicate memory writing into another process.",
+    "Describe which library and environment settings can influence the mapping.",
+    "Collect process memory map evidence from sensitive processes before an incident.",
+    "Correlate a memory write with the account and the target process.",
+    "State the limits of disk based detection for this technique."
+  ],
+  "techniqueId": "t1055-014",
+  "detectsTechniques": [
+    "t1055-014"
+  ],
+  "dataSources": [
+    "Linux auditd process execution records with the full argv command line and the effective account",
+    "Endpoint memory inspection telemetry that records writable anonymous mappings and modified shared object regions per process",
+    "Linux file integrity monitoring records for changes to files under the system library directories",
+    "Shell audit or command history records showing library preload environment variables being set before a sensitive process starts",
+    "Linux system log entries for the service manager restarting a sensitive service shortly after a suspicious process start"
+  ],
+  "logic": "The pattern is a process that is used to write into the memory of another running process, or an unexpected modification of the shared library directories or preload settings, followed by a restart of a sensitive service on the same host. The fields to correlate are the process image and arguments, the effective account, the target process identifier or name, the file changes under the library paths and the timing of any service restart. A benign case is a developer attaching a profiler to a process they own on a build host with a written change record, while the malicious case targets a network facing service, runs from a temporary directory under a service account, and is followed by unexpected outbound connections from the modified process.",
+  "pseudoQuery": "# title: Process Memory Tampering Targeting Running Service\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: EXECVE\n#     exe|endswith: ['/usr/bin/gdb', '/usr/bin/ptrace']\n#     target_process|endswith: ['/usr/sbin/nginx', '/usr/sbin/sshd', '/usr/bin/dockerd']\n#   filter:\n#     auid: 0\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Application performance profiling carried out by a developer on a build or test host.",
+    "Support engineers attaching a debugger to a service to collect a crash dump.",
+    "Runtime security agents that legitimately read process memory for inspection.",
+    "Container runtime tooling that inspects process namespaces during an upgrade."
+  ],
+  "tuningNotes": "Decide which processes are worth protecting first, such as network facing services, the container runtime and the remote access daemon, and build the baseline for those on a clean host. Allow list the approved debugger and profiler paths together with the accounts that may use them, and require the account to be a named administrator rather than a service account. Because memory evidence is volatile, schedule memory map collection for sensitive processes so that you have a normal picture to compare against. Scoping to a small process list makes the rule quiet but blind to tampering elsewhere, so keep a broad low severity rule for library directory changes and review it with file integrity reporting.",
+  "severity": "high"
+}

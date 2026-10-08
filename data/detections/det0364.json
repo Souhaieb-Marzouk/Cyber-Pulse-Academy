@@ -1,0 +1,106 @@
+{
+  "id": "det0364",
+  "type": "detection",
+  "title": "Behavioral Detection Strategy for WMI Execution Abuse on Windows",
+  "shortTitle": "Behavioral Detection Strategy for WMI Execution Abuse on ...",
+  "externalId": "DET0364",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of Windows Management Instrumentation (WMI), the T1047 technique, where the built-in management interface is used to run commands, query systems and move laterally instead of running a program directly. WMI is attractive because it is present on every Windows host, it accepts remote calls over the distributed component object model (DCOM) and remote procedure call (RPC) interfaces, and its execution is blamed on a shared service process rather than the caller. The detection rests on process creation records that show WmiPrvSE.exe as a parent, Windows Management Instrumentation activity logs that record consumer and operation creation, and remote procedure call or firewall records showing inbound management traffic to workstations. It fails in practice because monitoring agents, patch tools and configuration management all use the same interfaces, so rules built only on the presence of the service process create constant noise.",
+  "tags": [
+    "windows",
+    "execution",
+    "wmi",
+    "lateral movement",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection Strategy for WMI Execution Abuse on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0364/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection Strategy for WMI Execution Abuse on Windows - EASY",
+      "path": "exercises/det0364/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection Strategy for WMI Execution Abuse on Windows - MEDIUM",
+      "path": "exercises/det0364/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection Strategy for WMI Execution Abuse on Windows - HARD",
+      "path": "exercises/det0364/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection Strategy for WMI Execution Abuse on Windows - EXTREMELY HARD",
+      "path": "exercises/det0364/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches Windows Management Instrumentation, a built in Windows service that lets one computer manage another. Intruders use it to start programs on remote machines. The started program appears to come from a Windows service, not from the person who asked for it.",
+    "whyItMatters": "This service is already present and already trusted on every Windows computer. Nothing new needs to be installed. It also works across the network, so one broken machine can be used to reach many others. Because the caller is hidden, the trail is harder to follow.",
+    "howItWorks": [
+      "An agent records every new process, including the parent process and the full command line.",
+      "The rule looks for programs whose parent is the WMI service process, WmiPrvSE.exe.",
+      "It also reads the WMI activity log, which records new event consumers and method calls.",
+      "Remote management traffic to a workstation is checked, because servers normally receive it and workstations do not.",
+      "A script host or command shell started by the WMI service on a user workstation raises the alert."
+    ],
+    "example": "Think of a building manager with a master key. Tenants may ask the manager to open a door, and that is normal. It is strange when the manager opens the records room at midnight and nobody can say who asked.",
+    "takeaways": [
+      "The parent process is the clue, because WMI hides the real caller.",
+      "Workstations receiving remote management traffic are unusual and worth watching.",
+      "WMI event subscriptions are persistence; they survive reboots without a file on disk."
+    ]
+  },
+  "objectives": [
+    "Describe how WMI can run local and remote commands without installing anything",
+    "Explain why the parent process of a WMI started program is the primary detection field",
+    "Read WMI activity log entries for consumer, filter and operation creation",
+    "Identify which servers and management accounts may legitimately call WMI remotely",
+    "Explain how permanent WMI event subscriptions provide fileless persistence",
+    "Choose between blocking remote WMI and monitoring it with tight scoping"
+  ],
+  "techniqueId": "t1047",
+  "detectsTechniques": [
+    "t1047"
+  ],
+  "dataSources": [
+    "Sysmon event 1 or Windows Security event 4688 process creation records showing WmiPrvSE.exe as the parent image with child command line",
+    "Windows Management Instrumentation activity operational log entries for operation and event consumer creation",
+    "Sysmon event 19 20 and 21 WMI event filter, consumer and consumer-to-filter binding registration records",
+    "Windows Security event 4624 logon type 3 records correlated with inbound remote procedure call connections to workstations",
+    "Firewall or host network logs showing inbound remote procedure call endpoint mapper and dynamic port traffic to client assets"
+  ],
+  "logic": "The pattern is execution or subscription creation that is attributed to WMI rather than to a normal parent process. Analysts select process creation records where the parent image is the WMI provider host and the child is a scripting host, a command shell, a signed binary proxy or an unsigned binary in a user writable path, then join WMI activity log entries for the same time window and host. Remote WMI calls need the caller account, so they correlate the host logon record with the process. The benign case is the configuration management or monitoring platform running a documented check on a server from a known service account; the malicious case is a child process started on a workstation, launched by an interactive or newly created account, often with an encoded command line, and frequently accompanied by a new permanent event consumer that has no matching software deployment.",
+  "pseudoQuery": "# title: Suspicious child process started by the WMI provider host\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_parent:\n#     EventID: 1\n#     ParentImage|endswith: '\\\\WmiPrvSE.exe'\n#   selection_child:\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\cmd.exe'\n#       - '\\\\mshta.exe'\n#       - '\\\\rundll32.exe'\n#   filter_mgmt:\n#     CommandLine|contains: 'C:\\\\Program Files\\\\Monitoring\\\\'\n#   condition: selection_parent and selection_child and not filter_mgmt\n# level: high",
+  "falsePositives": [
+    "Configuration management and monitoring platforms that collect inventory by running signed scripts through WMI",
+    "Patch management tools that query installed software and start installers remotely on a schedule",
+    "Logon scripts and printer deployment mechanisms that map resources by running a command shell",
+    "Backup products that trigger a snapshot or catalogue refresh through a WMI method call"
+  ],
+  "tuningNotes": "Baseline every management product that calls WMI, and filter by the child command line and the source account rather than by disabling the whole parent process rule. Exclude managed server groups where remote WMI is expected, and keep the rule focused on workstations, where inbound remote WMI is rare. Add the permanent event subscription rule separately and treat any new consumer outside a deployment window as high severity, since this is where fileless persistence hides. The trade-off is that a careful intruder who uses only an existing consumer or a signed binary that management also uses will blend in, so monitor for first-seen parent and child combinations per host and review them weekly rather than expecting every attempt to alert in real time.",
+  "severity": "high"
+}

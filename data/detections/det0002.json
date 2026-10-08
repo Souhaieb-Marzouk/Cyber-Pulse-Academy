@@ -1,0 +1,109 @@
+{
+  "id": "det0002",
+  "type": "detection",
+  "title": "Behavioral Detection of Publish/Subscribe Protocol Misuse for C2",
+  "shortTitle": "Behavioral Detection of Publish/Subscribe Protocol Misuse...",
+  "externalId": "DET0002",
+  "theme": "Detection Strategy",
+  "summary": "Publish/subscribe protocols such as MQTT and AMQP carry short messages between devices through a broker, and adversaries abuse that design for command and control (T1071.005, Application Layer Protocol: Publish/Subscribe Protocols). The detection opportunity is behavioural rather than signature based: internal servers and workstations rarely speak these protocols at all, so the first client connection from a normal user segment is the interesting event. Correlation matters because the broker is a legitimate third party, so the destination address proves nothing on its own. Practical failure modes are coverage and scale, since the traffic is often encrypted and a busy industrial network generates thousands of message events that must be summarised rather than alerted on individually.",
+  "tags": [
+    "command and control",
+    "mqtt",
+    "network",
+    "t1071.005",
+    "beaconing",
+    "protocol abuse"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Publish/Subscribe Protocol Misuse for C2",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0002/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Publish/Subscribe Protocol Misuse for C2 - EASY",
+      "path": "exercises/det0002/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Publish/Subscribe Protocol Misuse for C2 - MEDIUM",
+      "path": "exercises/det0002/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Publish/Subscribe Protocol Misuse for C2 - HARD",
+      "path": "exercises/det0002/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Publish/Subscribe Protocol Misuse for C2 - EXTREMELY HARD",
+      "path": "exercises/det0002/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A publish and subscribe protocol is a messaging system built around a broker. Programs send messages to named topics, and other programs that subscribed to those topics receive them. It is a common design in factories and smart buildings. Attackers can use it as a hidden channel for commands. This detection finds that kind of channel.",
+    "whyItMatters": "The channel uses a normal port and a normal protocol, so a firewall usually allows it. The traffic can be encrypted, which hides the content. Because many devices talk to the same broker, a single connection is not suspicious on its own. Defenders must therefore look at who connects, when, and what topics they touch. Patterns of behaviour are the only thing left to work with.",
+    "howItWorks": [
+      "Your firewall and network flow logs record every host that opens a connection to a broker port such as 1883 or 8883.",
+      "Your name resolution logs show which broker name each host asked for, and whether that name is internal or external.",
+      "The broker, if you run it, can log each client identifier and the topics that client subscribed to or published.",
+      "Endpoint logs show which program opened the connection, which tells you if it is a known device agent.",
+      "The detection flags hosts in user or server segments that have never spoken this protocol before.",
+      "It then scores the pattern, for example a long idle connection with small regular messages to an external broker."
+    ],
+    "example": "Think of a building notice board. Anyone may pin a note, and anyone who reads that board gets the message. The board is useful and normal. A guard becomes suspicious when a person who never uses the board starts pinning coded notes every night. The board did not change. The person did.",
+    "takeaways": [
+      "The broker and the protocol are legitimate, so the destination alone cannot prove anything.",
+      "The strongest signal is a host that starts speaking the protocol for the first time.",
+      "Long lived sessions with small regular messages matter more than single connections."
+    ]
+  },
+  "objectives": [
+    "Describe how a publish and subscribe broker moves messages between clients.",
+    "List the ports and log sources that reveal client to broker connections in your network.",
+    "Explain why destination reputation is useless for this detection and what replaces it.",
+    "Use a baseline of normal protocol use to spot a host that speaks the protocol for the first time.",
+    "Recognise the traffic shape of beaconing over a pub/sub channel, such as small regular payloads.",
+    "Set a severity and a summary interval that keep this rule usable at scale."
+  ],
+  "techniqueId": "t1071-005",
+  "detectsTechniques": [
+    "t1071-005"
+  ],
+  "dataSources": [
+    "Firewall or network flow records showing source host, destination address and port 1883 or 8883",
+    "DNS query logs recording resolution of broker hostnames such as mqtt or broker subdomains",
+    "MQTT broker connection logs listing client identifier, source address and subscribe or publish topics",
+    "Sysmon event 3 network connection with the process image that opened the channel",
+    "Sysmon event 1 process creation showing command lines that reference an MQTT client library or embedded broker tool"
+  ],
+  "logic": "The rule watches for hosts that begin using a publish and subscribe protocol in a way that does not match their role. The primary selection is any client connection to a broker port, and the decisive enrichment is the absence of that source host from a rolling baseline of normal protocol clients. Fields that must be correlated are the source address, the process image behind the connection, the destination hostname from name resolution logs, and the client identifier seen at the broker. The malicious pattern is a server or user workstation holding a long lived session to an external broker, sending small messages at regular intervals, often from a process that is not a known device agent. The benign pattern is a fixed set of building or factory devices talking to an internal broker on a stable schedule with stable client identifiers, which is why the baseline is the filter rather than the protocol itself.",
+  "pseudoQuery": "# title: New Publish Subscribe Client Beaconing to External Broker\n# logsource:\n#   product: network\n# detection:\n#   selection_port:\n#     destination.port:\n#       - 1883\n#       - 8883\n#       - 5671\n#   filter_internal:\n#     destination.ip|cidr: '10.0.0.0/8'\n#   selection_shape:\n#     bytes_out: < 2000\n#     session_duration: '> 900'\n#   condition: selection_port and selection_shape and not filter_internal\n# level: medium",
+  "falsePositives": [
+    "Building management and sensor gateways that ship readings to a cloud broker over an external address",
+    "Industrial control engineering workstations used during scheduled maintenance windows",
+    "Software update clients for development boards that subscribe to a vendor release topic",
+    "Home automation or lab devices on a guest segment that connect to a public broker",
+    "Message queue migration projects where a new application temporarily uses an external endpoint"
+  ],
+  "tuningNotes": "Build the baseline first: collect thirty days of client to broker connections and store the source host plus client identifier pair as the allow list, then alert only on new pairs. Scope the rule to user and server segments and exclude the operational technology network where this traffic is expected. Summarise, do not alert per message: count connections and bytes per host per hour and alert on the shape. Add a filter for approved external broker names. The coverage you lose is an attacker who reuses an already approved client identifier, so keep a slower hunting query that looks for topic names or message timing changes on known clients.",
+  "severity": "medium"
+}

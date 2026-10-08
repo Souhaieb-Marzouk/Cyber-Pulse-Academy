@@ -1,0 +1,107 @@
+{
+  "id": "det0192",
+  "type": "detection",
+  "title": "Detection Strategy for Email Hiding Rules",
+  "shortTitle": "Detection Strategy for Email Hiding Rules",
+  "externalId": "DET0192",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects mailbox rules that hide or divert email, the behaviour an adversary uses after compromising a mailbox to conceal replies, security alerts and fraud notifications from the real owner. It matters because hiding rules turn a stolen mailbox into a durable, quiet fraud channel that survives password resets, and because the rules persist in the mailbox long after the initial access method is closed. Detection is built on mailbox audit records for rule creation and modification, the rule parameters themselves, and the API or client used to make the change. The main practical failure is the sheer volume of legitimate rules that users create on personal devices, so the rule must weigh the destination folder, the scope of the match, and whether the client was an unfamiliar application or automation interface.",
+  "tags": [
+    "email",
+    "hide artifacts",
+    "mailbox rules",
+    "bec",
+    "cloud",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Email Hiding Rules",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0192/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Email Hiding Rules - EASY",
+      "path": "exercises/det0192/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Email Hiding Rules - MEDIUM",
+      "path": "exercises/det0192/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Email Hiding Rules - HARD",
+      "path": "exercises/det0192/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Email Hiding Rules - EXTREMELY HARD",
+      "path": "exercises/det0192/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for inbox rules that move or delete messages so the owner will not see them. An attacker who has taken over a mailbox creates such a rule to hide replies. The rule is stored in the mailbox and keeps working after the attacker leaves. This detection watches for the creation and the shape of those rules.",
+    "whyItMatters": "Hiding a message is quiet and effective. A fraudster can reply to invoices and hide the complaint replies from the real employee. Password changes do not remove the rule, so the problem continues. These rules are recorded in the mail system, which makes them findable. Catching the rule early usually explains other strange mail activity.",
+    "howItWorks": [
+      "Someone creates or changes an inbox rule in a mailbox.",
+      "The mail service writes an audit record with the rule details and the client used.",
+      "The record shows the rule name, the match condition, and the destination folder.",
+      "The rule checks whether the destination is a rarely used folder, such as a news feed.",
+      "It also checks whether the rule deletes or forwards messages automatically.",
+      "An unusual rule created by an odd client raises the alert with the rule body attached."
+    ],
+    "example": "Think of a shared office post tray. Every employee has a slot, and the post room delivers letters each morning. One day someone quietly adds a rule: all letters for desk twelve go into the skip behind the building. The letters still arrive and the desk looks empty. The post room log, not the tray, tells you what happened.",
+    "takeaways": [
+      "Hiding rules survive password resets, so they need to be hunted, not just alerted on.",
+      "The destination folder and the client application are the strongest discriminators.",
+      "Review rules that forward or delete automatically, because those change the record itself."
+    ]
+  },
+  "objectives": [
+    "Explain why hiding rules outlive the initial mailbox compromise.",
+    "Identify the mailbox audit records that capture rule creation and modification.",
+    "Read a rule definition and recognise a concealing pattern rather than a sorting pattern.",
+    "Correlate rule creation with the client application and source address used.",
+    "Hunt existing mailboxes for rules that divert messages to low visibility folders.",
+    "Describe why removing the rule is part of detection follow up, not only the alert."
+  ],
+  "techniqueId": "t1564-008",
+  "detectsTechniques": [
+    "t1564-008"
+  ],
+  "dataSources": [
+    "Microsoft 365 unified audit log entries for new inbox rule and update inbox rules operations",
+    "Mailbox rule definitions including match conditions, destination folder and delete or forward action",
+    "Mail service sign in records showing the client application and source address used for the rule change",
+    "Graph interface audit records for mailbox settings changes made by an application identity"
+  ],
+  "logic": "The pattern is a mailbox rule created or modified with a shape that removes messages from the owner's view, especially when the change comes from an unusual client, an unfamiliar address, or a mailbox that never had rules before. The fields that must be correlated are the mailbox owner, the acting identity and source address, the client application name, the rule name, the match condition, the destination folder and any forward or delete action, and the creation timestamp. The malicious case typically moves messages into a rarely used folder such as a news feed or conversation history, deletes them outright, matches on security or invoice related keywords, forwards externally, or marks messages as read so no notification appears, and it is often created in bulk or shortly after a suspicious sign in. The benign case is a user creating a small number of sorting rules from their normal mail client, with ordinary project or sender names and destinations such as a project folder they already use.",
+  "pseudoQuery": "# title: Mailbox Rule Hides Messages Quietly\n# logsource:\n#   product: office365\n# detection:\n#   selection_rule:\n#     Operation|contains|any:\n#       - 'New-InboxRule'\n#       - 'Set-InboxRule'\n#       - 'UpdateInboxRules'\n#   selection_hiding:\n#     Parameters|contains|any:\n#       - 'RSS Feeds'\n#       - 'Conversation History'\n#       - 'Deleted Items'\n#       - 'MarkAsRead'\n#   filter_known_client:\n#     ClientInfoString|contains: 'Outlook on the web'\n#     ClientIP|cidr: 10[.]0[.]0[.]0/8\n#   condition: (selection_rule and selection_hiding) and not filter_known_client\n# level: medium",
+  "falsePositives": [
+    "Users who set up a personal sorting rule during a high volume mailing list subscription and choose an unusual folder name",
+    "Accessibility tools or mobile mail clients that create server side rules automatically after a profile sync",
+    "A departing employee creating rules to archive notifications into folders before a handover",
+    "Automation accounts that create rules for shared mailboxes to route service tickets under an approved process"
+  ],
+  "tuningNotes": "Start by removing the filter entirely and reviewing all new rules for a fortnight to learn what your users actually create, then filter on the specific client and rule shape combinations that dominate your baseline rather than on destination folders alone. Treat rules that forward to an external domain as their own higher severity alert with no filtering, because external forwarding is rare in most organisations and directly enables data theft. Baseline per mailbox rule counts and alert when a mailbox goes from zero rules to several rules within minutes, which catches the bulk creation pattern even when each rule looks ordinary. Scope the alert to mailboxes belonging to finance, executives and any account that can approve payments. The coverage you lose by trusting the web client is rule creation performed through a stolen session in that same client, so keep the rule shape matching enabled and rely on the destination folder anomaly to surface it.",
+  "severity": "medium"
+}

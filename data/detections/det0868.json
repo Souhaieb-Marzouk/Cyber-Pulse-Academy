@@ -1,0 +1,104 @@
+{
+  "id": "det0868",
+  "type": "detection",
+  "title": "Detection of Wordlist Scanning",
+  "shortTitle": "Detection of Wordlist Scanning",
+  "externalId": "DET0868",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers wordlist scanning of internet facing web services, the technique where an adversary requests thousands of guessed paths to find files, backups or admin panels that were never meant to be public. It matters because these probes return the entry point for a later attack, and the request volume is loud enough to catch. The telemetry that makes it possible is the web access log, the web application firewall event feed and the load balancer log, which together record the requested path, the status code, the user agent and the source address. This strategy fails most often because the same behaviour is produced by vulnerability scanners, health probes and marketing crawlers, so a rule without an allow list drowns the analyst in alerts and gets switched off.",
+  "tags": [
+    "mitre t1595.003",
+    "reconnaissance",
+    "wordlist scan",
+    "web logs",
+    "threshold"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Wordlist Scanning",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0868/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Wordlist Scanning - EASY",
+      "path": "exercises/det0868/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Wordlist Scanning - MEDIUM",
+      "path": "exercises/det0868/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Wordlist Scanning - HARD",
+      "path": "exercises/det0868/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Wordlist Scanning - EXTREMELY HARD",
+      "path": "exercises/det0868/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A wordlist scan is an automatic search of a web site for hidden files and pages. The attacker sends many guessed web addresses and watches which ones answer. This detection catches that burst of guessing while it happens.",
+    "whyItMatters": "A hidden backup file or an old admin page can give an attacker a way in. Those files are common on real web servers. Their absence is not something you can assume. If you spot the search early, you can block the source and remove the exposed file before anyone uses it.",
+    "howItWorks": [
+      "Your web server writes one log line for every request. Those lines go into your security information and event management system, called SIEM for short.",
+      "The rule counts how many requests one source address makes in a short window, such as five minutes.",
+      "It also counts how many different paths that source asked for. A scan touches many paths and few of them exist.",
+      "The rule ignores normal browsing, where a visitor opens a few pages and most requests succeed.",
+      "When both the request count and the failed request count pass your threshold, the system raises an alert with the source address and a sample of the paths."
+    ],
+    "example": "Think of a night watchman in a hotel. Guests walk to their own room and open one door. A stranger walks the whole corridor and tries every handle, one after another. The handle log looks the same for each try, but the pattern of many failed tries from one person is the signal. You do not need to see the stranger. The log tells you a search happened.",
+    "takeaways": [
+      "A wordlist scan looks like many failed requests from one source in a short time.",
+      "The request path and the status code are the two fields that carry the signal.",
+      "You must allow list your own scanners, or the alert will never be trusted."
+    ]
+  },
+  "objectives": [
+    "Explain what a wordlist scan is and why an exposed file is useful to an attacker",
+    "Name the log fields that carry the signal: source address, requested path, status code and time",
+    "Write a threshold rule that counts distinct requested paths per source in a fixed window",
+    "Separate scanner traffic from attacker traffic using your asset inventory and allow list",
+    "Triage a web scan alert and decide whether the exposed path needs removal"
+  ],
+  "techniqueId": "t1595-003",
+  "detectsTechniques": [
+    "t1595-003"
+  ],
+  "dataSources": [
+    "Web server access logs recording requested path, HTTP status code, user agent and source address",
+    "Web application firewall event logs for blocked or rated requests to suspicious paths",
+    "Load balancer or reverse proxy logs that record request counts per client address",
+    "Asset inventory records listing which hostnames and paths are intentionally published"
+  ],
+  "logic": "The pattern is a high rate of requests for many distinct paths from one source, where most answers are a not found status code rather than a success. The fields that must be correlated are the client address, the request timestamp, the requested path and the response status. The malicious case differs from the benign one in three ways: the number of distinct paths is far above normal browsing, the ratio of failed to successful requests is very high, and the paths repeat a known wordlist such as common backup names rather than the site navigation. A benign crawler follows links from the home page, so its paths sit under a small number of prefixes and most of them exist.",
+  "pseudoQuery": "# title: Many distinct web paths requested by one source\n# logsource:\n#   product: network\n#   service: web_access\n# detection:\n#   selection:\n#     status: 404\n#   filter:\n#     client_ip|in: known_scanner_addresses\n#   timeframe: 5m\n#   condition: selection and not filter | count() by client_ip, requested_path > 80\n# level: medium",
+  "falsePositives": [
+    "Scheduled vulnerability scans from your own assessment platform hitting the same host range every week",
+    "Search engine and marketing crawlers that request legacy paths listed in an old sitemap",
+    "Content migration scripts that check thousands of old addresses and record each miss as a 404",
+    "A monitoring probe that requests known plugin paths to confirm which content management version is installed"
+  ],
+  "tuningNotes": "Start by allow listing the addresses and user agents of approved scanners and crawlers, because they produce this pattern every day. Then baseline the count of distinct paths per host over a week and set the threshold at roughly three times the busiest normal hour. Scope the rule to internet facing hosts that carry real application paths, and keep a lower threshold for hosts that should not be crawled at all. You lose coverage for an attacker who spreads guesses across many source addresses or slows the scan to a few requests per minute, so pair this rule with a long window rule that looks at total failed paths per host per day.",
+  "severity": "medium"
+}

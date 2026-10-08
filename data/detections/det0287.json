@@ -1,0 +1,106 @@
+{
+  "id": "det0287",
+  "type": "detection",
+  "title": "Exploitation for Client Execution – cross-platform behavior chain (browser/Office/3rd-party apps)",
+  "shortTitle": "Exploitation for Client Execution – cross-platform behavi...",
+  "externalId": "DET0287",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects exploitation of a client application such as a browser, an office suite, or a document reader, where a crafted file or page causes the trusted application to run attacker code. The exploitation step itself is usually a memory corruption event that no log records directly, so detection works from the consequences: a child process the application should never create, an unsigned module loaded into it, a crash or error report, and a file written to a temporary directory seconds later. The enabling telemetry is process creation with parent image and command line, image load records with signature status, and application error reporting. The strategy fails because office and browser products do start helper processes legitimately, so the rule must be precise about which parent and child pairs are actually expected in your environment.",
+  "tags": [
+    "client exploitation",
+    "browser",
+    "office",
+    "process creation",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Exploitation for Client Execution – cross-platform behavior chain (browser/Office/3rd-party apps)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0287/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Exploitation for Client Execution – cross-platform behavior chain (browser/Office/3rd-party apps) - EASY",
+      "path": "exercises/det0287/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Exploitation for Client Execution – cross-platform behavior chain (browser/Office/3rd-party apps) - MEDIUM",
+      "path": "exercises/det0287/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Exploitation for Client Execution – cross-platform behavior chain (browser/Office/3rd-party apps) - HARD",
+      "path": "exercises/det0287/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Exploitation for Client Execution – cross-platform behavior chain (browser/Office/3rd-party apps) - EXTREMELY HARD",
+      "path": "exercises/det0287/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A client program is software you use directly, such as a web browser or a word processor. An attacker can craft a document or a web page that makes that program run their own code. This kind of attack is called client exploitation. This detection watches the signs that follow, because the flaw itself is never written to a log file.",
+    "whyItMatters": "The user only has to open a file or visit a page, and no password is needed at all. The vulnerable program is usually trusted, so policy already allows it to run. Patching helps, but a new flaw can be abused before the patch reaches every machine. Watching the behaviour right after the file opens is often your only chance to catch it.",
+    "howItWorks": [
+      "The endpoint sensor records process creation, including the parent program and the new child program.",
+      "The rule keeps the events where the parent is a browser, an office program, or a document reader.",
+      "It checks whether the child is a program the parent never starts. A shell or a script engine is a good example.",
+      "Image load records show which modules loaded into the parent, and whether those modules carry a valid signature.",
+      "An application error record for the same process within seconds adds weight to the alert.",
+      "The analyst then finds the file that was open just before, and where that file came from."
+    ],
+    "example": "Picture a mailroom where a machine opens letters. Most letters are ordinary, and the machine handles them all day without trouble. One day a letter makes the machine fall over. A person climbs out of the machine instead of a letter. You would not blame the machine or its operator. You would look closely at the letter, and at the person who appeared.",
+    "takeaways": [
+      "The exploitation step is invisible, so detection focuses on what happens immediately after it.",
+      "Parent and child process pairs are the strongest signal, and they must match your baseline.",
+      "Keep the document or page that was open, because it is your best evidence for response."
+    ]
+  },
+  "objectives": [
+    "Explain why client side exploitation is rarely visible directly in logs.",
+    "Identify parent and child process combinations that point to a compromised client program.",
+    "Use image load and signature records to spot injected or unsigned modules.",
+    "Correlate application error reports with process activity inside a short window.",
+    "Preserve the source document or page as evidence during triage."
+  ],
+  "techniqueId": "t1203",
+  "detectsTechniques": [
+    "t1203"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing the parent image, child image and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled for the child process",
+    "Sysmon event 7 image load records showing the loaded module path and its signature status",
+    "Sysmon event 11 file creation records for dropped files in download and temporary directories",
+    "Windows application error and crash reporting records naming the failing application and module"
+  ],
+  "logic": "The pattern is a document or browser process that suddenly produces a child process, or loads a module, that is not part of its normal behaviour. The fields to correlate are the parent image and child image in process creation telemetry, the command line of the child, the path and signature status of modules loaded into the parent from image load records, and any crash or error report naming that same process inside a short window. The benign case is a signed helper program started by a known update or plug in mechanism, where the parent and child pair repeats across thousands of hosts and every loaded module is signed and lives in the program directory. The malicious case is a first seen pair where the parent handles documents and the child is a shell, a script engine, or a binary running from a temporary or user writable path, especially when an unsigned module was loaded into the parent seconds earlier.",
+  "pseudoQuery": "# title: Browser or Office Process Spawning Script Interpreter\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4688\n#     ParentImage|endswith:\n#       - '\\\\winword.exe'\n#       - '\\\\excel.exe'\n#       - '\\\\chrome.exe'\n#       - '\\\\firefox.exe'\n#     NewProcessName|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\powershell.exe'\n#       - '\\\\wscript.exe'\n#       - '\\\\rundll32.exe'\n#   condition: selection\n# level: high",
+  "falsePositives": [
+    "Office templates and add ins that launch a signed helper program on document open, such as a citation or signature tool.",
+    "Browser extensions that start a native helper process to handle a custom link type or to update themselves.",
+    "Enterprise document management plug ins that open a viewer or converter whenever a file is saved to the repository.",
+    "Users opening exported reports that run a documented macro the business relies on to refresh figures."
+  ],
+  "tuningNotes": "Baseline the parent and child process pairs seen across the estate for two weeks, then filter the recurring pairs that come from signed software running out of a program directory. Scope the high severity rule to hosts in finance, engineering and executive groups, where a document delivered by mail is the most likely delivery path, and keep other hosts at medium severity. Always carry the child process path into the alert, because an interpreter started from a temporary directory or a user profile folder is far more telling than the process name on its own. Filtering known pairs costs coverage of an attacker who reuses a familiar helper binary after exploitation, so keep a low severity companion rule for any browser or office parent that loads an unsigned module from outside its program directory.",
+  "severity": "high"
+}

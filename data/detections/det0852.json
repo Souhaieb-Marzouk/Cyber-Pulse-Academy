@@ -1,0 +1,104 @@
+{
+  "id": "det0852",
+  "type": "detection",
+  "title": "Detection of Tool",
+  "shortTitle": "Detection of Tool",
+  "externalId": "DET0852",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the resource development sub technique of obtaining a tool, where an adversary downloads, buys, or reuses an existing utility such as a reconnaissance scanner, a remote access framework, or a credential dumping tool instead of writing its own. It matters because these tools are widely reused, so one confirmed download often reveals the next stage of an intrusion and links the activity to a known toolkit. The telemetry that makes detection possible is web proxy and resolver logs for tool hosting and code sharing sites, endpoint process and file creation records for the tool binaries, and cloud logs when the tool is staged in rented infrastructure. The main failure mode is heavy overlap with legitimate administrative and developer activity, so the rule must weight the source of the download, the installing user, and the way the tool is executed rather than the tool name.",
+  "tags": [
+    "tooling",
+    "resource development",
+    "network",
+    "endpoint",
+    "detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Tool",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0852/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Tool - EASY",
+      "path": "exercises/det0852/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Tool - MEDIUM",
+      "path": "exercises/det0852/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Tool - HARD",
+      "path": "exercises/det0852/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Tool - EXTREMELY HARD",
+      "path": "exercises/det0852/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for attack tools that someone downloads or receives. A tool here means a ready made program that helps an attacker. Two examples are a network scanner and a remote control program. The rule watches where files come from and which user or host fetches them. It also watches new tools that appear on servers.",
+    "whyItMatters": "Most attackers reuse tools instead of writing new ones, so the same files appear in many cases. That makes the download a strong clue. It also lets you guess the next step and block it early. Catching the tool before it runs is easier than cleaning up after.",
+    "howItWorks": [
+      "The web proxy records the download, the destination domain, and the user agent.",
+      "The resolver records lookups for tool hosting and code sharing sites.",
+      "The endpoint agent records the new file, its hash, and the process that started it.",
+      "The SIEM joins the download to the host and the account that performed it.",
+      "Threat intelligence adds context when the file or the hosting site is already known.",
+      "A standard user or an internet facing server fetching known tooling raises an alert."
+    ],
+    "example": "Think of a till receipt that shows a tool bought at a hardware shop with a company card. One purchase for a repair job is fine. The same card buys lock picks, a bolt cutter, and a mask on one day. The buyer works in the office, so the manager asks a question. The receipt is the proxy log.",
+    "takeaways": [
+      "Tool downloads are reusable, so they give durable, shareable indicators.",
+      "The user, the host role, and the download source matter more than the file name.",
+      "Staging tools in cloud storage is a common next step to watch for."
+    ]
+  },
+  "objectives": [
+    "Define the obtain tool technique and list the tool families it covers.",
+    "Name the proxy, endpoint and cloud records that reveal tool acquisition.",
+    "Write a rule that flags a known tool download to a non administrative host.",
+    "Explain how to link a download to its execution.",
+    "Describe how to keep developer and administrator use out of the alerts."
+  ],
+  "techniqueId": "t1588-002",
+  "detectsTechniques": [
+    "t1588-002"
+  ],
+  "dataSources": [
+    "Web proxy logs recording executable and archive downloads with destination domain, request size, user agent and user identity",
+    "Endpoint process creation records showing newly introduced tools with parent process, command line and user account",
+    "Endpoint file creation records for tool binaries or archives written into user profile and temporary directories",
+    "Cloud audit logs for upload of tool archives to object storage and for compute instances created to host them"
+  ],
+  "logic": "The pattern is a file that matches known attack tooling being retrieved from a hosting or code sharing site by an identity or host whose role does not justify it, followed by execution from a user writable directory. The fields that must be correlated are the destination domain, the file name and hash, the downloading account and host, the parent process, the command line, and any later outbound connection from the same host. The malicious case is a marketing workstation pulling a remote access framework from a file sharing link and starting it from the downloads folder. The benign case is an administrator installing an approved network utility from a vendor portal onto a management server during a maintenance window.",
+  "pseudoQuery": "# title: Attack Tool Downloaded and Executed From a User Directory\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|contains:\n#       - '\\Users\\Public\\'\n#       - '\\AppData\\Local\\Temp\\'\n#     OriginalFileName|contains:\n#       - 'mimikatz'\n#       - 'nmap'\n#       - 'beacon'\n#   filter_approved_admins:\n#     User|endswith:\n#       - 'svc-patch'\n#       - 'adm-security'\n#   condition: selection and not filter_approved_admins\n# level: medium",
+  "falsePositives": [
+    "Network engineers who download a vendor supported scanning utility to a jump host for troubleshooting",
+    "Penetration testers running assessment tools from a temporary directory during an approved engagement",
+    "Developers who fetch command line utilities and package managers from public code hosting sites"
+  ],
+  "tuningNotes": "Build a baseline of which accounts and hosts legitimately download and run administrative utilities, then filter approved internal repositories, signed vendor installers, and the security team accounts inside the rule. Scope the tool name matching to file names and hashes rather than command lines, because attackers rename binaries, and keep a separate rule for cloud staging that watches for archives uploaded to object storage by non engineering accounts. The coverage you lose is a tool that is renamed and downloaded over an encrypted channel you cannot inspect, so pair this rule with process behaviour and network connection detections.",
+  "severity": "medium"
+}

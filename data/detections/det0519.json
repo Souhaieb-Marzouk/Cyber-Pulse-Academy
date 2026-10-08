@@ -1,0 +1,109 @@
+{
+  "id": "det0519",
+  "type": "detection",
+  "title": "Detect Persistence via Office Template Macro Injection or Registry Hijack",
+  "shortTitle": "Detect Persistence via Office Template Macro Injection or...",
+  "externalId": "DET0519",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers persistence through Office template macro injection, the sub technique tracked as T1137.001. Word and its siblings load macro content from a global template and from a set of registry values that decide which templates start automatically, so an attacker who can write a template or repoint those values gains code execution every time the application opens without touching a single document. The telemetry that makes it visible is registry writes under the Office application keys, file creation of templates in user writable startup and add in folders, process creation showing a document application spawning a scripting interpreter, and the user context in which those writes happen. The strategy fails in practice because organisations deploy legitimate templates through the same mechanism, so the detection must lean on the writing process, the file signer and the user profile rather than on the template file appearing at all.",
+  "tags": [
+    "office macro",
+    "t1137.001",
+    "persistence",
+    "registry",
+    "template",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Persistence via Office Template Macro Injection or Registry Hijack",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0519/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Persistence via Office Template Macro Injection or Registry Hijack - EASY",
+      "path": "exercises/det0519/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Persistence via Office Template Macro Injection or Registry Hijack - MEDIUM",
+      "path": "exercises/det0519/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Persistence via Office Template Macro Injection or Registry Hijack - HARD",
+      "path": "exercises/det0519/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Persistence via Office Template Macro Injection or Registry Hijack - EXTREMELY HARD",
+      "path": "exercises/det0519/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for a saved macro that starts by itself whenever a Word or Excel file opens. A macro is a small set of recorded steps that the program can replay. The rule watches two things. It watches the folder where these automatic templates are stored, and the settings that tell the program to load them. It catches the setup before the macro runs.",
+    "whyItMatters": "Persistence like this survives reboots, password changes and normal cleanup. The user does not have to open a strange file. Everyday work is enough to run the code. The trick lives in one settings key and one template file. So it is easy to miss if you only watch documents. It also stays inside a program that most networks trust.",
+    "howItWorks": [
+      "The endpoint agent records every change to the registry, including the key that was written.",
+      "The rule keeps writes under the Office application keys for the current user.",
+      "A separate file watcher records new templates in the startup and add in folders.",
+      "Writes performed by the office program itself during a normal save are treated as lower risk.",
+      "Writes performed by a script host, an installer or an unsigned program score much higher.",
+      "A settings change plus a script process starting from the office program is the alert."
+    ],
+    "example": "Imagine a delivery office where every parcel goes into a pigeonhole before it reaches you. A worker changes the pigeonhole label so their own parcel is always placed on your desk first. The office still looks normal, and the parcel arrives every morning. This rule checks the label, not only the parcels.",
+    "takeaways": [
+      "Automatic templates run on open, so they act like a scheduled task inside a document program.",
+      "Check both the template file and the settings that make it load, since either one alone is enough.",
+      "The writing process is the best clue, because normal users save through the office program itself."
+    ]
+  },
+  "objectives": [
+    "Explain what a global template is and how it runs macro code when an office application starts.",
+    "Locate the registry values that decide which templates load automatically for a user.",
+    "Identify the folders where automatic templates and add ins are stored on a workstation.",
+    "Distinguish a legitimate template deployment from a suspicious one by writer, signer and timing.",
+    "Correlate a registry write or template creation with a later script process from the office program.",
+    "Describe a clean up step that removes the persistence without destroying the user documents."
+  ],
+  "techniqueId": "t1137-001",
+  "detectsTechniques": [
+    "t1137-001"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for the Office application keys and startup template values",
+    "Sysmon event 11 file creation and modification in the user office startup and add in directories",
+    "Sysmon event 1 process creation showing a document application spawning a script host or shell",
+    "Windows Security event 4688 process creation with command line auditing for installer and script activity",
+    "Microsoft 365 unified audit log records for mail and document activity from the same user account"
+  ],
+  "logic": "The pattern is a registry write to the Office startup template or add in values, or a new template file in a user template folder, performed by a process that is not the office application itself and not a signed deployment tool, followed by an office application start that creates a script interpreter child process. The fields that must be correlated are the registry key path and value name, the template file path, the image and signer of the writing process, and the parent child relationship on the process creation event, joined on host and user within a window of minutes to hours. The malicious case usually shows an unsigned utility or a script host writing the value, a template created in a directory outside the managed workgroup templates share, and macro execution that follows the very next application start. The benign case is an enterprise template rollout, where the same file appears on many hosts in one change window from a signed installer, and users who deliberately save their own macros through the office application interface.",
+  "pseudoQuery": "# title: Office Startup Template Registry Write by Non Office Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains:\n#       - '\\Software\\Microsoft\\Office\\'\n#       - '\\Common\\General\\'\n#     Details|contains:\n#       - '\\AppData\\Roaming\\Microsoft\\Templates\\'\n#       - '\\Startup\\'\n#   filter_office:\n#     Image|endswith:\n#       - '\\WINWORD.EXE'\n#       - '\\EXCEL.EXE'\n#       - '\\OUTLOOK.EXE'\n#   condition: selection and not filter_office\n# level: high",
+  "falsePositives": [
+    "Enterprise template and signature rollouts that place a managed template in the user profile from a signed deployment tool",
+    "Line of business applications that register their own office add in and create the associated template file",
+    "Users who record their own macro and choose to store it in the personal template folder",
+    "Help desk sessions where a technician repairs a damaged office profile and rewrites the template path",
+    "Office add in updates installed during a maintenance window that recreate their registry entries"
+  ],
+  "tuningNotes": "Allow list the signed deployment and office repackaging tools by image path and signer, and require that the writing process is not the office application itself before the rule fires. Scope the rule to user workstations and exclude the shared workgroup template path, then baseline which values your managed image already contains so that a new value name stands out. The coverage you lose is a persistence write performed by an office process that the attacker has influenced, and templates written directly into the managed workgroup share with valid administrative rights.",
+  "severity": "high"
+}

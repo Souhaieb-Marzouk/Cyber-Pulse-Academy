@@ -1,0 +1,108 @@
+{
+  "id": "det0071",
+  "type": "detection",
+  "title": "Detection of Remote Data Staging Prior to Exfiltration",
+  "shortTitle": "Detection of Remote Data Staging Prior to Exfiltration",
+  "externalId": "DET0071",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy is for the second half of a theft: an operator who has already gathered files from several systems now copies them into one place before sending them out. Attackers stage remotely because a single collection point is easier to compress, encrypt and upload, and because the staging host often sits closer to the data than their own implant does. The telemetry that makes this visible is process creation with full command lines, file creation events that record the writing process and destination share, and network share access events that show one account opening many files on a file server. Real coverage depends on correlating the archive tool, the destination path and the account rather than alerting on the tool alone, because archive tools are everywhere. The main way it fails in practice is scale: backup agents, imaging platforms and media pipelines copy large volumes between internal hosts every day, so rules fire constantly and analysts learn to close them without reading them.",
+  "tags": [
+    "staging",
+    "exfiltration",
+    "collection",
+    "windows",
+    "sysmon",
+    "file share"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Remote Data Staging Prior to Exfiltration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0071/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Remote Data Staging Prior to Exfiltration - EASY",
+      "path": "exercises/det0071/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Remote Data Staging Prior to Exfiltration - MEDIUM",
+      "path": "exercises/det0071/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Remote Data Staging Prior to Exfiltration - HARD",
+      "path": "exercises/det0071/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Remote Data Staging Prior to Exfiltration - EXTREMELY HARD",
+      "path": "exercises/det0071/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Data staging means an attacker copies stolen files into one folder. This detection looks for that collection step. It watches for commands that build archives. It also watches for many files being read and written together.",
+    "whyItMatters": "If you only watch data leaving, you miss the quiet work before it. Staging is slow, and it leaves clear traces on several hosts. Catching it early gives you time to block the upload. It also shows which systems were read, so you learn what was taken.",
+    "howItWorks": [
+      "A tool on the computer records each new process and its command line.",
+      "The detection looks for archiving commands. It favours commands that name a documents folder.",
+      "It checks where the new file was written. A network share is more interesting than a local disk.",
+      "The file server reports each time one account opens many files in a short period.",
+      "The system joins these signals by account and host. One account doing all three is telling.",
+      "Each account is checked against a list of known backup and deployment services."
+    ],
+    "example": "Think of a night cleaner in a large office. Taking one box of paper to the loading bay is normal. Instead, the cleaner walks every floor and collects documents into one trolley. Then the trolley is taped shut before the morning shift. The trolley is the staging point. Nothing has left the building yet, but the shape of the work is already wrong.",
+    "takeaways": [
+      "Staging is the step between collecting files and sending them out.",
+      "One account archiving data to a shared folder is more suspicious than one odd command.",
+      "Learn your normal backup traffic first, or you will drown in alerts."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers stage collected data on an internal host instead of uploading it from each victim system.",
+    "Identify the command line patterns that indicate archive creation ahead of an outbound transfer.",
+    "Correlate process creation, file write events and network share access by account and host into one signal.",
+    "Separate legitimate backup, imaging and deployment traffic from suspicious collection using account and path baselines.",
+    "Describe how to scope a staging alert quickly, including which hosts read the data and where it was written."
+  ],
+  "techniqueId": "t1074-002",
+  "detectsTechniques": [
+    "t1074-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled and parent process recorded",
+    "Sysmon event 1 process creation including parent image, command line and user account",
+    "Sysmon event 11 file creation recording the image that wrote the file and the target path",
+    "Windows Security event 5145 detailed file share access showing the account, share path and access requested",
+    "Kerberos or NTLM logon records linking the staging account to a source workstation on the internal network"
+  ],
+  "logic": "Look for archive or copy tooling that writes to a network share or a central directory, then join it to bulk file sharing activity by the same account on the same destination server. The pattern that matters is concentration: a single account pulling files from many sources, compressing them, and writing the result to one shared location that is reachable from the internet-facing side of the network. Benign backup and imaging services show the same shape but keep a stable account, a stable schedule and a stable destination; the malicious case is a new account and destination pair, often on a workstation rather than a server, appearing outside the change window. Weight alerts highest when the writing process is a shell, a scripting host or an archive utility launched by a document reader or a web server process rather than by a management platform.",
+  "pseudoQuery": "# title: Remote Data Staging With Archive Tool To Network Share\n# logsource:\n#   product: windows\n# detection:\n#   staging_tool:\n#     Image|endswith:\n#       - '\\\\7z.exe'\n#       - '\\\\tar.exe'\n#       - '\\\\makecab.exe'\n#     CommandLine|contains: '\\\\\\\\'\n#   filter_backup:\n#     User|contains: 'svc-backup'\n#   condition: staging_tool and not filter_backup\n# level: high",
+  "falsePositives": [
+    "Backup and replication agents that compress data to a central file server on a fixed nightly schedule",
+    "Software deployment tooling that collects logs from workstations into a management share before packaging them",
+    "Developers archiving project folders onto a team share before a release or a scheduled build",
+    "IT staff running a bulk copy or archive command during a documented migration or mailbox move",
+    "Endpoint management platforms that stage patch payloads or diagnostic bundles on an internal repository"
+  ],
+  "tuningNotes": "Start by inventorying which accounts are allowed to write archives to file shares and express the rule as an allow list keyed on account, source subnet and destination share, rather than as a list of banned tools, because the same tools are used by legitimate pipelines. Scope the first version to user workstations and exclude servers outright, which removes most backup and imaging noise. Baseline the daily count of archive writes per share so you can alert on deviation as well as on the raw event. The coverage you lose is genuine staging performed by a compromised server or a service account, so keep those events in a low severity lane and review them weekly rather than never. Pair the alert with outbound transfer monitoring for the same host in the following hours, which converts a weak signal into a strong two-stage case.",
+  "severity": "high"
+}

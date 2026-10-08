@@ -1,0 +1,107 @@
+{
+  "id": "det0174",
+  "type": "detection",
+  "title": "Detection Strategy for Exploitation for Credential Access",
+  "shortTitle": "Detection Strategy for Exploitation for Credential Access",
+  "externalId": "DET0174",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects exploitation for credential access, where an adversary takes advantage of a software vulnerability to reach credential material that normal access controls protect. The value of the technique is that it turns a code execution flaw into an account takeover, so detection must focus on the moments after exploitation: an application process spawning a command shell, a web server reading a credential store or process memory, or a service account authenticating from a host it never normally uses. The telemetry that enables this is process creation with parent lineage, endpoint detection and response memory and injection telemetry, application error and crash logs, and authentication records. The main weakness is that a patched or unknown vulnerability produces no signature, so the rule detects consequences rather than the exploit itself.",
+  "tags": [
+    "credential access",
+    "exploitation",
+    "process lineage",
+    "endpoint",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exploitation for Credential Access",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0174/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exploitation for Credential Access - EASY",
+      "path": "exercises/det0174/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Credential Access - MEDIUM",
+      "path": "exercises/det0174/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Credential Access - HARD",
+      "path": "exercises/det0174/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exploitation for Credential Access - EXTREMELY HARD",
+      "path": "exercises/det0174/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Software sometimes has a flaw that lets an attacker run their own commands. This detection looks for the moments right after that, when the attacker tries to steal passwords or keys. It catches credential theft, not the flaw itself.",
+    "whyItMatters": "One stolen password can open many systems, and staff reuse passwords. Attackers prefer this route because it avoids noisy guessing. The flaw may not be in your patch list yet, so signature tools stay quiet. Watching behaviour after the flaw is used gives you a chance to react anyway.",
+    "howItWorks": [
+      "Attackers usually reach credential material through a program that is already running, such as a web server or a database service.",
+      "Windows records each new process, including the program that started it and the full command line.",
+      "The detection looks for a service program starting a command shell, a scripting interpreter or a credential dumping tool.",
+      "It also uses endpoint agent records that show one process reading the memory of another process.",
+      "It then checks authentication logs for the same service account signing in from a new host soon afterwards.",
+      "When the process behaviour and the authentication change happen close together, the alert is raised for urgent review."
+    ],
+    "example": "Think of a bank where tellers follow a strict script. If a teller suddenly walks into the vault room and starts photographing the ledgers, the cameras catch it. The bank does not need to know how the teller got the vault code. The odd behaviour inside the building is enough to raise the alarm.",
+    "takeaways": [
+      "You often cannot detect the exploit itself, so detect what the exploited process does next.",
+      "A service program spawning a shell or reading another process memory is a strong signal.",
+      "Pair process behaviour with authentication records to confirm a real takeover."
+    ]
+  },
+  "objectives": [
+    "Explain how exploitation turns a code execution flaw into credential theft",
+    "Identify process lineage patterns in which a service process escalates into shell or memory access",
+    "Use endpoint memory and injection telemetry to confirm credential access behaviour",
+    "Correlate process level signals with authentication anomalies for the same account",
+    "Prioritise response actions that contain the host and rotate affected credentials"
+  ],
+  "techniqueId": "t1212",
+  "detectsTechniques": [
+    "t1212"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, command line and user context",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Endpoint detection and response process memory access and injection telemetry",
+    "Windows Security event 4624 logon records showing service accounts authenticating from new source hosts",
+    "Application and web server error logs recording crashes, aborted requests and unexpected child processes"
+  ],
+  "logic": "The detection is built on process lineage and the identity of the process doing the reading. A long running service, such as a web server, database engine or backup agent, should not spawn an interactive command shell, a scripting interpreter or a known credential harvesting utility, and it should not open another process memory space. The fields that must be correlated are the parent image, the child image, the user context, the integrity level, and the account that authenticates within a short window afterwards. A benign case is a deployment tool or health check running under a service account with a stable, documented child process and no unusual authentication; the malicious case shows a service that normally spawns nothing suddenly producing a shell, followed by that service account or a local administrator account logging on from a source address that host has never used.",
+  "pseudoQuery": "# title: Service Process Spawns Shell Or Reads Another Process Memory\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - \\w3wp.exe\n#       - \\httpd.exe\n#       - \\nginx.exe\n#       - \\tomcat.exe\n#     Image|endswith:\n#       - \\cmd.exe\n#       - \\powershell.exe\n#       - \\sh\n#       - \\rundll32.exe\n#   filter:\n#     CommandLine|contains:\n#       - healthcheck\n#       - '\\logs\\rotate'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Web application management consoles that intentionally run maintenance scripts through a shell on the server",
+    "Monitoring agents that restart a failed service by invoking a command interpreter from the service context",
+    "Backup or antivirus software that legitimately inspects process memory on the same host",
+    "Deployment pipelines that execute a post deployment hook as the application service account",
+    "Legacy applications that shell out to external utilities to generate reports or convert file formats"
+  ],
+  "tuningNotes": "Inventory each internet facing service and record the child processes it legitimately produces over a thirty day period, then allow those exact parent and child pairs instead of whole tool names. Add a filter for signed management agents that are permitted to read process memory, and record their signer or hash rather than their file name. Scoping the rule to internet facing hosts raises precision substantially but drops coverage of internally reachable services and of desktop applications that are equally exploitable, so keep a second, lower severity rule for servers and workstations that only alerts when the child process also makes an outbound network connection.",
+  "severity": "high"
+}

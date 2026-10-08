@@ -1,0 +1,107 @@
+{
+  "id": "det0046",
+  "type": "detection",
+  "title": "Detection Strategy for T1497 Virtualization/Sandbox Evasion",
+  "shortTitle": "Detection Strategy for T1497 Virtualization/Sandbox Evasion",
+  "externalId": "DET0046",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1497, Virtualization and Sandbox Evasion, where an adversary inspects the host for evidence that it is a virtual machine, an analysis sandbox, or an automated scanner before deciding whether to continue. It matters because this check is often the last moment where an intrusion is observable, since malware that decides it is being watched usually stays dormant or deletes itself. The telemetry that supports it is behavioural: process creation with command lines that enumerate virtual hardware, registry queries for virtual machine keys, filesystem and service name checks for known analysis tooling, and abrupt process termination after a long benign sleep. The main failure mode is that security products, backup agents, and management tools, including many endpoint agents, also check for virtual hardware, so a rule without a risk score floods the queue with approved software.",
+  "tags": [
+    "mitre t1497",
+    "defense evasion",
+    "sandbox",
+    "windows",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1497 Virtualization/Sandbox Evasion",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0046/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1497 Virtualization/Sandbox Evasion - EASY",
+      "path": "exercises/det0046/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1497 Virtualization/Sandbox Evasion - MEDIUM",
+      "path": "exercises/det0046/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1497 Virtualization/Sandbox Evasion - HARD",
+      "path": "exercises/det0046/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1497 Virtualization/Sandbox Evasion - EXTREMELY HARD",
+      "path": "exercises/det0046/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that check whether they are running on a real computer. Malware can tell when it sits inside a test or analysis machine. If it thinks it is being watched, it hides or stops. This rule watches for those checks.",
+    "whyItMatters": "Attackers use these checks to avoid study and to avoid your defences. If a program discovers a virtual machine, it may shut down and leave no useful trace. Catching the check itself can reveal the intrusion while it is still present. Many approved tools make the same checks for their own reasons, so the alert needs care.",
+    "howItWorks": [
+      "The agent records process creation, including the command line and the parent program.",
+      "The rule looks for commands that list virtual hardware or query virtual machine registry keys.",
+      "It also looks for searches for analysis tool names on disk, in services, or in running processes.",
+      "It checks for a long sleep followed by a very short process lifetime, which suggests a failed check.",
+      "The rule counts how many different evasion checks happen in one session and in one short window.",
+      "A combination of checks from an unsigned binary raises the alert, while single checks are only logged."
+    ],
+    "example": "Think of a burglar who rings the doorbell before breaking in. If someone answers, or a camera turns toward the door, the burglar walks away and tries another house. The doorbell is not the crime. It is information gathering before the crime. Sandbox evasion detection watches for the doorbell. When you see it, you know someone was testing your house, and you can look at what they did next.",
+    "takeaways": [
+      "An evasion check means an attacker is already on the system, which is valuable even when the malware stops.",
+      "Many legitimate tools check for virtual hardware, so several different checks together are far more interesting than one.",
+      "Detecting the failed check is often the only chance to see an intrusion that would otherwise stay dormant."
+    ]
+  },
+  "objectives": [
+    "Define virtualization and sandbox evasion and explain why adversaries use it before acting.",
+    "Identify the process, registry, and filesystem telemetry that reveals evasion checks.",
+    "Describe how to score multiple different checks in one session instead of alerting on each.",
+    "List the legitimate software in your estate that performs virtual hardware checks.",
+    "Write a pseudo rule with several detection selections and a combined condition.",
+    "Explain why very short process lifetimes after long delays are worth alerting on."
+  ],
+  "techniqueId": "t1497",
+  "detectsTechniques": [
+    "t1497"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including command line, parent image, and process identifier",
+    "Sysmon event 13 registry value access for virtual machine and analysis tool keys under the system hives",
+    "Windows Security event 4688 process creation with command line auditing for virtual hardware enumeration commands",
+    "Windows Management Instrumentation queries for computer system model, manufacturer, and BIOS values recorded by the endpoint agent",
+    "Sysmon event 11 file creation or file access for guest tool binaries and analysis tool artefacts"
+  ],
+  "logic": "The rule counts distinct evasion indicators inside one logon session rather than alerting on individual checks. It combines process creation records that enumerate virtual hardware or virtual machine services, registry reads of the system keys that store virtual machine identifiers, filesystem or service lookups for guest tool and analysis tool names, and a timing pattern where a process sleeps for a long period and then exits almost immediately. The malicious case is an unsigned or rarely seen binary performing several different checks within a short window, especially on a host that is not part of the virtual desktop pool. The benign case is a signed management, backup, or security agent performing one expected check from its normal installation path. Correlating the process identifier, the user session, and the count of distinct checks is what separates investigation from noise.",
+  "pseudoQuery": "# title: Multiple Sandbox And Virtual Machine Evasion Checks In One Session\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains: vmware, virtualbox, vboxservice, qemu, sandboxie\n#   registry:\n#     EventID: 13\n#     TargetObject|contains: \\SYSTEM\\CurrentControlSet\\Enum\\IDE, \\HARDWARE\\DESCRIPTION\\System\\BIOS\n#   condition: selection or registry\n# level: medium",
+  "falsePositives": [
+    "Endpoint protection and virtual desktop agents that validate the hypervisor before enabling features",
+    "Backup and disaster recovery software that detects a virtual machine so it can use hypervisor level snapshots",
+    "Hardware inventory and licence compliance tools that collect the system model and manufacturer from each host",
+    "Virtual desktop infrastructure support staff running guest tool checks and driver validation during troubleshooting"
+  ],
+  "tuningNotes": "Build a two week baseline of which signed binaries in your estate query virtual machine keys or enumerate guest tools, then filter those by signer and image path rather than by command line text alone. Exclude the virtual desktop pool and the build lab from the high severity tier, and keep them in a low severity tier for hunting. Convert the rule from a single match to a count of distinct indicators per session, using a threshold of three or more in ten minutes. This narrowing loses visibility into a single stealthy check by a fileless binary, so retain the raw telemetry for retro hunts and review the signer allowlist whenever an agent vendor updates its components.",
+  "severity": "medium"
+}

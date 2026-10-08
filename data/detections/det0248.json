@@ -1,0 +1,108 @@
+{
+  "id": "det0248",
+  "type": "detection",
+  "title": "User Execution – Malicious Image (containers & IaaS) – pull/run → start → anomalous behavior (T1204.003)",
+  "shortTitle": "User Execution – Malicious Image (containers & IaaS) – pu...",
+  "externalId": "DET0248",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects a malicious container image that a person pulls and starts, covering the step where a user is persuaded to run an image from an untrusted registry and the container then behaves unlike the software it claims to be. The technique matters because the image is fetched with a legitimate client, no executable is dropped on the host, and the container gives the intrusion a portable foothold with the runtime's own privileges. Detection depends on registry pull logs, container runtime and Kubernetes audit events for start and create, and runtime process or network telemetry from inside the container. The main way it fails is that pulling public images is constant and normal, so the working rule uses the registry source, the image digest and the behaviour after start rather than the pull itself.",
+  "tags": [
+    "containers",
+    "kubernetes",
+    "user execution",
+    "cloud",
+    "supply chain",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: User Execution – Malicious Image (containers & IaaS) – pull/run → start → anomalous behavior (T1204.003)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0248/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "User Execution – Malicious Image (containers & IaaS) – pull/run → start → anomalous behavior (T1204.003) - EASY",
+      "path": "exercises/det0248/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "User Execution – Malicious Image (containers & IaaS) – pull/run → start → anomalous behavior (T1204.003) - MEDIUM",
+      "path": "exercises/det0248/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "User Execution – Malicious Image (containers & IaaS) – pull/run → start → anomalous behavior (T1204.003) - HARD",
+      "path": "exercises/det0248/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "User Execution – Malicious Image (containers & IaaS) – pull/run → start → anomalous behavior (T1204.003) - EXTREMELY HARD",
+      "path": "exercises/det0248/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a harmful container image that someone downloaded and started. A container image is a packed box holding an application and everything it needs. Images are shared from places called registries. If the box comes from an untrusted registry, the person who made it can put anything inside. The rule watches what that box does once it runs.",
+    "whyItMatters": "Running a container is not like opening a document, because the program inside runs on the server. A bad image can reach the network, read mounted secrets or run commands of its own. Because the download uses normal tools, the act of pulling it looks harmless. Only the registry it came from and its behaviour afterwards give it away.",
+    "howItWorks": [
+      "A user or pipeline pulls an image from a registry and starts a container from it.",
+      "The registry and the container runtime write records of the pull and the container start.",
+      "The rule notes the registry, the image name, the digest and which account started it.",
+      "Sensors inside the container report the processes it starts and the connections it opens.",
+      "The rule compares that behaviour with what the image is supposed to do, such as a web server.",
+      "A shell, a download tool or a connection to an unknown address raises an alert."
+    ],
+    "example": "Think of a parcel from a shop you trust and a parcel from a stranger at a car boot sale. Both are boxes, and both arrive by the same van. A parcel from the stranger is not a crime by itself, but if it starts drilling holes in your wall, you want to know quickly. That behaviour is the alarm, not the parcel.",
+    "takeaways": [
+      "The pull itself is normal, so detection focuses on source and behaviour.",
+      "Record the image digest, since a name and tag can be reused.",
+      "Watch for shells, download tools and unexpected connections inside containers."
+    ]
+  },
+  "objectives": [
+    "Describe what a container image is and why a registry is trusted or untrusted.",
+    "Identify the records that show an image pull and a container start.",
+    "Explain why the image digest matters more than the image name and tag.",
+    "List the container behaviours that indicate an image is not what it claims.",
+    "Correlate a pull from an untrusted registry with privilege and mount settings.",
+    "Describe how to baseline image use for build agents and developer namespaces."
+  ],
+  "techniqueId": "t1204-003",
+  "detectsTechniques": [
+    "t1204-003"
+  ],
+  "dataSources": [
+    "Container registry audit logs recording image pulls with the repository, the tag, the digest and the pulling identity",
+    "Kubernetes audit logs recording pod creation, image references and the service account that requested them",
+    "Container runtime daemon events recording container create, start and stop with the image reference",
+    "Runtime security sensor process events from inside containers with the container identifier and parent process",
+    "Container network flow records showing connections from container addresses to external destinations"
+  ],
+  "logic": "The pattern is a container image taken from a registry the organisation does not control and then behaving in a way the image type does not explain. The fields that must be correlated are the registry host, the repository, the image digest, the identity that pulled it, the namespace or host that ran it, the container privilege settings and mounts, and the process and network events from inside that container. The malicious case usually shows a first pull from a public registry by a user account rather than a build agent, a digest that does not match the repository history, a long running container that starts a shell, package manager, download utility or cryptocurrency miner, a privileged security context, and outbound connections to unfamiliar addresses. The benign case is a documented trial of an open source tool by a developer in a sandbox namespace, a base image pulled by a continuous integration agent, or a vendor image with a published digest that is deployed through the normal pipeline.",
+  "pseudoQuery": "# title: Untrusted Registry Image Run Then Shell or Download in Container\n# logsource:\n#   product: kubernetes\n# detection:\n#   selection_pull:\n#     verb: 'create'\n#     objectRef.resource: 'pods'\n#     imageRegistry|not_in: 'trusted_registries'\n#   selection_behavior:\n#     ProcessName|endswith|any:\n#       - '/sh'\n#       - '/bash'\n#       - '/curl'\n#       - '/wget'\n#       - '/nc'\n#   filter_ci:\n#     user.username|endswith: '-ci-runner'\n#   condition: selection_pull and selection_behavior and not filter_ci\n# level: medium",
+  "falsePositives": [
+    "A developer who runs a publicly available database or web server image in a sandbox namespace for a proof of concept",
+    "A continuous integration agent that pulls a base image from a public registry and runs a package install inside it",
+    "A vendor provided appliance image from a public registry whose digest is recorded in the deployment pipeline",
+    "A troubleshooting container started by a platform engineer that legitimately runs a shell for a short time"
+  ],
+  "tuningNotes": "Define the trusted registry list first and allow list the exact repositories and digests that the build pipeline uses, keyed by digest so a retagged image cannot borrow the allowance. Then alert on any pull from outside that list that is followed by interactive tooling or external connections, and keep an inventory of which user accounts and service accounts are entitled to run containers at all. Scope the first version to production clusters and to hosts that run workloads with secrets mounted, and leave developer sandboxes in a review queue. The coverage you lose by trusting internal registries is an image pushed into an internal registry with stolen push credentials, so pair this rule with alerts on new repository creation and on pushes from source addresses outside the build network.",
+  "severity": "medium"
+}

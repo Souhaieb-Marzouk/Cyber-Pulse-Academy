@@ -1,0 +1,107 @@
+{
+  "id": "det0063",
+  "type": "detection",
+  "title": "Cross-Platform Behavioral Detection of Python Execution",
+  "shortTitle": "Cross-Platform Behavioral Detection of Python Execution",
+  "externalId": "DET0063",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the execution of Python interpreters and Python scripts across Windows, Linux and macOS endpoints, because Python is present by default on most systems and lets an intruder run complex logic without dropping a compiled binary. Instead of alerting on every interpreter start, which is unusable, it correlates the parent process, the script location, the command line switches and what the process does next, such as opening a network connection or writing a file. Telemetry comes from process creation records with command line capture, script block or module loading events where the platform provides them, and network connection events keyed by process identifier. The failure mode is that administrators, developers and automation frameworks run Python all day, so good asset and account scoping matters more than the pattern itself.",
+  "tags": [
+    "windows",
+    "linux",
+    "macos",
+    "scripting",
+    "process-creation",
+    "python"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cross-Platform Behavioral Detection of Python Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0063/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cross-Platform Behavioral Detection of Python Execution - EASY",
+      "path": "exercises/det0063/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of Python Execution - MEDIUM",
+      "path": "exercises/det0063/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of Python Execution - HARD",
+      "path": "exercises/det0063/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of Python Execution - EXTREMELY HARD",
+      "path": "exercises/det0063/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for Python being used on computers in ways that do not match normal business work. Python is a programming language that runs from a command line. Attackers like it because it is already installed almost everywhere and can do many jobs without extra tools.",
+    "whyItMatters": "A script can scan a network, collect files or talk to a control server. It leaves no compiled program for antivirus to recognise. The clue is not the language but the situation: who ran it, from which folder, and what happened next. Situation based detection survives small changes in the script.",
+    "howItWorks": [
+      "A host sensor records each new process and its full command line, including the interpreter name.",
+      "It records the parent process, so you can see what started Python.",
+      "It records network connections and file writes tied to the same process identifier.",
+      "The SIEM (Security Information and Event Management system) groups these records by host and process.",
+      "The rule compares each Python start against the normal pattern for that host and account.",
+      "A Python run from a browser, an office file or a temporary folder followed by network traffic raises the alert."
+    ],
+    "example": "Think of a hotel kitchen that owns one very sharp knife. Every cook uses it, so seeing the knife is meaningless. Seeing a guest carrying it up the stairs at midnight, however, tells you everything you need to know.",
+    "takeaways": [
+      "Python itself is normal, so the detection is about context, not the interpreter name.",
+      "The parent process and the working folder are the strongest discriminator fields.",
+      "What the process does next, such as a new outbound connection, confirms the alert."
+    ]
+  },
+  "objectives": [
+    "Explain why interpreted languages reduce reliance on dropped binaries for an intruder.",
+    "Identify the process creation fields that reveal interpreter name, parent and script path.",
+    "Correlate a Python process with its network connections and file writes by process identifier.",
+    "Build a per host baseline of legitimate Python use so that anomalies stand out.",
+    "Choose between broad audit logging and narrow alerting for developer heavy asset groups."
+  ],
+  "techniqueId": "t1059-006",
+  "detectsTechniques": [
+    "t1059-006"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with full command line showing the interpreter image, script path and switches",
+    "Windows Security event 4688 process creation with command line auditing enabled as a fallback data source",
+    "Linux process execution records from the audit service or a host sensor carrying the command line and parent process",
+    "Sysmon event 3 network connection tied to the interpreter process identifier, with destination address and port",
+    "Container and orchestration runtime logs listing the entrypoint and arguments used to start a workload image"
+  ],
+  "logic": "The detection scores each interpreter start rather than alerting on the name alone. Inputs are the interpreter image, the script path and switches, the parent image, the account, the working directory and the host role. Python launched by a scheduled task, a service wrapper or an interactive administrator from a source repository is expected on servers and build hosts but unusual on a finance workstation. The benign case is a stable per host pattern: the same parent, the same script directory prefix and predictable times. The malicious case is Python invoked by a browser, an office document, an archive utility or a web service account, with the script sitting in a temporary, download or world writable directory, using inline command switches to avoid writing a file, and often making an outbound connection shortly after start to an address the host has never used.",
+  "pseudoQuery": "# title: Python Interpreter Started by Office or Browser Parent\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection:\n#     Image|endswith:\n#       - '\\\\python.exe'\n#       - '\\\\python3.exe'\n#   filter_dev:\n#     ParentImage|endswith:\n#       - '\\\\code.exe'\n#       - '\\\\devenv.exe'\n#       - '\\\\bash.exe'\n#   selection_bad_parent:\n#     ParentImage|endswith:\n#       - '\\\\winword.exe'\n#       - '\\\\excel.exe'\n#       - '\\\\outlook.exe'\n#       - '\\\\chrome.exe'\n#   condition: selection and selection_bad_parent and not filter_dev\n# level: medium",
+  "falsePositives": [
+    "Data science and analytics teams that run notebooks and scheduled Python jobs from user profile directories on their workstations",
+    "Automation platforms that start Python through a service account to process files from a monitored intake folder",
+    "Software packaging and build agents that invoke Python from within a browser based management console or extension host",
+    "Backup and compliance agents that ship a bundled Python runtime and call it with vendor supplied scripts from the program directory"
+  ],
+  "tuningNotes": "Group assets into three tiers, being servers, developer workstations and standard user machines, and apply different thresholds to each: strict on standard user machines, permissive on developer hosts with an allow list of approved interpreter paths and script directories. Baseline the parent processes and working directories seen per host for a month, then alert on first sightings rather than on every run. The coverage you lose by allowing known interpreter paths is a dropped or renamed interpreter, so add a companion rule that alerts when a binary named like a Python runtime appears outside the documented install locations.",
+  "severity": "medium"
+}

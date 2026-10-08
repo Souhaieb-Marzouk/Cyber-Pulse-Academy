@@ -1,0 +1,108 @@
+{
+  "id": "det0302",
+  "type": "detection",
+  "title": "Port-knock → rule/daemon change → first successful connect (T1205.001)",
+  "shortTitle": "Port-knock → rule/daemon change → first successful connec...",
+  "externalId": "DET0302",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the port knock sequence pattern of T1205.001, where an adversary sends a specific series of connection attempts to closed ports and the host or network device responds by opening access, after which the first successful connection to the now exposed service arrives. It matters because a port knock is deliberately designed to look like background scan noise, and it turns a hardened host into one that briefly listens on a hidden port for a single trusted source. The telemetry that makes it visible is the combination of firewall or packet filter deny logs showing an ordered series of rejected connection attempts from one source, configuration change records showing a rule or daemon edit on the target, and the subsequent allow and successful connection from that same source. In practice this detection fails when the firewall does not log dropped traffic, when virtual machine or cloud security group changes are not captured, or when the knock is spread over hours so that the correlation window misses it.",
+  "tags": [
+    "mitre t1205.001",
+    "port knocking",
+    "firewall rules",
+    "command and control",
+    "correlation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Port-knock → rule/daemon change → first successful connect (T1205.001)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0302/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Port-knock → rule/daemon change → first successful connect (T1205.001) - EASY",
+      "path": "exercises/det0302/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Port-knock → rule/daemon change → first successful connect (T1205.001) - MEDIUM",
+      "path": "exercises/det0302/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Port-knock → rule/daemon change → first successful connect (T1205.001) - HARD",
+      "path": "exercises/det0302/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Port-knock → rule/daemon change → first successful connect (T1205.001) - EXTREMELY HARD",
+      "path": "exercises/det0302/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Port knocking is a secret pattern of connection attempts. The computer ignores each attempt. If the attempts arrive in the right order, the computer quietly opens a real service for that visitor. This rule looks for that whole story. It watches for many ignored attempts from one address. It then looks for a change on the target and one successful connection from the same address.",
+    "whyItMatters": "A hidden service is hard to find by scanning. Defenders often think a closed port means a safe port. Port knocking can quietly open a management service that then accepts a remote login. The knock itself is silent by design. The only way to catch it is to watch the order of events rather than any single alert.",
+    "howItWorks": [
+      "The firewall logs each connection it refuses, with the source address, the port and the time.",
+      "The rule groups refusals from the same source address. It checks whether several different closed ports were tried in order.",
+      "On the target host it watches for changes to firewall rules or to a small service that listens quietly.",
+      "It waits for an allowed connection or a successful login from that same source address shortly afterwards.",
+      "It links the knock, the change and the login into one case and raises a single alert.",
+      "Analysts then review what that service is and whether the source address is known."
+    ],
+    "example": "Think of a door with three plain buttons and no sign. Nobody reacts to one press. If you press them in a special order, a latch clicks open for ten seconds. The building log would show three wasted presses. Then it would show one person walking straight in. The presses alone mean nothing. The open door right after them is the story.",
+    "takeaways": [
+      "Port knocking hides a service behind a secret order of refused connections.",
+      "Detection needs refused connection logs, configuration change records and the first successful connection, joined by source address.",
+      "If drops are not logged on your firewalls, this detection is impossible, so check that first."
+    ]
+  },
+  "objectives": [
+    "Explain what port knocking is and how it differs from an ordinary port scan.",
+    "Identify the deny logs, configuration change records and allow logs needed for this correlation.",
+    "Build a rule that groups refused connections by source address and checks for an ordered sequence of ports.",
+    "Correlate a detected sequence with a later configuration change or authentication on the target host.",
+    "Assess which network devices and hosts in your environment log dropped traffic and which do not.",
+    "Describe containment steps such as blocking the source and reviewing what the opened service exposed."
+  ],
+  "techniqueId": "t1205-001",
+  "detectsTechniques": [
+    "t1205-001"
+  ],
+  "dataSources": [
+    "Firewall or packet filter logs recording denied inbound connection attempts with source address, destination port and timestamp",
+    "Linux auditd execve records and file change records for modifications to packet filter rule files and to the knock daemon configuration",
+    "Host based firewall change telemetry on Windows, such as the Windows Firewall rule change records and the accompanying process creation event",
+    "Sysmon event 3 network connection records and Linux socket audit records showing the first accepted connection from the knocking source",
+    "Cloud or virtualisation security group change records for the moment a previously blocked port is allowed"
+  ],
+  "logic": "The pattern is a sequence, not a single event: one source address sends connection attempts to several different closed or filtered ports within a short window, each one denied, and then either the target device records a packet filter or service configuration change, or the same source address is allowed to connect to a port it was previously refused. The fields that must be correlated are the source address, the ordered list of destination ports with their timestamps, the target host or device identity, the configuration change actor where available, and the first subsequent allow or successful authentication from that source. The benign case is an authorised vulnerability scanner or network monitoring tool that sweeps many ports sequentially across many hosts, with a known scanner address and a scheduled window, and no configuration change on the target. The malicious case is a narrow set of closed ports on one host, arriving in a deliberate order, followed closely by a rule or daemon change and exactly one successful connection from the same address, which is the signature of an automated knock sequence.",
+  "pseudoQuery": "# title: Port Knock Sequence Followed by Rule Change and First Connect\n# logsource:\n#   product: network\n# detection:\n#   selection_deny:\n#     action: 'deny'\n#     direction: 'inbound'\n#   selection_change:\n#     event_type: 'firewall_rule_change'\n#   selection_allow:\n#     action: 'allow'\n#     direction: 'inbound'\n#   filter_scanner:\n#     src_ip:\n#       - '10[.]0[.]0[.]25'\n#       - '10[.]0[.]0[.]26'\n#   condition: selection_deny and (selection_change or selection_allow) and not filter_scanner\n# level: high",
+  "falsePositives": [
+    "An authorised vulnerability scanner performing a scheduled full port sweep against a defined asset group",
+    "A monitoring or asset discovery tool that probes many ports to build a service inventory",
+    "A client application that retries a service on several ports after a failed connection during an outage",
+    "An administrator testing firewall rules during a change window and then connecting to the newly allowed port",
+    "Network address translation or load balancer health checks that generate ordered connection attempts against several ports"
+  ],
+  "tuningNotes": "Begin by confirming that deny logging is enabled on the perimeter and host firewalls, because without it there is no knock to detect, and then baseline the addresses and time windows of approved scanners and monitoring tools so you can filter them by source rather than by pattern. Group refusals per source and per destination host, and require at least four or five distinct denied ports within a short window before the correlation proceeds, which removes most scan-like background noise. Raise severity only when a configuration change or an allow event follows within minutes from the same source, and consider requiring the destination port to host a management service such as remote shell or remote desktop. Scoping to management ports and known asset groups loses coverage of a knock that opens a custom or high port on an ordinary workstation, so keep a lower severity variant that reports ordered deny bursts without the confirmation step.",
+  "severity": "high"
+}

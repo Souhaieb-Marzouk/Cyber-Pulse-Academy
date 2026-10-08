@@ -1,0 +1,106 @@
+{
+  "id": "det0016",
+  "type": "detection",
+  "title": "Security Software Discovery Across Platforms",
+  "shortTitle": "Security Software Discovery Across Platforms",
+  "externalId": "DET0016",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects discovery of security software on victim hosts, mapped to ATT&CK technique T1518.001 Security Software Discovery, the reconnaissance step attackers use to learn which endpoint protection, logging agents and monitoring tools are present before they act. The detection is built on process creation telemetry enriched with command lines, because the reliable signal is an interpreter or shell listing running processes, installed services or package inventories and then filtering that output for vendor names, driver names or agent paths. On Linux the equivalents are process listing, service enumeration and package queries aimed at security agents; in cloud estates the same intent appears as API calls that enumerate security services in an account. Correlating the discovery command with its parent process and with what the same account does in the following minutes is what separates a curious administrator from an intruder mapping defences. The strategy fails most often because system inventory and vulnerability scanning agents run the same queries on a schedule, so unfiltered process listing rules drown analysts in routine noise.",
+  "tags": [
+    "mitre t1518.001",
+    "discovery",
+    "linux",
+    "windows",
+    "process creation",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Security Software Discovery Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0016/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Security Software Discovery Across Platforms - EASY",
+      "path": "exercises/det0016/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Security Software Discovery Across Platforms - MEDIUM",
+      "path": "exercises/det0016/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Security Software Discovery Across Platforms - HARD",
+      "path": "exercises/det0016/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Security Software Discovery Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0016/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Security software discovery is when a program looks around a computer to find out which protection tools are installed. This detection watches for commands that list running programs, services or packages and then search for security product names. It catches an intruder taking stock of your defences.",
+    "whyItMatters": "Before attackers change anything, they usually want to know what might stop them. Finding out which endpoint agent, logging tool or monitor is present tells them what to disable or avoid. This step is quiet and uses only built-in commands. If you can see it, you get an early warning before the damaging actions begin. It also tells you which accounts are poking at defences.",
+    "howItWorks": [
+      "A sensor records each new process, its full command line, its parent process and the account that started it.",
+      "The rule matches commands that enumerate the system, such as process listing, service listing or installed package queries.",
+      "It then looks in the same command line for names of security products, agents, drivers or monitoring vendors.",
+      "A two part command often appears as a shell pipeline. So the rule also joins child processes to their shell parent.",
+      "Events on the same host and account are grouped inside a short window. One discovery session then becomes one alert.",
+      "The alert shows the command, the parent, the account and any later action by the same account for context."
+    ],
+    "example": "Picture a burglar who walks past a row of houses and quietly notes which ones show an alarm company sign. They have not touched a single door. They are simply building a list of which houses are easier to enter. Security software discovery detection is the neighbour who notices someone reading every sign on the street.",
+    "takeaways": [
+      "Finding protection tools is a preparation step, so it is worth alerting on even though it changes nothing.",
+      "The important context is the parent process and the account, not the command alone.",
+      "Inventory and scanning tools run similar commands, so plan your filters before you deploy."
+    ]
+  },
+  "objectives": [
+    "Describe why attackers enumerate security software before acting on a host",
+    "Recognise shell and interpreter commands that list processes, services or packages for defence tooling",
+    "Correlate discovery commands with their parent process and account to judge intent",
+    "Explain how the same intent appears in cloud API calls that list security services",
+    "Build filters that keep scheduled inventory and vulnerability scanners out of the alert queue"
+  ],
+  "techniqueId": "t1518-001",
+  "detectsTechniques": [
+    "t1518-001"
+  ],
+  "dataSources": [
+    "Linux auditd execve records with full argv for commands such as ps, systemctl list-units and package queries",
+    "Sysmon event 1 process creation including parent image, command line and user on Windows hosts",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "AWS CloudTrail management events for read-only security service enumeration calls"
+  ],
+  "logic": "The core pattern is a command whose text mixes a system enumeration verb with a security vendor or agent keyword, for example a process or service listing piped into a case insensitive search for an endpoint agent or logging product name. Those two facts must appear in the same command line or in a shell parent and its immediate child, on the same host and account within a short window. The benign version of this pattern comes from configuration management and vulnerability scanners, which run on a schedule, from a known service account, and usually with a fixed command line that recurs identically day after day; the malicious version is a one off execution by an interactive user or unusual account, frequently followed within minutes by service stops, agent uninstalls or credential access. Enriching with the follow-on action is what keeps the rule usable at scale.",
+  "pseudoQuery": "# title: Security Agent Enumeration by Process or Service Listing\n# logsource:\n#   product: windows\n# detection:\n#   selection_enum:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'tasklist'\n#       - 'sc query'\n#       - 'Get-Service'\n#   selection_target:\n#     CommandLine|contains:\n#       - 'defender'\n#       - 'crowdstrike'\n#       - 'sentinel'\n#       - 'carbonblack'\n#   filter_inventory:\n#     ParentImage|contains:\n#       - '\\\\Program Files\\\\Inventory'\n#     User|endswith: '$'\n#   condition: selection_enum and selection_target and not filter_inventory\n# level: medium",
+  "falsePositives": [
+    "Software inventory agents that enumerate services and match on security product names as part of licence reporting",
+    "Helpdesk scripts that check whether an endpoint agent is installed before opening a support ticket",
+    "Vulnerability scanners performing authenticated local checks that list services and packages on a schedule",
+    "System administrators troubleshooting a performance issue and searching process output for monitoring agent names"
+  ],
+  "tuningNotes": "Baseline the exact command lines your inventory, patching and vulnerability tools use over two weeks, then filter those specific strings rather than the enumeration verbs, so an attacker using the same tool is still caught. Scope the first deployment to servers and administrative jump hosts where interactive discovery is rare. If you also filter out every parent process ending in a shell, you will lose coverage of the most common tradecraft, so instead require the discovery to be followed by a defence related change within thirty minutes. Keep the cloud variant separate, since service enumeration APIs are extremely common in automation accounts and need their own baseline.",
+  "severity": "medium"
+}

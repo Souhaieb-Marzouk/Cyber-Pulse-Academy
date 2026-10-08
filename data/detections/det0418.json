@@ -1,0 +1,108 @@
+{
+  "id": "det0418",
+  "type": "detection",
+  "title": "Windows DACL Manipulation Behavioral Chain Detection Strategy",
+  "shortTitle": "Windows DACL Manipulation Behavioral Chain Detection Stra...",
+  "externalId": "DET0418",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers the modification of Windows file and directory permissions, tracked as T1222.001, where an adversary changes a discretionary access control list to keep access to a file, weaken protections on a sensitive path or lock out defenders. It matters because permission changes are a persistence and defence evasion primitive that quietly widens who can read or replace critical files, and because the change itself is a legitimate administrative action that appears daily in most estates. The telemetry that makes detection possible is object access auditing with permission change records, process creation records for the built in permission utilities, file system change events, and the security descriptor change events that the operating system writes when an access control entry is added or removed. The main way it fails is that deployment tools and administrators change permissions constantly for ordinary reasons, so the rule has to be built as a behavioural chain: who changed permissions, on which path, which entry they added, and what happened to that path afterwards.",
+  "tags": [
+    "windows",
+    "permissions",
+    "defense evasion",
+    "persistence",
+    "access control"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Windows DACL Manipulation Behavioral Chain Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0418/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Windows DACL Manipulation Behavioral Chain Detection Strategy - EASY",
+      "path": "exercises/det0418/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Windows DACL Manipulation Behavioral Chain Detection Strategy - MEDIUM",
+      "path": "exercises/det0418/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Windows DACL Manipulation Behavioral Chain Detection Strategy - HARD",
+      "path": "exercises/det0418/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Windows DACL Manipulation Behavioral Chain Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0418/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows files and folders have a list that says who may read, change or delete them. That list is called a permissions list. This detection looks for someone changing that list in a way that helps an attacker. Examples are granting full control to a broad group or taking control of a system file.",
+    "whyItMatters": "Changing permissions is a quiet way to keep access to a computer. It can also let an attacker replace a trusted program with their own copy. Defenders may not notice because permissions are changed by real administrators too. A weak permission on a system file can undo other protections. Following the order of events helps you tell a support fix from abuse.",
+    "howItWorks": [
+      "Windows can record when permissions on a file or folder change. This works only when auditing is switched on for that object.",
+      "Each record shows the object path, the account that made the change and the entry added or removed.",
+      "The rule selects changes on sensitive paths, such as system folders and service binaries.",
+      "It notes the account and the program used, for example a command line permission tool or a script.",
+      "It then looks for what happened next on the same path. An example is a file being replaced or a service restarting.",
+      "When a broad permission is granted on a sensitive path, the analyst gets one alert. It shows that change and everything after it."
+    ],
+    "example": "Think of a shop that keeps its cash in a locked drawer. The manager holds the key. Someone copies the key and gives it to a temporary worker. The drawer is then opened after hours. The copied key is the permission change. The after hours opening is the next step. Together they tell a clear story.",
+    "takeaways": [
+      "A permission change on its own is usually normal, so look for the chain that follows it.",
+      "Sensitive paths matter most: system folders, service binaries and security tooling.",
+      "Record the account and the tool used, because that is what makes the chain reviewable."
+    ]
+  },
+  "objectives": [
+    "Explain what a discretionary access control list is and what changing it allows.",
+    "Identify the Windows events that record a permission change and the fields they contain.",
+    "List the sensitive paths where a permission change should always be reviewed.",
+    "Correlate a permission change with a following file replacement or service action.",
+    "Recognise admin tooling that legitimately changes permissions at scale.",
+    "Describe how to scope auditing so the log volume stays manageable."
+  ],
+  "techniqueId": "t1222-001",
+  "detectsTechniques": [
+    "t1222-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4670 permissions on an object were changed, including object name, subject account and the access entries added",
+    "Windows Security event 4688 process creation with command line for permission and ownership utilities such as icacls and takeown",
+    "Sysmon event 1 process creation including parent image and arguments for the same utilities",
+    "Windows Security event 4663 object access for write and permission change access on protected paths",
+    "File system monitoring records for file replacement or deletion in system directories after a permission change"
+  ],
+  "logic": "The pattern is a permission change on a sensitive path where the acting account is not the file owner or the responsible system account, the change grants broad access such as full control to a wide group or a new principal, and a file write, replacement or service restart follows on the same path within a short period. The fields to correlate are the object name, the subject account, the process name, the access entries added or removed, and the later process creation or file modification event on that path. Benign changes come from the management platform or a documented administrator action, usually affect a group of machines consistently, and do not immediately precede a write to a protected binary. Malicious changes are single host events, grant rights that are wider than the path requires, and are followed by replacement of a legitimate program. The distinguishing factor is the combination of a broad new access entry and an immediate change to the protected object.",
+  "pseudoQuery": "# title: Broad permission grant on sensitive path followed by file change\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_acl:\n#     EventID: 4670\n#     ObjectName|contains: ['\\System32\\', '\\Program Files\\', '\\Windows\\Temp\\']\n#   selection_entry:\n#     NewAcl|contains: ['Everyone', 'BUILTIN\\Users', 'FullControl']\n#   filter_mgmt:\n#     SubjectUserName|endswith: '$'\n#   condition: selection_acl and selection_entry and not filter_mgmt\n# level: high",
+  "falsePositives": [
+    "Application installers and patch processes that reset permissions on their own program folder during an upgrade",
+    "Administrators fixing a broken permission on a shared application folder after a support ticket",
+    "Backup and restore operations that rewrite permissions when files are returned to a host",
+    "Configuration management runs that enforce a standard permission baseline across a server group",
+    "Security tooling that hardens directory permissions as part of a scheduled compliance scan"
+  ],
+  "tuningNotes": "Do not alert on permission changes on their own. Build the rule as a chain with a short time window, and only keep changes that both add a broad access entry and are followed by a write to the same protected object, which removes nearly all of the administrative noise. Enable object access auditing only on the paths that matter, such as service binaries, security agent directories and system folders, rather than on entire drives. Filter the machine account suffix and your documented deployment accounts by name, and review those filters every quarter. Baseline which accounts change permissions on which path so you can spot a new pairing. The coverage you lose by requiring a following file write is a permission change made purely for later persistence with no immediate write, so add a separate low severity alert for first time permission changes on the protected paths by accounts outside the operations group.",
+  "severity": "high"
+}

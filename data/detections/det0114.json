@@ -1,0 +1,106 @@
+{
+  "id": "det0114",
+  "type": "detection",
+  "title": "Behavioral Detection of Local Group Enumeration Across OS Platforms",
+  "shortTitle": "Behavioral Detection of Local Group Enumeration Across OS...",
+  "externalId": "DET0114",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects local group enumeration across Windows, Linux and macOS by watching process creation on hosts rather than directory service activity. The technique matters because listing local groups and their members is how an attacker maps privileges after landing on a machine, and it usually happens seconds after initial access and again before privilege escalation. Detection depends on process creation telemetry that carries the full command line: Windows Security event 4688 with command line auditing enabled, Sysmon event 1, and Linux auditd execve records or macOS endpoint process events. The main failure mode is volume, because system administration scripts and management agents run the same commands constantly, so the rule only becomes useful when it is scoped to interactive or unusual parent processes and to hosts where such commands are not normal.",
+  "tags": [
+    "discovery",
+    "local groups",
+    "windows",
+    "linux",
+    "macos",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Local Group Enumeration Across OS Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0114/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Local Group Enumeration Across OS Platforms - EASY",
+      "path": "exercises/det0114/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Local Group Enumeration Across OS Platforms - MEDIUM",
+      "path": "exercises/det0114/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Local Group Enumeration Across OS Platforms - HARD",
+      "path": "exercises/det0114/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Local Group Enumeration Across OS Platforms - EXTREMELY HARD",
+      "path": "exercises/det0114/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for commands that list the local groups and users on a computer. Local groups decide who can do what on that machine. Attackers run these commands to learn how much power they have after breaking in.",
+    "whyItMatters": "When an attacker gets onto a computer, the first thing they usually do is look around. Listing local groups tells them which accounts have administrator rights and which accounts they should steal next. The commands are built into the operating system, so they are not malware and most security tools ignore them. Seeing them is often the earliest hint of an intrusion.",
+    "howItWorks": [
+      "The operating system can record every program that starts, along with its arguments.",
+      "The rule matches the recorded command line against a list of known group listing commands.",
+      "It also looks at which program started the command, which is called the parent process.",
+      "Commands started by a user shell or a document reader are more interesting than commands started by a management agent.",
+      "The rule counts how often the command runs on one host in a short period.",
+      "A cluster of listings on one host, especially by different accounts, raises an alert."
+    ],
+    "example": "Picture a warehouse at night. A visitor badge is allowed to walk the aisles. The guard does not care until the visitor starts reading the labels on every locked cage. Checking which cages are open is what worries the guard. Walking is normal; checking every lock in order is not. The group listing commands are that tour of the locks, and the guard log is the process creation record.",
+    "takeaways": [
+      "Local group listings are a classic early step after a break in.",
+      "The command line is the evidence, so make sure it is recorded.",
+      "One listing means little; a burst on one host means a lot."
+    ]
+  },
+  "objectives": [
+    "Name the local group enumeration commands on Windows, Linux and macOS",
+    "Identify which process creation fields are needed to detect them",
+    "Distinguish interactive discovery from routine administration using the parent process",
+    "Build a per host counting rule that survives normal background activity",
+    "Use enumeration alerts as a starting point for wider intrusion hunting"
+  ],
+  "techniqueId": "t1069-001",
+  "detectsTechniques": [
+    "t1069-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled, including parent process name",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "Linux auditd execve records including exe path and argument list",
+    "macOS endpoint process execution events from a sensor that records the full argument list"
+  ],
+  "logic": "The pattern is a process creation event whose command line contains a local group or local account enumeration command, seen on a host where that command is not part of the normal baseline. The fields that must be correlated are the executable path, the full command line, the parent process and the account that owns the new process, because the same command from a management agent is routine while the same command from an office application or a command shell that a user just opened is not. Add a count over a short window per host so a single listing produces context rather than a page. The benign case is patch and configuration management running on a schedule with a known parent process, while the malicious case is several listings from an unusual parent on a workstation shortly after a suspicious login.",
+  "pseudoQuery": "# title: Local group enumeration via built in commands\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection:\n#     CommandLine|contains:\n#       - 'net localgroup'\n#       - 'Get-LocalGroup'\n#       - 'dscl . -list /Groups'\n#   filter:\n#     ParentImage|endswith:\n#       - '\\\\ConfigMgrAgent.exe'\n#       - '\\\\sccmexec.exe'\n#   condition: selection and not filter\n# level: low",
+  "falsePositives": [
+    "Patch and configuration management agents that inventory local groups on a fixed schedule",
+    "Help desk scripts that check local administrator membership before granting a user rights",
+    "Software installers that verify the local administrators group during setup",
+    "System administrators running a documented access review from a jump host"
+  ],
+  "tuningNotes": "Baseline the parent processes that run these commands in your estate, and filter the management agents, because that removes most of the noise on servers. Keep coverage on workstations with a lower threshold, since a local group listing there is rarer and more meaningful. Where possible, scope to interactive sessions by filtering on the logon type or session, and add a filter for your documented inventory scripts. The coverage you lose by filtering known agents is the case where an attacker abuses a management agent account, so pair this rule with an alert on that account authenticating from a new host instead.",
+  "severity": "low"
+}

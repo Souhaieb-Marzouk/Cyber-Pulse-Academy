@@ -1,0 +1,108 @@
+{
+  "id": "det0234",
+  "type": "detection",
+  "title": "Credential Dumping via Sensitive Memory and Registry Access Correlation",
+  "shortTitle": "Credential Dumping via Sensitive Memory and Registry Acce...",
+  "externalId": "DET0234",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects credential dumping by correlating access to protected process memory with access to the registry hives that store cached and stored secrets, tracked as ATT&CK T1003. It matters because credential material is the currency of lateral movement: one successful dump of the local security authority process can yield domain accounts, service accounts, and cached hashes that let an adversary authenticate legitimately and blend into normal traffic for weeks. The telemetry that makes it detectable is process access monitoring that records the target process, the requesting process, and the granted access rights, combined with registry object access events on the security account manager and local security authority branches, and file creation events for the resulting dump. The main failure mode is that backup and endpoint security products also open these locations with broad rights, so a rule that alerts on any access to the security authority process generates constant noise and must instead weight unusual requesters, particular access right combinations, and the write of a dump file afterwards.",
+  "tags": [
+    "windows",
+    "credential access",
+    "lsass",
+    "registry",
+    "process access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Credential Dumping via Sensitive Memory and Registry Access Correlation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0234/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Credential Dumping via Sensitive Memory and Registry Access Correlation - EASY",
+      "path": "exercises/det0234/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Credential Dumping via Sensitive Memory and Registry Access Correlation - MEDIUM",
+      "path": "exercises/det0234/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Credential Dumping via Sensitive Memory and Registry Access Correlation - HARD",
+      "path": "exercises/det0234/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Credential Dumping via Sensitive Memory and Registry Access Correlation - EXTREMELY HARD",
+      "path": "exercises/det0234/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that try to read stored passwords from memory and from the Windows registry. Memory is the working space a computer uses while running. The registry is a settings database that can hold scrambled password data. Password reading tools open both. This detection watches who opens these places, with which permissions, and whether a file of stolen data is then written.",
+    "whyItMatters": "Passwords and password hashes let an attacker log in as a real user instead of breaking in. That makes their activity look normal in the logs. Stolen domain accounts can unlock many systems at once. Catching the read attempt gives you a chance to reset those credentials before they are used.",
+    "howItWorks": [
+      "The endpoint agent records when one program asks to open another program, and which permissions it requests.",
+      "The rule narrows this to the Windows process that stores password material at logon.",
+      "It removes trusted security products that legitimately inspect that process.",
+      "It separately records reads of the registry branches that store cached secrets.",
+      "It then looks for a new file being written that could hold the copied data.",
+      "An alert fires when unusual access and a data file appear close together."
+    ],
+    "example": "Think of a bank vault and a filing cabinet that holds spare keys. Inspecting the vault door is a normal part of security work. Opening the cabinet and copying the spare keys is a different act. The combination of the two acts is what tells you something is wrong.",
+    "takeaways": [
+      "The strongest signal is the combination of memory access, registry access, and a written dump file.",
+      "Trusted security tools cause the same events, so allowlisting them is essential.",
+      "Credential theft is usually a step toward wider access, so treat it as high priority."
+    ]
+  },
+  "objectives": [
+    "Explain why process memory and registry hives contain credential material on Windows",
+    "Configure process access auditing and Sysmon event 10 collection on endpoints and servers",
+    "Interpret access mask values and identify the combinations used for memory reading",
+    "Correlate process access events with registry object access and dump file creation",
+    "Build an allowlist of security and backup software that legitimately accesses these targets",
+    "Plan credential rotation and containment steps when dumping is confirmed"
+  ],
+  "techniqueId": "t1003",
+  "detectsTechniques": [
+    "t1003"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access recording target image, source image and granted access mask",
+    "Windows Security event 4656 handle request for registry keys under the SAM and SECURITY branches",
+    "Windows Security event 4663 object access on registry keys showing read operations by a process",
+    "Sysmon event 11 file create for dump files written to disk with common dump extensions",
+    "Sysmon event 1 process creation capturing the command line of the process requesting the access"
+  ],
+  "logic": "The detection correlates three observations within a short window on the same host: a process requesting read access to the local security authority process with access rights that permit memory reading, a handle request or read against the registry branches that store cached credentials, and the creation of a file whose name or extension suggests a memory dump. The fields that must be joined are the source process image and path, its parent image, the target process or registry key, the granted access mask, the effective user account, and the dump file path and size. Benign cases involve a signed security or backup product running under a service account with a documented deployment, and repeat visits at a steady interval, whereas malicious dumping usually shows a process running from a user profile, a temporary directory, or a renamed system binary, a parent that is a script host or an office application, a single access event with very broad rights rather than periodic inspection, and an immediately following write of a large file to a user writable path.",
+  "pseudoQuery": "# title: Credential Store Access With a Dump Write\n# logsource:\n#   product: windows\n# detection:\n#   selection_lsass:\n#     EventID: 10\n#     TargetImage|endswith: '\\lsass.exe'\n#     GrantedAccess|contains:\n#       - '0x1010'\n#       - '0x1410'\n#   selection_registry:\n#     EventID: 4656\n#     ObjectName|contains: '\\SECURITY\\Policy\\Secrets'\n#   selection_dump:\n#     EventID: 11\n#     TargetFilename|endswith: '.dmp'\n#   filter_security_tools:\n#     SourceImage|endswith: '\\MsMpEng.exe'\n#   condition: selection_lsass and (selection_registry or selection_dump)\n# level: critical",
+  "falsePositives": [
+    "Endpoint protection and endpoint detection agents that inspect the security authority process as part of normal operation",
+    "Backup software that captures a full system state including registry hives during a scheduled job",
+    "Troubleshooting utilities that generate a process crash dump when an application fails and a support case is open",
+    "Administrators using a vendor approved diagnostic tool to collect a memory image under a documented ticket",
+    "Monitoring platforms that read the security policy registry branch to report configuration compliance"
+  ],
+  "tuningNotes": "Start in audit only mode for a week and cluster matches by source process image, signer, and parent, then allowlist the known security and backup products by signer rather than by file name so that updates do not break the rule. Keep the alert on broad access masks coming from unsigned or user directory paths, and add the dump file write as a required condition for the high severity tier so that routine inspection by a trusted agent drops to informational. Scope the registry branch to servers that hold cached domain credentials and to domain controllers, where this activity is rare, and baseline the normal visitors to those keys on each asset class. The coverage you lose by requiring the dump file is dumping performed entirely in memory and never written to disk, so keep a lower severity alert on unusual process access to the security authority process alone.",
+  "severity": "critical"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0305",
+  "type": "detection",
+  "title": "Detection of Group Policy Modifications via AD Object Changes and File Activity",
+  "shortTitle": "Detection of Group Policy Modifications via AD Object Cha...",
+  "externalId": "DET0305",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers group policy modification, mapped to T1484.001, where an adversary with directory rights edits group policy objects so that domain settings, scripts or software deployment push their code to many hosts at once. It matters because group policy is a trusted distribution channel that reaches every domain joined machine: one modified object can create a local administrator account, deploy a scheduled task or disable an endpoint protection setting across the whole estate without any attacker touching those hosts directly. The telemetry that makes it detectable is directory service change records on group policy container objects, the process creation events that show which tooling made the change, and file writes into the policy share that holds the linked scripts and templates. In practice the detection is scoped by noise and by attribution, because administrators change policy regularly, so the rule must separate an approved change request from an unexpected edit made by a service or user account outside the normal administration workflow.",
+  "tags": [
+    "mitre t1484.001",
+    "group policy",
+    "active directory",
+    "domain wide impact",
+    "privilege escalation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Group Policy Modifications via AD Object Changes and File Activity",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0305/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Group Policy Modifications via AD Object Changes and File Activity - EASY",
+      "path": "exercises/det0305/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Group Policy Modifications via AD Object Changes and File Activity - MEDIUM",
+      "path": "exercises/det0305/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Group Policy Modifications via AD Object Changes and File Activity - HARD",
+      "path": "exercises/det0305/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Group Policy Modifications via AD Object Changes and File Activity - EXTREMELY HARD",
+      "path": "exercises/det0305/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Group policy is a set of rules that a central server sends to all computers in a network. It can set passwords, install software and run scripts at startup. This rule looks for changes to those central rules. It is most interested when an unexpected account makes the change or when the change adds something that runs code.",
+    "whyItMatters": "One change in the central rules can affect thousands of computers at once. An attacker who can edit those rules does not need to break into each machine. Administrators change policy often, so the trick is to alert only on changes that do not match the normal workflow. That way a real attack stands out from routine work.",
+    "howItWorks": [
+      "The directory service records every change to a group policy object, including who made it and what attribute changed.",
+      "The rule collects those records. It also looks for the tool used, such as a management console or a scripting command.",
+      "It watches the shared policy folder for new or edited script and template files. That folder is how code reaches hosts.",
+      "It compares the account making the change with the list of accounts entitled to manage policy.",
+      "It adds weight for changes that grant rights, add startup scripts or alter security settings.",
+      "If the change has no approved request behind it, the system alerts. The analyst then reviews the object and its links."
+    ],
+    "example": "Think of a school where the head teacher posts one notice on the main board, and every classroom follows it. A stranger who pins their own notice on that board reaches every classroom without entering any of them. The office keeps a record of who pinned what and when, so an unusual notice is easy to trace.",
+    "takeaways": [
+      "Group policy modification is a force multiplier because it reaches every machine in the domain.",
+      "The key evidence is the directory change record plus the account and tool that made the change.",
+      "Scripts and files written into the policy share are the payload delivery step, so watch that folder too."
+    ]
+  },
+  "objectives": [
+    "Explain how group policy objects are used to distribute settings and code to domain joined computers.",
+    "Identify the directory service change records and audit settings required to see policy object edits.",
+    "Recognise the administration tools and service accounts that legitimately manage policy in your domain.",
+    "Detect payload delivery by watching the policy share for new script and template files.",
+    "Correlate a policy change with the resulting activity on member hosts, such as a new local administrator account.",
+    "Describe a change approval workflow that gives the detection rule a reliable allow list."
+  ],
+  "techniqueId": "t1484-001",
+  "detectsTechniques": [
+    "t1484-001"
+  ],
+  "dataSources": [
+    "Windows Security event 5136 directory service object modification records for group policy container objects, including the changed attribute and the acting account",
+    "Windows Security event 4662 object access records for directory objects where the audit policy enables object access auditing on the policy container",
+    "Windows Security event 4688 process creation and Sysmon event 1 process creation showing policy management tooling, such as the group policy management console and policy editing command line tools",
+    "Sysmon event 11 file creation records for new script, executable and template files inside the domain policy share",
+    "Windows Security event 4720 account creation and event 4732 group membership change records on member hosts, which show policy delivered changes taking effect"
+  ],
+  "logic": "The pattern is a modification to a group policy object, made by an account that is not part of the established policy administration group, or a change to the linked settings that introduce code execution, such as a new startup script, a new scheduled task or new account rights, followed by the corresponding effect on member hosts. The fields that must be correlated are the object distinguished name, the modified attribute, the acting account and its logon session, the source workstation, the file written into the policy share, and the member host events that follow. The benign case is a documented change request executed by a domain administrator from a jump host during a change window, typically updating a single attribute or publishing a reviewed script. The malicious case is a policy edit from a workstation or server that is not an administration host, performed by an account that recently gained elevated rights, often outside business hours, adding a script or permission change that is then observed enabling a new account or disabling defences on many hosts at once.",
+  "pseudoQuery": "# title: Group Policy Object Modified Outside Approved Administration Workflow\n# logsource:\n#   product: windows\n# detection:\n#   selection_ds:\n#     EventID: 5136\n#     ObjectClass: 'groupPolicyContainer'\n#   selection_payload:\n#     EventID: 11\n#     TargetFilename|contains: '\\\\SYSVOL\\\\'\n#     TargetFilename|endswith:\n#       - '.ps1'\n#       - '.bat'\n#       - '.vbs'\n#   filter_admins:\n#     SubjectUserName|endswith: 'Admin'\n#   condition: (selection_ds or selection_payload) and not filter_admins\n# level: high",
+  "falsePositives": [
+    "A scheduled security baseline refresh that updates policy attributes from a configuration management pipeline",
+    "A domain administrator performing a documented change request during an approved maintenance window",
+    "Group policy backup and restore operations that rewrite attributes without any user visible change",
+    "An application deployment that publishes a new startup script into the policy share through its own installer",
+    "Migration projects that copy policy objects between test and production domains, generating paired edits"
+  ],
+  "tuningNotes": "Start by recording which accounts and management hosts are allowed to modify policy, and filter those combinations rather than filtering the whole event type, so that the same account editing from an unexpected workstation still alerts. Add a filter for the configuration management service accounts used by baseline automation, and suppress changes that fall inside an approved change window with a matching request identifier. Raise severity for attribute changes that introduce script execution, grant rights or alter security settings, and correlate with member host events such as a new local account or a disabled protection component within a short window, which is a strong indicator of malicious use. Narrowing to a small administration group loses coverage if an attacker compromises one of those accounts, so monitor the administration accounts themselves for unusual source hosts and times, and keep a low severity record of every policy change for retrospective review.",
+  "severity": "high"
+}

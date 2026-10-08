@@ -1,0 +1,105 @@
+{
+  "id": "det0116",
+  "type": "detection",
+  "title": "Detection Strategy for Safe Mode Boot Abuse",
+  "shortTitle": "Detection Strategy for Safe Mode Boot Abuse",
+  "externalId": "DET0116",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of Safe Mode boot, where an attacker configures the machine to restart into a minimal diagnostic mode and then uses that state to reach data or accounts that are normally protected. The technique matters because Safe Mode loads a reduced set of drivers and services, so endpoint protection and some logging agents may not start, and security controls that depend on them go quiet. Detection depends on boot configuration telemetry, the Windows Boot Configuration Data store and the registry key that holds the Safe Mode boot flag, plus the process creation events that occur while the system is in that state. It fails in practice because the boot change is a small configuration write, and the strongest evidence is often the absence of expected agent heartbeats rather than a positive event.",
+  "tags": [
+    "defense evasion",
+    "safe mode",
+    "boot configuration",
+    "windows",
+    "registry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Safe Mode Boot Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0116/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Safe Mode Boot Abuse - EASY",
+      "path": "exercises/det0116/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Safe Mode Boot Abuse - MEDIUM",
+      "path": "exercises/det0116/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Safe Mode Boot Abuse - HARD",
+      "path": "exercises/det0116/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Safe Mode Boot Abuse - EXTREMELY HARD",
+      "path": "exercises/det0116/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for a computer being set to start in Safe Mode without a good reason. Safe Mode starts only the basics of the operating system. Many security tools do not load in that mode.",
+    "whyItMatters": "Attackers use Safe Mode to work on a machine while your defences are partly switched off. The change is small and easy to miss. If nobody notices the restart, the attacker has time to work. They can copy data or reset a local password before the machine returns to normal.",
+    "howItWorks": [
+      "The rule watches the registry location that stores the next boot options.",
+      "It looks for the value that turns on Safe Mode and for the minimal boot flag.",
+      "It checks the boot configuration data for a changed default boot entry.",
+      "It records which process changed the value and which account it used.",
+      "It then watches for a restart and for a gap in security agent heartbeats after that restart.",
+      "A boot option change with no matching change ticket raises an alert."
+    ],
+    "example": "Imagine a museum that closes most galleries for maintenance. One guard is still on duty, but the cameras in the closed rooms are switched off. A thief who can request a maintenance closure gets quiet access to those rooms. Asking for the closure is the registry change, and the silent cameras are the missing agent heartbeats.",
+    "takeaways": [
+      "Safe Mode is a maintenance feature that attackers can borrow.",
+      "Watch the boot setting, not just the restart.",
+      "Missing agent check-ins after a reboot are a strong warning sign."
+    ]
+  },
+  "objectives": [
+    "Explain what Safe Mode loads and why that helps an attacker",
+    "Identify the registry and boot configuration fields that record a Safe Mode boot",
+    "Correlate a boot option change with the account and process that made it",
+    "Use missing security agent heartbeats as supporting evidence",
+    "Verify whether a Safe Mode boot was authorised before escalating"
+  ],
+  "techniqueId": "t1688",
+  "detectsTechniques": [
+    "t1688"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for the boot configuration registry key that stores Safe Mode options",
+    "Windows Security event 4688 process creation showing boot configuration editing utilities and their command line",
+    "System startup and shutdown events in the Windows System log with the boot type recorded",
+    "Endpoint agent heartbeat or health records that show a host missing scheduled check-ins after a reboot"
+  ],
+  "logic": "The pattern is a write to the boot configuration registry values that enable Safe Mode, followed by a host restart, with the account and process that performed the write captured alongside. Fields to correlate are the registry key path, the value name, the writing process image and the logon identity, plus the restart event timestamp and any gap in agent telemetry. The distinguishing factor against the benign case is authorisation and tooling: a support engineer uses a documented deployment tool and records a ticket, while abuse usually comes from a command shell or a downloaded utility running under a local administrator account with no change record. Because the event itself is small, treat the combination of the write and the following telemetry gap as the alert rather than either alone.",
+  "pseudoQuery": "# title: Safe Mode boot option configured outside change control\n# logsource:\n#   product: windows\n#   category: registry_set\n# detection:\n#   selection:\n#     TargetObject|contains: 'CurrentControlSet\\\\Control\\\\SafeBoot'\n#     Details|contains:\n#       - 'Minimal'\n#       - 'Network'\n#   filter:\n#     Image|endswith:\n#       - '\\\\msiexec.exe'\n#       - '\\\\ITSupportTool.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Help desk technicians enabling Safe Mode with a documented ticket to clear a faulty display driver",
+    "Operating system upgrade workflows that temporarily set a minimal boot option",
+    "Backup software that reboots into a minimal configuration to capture an offline image",
+    "Antivirus remediation steps that restart into Safe Mode to remove a stubborn file"
+  ],
+  "tuningNotes": "Filter on the process image and account used by your approved support tooling, and require that a change record exists within the same hour, which removes most of the legitimate help desk noise. Scope the rule to servers and to workstations in finance and executive groups, since safe mode boots there are rare and the impact is higher. Baseline how often these registry values change in a month before enabling alerting, so you know your normal rate. The coverage you lose is a technician using an unapproved tool, so keep a secondary low severity alert on any such write from a process outside the filtered list.",
+  "severity": "high"
+}

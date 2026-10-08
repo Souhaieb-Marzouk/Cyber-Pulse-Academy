@@ -1,0 +1,107 @@
+{
+  "id": "det0052",
+  "type": "detection",
+  "title": "Behavioral Detection Strategy for Abuse of Sudo and Sudo Caching",
+  "shortTitle": "Behavioral Detection Strategy for Abuse of Sudo and Sudo ...",
+  "externalId": "DET0052",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1548.003, Sudo and Sudo Caching, where an adversary on Linux or macOS abuses the sudo utility to run commands with elevated rights, or plants a timestamp record so that a later sudo call does not ask for a password again. It matters because sudo is the normal administrative path on these systems, so a stolen password plus a cached timestamp can give an intruder silent root access without touching any other control. The telemetry that makes it visible is host audit and authentication data: process execution records from the audit subsystem, the system authentication log entries for sudo and its password prompts, session records, and file change events against the directory that stores cached timestamp files. The main failure is that administrators and automated deployment jobs use sudo thousands of times a day, so the rule must model the normal command set and timing for each account to separate abuse from routine operations.",
+  "tags": [
+    "mitre t1548.003",
+    "privilege escalation",
+    "linux",
+    "auditd",
+    "sudo"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection Strategy for Abuse of Sudo and Sudo Caching",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0052/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection Strategy for Abuse of Sudo and Sudo Caching - EASY",
+      "path": "exercises/det0052/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Abuse of Sudo and Sudo Caching - MEDIUM",
+      "path": "exercises/det0052/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Abuse of Sudo and Sudo Caching - HARD",
+      "path": "exercises/det0052/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Abuse of Sudo and Sudo Caching - EXTREMELY HARD",
+      "path": "exercises/det0052/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches how the sudo tool is used on Linux and macOS systems. Sudo lets a user run one command with higher rights. After a correct password, the tool can remember the user for a short time. Attackers abuse both the tool and that memory. This rule looks for unusual sudo behaviour.",
+    "whyItMatters": "Sudo is the normal way to administer these systems, so it draws little attention by itself. If an attacker learns one password, sudo can give full control of the machine. The memory feature means the attacker may never be asked for a password again. Normal staff also use sudo heavily, so the pattern of use, not the tool, is what matters.",
+    "howItWorks": [
+      "The audit subsystem records each command that runs, along with the account and the parent process.",
+      "The system log records sudo prompts, successes, and failures with the target account name.",
+      "The rule builds a normal profile of which commands each account runs through sudo.",
+      "It compares new activity against that profile and looks for shells or file readers.",
+      "It also watches the cached timestamp directory for new files or changes in file times.",
+      "An allowed command list that suddenly includes a shell, or a cached timestamp without a prompt, raises the alert."
+    ],
+    "example": "Think of a hospital where nurses use a supervisor key for medicine cabinets. Every use is logged, and a nurse who signs in once can open several cabinets for a few minutes. Now a visitor steals the key and opens twenty cabinets in a row. The key use was normal. The pattern of use was not. Sudo detection looks at those cabinet openings. The key is normal, and the pattern tells the story.",
+    "takeaways": [
+      "Sudo use is normal administration, so detection depends on the command set and the timing for each account.",
+      "A cached sudo timestamp lets an attacker act without further password prompts, so timestamp changes matter.",
+      "New sudo configuration files can grant power that outlives the current session, so treat them as persistence."
+    ]
+  },
+  "objectives": [
+    "Describe how sudo grants elevated rights and how sudo caching works on Linux and macOS.",
+    "Identify the audit, authentication, and session telemetry that records sudo activity.",
+    "Explain how to profile the normal sudo command set for each administrative account.",
+    "Write a pseudo rule that flags interactive shells started through sudo.",
+    "Describe why changes to the sudo configuration deserve separate attention.",
+    "Recommend triage steps that establish which commands ran with elevated rights."
+  ],
+  "techniqueId": "t1548-003",
+  "detectsTechniques": [
+    "t1548-003"
+  ],
+  "dataSources": [
+    "Linux auditd command execution records for the sudo binary including the account, command line, and parent process",
+    "System authentication log entries for sudo password prompts, successful commands, and failures",
+    "Audit records for writes to the sudo configuration directory and to the files that hold sudo rules",
+    "Linux auditd file attribute and file modification records for the cached timestamp directory used by sudo",
+    "macOS unified log entries for sudo command execution and for the cached credential timestamp"
+  ],
+  "logic": "The rule models sudo as a sequence rather than a single event. It correlates auditd command execution records for the sudo binary with the authentication log entries that record the password prompt or the absence of one, the session or terminal that originated the activity, and file change events against the cached timestamp directory. The malicious case is an account that normally runs a narrow set of administrative commands suddenly starting an interactive shell, reading credential files, or running a download or scripting tool through sudo, especially from a service account, a session with no prior interactive logon, or a host the account never touches. The benign case is a deployment job running its documented command set, a patch window on schedule, or an administrator using sudo in the way the baseline records. The command set, the session origin, and the timestamp state are the fields that separate them.",
+  "pseudoQuery": "# title: Interactive Shell Or Credential Reader Started Through Sudo\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     exe|endswith: /sudo\n#     command|contains: /bin/sh, /bin/bash, /etc/shadow, curl, wget\n#   condition: selection\n# level: medium",
+  "falsePositives": [
+    "Configuration management runs that invoke a shell through sudo to apply a documented package or service change",
+    "Administrators performing maintenance in an approved window, where the shell command is part of the published runbook",
+    "Monitoring agents that collect system state through a sudo rule granted to a service account at install time",
+    "Backup jobs that read protected directories through sudo on a fixed nightly schedule from the backup account"
+  ],
+  "tuningNotes": "Profile per account rather than per host first, because the same account may look normal on a database server and strange on a web front end. Allowlist the exact command lines that a service account runs, and treat any command outside that list as suspicious even if it is not inherently dangerous. Add the terminal or remote address to the correlation so that a jump host session is distinguished from a local console session. The coverage you lose is a slow attacker who stays inside the allowed command set, so supplement the rule with a weekly report of accounts whose sudo volume or command diversity changed most.",
+  "severity": "medium"
+}

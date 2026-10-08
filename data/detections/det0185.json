@@ -1,0 +1,107 @@
+{
+  "id": "det0185",
+  "type": "detection",
+  "title": "Behavioral Detection Strategy for Use Alternate Authentication Material: Application Access Token (T1550.001)",
+  "shortTitle": "Behavioral Detection Strategy for Use Alternate Authentic...",
+  "externalId": "DET0185",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of application access tokens, the credential type that cloud identity providers issue to applications instead of a user password. It matters because a stolen token lets an adversary call mail, file and directory interfaces directly, bypassing the interactive sign in path where most of your controls live. Detection is built on identity provider audit records and cloud service access logs that record token issuance, the requesting application identifier, the source address and the user agent. The main practical failure is that token replay looks exactly like the application doing its job, so the rule has to compare the token context against a learned baseline of application behaviour rather than rely on any single field.",
+  "tags": [
+    "cloud identity",
+    "access tokens",
+    "oauth",
+    "azure",
+    "credential access",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection Strategy for Use Alternate Authentication Material: Application Access Token (T1550.001)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0185/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection Strategy for Use Alternate Authentication Material: Application Access Token (T1550.001) - EASY",
+      "path": "exercises/det0185/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Use Alternate Authentication Material: Application Access Token (T1550.001) - MEDIUM",
+      "path": "exercises/det0185/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Use Alternate Authentication Material: Application Access Token (T1550.001) - HARD",
+      "path": "exercises/det0185/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Use Alternate Authentication Material: Application Access Token (T1550.001) - EXTREMELY HARD",
+      "path": "exercises/det0185/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for stolen application tokens being used by the wrong person or machine. A token is a short lived key that a cloud app uses instead of a password. The rule compares where and how a token is used against how it is normally used.",
+    "whyItMatters": "Many cloud services trust a token without asking for a password again. If an attacker steals one, they can read mail and files as the application. Multi factor authentication does not help here, because no interactive login happens. This makes token theft a quiet way to keep access. Watching token usage gives you a second chance to notice.",
+    "howItWorks": [
+      "An application asks the identity provider for an access token.",
+      "The provider records who asked, for which application, and from which network address.",
+      "The cloud service logs each call that the token makes to its interfaces.",
+      "The rule builds a normal profile for that application, including usual addresses and times.",
+      "New usage is compared with that profile, such as a rare country or an odd user agent string.",
+      "If the usage really stands out, the alert fires with the application identifier attached."
+    ],
+    "example": "Think of a staff car park with an automatic gate. Each car has a windscreen tag, and the gate opens without anyone checking the driver. The gate log shows the tag number and the time. If the same tag enters two different car parks in two cities within ten minutes, the tag was copied. Nobody had to steal a key, and the gate still gave you the clue.",
+    "takeaways": [
+      "Tokens skip the login prompt, so password controls cannot stop token abuse.",
+      "Location, user agent and permission breadth are the fields that reveal a replay.",
+      "Alert on the identity provider records, not only on the service that was called."
+    ]
+  },
+  "objectives": [
+    "Explain what an application access token is and why it bypasses interactive sign in controls.",
+    "Identify the identity provider records that show token issuance and the requesting application.",
+    "Correlate a token grant with the subsequent service calls made using the same identifier.",
+    "Build a behavioural baseline of address ranges and user agents for each application.",
+    "Recognise high risk permission scopes such as mail read or file write granted to a new application.",
+    "Describe how token lifetime settings change what the detection can and cannot see."
+  ],
+  "techniqueId": "t1550-001",
+  "detectsTechniques": [
+    "t1550-001"
+  ],
+  "dataSources": [
+    "Azure Entra ID sign in logs recording application identifier, source address and user agent for non interactive sign ins",
+    "Azure Entra ID audit logs recording consent grants and service principal credential additions",
+    "Microsoft 365 unified audit log entries for mailbox and file access performed by an application identity",
+    "AWS CloudTrail management events recording AssumeRole calls with the role session name and source address"
+  ],
+  "logic": "The pattern is a token or application identity being exercised from a context that does not match how that identity normally operates, especially when the identity was very recently granted new permissions. The fields that must be correlated are the application or client identifier, the source network address, the user agent, the granted permission scopes and the timestamp, joined between the identity provider sign in record and the resource service access log. The malicious case usually shows a burst of access from an unfamiliar address block or hosting provider, a user agent that does not match the application stack, mailbox or file enumeration that is far broader than the application has ever done, and often a preceding consent grant or credential addition made by an account that has never administered that application. The benign case is steady state automation from a fixed address range with a stable user agent and a narrow, long established scope.",
+  "pseudoQuery": "# title: Application Token Used From New Address With Broad Mail Scope\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     OperationName: 'Consent to application'\n#     ResultType: 'Success'\n#     TargetResources|contains: 'Mail.Read'\n#   selection_use:\n#     OperationName|contains: 'MailItemsAccessed'\n#     ClientAppId|exists: true\n#   filter_known_apps:\n#     ClientAppId|in: known_automation_app_ids\n#     CorrelationIPAddress|cidr: 10[.]0[.]0[.]0/8\n#   condition: (selection or selection_use) and not filter_known_apps\n# level: high",
+  "falsePositives": [
+    "A newly onboarded line of business application that legitimately requests mail permissions during its first week of operation",
+    "Cloud automation running from a hosting provider address range because the tenant uses a third party integration service",
+    "An administrator consenting to a well known productivity add in from a personal device while travelling",
+    "A backup or archiving product whose address range changed after a vendor migration and has not yet been re-baselined"
+  ],
+  "tuningNotes": "Build the baseline before you enable alerts: collect thirty days of sign in logs and record, for each application identifier, the set of source address ranges, user agents and operation names it normally uses, then filter on those specific triples rather than on country or address alone. Treat a consent grant that grants mail read or file write to a previously unseen application as its own high severity alert, independent of usage, because that is the point where the adversary obtains the token. Narrow by excluding known automation application identifiers but keep new consent grants unfiltered, since that is exactly where coverage matters most. The coverage you lose is token abuse that reuses a known automation application from an address range already in the baseline, which is why you should also alert on unusual volumes of item access per application per hour.",
+  "severity": "critical"
+}

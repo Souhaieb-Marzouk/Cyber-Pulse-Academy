@@ -1,0 +1,107 @@
+{
+  "id": "det0110",
+  "type": "detection",
+  "title": "Setuid/Setgid Privilege Abuse Detection (Linux/macOS)",
+  "shortTitle": "Setuid/Setgid Privilege Abuse Detection (Linux/macOS)",
+  "externalId": "DET0110",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1548.001, abuse of setuid and setgid file permissions on Linux and macOS, where an adversary either runs an existing privileged binary for its side effect or changes permissions so that a program of their own runs with another user identity. It matters because a suitable setuid program turns an ordinary account into a root shell without any exploit, and because a new setuid file is a durable backdoor that password changes and reboots do not remove. The telemetry that makes detection possible is auditd records for file attribute and permission changes, process execution records showing a setuid binary running under an unexpected parent, file integrity monitoring on directories that should not contain privileged binaries, and package verification output that lists modified permissions. It fails in practice because configuration management, installation scripts and legacy applications still set these bits legitimately, so the rule has to compare against the packaged setuid inventory rather than treat the permission change as inherently malicious.",
+  "tags": [
+    "linux",
+    "privilege-escalation",
+    "permissions",
+    "auditd",
+    "persistence"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Setuid/Setgid Privilege Abuse Detection (Linux/macOS)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0110/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Setuid/Setgid Privilege Abuse Detection (Linux/macOS) - EASY",
+      "path": "exercises/det0110/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Setuid/Setgid Privilege Abuse Detection (Linux/macOS) - MEDIUM",
+      "path": "exercises/det0110/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Setuid/Setgid Privilege Abuse Detection (Linux/macOS) - HARD",
+      "path": "exercises/det0110/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Setuid/Setgid Privilege Abuse Detection (Linux/macOS) - EXTREMELY HARD",
+      "path": "exercises/det0110/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches special permissions on Linux and Mac programs. These permissions let a program run as a more powerful user, often the administrator. The rule looks for programs given that power or used in unusual ways.",
+    "whyItMatters": "A program with this permission can hand out administrator access. Attackers often look for such a program they can misuse, or they create one of their own. The change is a single command and leaves little noise. Because normal installers also use these permissions, you must know what should be there.",
+    "howItWorks": [
+      "The system audit service records changes to file permissions, including the special bits, with the user who made the change.",
+      "Process records show which programs ran, under which user, and from which parent program.",
+      "File integrity monitoring compares the permissions of important directories against a known good list.",
+      "Package tools can report files whose permissions no longer match the vendor package.",
+      "All of this reaches the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule alerts on new privileged files and on privileged programs started by unusual parents such as a web server."
+    ],
+    "example": "Picture an office key cabinet. Some keys are labelled for cleaning staff and open only one room. Someone swaps the label onto a master key, so a cleaner now holds the key to every office. The cabinet still looks tidy and the key still looks normal. This detection is the person who photographs the cabinet weekly and compares the labels with the official list.",
+    "takeaways": [
+      "A privileged program can grant administrator access without any exploit.",
+      "New privileged files are durable and survive reboots and password changes.",
+      "Compare against the vendor inventory of expected privileged binaries before you alert."
+    ]
+  },
+  "objectives": [
+    "Explain what the setuid and setgid permission bits do to a running program",
+    "Name the audit, process and integrity telemetry that records permission and execution changes",
+    "Identify the directories where new privileged binaries are almost never legitimate",
+    "Describe how package verification helps separate vendor files from attacker files",
+    "Recognise parent processes such as web or mail servers that should never start privileged binaries",
+    "Build a review process for legitimate privileged binaries that your applications require"
+  ],
+  "techniqueId": "t1548-001",
+  "detectsTechniques": [
+    "t1548-001"
+  ],
+  "dataSources": [
+    "Linux auditd file attribute change records for chmod and chown operations including the acting user and target path",
+    "Linux auditd execve records showing the effective user identity of each executed program with its parent process",
+    "File integrity monitoring baselines for system binary directories that record permission and ownership changes",
+    "Package manager verification output listing files whose mode or owner differs from the installed package",
+    "macOS unified log and endpoint telemetry for chmod operations against system application bundles"
+  ],
+  "logic": "The pattern is either a change that adds the setuid or setgid bit to a file outside the vendor packaged set, or execution of a privileged binary from an unexpected parent context such as a web server, a container entrypoint or an interactive shell on a server where such binaries are not used. The fields that must be correlated are the target path and its new mode, the account and process that made the change, the effective and real user identifiers at execution, the parent process image, and the baseline list of expected privileged files. The benign case is a package installation or an approved configuration management task that sets the bit on a documented binary inside a system directory as part of a change record, so a new privileged file in a home, temporary or web content directory, or a privileged binary spawned by a network facing service, is what distinguishes the malicious case.",
+  "pseudoQuery": "# title: Setuid Bit Added To File Outside Packaged Binary Inventory\n# logsource:\n#   product: linux\n# detection:\n#   selection_chmod:\n#     EventType: 'file_attribute_change'\n#     NewMode|re: '^[24][0-7]{3}$'\n#   selection_exec:\n#     EventType: 'process_exec'\n#     ParentImage|endswith: ['/usr/sbin/nginx', '/usr/sbin/httpd', '/usr/sbin/sshd']\n#   filter_pkg:\n#     TargetFilename|startswith: ['/usr/bin/', '/usr/sbin/', '/bin/']\n#   condition: (selection_chmod and not filter_pkg) or selection_exec\n# level: high",
+  "falsePositives": [
+    "Configuration management runs that restore a documented setuid bit on an approved system utility after an upgrade",
+    "Legacy in house applications that require a setuid helper and are installed by an approved package",
+    "Backup or monitoring agents that temporarily add the bit to a helper binary in their own installation directory",
+    "Container base images that set privileged bits on utilities such as mount or ping during image build"
+  ],
+  "tuningNotes": "Generate the expected list of setuid and setgid files from your package database and golden images, then alert only on files outside that list or on permission changes to files inside it. Add filters for your configuration management agent and for trusted package managers running as root. Scope the execution branch to servers that expose network services, and treat any privileged binary started by a service account as high priority. Filtering packaged paths means an attacker who modifies a packaged binary in place could pass, so keep file integrity monitoring on those binaries as a separate control.",
+  "severity": "high"
+}

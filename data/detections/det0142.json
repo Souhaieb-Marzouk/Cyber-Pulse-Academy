@@ -1,0 +1,106 @@
+{
+  "id": "det0142",
+  "type": "detection",
+  "title": "Behavioral Detection of CLI Abuse on Network Devices",
+  "shortTitle": "Behavioral Detection of CLI Abuse on Network Devices",
+  "externalId": "DET0142",
+  "theme": "Detection Strategy",
+  "summary": "This strategy addresses T1059.008, command interpreter abuse on network devices, where an intruder who already holds valid credentials drives a router, switch, or firewall command line by hand or through automation. Detection depends on network device command accounting and authentication telemetry, for example TACACS or RADIUS accounting records, device syslog for configuration mode entry, and configuration change notifications that name the source address. The weakness of the approach is that the same command line is the sanctioned administrative interface, so the rule has to lean on behaviour that is rare for your environment, such as privileged commands run outside change windows, configuration exports pushed to an unusual destination, or one account touching many devices in a short period.",
+  "tags": [
+    "t1059.008",
+    "network-devices",
+    "cli",
+    "configuration-change",
+    "monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of CLI Abuse on Network Devices",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0142/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of CLI Abuse on Network Devices - EASY",
+      "path": "exercises/det0142/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of CLI Abuse on Network Devices - MEDIUM",
+      "path": "exercises/det0142/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of CLI Abuse on Network Devices - HARD",
+      "path": "exercises/det0142/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of CLI Abuse on Network Devices - EXTREMELY HARD",
+      "path": "exercises/det0142/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Network devices such as routers and switches have their own command line, like a text control panel. This detection watches what is typed there. It looks for commands that change the device setup or copy out its configuration.",
+    "whyItMatters": "An attacker with a stolen administrator login can open the device command line and look completely normal. They can add a hidden account, redirect traffic, or copy the whole configuration. These devices often sit outside the protection of normal endpoint tools. Watching their commands gives you eyes on a place that is usually unmonitored.",
+    "howItWorks": [
+      "Each network device sends its command and login records to a central log collector.",
+      "The collector stores which account ran which command, when, and from which source address.",
+      "The detection compares each command against a list of normal change commands for that device role.",
+      "It checks whether the action happened inside an approved change window.",
+      "Commands that copy configuration off the device or add accounts raise an alert for review."
+    ],
+    "example": "Imagine a hospital medicine cupboard with a sign in sheet. Nurses sign in and take normal supplies all day, so the sheet stays boring. A rule that flags anyone taking ten boxes of a controlled drug at three in the morning is useful. The command log on a network device is that sign in sheet, and unusual commands are the ten boxes.",
+    "takeaways": [
+      "Network devices have their own command logs worth collecting.",
+      "Judge commands by rarity, timing, and source, not only by name.",
+      "Configuration copies and new accounts deserve a look every time."
+    ]
+  },
+  "objectives": [
+    "Describe what a network device command line is and how it is logged",
+    "List the telemetry types that make device command abuse visible",
+    "Recognise commands that change configuration or export device secrets",
+    "Correlate a command event with its account, source address, and change window",
+    "Reduce false positives from routine administration and backup jobs",
+    "Explain why device logging gaps weaken this detection"
+  ],
+  "techniqueId": "t1059-008",
+  "detectsTechniques": [
+    "t1059-008"
+  ],
+  "dataSources": [
+    "Network device syslog records of command authorisation and configuration mode entry",
+    "TACACS+ or RADIUS accounting records showing the account, command, and source address on each device",
+    "Configuration change events and configuration archive diffs pushed from routers, switches, and firewalls",
+    "Authentication logs for device logins including source address and result",
+    "Flow or session records between administrative jump hosts and network device management addresses"
+  ],
+  "logic": "The detection looks for privileged command activity on network devices that departs from the normal administrative pattern for that device role. The fields that must be joined are the device identity, the account, the specific command, the source address, and the time of day, because no single one of them is suspicious alone. A copy of the running configuration to a remote destination from a jump host during a change window is routine, while the same command at an odd hour from a workstation that never administers devices, or repeated across many devices by one account, indicates an intruder using valid credentials. The benign case is a change record that matches the command, the account, and the source, so the rule should attach a flag for whether an approved change ticket was open at that minute rather than assuming the absence of a ticket is proof of malice.",
+  "pseudoQuery": "# title: Network Device Privileged Command Outside Change Window\n# logsource:\n#   product: network\n#   service: tacacs\n# detection:\n#   selection:\n#     Command|contains:\n#       - 'copy running-config'\n#       - 'username '\n#       - 'enable secret'\n#   condition: selection and not change_window\n# level: high",
+  "falsePositives": [
+    "Scheduled nightly configuration backups that copy the running configuration to a management server",
+    "Network engineers working an approved change window that was never entered into the ticket system",
+    "Automated compliance scanners that log in, read the configuration, and log out again",
+    "Vendor support sessions that add temporary accounts for remote troubleshooting"
+  ],
+  "tuningNotes": "Begin by baselining which accounts and source addresses touch which device groups during a normal week, then alert only on privileged commands from outside that baseline or outside declared change windows. Allow list the backup server and the configuration archive collector explicitly, and scope the rule to core routing and firewall devices first. Keep a separate low-severity rule for read-only command bursts, such as one account listing interfaces across many devices, because that pattern often precedes a serious change. Narrowing this way costs you visibility of an insider who stays inside the approved window and uses only sanctioned commands, so retain full command recording even where you do not alert.",
+  "severity": "high"
+}

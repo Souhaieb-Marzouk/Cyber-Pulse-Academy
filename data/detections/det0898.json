@@ -1,0 +1,108 @@
+{
+  "id": "det0898",
+  "type": "detection",
+  "title": "Detection of Spoofed User-Agent",
+  "shortTitle": "Detection of Spoofed User-Agent",
+  "externalId": "DET0898",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy looks for network clients that present a User-Agent string which does not match the behaviour of the underlying client stack. It covers technique T1036.012 and matters because tooling that impersonates a browser while speaking like an automation library is a strong indicator of unauthorised access, credential testing or scripted content scraping. The telemetry that makes it possible is web proxy and reverse proxy request logs, web server access logs, Transport Layer Security (TLS) client fingerprints such as JA3 or JA4 where they are collected, and endpoint process creation where a scripting interpreter reaches out to a web endpoint. In practice the strategy fails because browser user agents are copied constantly by legitimate integrations, and because TLS inspection is often skipped for privacy or performance reasons, so the fingerprint needed for the comparison is missing. Analysts therefore pair the header mismatch with request rate, timing regularity and the account behind the session rather than alerting on the string alone.",
+  "tags": [
+    "mitre t1036.012",
+    "defense evasion",
+    "user agent",
+    "web proxy",
+    "tls fingerprint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Spoofed User-Agent",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0898/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Spoofed User-Agent - EASY",
+      "path": "exercises/det0898/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Spoofed User-Agent - MEDIUM",
+      "path": "exercises/det0898/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Spoofed User-Agent - HARD",
+      "path": "exercises/det0898/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Spoofed User-Agent - EXTREMELY HARD",
+      "path": "exercises/det0898/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A User-Agent is a short text label that a program sends to a website to say what it is. This detection finds programs that lie about that label. It catches a script that pretends to be a normal browser.",
+    "whyItMatters": "Websites and security tools often trust the label to decide what traffic is normal. A script that copies a browser label can slip past simple rules. It can also test stolen passwords at high speed without looking like an attack. When you compare the label against how the client actually behaves, the lie becomes visible.",
+    "howItWorks": [
+      "You collect web proxy logs. These record every request, including the User-Agent text.",
+      "You collect the Transport Layer Security (TLS) handshake fingerprint for the same session.",
+      "You compare the two. A browser label with an automation library fingerprint is a mismatch.",
+      "You check how the client behaves. Scripts send requests at steady, machine like intervals.",
+      "You look at the account or address behind the session and its history.",
+      "You score the session and alert when a mismatch meets unusual timing or a failed login pattern."
+    ],
+    "example": "Think of a delivery van that has the logo of a well known bakery on the side. The sign looks right, so the guard waves it through. But the driver never opens the back doors, and he arrives at the same minute every night. The sign is fine, but the behaviour does not match a bakery van. A spoofed User-Agent is that sign, and the behaviour is the giveaway.",
+    "takeaways": [
+      "A User-Agent is a claim, not proof. Always compare it with client behaviour.",
+      "TLS fingerprints give you a second opinion when the label is copied.",
+      "Request timing and login failure rates turn a weak signal into a strong one."
+    ]
+  },
+  "objectives": [
+    "Explain what a User-Agent header declares and why it is trivially copied by any client",
+    "Compare a claimed User-Agent with the observed TLS client fingerprint for the same session",
+    "Use request cadence, header ordering and missing browser headers to separate scripts from real browsers",
+    "Correlate a mismatched session with the account, source address and authentication outcome",
+    "Describe the visibility gaps created when TLS inspection is not performed on a traffic path",
+    "Decide whether a confirmed mismatch warrants account lockout, rate limiting or monitoring"
+  ],
+  "techniqueId": "t1036-012",
+  "detectsTechniques": [
+    "t1036-012"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway request logs containing the User-Agent header, requested URL, source IP address and authenticated user",
+    "Reverse proxy or web server access logs with the full request header set including Accept, Accept-Language and header order",
+    "Transport Layer Security client hello metadata captured at the network edge and expressed as a JA3 or JA4 fingerprint",
+    "Authentication logs recording failed and successful sign ins per account per source address within a time window",
+    "Windows Security event 4688 process creation or Linux audit process execution records showing scripting interpreters launching network clients"
+  ],
+  "logic": "The pattern is a contradiction between the identity a client claims in its request headers and the identity implied by its transport fingerprint and its behaviour. You correlate the User-Agent string in web proxy or web server logs with the TLS client hello fingerprint for the same source address and session, and with the request rate for that client over a rolling window. The malicious case is a header set that claims a current browser while the fingerprint matches a scripting or automation library, paired with perfectly even request intervals or a burst of authentication attempts against many accounts. The benign case is an approved integration or health check whose fingerprint and cadence are consistent and whose account is known. A mismatch alone is weak; the alert becomes reliable when the claim, the fingerprint and the timing disagree at the same time.",
+  "pseudoQuery": "# title: Browser User-Agent With Non Browser TLS Fingerprint\n# logsource:\n#   product: network\n#   service: proxy\n# detection:\n#   selection:\n#     user_agent|contains: 'Mozilla/5.0'\n#     tls_ja4_fingerprint|startswith: 't13d1516h2_8daaf6152771'\n#   filter:\n#     user_agent|contains:\n#       - 'curl/'\n#       - 'python-requests'\n#       - 'Go-http-client'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Approved automation such as monitoring or synthetic transaction tooling that deliberately replays a browser user agent string",
+    "Software update clients and package managers that embed a browser like user agent to pass vendor content filters",
+    "Mobile applications using an embedded web view that legitimately produces a browser user agent with a reduced header set",
+    "Security scanning tools that crawl internal applications during an authorised assessment window",
+    "Single sign on proxies that rewrite outbound request headers on behalf of users and change the observed fingerprint"
+  ],
+  "tuningNotes": "Begin by inventorying every legitimate client that presents a browser user agent, then allowlist by fingerprint plus destination rather than by user agent alone, because the string is trivial to copy. Scope the rule to authentication and sensitive application endpoints first, where a mismatch is most meaningful, and add a request rate condition so a single mismatched request does not page anyone. Baseline the fingerprint mix per application for two weeks to find embedded web views and approved crawlers. Narrowing this way gives up coverage of low volume scripted access to ordinary content pages, so keep a low severity detection for mismatches that touch file download or account management endpoints.",
+  "severity": "medium"
+}

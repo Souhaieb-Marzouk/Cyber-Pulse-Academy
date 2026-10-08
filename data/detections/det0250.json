@@ -1,0 +1,108 @@
+{
+  "id": "det0250",
+  "type": "detection",
+  "title": "Detect Credential Discovery via Windows Registry Enumeration",
+  "shortTitle": "Detect Credential Discovery via Windows Registry Enumeration",
+  "externalId": "DET0250",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects credential discovery through Windows registry enumeration, where an adversary reads registry keys that hold stored passwords, automatic logon values and application secrets instead of running a dedicated dumping tool. The technique matters because the registry holds credentials that administrators left behind for convenience, and reading a key is quiet enough to sit inside normal administrative noise. Detection depends on process creation records with command line auditing enabled, PowerShell script block logging, and registry object access auditing on the keys that matter. The main way it fails is that software inventory, configuration management and troubleshooting all query the registry constantly, so the rule has to key on the sensitive key set, the burst shape and the parent process rather than on any registry read.",
+  "tags": [
+    "windows",
+    "credential access",
+    "discovery",
+    "registry",
+    "endpoint",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Credential Discovery via Windows Registry Enumeration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0250/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Credential Discovery via Windows Registry Enumeration - EASY",
+      "path": "exercises/det0250/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Credential Discovery via Windows Registry Enumeration - MEDIUM",
+      "path": "exercises/det0250/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Credential Discovery via Windows Registry Enumeration - HARD",
+      "path": "exercises/det0250/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Credential Discovery via Windows Registry Enumeration - EXTREMELY HARD",
+      "path": "exercises/det0250/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone reading Windows registry keys that store saved passwords. The registry is a large settings book inside Windows. Some teams leave passwords in it so services can start on their own. The rule watches tools that read those exact keys, and how many they read at once.",
+    "whyItMatters": "A saved password in the registry is already in clear or weakly protected form. Reading it needs no exploit and often no administrator rights beyond the key. Attackers like it because it looks like ordinary system work. Building a list of the keys that matter lets you spot the few reads that should not happen.",
+    "howItWorks": [
+      "Windows records every program that starts when command line logging is switched on.",
+      "The rule reads those records and looks for registry query tools and their arguments.",
+      "It compares the queried path against a list of keys known to hold credentials.",
+      "It also counts how many different sensitive keys one program touches in a short time.",
+      "The parent process is checked, because a script host or office program is unusual here.",
+      "A sensitive key read from an odd parent, or a burst of such reads, raises an alert."
+    ],
+    "example": "Think of a hotel where each room has a safe. A guest may open their own safe. Now picture someone walking the corridor and opening every safe in turn. They have no cleaning cart and no list of rooms. The keys they try are the sensitive registry paths, and the number of doors shows it is a sweep.",
+    "takeaways": [
+      "Saved passwords live in known registry paths, so build and keep that list.",
+      "Command line logging is what makes registry queries visible at all.",
+      "Look at the parent process and the number of keys, not at a single read."
+    ]
+  },
+  "objectives": [
+    "Describe why Windows registry keys can hold usable credentials.",
+    "Identify the registry paths that commonly store saved passwords and automatic logon values.",
+    "Explain the role of command line auditing in process creation records.",
+    "Correlate the queried registry path with the parent process and the querying user.",
+    "Recognise a burst of sensitive key reads as a discovery pattern.",
+    "Describe how PowerShell script block logging adds visibility to registry reads."
+  ],
+  "techniqueId": "t1552-002",
+  "detectsTechniques": [
+    "t1552-002"
+  ],
+  "dataSources": [
+    "Windows security event 4688 process creation with command line auditing enabled, capturing reg query and command arguments",
+    "Sysmon event 1 process creation records including the parent image, command line and user for registry utilities",
+    "PowerShell script block logging records showing registry provider reads through Get-ItemProperty and similar commands",
+    "Windows registry object access auditing records for the keys that hold automatic logon and application credential values",
+    "Sysmon event 13 registry value set records used to detect a credential being written into a registry key before it is read"
+  ],
+  "logic": "The pattern is a program reading registry paths that are known to hold credentials, particularly when several such keys are read in a short window by one user, when the source address or host is not an administrative workstation, or when the parent process is a document, a script host or a messaging client. The fields that must be correlated are the querying process image and its parent, the command line with the registry path, the account context, the host, and the timing, joined with any prior record of credentials being written to those keys. The malicious case usually shows a non administrative tool enumerating autologon values, virtual network computing passwords, remote desktop saved credentials, unattended installation keys or backup service credentials, several keys in one sweep, from a host or account that never does this. The benign case is configuration management and software inventory agents that read a fixed short list of keys on a schedule, a support engineer following a runbook on one specific key, or a packaged application checking its own install location.",
+  "pseudoQuery": "# title: Registry Query for Stored Credential Values by Unusual Parent\n# logsource:\n#   product: windows\n# detection:\n#   selection_key:\n#     CommandLine|contains|any:\n#       - 'Winlogon\\\\DefaultPassword'\n#       - 'AutoAdminLogon'\n#       - 'vnc\\\\password'\n#       - 'Unattended'\n#   selection_query:\n#     CommandLine|contains|any:\n#       - 'reg query'\n#       - 'Get-ItemProperty'\n#   filter_inventory:\n#     ParentImage|endswith|any:\n#       - '\\ccmexec.exe'\n#       - '\\inventoryagent.exe'\n#   condition: selection_key and selection_query and not filter_inventory\n# level: medium",
+  "falsePositives": [
+    "Inventory and configuration management agents that read a fixed small set of registry keys on a schedule",
+    "A support engineer following a documented runbook that checks one autologon value on a single workstation",
+    "A packaged application installer verifying its own registry settings during an upgrade",
+    "An endpoint security product that audits credential bearing registry paths as part of its own baseline check"
+  ],
+  "tuningNotes": "Write down the sensitive key list first and treat it as configuration, then allow list the inventory and management agents by full executable path, signature and the exact key set they read, not by process name. Suppress single reads of one key from an administrative host by a known operator, but keep a burst rule that alerts when one account reads more than a small number of distinct sensitive keys within a short window. Scope the first version to servers, domain controllers and administrative workstations, and leave standard user desktops to weekly review. The coverage you lose by allowing inventory agents is a compromised agent that abuses its access, so pair this rule with file integrity monitoring on the agent install directory and with alerts when an agent reads keys outside its declared list.",
+  "severity": "medium"
+}

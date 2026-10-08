@@ -1,0 +1,107 @@
+{
+  "id": "det0038",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow using Executable Installer File Permissions Weakness",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow using Execut...",
+  "externalId": "DET0038",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects execution flow hijacking through weak permissions in installer and service directories, the behaviour tracked as T1574.005. When a service, updater, or installer runs from a directory that a low privileged user can write to, replacing or editing the binary it launches gives an attacker code execution in the context of that trusted process, with no vulnerability required. The telemetry that makes it visible is file creation and hash change records on service and updater binaries, access control data showing a writable install path, service installation records, and process creation showing where a trusted service launched from. It fails in practice because legitimate installers patch their own files during upgrade, so the rule has to weigh the performing process, the directory permissions, and the signing state of the new file rather than the file change alone.",
+  "tags": [
+    "execution flow",
+    "t1574.005",
+    "permissions",
+    "service",
+    "file integrity",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow using Executable Installer File Permissions Weakness",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0038/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Executable Installer File Permissions Weakness - EASY",
+      "path": "exercises/det0038/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Executable Installer File Permissions Weakness - MEDIUM",
+      "path": "exercises/det0038/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Executable Installer File Permissions Weakness - HARD",
+      "path": "exercises/det0038/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Executable Installer File Permissions Weakness - EXTREMELY HARD",
+      "path": "exercises/det0038/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Some programs run from a folder that ordinary users can also write to. This detection looks for a trusted program being replaced or edited in such a folder. The attacker does not need a software bug, only write access.",
+    "whyItMatters": "A replaced helper file runs with the rights of the trusted program. That is often a service account with high access. It can mean code execution on every host where the same weak folder exists.",
+    "howItWorks": [
+      "The endpoint agent records new and changed files with their hash and path.",
+      "The rule keeps paths inside service or updater directories that users can write to.",
+      "It removes files written by the signed installer itself during a normal upgrade.",
+      "It checks if the new file has a valid signature from the expected vendor.",
+      "It adds service records to see where the trusted program starts from.",
+      "A new hash in a writable service folder, written by a script host, is the alert."
+    ],
+    "example": "Think of a building where the fire panel is in a cupboard anyone can open. The panel is trusted, so nobody questions its alarm. If someone swaps the panel for a fake one, the building still looks protected. This rule checks the panel.",
+    "takeaways": [
+      "Write access to a trusted program folder is the root problem to fix.",
+      "Compare the file hash with the known good version before you alert.",
+      "Check the signing state of the replaced file to confirm intent."
+    ]
+  },
+  "objectives": [
+    "Explain how a weak folder permission becomes code execution.",
+    "Identify which service and updater paths are user writable in your estate.",
+    "Compare a changed binary hash against a known good baseline.",
+    "Correlate a file change with the process that performed the write.",
+    "Interpret service installation records to spot an unexpected service path.",
+    "Recommend a permission fix that removes the weakness instead of only alerting."
+  ],
+  "techniqueId": "t1574-005",
+  "detectsTechniques": [
+    "t1574-005"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation or overwrite inside service, updater, or installer directories with the writing process",
+    "Sysmon event 1 process creation showing the service image path and its parent process",
+    "Windows Security event 4697 service installation recording the service image path and the account that installed it",
+    "File hash baseline of service and updater binaries collected from a known good build or installer media"
+  ],
+  "logic": "The pattern is a service, updater, or installer binary in a directory that non administrative users can write to being created, replaced, or modified by a process that is not the signed installer or the patching framework. The fields that must be correlated are the file path, the previous and new hash, the writing process image and parent, the file signature state, and the service configuration that launches the binary. The malicious case shows a hash change with no matching vendor update, a new file that is unsigned or signed by an unexpected publisher, a write performed by a script host or an office application, and often a service or scheduled task that starts the binary from a user writable directory. The benign case is a signed installer upgrading itself, a patch management agent performing a documented deployment, or a vendor writing a new version with a valid signature during a maintenance window. Confirming that the directory is user writable is what turns a routine file change into a privilege escalation alert.",
+  "pseudoQuery": "# title: Trusted Service Binary Replaced in User Writable Directory\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '\\ProgramData\\'\n#       - '\\Temp\\'\n#     Image|endswith:\n#       - '\\cmd.exe'\n#       - '\\powershell.exe'\n#   service_path:\n#     EventID: 4697\n#     ServiceFileName|contains: '\\\\Users\\\\'\n#   condition: selection or service_path\n# level: high",
+  "falsePositives": [
+    "Vendor installers that patch their own binaries in place during an upgrade and run from a shared staging folder",
+    "Third party patch management agents that deploy signed updates into application directories outside the program files tree",
+    "Internally developed services installed into a writable application directory by the build pipeline as a documented practice",
+    "Application support teams running a repair install from a network share to restore a corrupted service binary"
+  ],
+  "tuningNotes": "Start by measuring which directories in your estate are writable by standard users and contain executables, because that list is usually short and it defines where this rule should fire. Add a filter for your change management system and for the signed hashes of the vendor versions you already know, and only alert when the hash is new and the signature is absent or unexpected. Scope the rule to servers and to hosts running the affected application rather than the whole estate. The coverage you lose when you narrow to known service directories is a new third party application that installs into a weak path later, so keep a weekly report of writable directories with executables as a compensating control.",
+  "severity": "high"
+}

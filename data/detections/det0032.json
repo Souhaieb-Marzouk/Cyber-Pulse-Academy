@@ -1,0 +1,107 @@
+{
+  "id": "det0032",
+  "type": "detection",
+  "title": "Detection Strategy for Hidden Files and Directories",
+  "shortTitle": "Detection Strategy for Hidden Files and Directories",
+  "externalId": "DET0032",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers files and directories hidden to avoid inspection, the defence evasion behaviour tracked as T1564.001. Hiding is cheap and effective: a payload or tool set placed in a dot prefixed directory on Linux or given the hidden attribute on Windows disappears from a casual directory listing, from many backup jobs, and from some collection agents, which keeps an intrusion quiet between actions. The telemetry is file system creation including full paths, file attribute change records, and command line data from process creation where tools such as attrib or chmod are used to set the hidden property. It fails in practice because hiding is a normal property of countless legitimate files, so the detection has to lean on location and on the process that performed the change rather than on the hidden flag by itself.",
+  "tags": [
+    "defence evasion",
+    "hidden files",
+    "t1564.001",
+    "file integrity",
+    "linux",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hidden Files and Directories",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0032/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hidden Files and Directories - EASY",
+      "path": "exercises/det0032/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hidden Files and Directories - MEDIUM",
+      "path": "exercises/det0032/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hidden Files and Directories - HARD",
+      "path": "exercises/det0032/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hidden Files and Directories - EXTREMELY HARD",
+      "path": "exercises/det0032/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Files can carry a hidden mark. On Windows the hidden attribute hides them, and on Linux a name that starts with a dot does the same. This detection looks for new hidden files and folders in places where they are unusual.",
+    "whyItMatters": "An attacker wants time. A hidden file or folder is easy to create and hard to notice. Many backup and review tools skip hidden items too, so the file may survive a cleanup. This rule gives you a chance to see it early.",
+    "howItWorks": [
+      "The endpoint agent records when a file or folder is created, with its full path.",
+      "It also records when the hidden attribute is set on an existing file.",
+      "Command lines are logged, so a call to attrib or chmod is visible.",
+      "The rule selects new hidden items and attribute changes.",
+      "It removes known system locations, such as the hidden folders Windows already uses.",
+      "It keeps events where the parent process is a script host or a mail client."
+    ],
+    "example": "Think of a warehouse. Every box is on a shelf and easy to count, but someone could push a box behind a rack. The box is still there. Your job is to notice that the aisle count no longer matches the inventory sheet.",
+    "takeaways": [
+      "The hidden mark alone is normal, so pair it with location and with the process that set it.",
+      "Dot prefixed directories in a user home folder are a common hiding place on Linux.",
+      "Record the file hash when you alert, because the file may be deleted quickly."
+    ]
+  },
+  "objectives": [
+    "Describe how the hidden attribute and dot prefix hide files and folders.",
+    "Select telemetry that records file creation and attribute changes with full paths.",
+    "Build a filter list of legitimate hidden directories for each operating system.",
+    "Explain why hidden locations interfere with backup and review tooling.",
+    "Correlate a hidden file write with the parent process that created it.",
+    "Decide which servers and user groups need this rule most."
+  ],
+  "techniqueId": "t1564-001",
+  "detectsTechniques": [
+    "t1564-001"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation including TargetFilename and the process that created the file",
+    "Sysmon event 1 process creation with command lines that call attrib, chmod, or attrib.exe on a path",
+    "Linux auditd file watch and rename records for files created in user home directories",
+    "Endpoint file integrity monitoring inventory of paths and attributes taken on a regular schedule"
+  ],
+  "logic": "The pattern is a file or directory that becomes hidden shortly after it is created, in a location where hiding is not normal for the platform, by a process that is not a system component. The fields that must be correlated are the full file path, the hidden attribute or dot prefix in the file name, the creating process image and its parent, and the user account that owns the write. The malicious case shows a script host, an office application, or a web service account creating a dot prefixed directory or setting the hidden attribute on an executable or archive inside a temporary, public, or web root path, often followed by a second event that writes a payload into the new directory. The benign case is an installer, a development toolchain, or a configuration management agent that creates dot prefixed folders such as cache or configuration directories in the same location on thousands of hosts at the same time. Frequency across the estate and the identity of the writing process are what separate the two.",
+  "pseudoQuery": "# title: Hidden File or Directory Created by Script Host or Web Service Account\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|contains: '\\\\.'\n#   hidden_attr:\n#     EventID: 1\n#     CommandLine|contains: 'attrib +h'\n#   filter:\n#     Image|endswith:\n#       - '\\msiexec.exe'\n#       - '\\TrustedInstaller.exe'\n#   condition: (selection or hidden_attr) and not filter\n# level: low",
+  "falsePositives": [
+    "Development tooling and package managers that create dot prefixed cache and configuration directories inside project folders under a user profile",
+    "Configuration management agents that set the hidden attribute on their state files during a routine run across the estate",
+    "Backup and synchronisation clients that recreate hidden metadata files on every host at a scheduled time",
+    "User created hidden folders used to keep private documents in a shared home directory on a file server"
+  ],
+  "tuningNotes": "Reduce the noise by scoping the rule to directories that hold executable content or web served files, and exclude paths under user application data where dot prefixed cache folders are expected. Add a filter for the signed installers and management agents you already run, keyed on the image hash rather than the file name. Baseline the hidden paths that appear on your fleet during a quiet week before you enable enforcement, because this rule is most useful as a change detector. If you narrow it to executable file types only, you lose visibility of hidden script, configuration, and archive files that an attacker may stage for a later step.",
+  "severity": "low"
+}

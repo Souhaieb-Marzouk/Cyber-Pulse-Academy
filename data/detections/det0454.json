@@ -1,0 +1,106 @@
+{
+  "id": "det0454",
+  "type": "detection",
+  "title": "Detect Malicious Modification of Pluggable Authentication Modules (PAM)",
+  "shortTitle": "Detect Malicious Modification of Pluggable Authentication...",
+  "externalId": "DET0454",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects modification of pluggable authentication modules on Linux and other Unix systems, the shared libraries that decide how a user is authenticated, authorised, and how sessions are opened. It matters because an added or altered module can capture every password typed on the host, accept a hidden backdoor password, or exempt an account from checks, and the change survives reboots and password resets. Detection depends on file integrity monitoring or auditd path watches over the module configuration files and module libraries, plus package manager history that shows whether the change came from an approved update. It fails when the configuration is managed by configuration management that rewrites the files constantly, or when only file content is checked and not the loaded modules in running processes.",
+  "tags": [
+    "persistence",
+    "linux",
+    "credential access",
+    "authentication",
+    "file modification"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Malicious Modification of Pluggable Authentication Modules (PAM)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0454/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Malicious Modification of Pluggable Authentication Modules (PAM) - EASY",
+      "path": "exercises/det0454/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Malicious Modification of Pluggable Authentication Modules (PAM) - MEDIUM",
+      "path": "exercises/det0454/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Malicious Modification of Pluggable Authentication Modules (PAM) - HARD",
+      "path": "exercises/det0454/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Malicious Modification of Pluggable Authentication Modules (PAM) - EXTREMELY HARD",
+      "path": "exercises/det0454/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "On Linux systems, a set of small programs handles login and password checks, and these are called pluggable authentication modules. Their settings live in text files under the system configuration directory. This detection watches those files and their libraries for unexpected changes.",
+    "whyItMatters": "These settings decide who may log in and how. A change can record passwords, let a hidden account in, or skip a security check. The host keeps working normally, so nothing looks broken and nobody investigates.",
+    "howItWorks": [
+      "A file integrity tool or audit rule watches the module configuration files and their libraries.",
+      "The sensor records the file path, the change type, and the time of the change.",
+      "The rule checks whether the writing process is a package manager or a configuration tool.",
+      "It also looks for new rules in the files that weaken password or access checks.",
+      "Package manager history is compared with the changed files.",
+      "An unexplained change to the login stack is raised for review on that host."
+    ],
+    "example": "Think of a hospital sign-in desk with a printed list of checks for each visitor. Someone replaces the list with a new version that skips the identity check. The desk still works, and every visitor still signs in, but nobody is verified any more.",
+    "takeaways": [
+      "The login stack on Linux is a small set of files with large power.",
+      "Compare every change with package history and change records.",
+      "A quiet host with a changed login stack deserves a full review."
+    ]
+  },
+  "objectives": [
+    "Explain what pluggable authentication modules control on a Linux host",
+    "Name the configuration paths and telemetry that reveal module changes",
+    "Separate a package update from a hand edit of the login stack",
+    "Detect new module rules that weaken password or access checks",
+    "Guide a review of accounts and sessions after a confirmed change"
+  ],
+  "techniqueId": "t1556-003",
+  "detectsTechniques": [
+    "t1556-003"
+  ],
+  "dataSources": [
+    "Linux auditd path watches on the pluggable authentication module configuration directory and module library directory",
+    "File integrity monitoring records with before and after hashes for authentication configuration files",
+    "Package manager transaction history showing installed and upgraded authentication packages",
+    "Linux process execution records from auditd execve showing edits made by shells or text editors",
+    "Loaded library lists for authentication daemons collected by an endpoint agent"
+  ],
+  "logic": "The detection pairs a change to the authentication stack with the process that caused it and with the packaging record that should explain it. Correlate the file path, the change type and hash, the writing process and its parent, the logged in user, and the package manager transaction log for the same time window. The benign case is a distribution update or a configuration management run that rewrites the files from a version controlled template, arriving as a package transaction or a run with a known parent and user, and matching the approved file hash. The malicious case is a text editor, shell, or interpreter writing to these paths with no matching package transaction, a new line that references a module outside the trusted library directory, or a change that relaxes a password or access control rule. The missing package transaction is the strongest single indicator.",
+  "pseudoQuery": "# title: Authentication module configuration changed outside package management\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: PATH\n#     name|contains:\n#       - '/etc/pam.d/'\n#       - '/lib64/security/'\n#     nametype: 'CREATE'\n#   filter_package:\n#     exe|startswith:\n#       - '/usr/bin/dpkg'\n#       - '/usr/bin/rpm'\n#       - '/usr/bin/apt'\n#   filter_config:\n#     exe|startswith: '/usr/bin/ansible'\n#   condition: selection and not filter_package and not filter_config\n# level: critical",
+  "falsePositives": [
+    "Operating system security updates that replace authentication module libraries and their configuration files",
+    "Configuration management runs that rewrite the authentication configuration from an approved template",
+    "Third party single sign on or multi factor agent installation that adds its own module reference",
+    "Administrator troubleshooting that temporarily comments out a module line during a documented maintenance window"
+  ],
+  "tuningNotes": "Allow the package manager and configuration management executables, and scope the rule to production servers and hosts that accept interactive or remote logins, since desktop build images change these files often. Keep a hash baseline of the approved files per operating system version so that any content difference is visible, and alert with higher severity when the changed file references a library outside the standard security directory. Record the original content of the change so responders can restore it. Filtering the configuration management account removes coverage of the case where that account is itself misused, so alert separately when it changes authentication files outside its normal schedule.",
+  "severity": "critical"
+}

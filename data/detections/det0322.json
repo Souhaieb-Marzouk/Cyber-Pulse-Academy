@@ -1,0 +1,109 @@
+{
+  "id": "det0322",
+  "type": "detection",
+  "title": "Detection Strategy for Junk Code Obfuscation with Suspicious Execution Patterns",
+  "shortTitle": "Detection Strategy for Junk Code Obfuscation with Suspici...",
+  "externalId": "DET0322",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the execution pattern produced by junk code obfuscation, mapped to the obfuscated files or information area and recorded in the assignment as t1027-016. Junk code adds meaningless instructions and dead branches so that the file no longer matches static signatures, but the price the attacker pays is measurable: the process burns processor time on work that produces no output, and its real behaviour appears only after that work completes. The telemetry that exposes it is a combination of processor time against process lifetime, thread creation volume, library loads and the first outbound connection after the delay. The known failure mode is that compiling, encrypting and archive tools look similar, so the rule must weigh the parent process and the resulting activity rather than the resource use alone.",
+  "tags": [
+    "obfuscation",
+    "junk code",
+    "defense evasion",
+    "process behaviour",
+    "endpoint detection",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Junk Code Obfuscation with Suspicious Execution Patterns",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0322/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Junk Code Obfuscation with Suspicious Execution Patterns - EASY",
+      "path": "exercises/det0322/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Junk Code Obfuscation with Suspicious Execution Patterns - MEDIUM",
+      "path": "exercises/det0322/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Junk Code Obfuscation with Suspicious Execution Patterns - HARD",
+      "path": "exercises/det0322/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Junk Code Obfuscation with Suspicious Execution Patterns - EXTREMELY HARD",
+      "path": "exercises/det0322/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Junk code means extra instructions that do nothing useful, added to a program to change its appearance. The program still works, but a signature that once matched it no longer does. This detection looks for the side effects of running code that wastes effort on purpose.",
+    "whyItMatters": "Attackers change code to avoid file based signatures and reputation checks. Each change costs them effort, and that effort shows up on the endpoint as unusual resource use. Watching behaviour instead of file names keeps your detection working when the file changes. It also gives analysts a reason to inspect a program that no scanner has flagged.",
+    "howItWorks": [
+      "A program starts and spends time decoding or checking its own instructions before doing anything else.",
+      "During that period the processor is busy, but the program makes almost no network or file activity.",
+      "The endpoint agent records the process start, its parent, its command line and the libraries it loads.",
+      "Your platform adds resource metrics, such as processor time compared with how long the process has existed.",
+      "The rule looks for a short lived process with high processor use and low output, started by an unusual parent.",
+      "It then links that process to what it does next. Examples are a new program written to disk or a first connection out."
+    ],
+    "example": "Think of a courier who wraps a small parcel in twenty layers of paper. The parcel looks different every time, so the door staff do not recognise it. The wrapping takes a long time and leaves a pile of paper in the hallway. The clue is the delay and the mess, not the label on the parcel.",
+    "takeaways": [
+      "Obfuscation changes how a file looks, not what its code eventually does.",
+      "Processor time against process lifetime is a practical behaviour signal.",
+      "The strongest alert joins the busy period to what the process does immediately afterwards."
+    ]
+  },
+  "objectives": [
+    "Explain why junk code changes detectability without changing intent",
+    "Describe the endpoint behaviour that decoding or unpacking produces",
+    "Identify the process, thread and library events needed to build this detection",
+    "Correlate a resource heavy start with the process's next observable action",
+    "Filter compilers, archivers and installers that legitimately use high processor time",
+    "Decide when to combine this behavioural rule with static file analysis"
+  ],
+  "techniqueId": "t1027-016",
+  "detectsTechniques": [
+    "t1027-016"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation recording parent image, command line, process identifier and creation time",
+    "Sysmon event 8 create remote thread and event 10 process access showing thread creation volume during the busy period",
+    "Sysmon event 7 image load capturing libraries loaded shortly after process start",
+    "Sysmon event 3 network connection marking the first outbound connection from the process after startup",
+    "Endpoint agent process metrics giving processor time consumed compared with elapsed process lifetime"
+  ],
+  "logic": "The rule looks for a process that spends a large share of its short life consuming processor time while producing no file, registry or network activity, and then joins that process to whatever it does immediately afterwards. The malicious case is recognised by the combination of an unusual parent, such as a document reader, a script host or a mail client, an unsigned or user writable image path, and a first outbound connection or executable file write that occurs only after the busy period ends. Benign software also uses processor time heavily, but it does so with a matching install or build output, a recognised parent and a signed publisher chain, which is exactly what the correlation step filters out before an alert is raised.",
+  "pseudoQuery": "# title: Processor Bound Startup Followed by Dropped File or Connection\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_proc:\n#     EventID: 1\n#     Image|endswith: .exe\n#     ParentImage|endswith:\n#       - winword.exe\n#       - excel.exe\n#       - outlook.exe\n#       - wscript.exe\n#       - mshta.exe\n#   selection_follow:\n#     EventID:\n#       - 3\n#       - 11\n#     Image|endswith: .exe\n#   filter_signed:\n#     Signed: 'true'\n#     Company: Microsoft Corporation\n#   condition: selection_proc and selection_follow and not filter_signed\n# level: medium",
+  "falsePositives": [
+    "Software installers that unpack compressed payloads with high processor use before writing their first file",
+    "Programming language runtimes that compile code at first execution, delaying network activity until compilation ends",
+    "Antivirus engine scans that consume processor time heavily while emitting no network traffic of their own",
+    "Virtual desktop image preparation that runs optimisation scripts on first logon with long silent processing phases",
+    "Data processing jobs invoked from a spreadsheet macro that legitimately spend seconds computing before writing results"
+  ],
+  "tuningNotes": "Set the processor threshold with a baseline per host class, because servers, engineering workstations and office laptops differ by an order of magnitude, and express it as a share of processor time over process lifetime rather than an absolute figure. Allowlist signed binaries from trusted publishers at first, then tighten by requiring the follow on action to be a new executable write or a connection to a destination with no prior history on that host. Excluding all signed software costs coverage of attackers who sign with stolen or purchased certificates, so keep unsigned and unknown publisher processes in scope and alert on the presence of a valid signature as context rather than as an automatic filter.",
+  "severity": "medium"
+}

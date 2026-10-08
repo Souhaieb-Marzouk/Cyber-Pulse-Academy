@@ -1,0 +1,108 @@
+{
+  "id": "det0189",
+  "type": "detection",
+  "title": "Detection Strategy for Indicator Removal from Tools - Post-AV Evasion Modification",
+  "shortTitle": "Detection Strategy for Indicator Removal from Tools - Pos...",
+  "externalId": "DET0189",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects indicator removal from tools, where an adversary modifies or strips parts of a payload after a defensive product has flagged it, so that the next version slips past the same control. The behaviour matters because it is a direct, measurable response to detection: a host that shows a security product detection followed by tampering with the flagged file or with the security product itself is a priority signal. Detection is built on endpoint protection operational records, process creation with command lines, file system changes in security product directories, and registry writes to protection configuration. The usual failure is attribution, because legitimate quarantining, cleanup scripts and product self maintenance touch the same paths, so the rule must anchor on the detection event that preceded the modification.",
+  "tags": [
+    "defense evasion",
+    "security tooling",
+    "tampering",
+    "endpoint protection",
+    "quarantine",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Indicator Removal from Tools - Post-AV Evasion Modification",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0189/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Indicator Removal from Tools - Post-AV Evasion Modification - EASY",
+      "path": "exercises/det0189/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Indicator Removal from Tools - Post-AV Evasion Modification - MEDIUM",
+      "path": "exercises/det0189/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Indicator Removal from Tools - Post-AV Evasion Modification - HARD",
+      "path": "exercises/det0189/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Indicator Removal from Tools - Post-AV Evasion Modification - EXTREMELY HARD",
+      "path": "exercises/det0189/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone changing a malicious file after a security tool has flagged it. The aim is to make the next copy harder to catch. The rule also watches for changes to the security tool itself, such as its quarantine folder or its settings. It links the detection event to what happened just after.",
+    "whyItMatters": "When your tools catch something, the attacker learns what gave them away. They then edit the file and try again. That cycle can continue until they succeed. Linking the original detection to the later change gives you a strong warning. It lets you respond while the attacker is still adjusting, instead of after they slip through.",
+    "howItWorks": [
+      "An endpoint protection product records that it detected a file or behaviour.",
+      "It takes an action, such as moving the file into quarantine.",
+      "Soon after, a process modifies that same file, its folder, or the product settings.",
+      "Your endpoint tool records the process, its command line and the file or registry change.",
+      "The rule joins the detection record with the later modification on the same host.",
+      "A close match in time and path produces a high priority alert."
+    ],
+    "example": "Imagine a border checkpoint where a sniffer dog finds a hidden package in a car. The driver is sent away. An hour later the same car returns, and the dog no longer reacts. Nothing about the car looks wrong. But the officer remembers the earlier stop. That memory makes the second arrival worth a full search.",
+    "takeaways": [
+      "A detection followed by tampering is a stronger signal than either event alone.",
+      "Attackers edit tools to defeat the exact control that caught them before.",
+      "Quarantine folders and product settings are high value places to watch."
+    ]
+  },
+  "objectives": [
+    "Explain the cycle of detection, modification and retry that this strategy targets.",
+    "Identify which security product records show that a file or behaviour was flagged.",
+    "Correlate a detection record with a later file or registry modification on the same host.",
+    "Recognise tampering targets such as quarantine storage, signature files and exclusion lists.",
+    "Separate legitimate product maintenance and cleanup from adversary modification.",
+    "Describe why exclusion list changes deserve their own independent alert."
+  ],
+  "techniqueId": "t1027-005",
+  "detectsTechniques": [
+    "t1027-005"
+  ],
+  "dataSources": [
+    "Endpoint protection operational log entries recording a detection action and the affected file path",
+    "Sysmon event 1 process creation including command line and parent image for processes touching security directories",
+    "Sysmon event 11 file creation recording new files written inside security product install and quarantine directories",
+    "Sysmon event 13 registry value set for protection exclusion and configuration keys",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is tampering with a security tool, with its quarantine storage, or with the protection configuration that controls it, and it becomes most valuable when it follows a defensive detection on the same host inside a short window. The fields that must be correlated are the detection record timestamp and file path, the later process image and command line, the file or registry path changed, and the account context, all joined on the same host identifier. The malicious case targets the flagged file itself, deletes entries from quarantine storage, adds broad exclusion paths for user writable directories, or stops and restarts the protection service around the change, and it is usually driven by a script or an unusual parent process rather than by the product's own updater. The benign case is the protection product performing its own update or scheduled cleanup, which runs from its signed binary in its own install directory under a service account at a predictable cadence.",
+  "pseudoQuery": "# title: Security Tool Tampering or Exclusion Added\n# logsource:\n#   product: windows\n# detection:\n#   selection_tamper:\n#     EventID: 1\n#     CommandLine|contains|any:\n#       - '\\\\Quarantine\\\\'\n#       - 'Set-MpPreference -ExclusionPath'\n#       - 'sc stop WinDefend'\n#   selection_exclusion:\n#     EventID: 13\n#     TargetObject|contains: 'Exclusions\\\\'\n#   filter_product_self:\n#     Image|contains: '\\\\Program Files\\\\SecurityProduct\\\\'\n#     User|endswith: 'SYSTEM'\n#   condition: (selection_tamper or selection_exclusion) and not filter_product_self\n# level: critical",
+  "falsePositives": [
+    "Endpoint protection product performing scheduled cleanup of aged items inside its own quarantine store",
+    "A remediation script run by the security team that removes a quarantined file after a confirmed false positive",
+    "Software packaging tooling that temporarily adds an exclusion path while a signed installer runs",
+    "Security operations staff restoring a quarantined business application file to its original folder"
+  ],
+  "tuningNotes": "Anchor the rule on the detection record rather than on the modification alone, because tampering that happens without a preceding detection has no signature to key on and will be caught by your configuration monitoring instead. Filter out the protection product's own signed binaries running from its install directory under the system account, but do not filter on the account alone, since ransomware and loaders frequently run as system. Treat any exclusion path added for a user writable directory as its own alert with a lower threshold, and baseline the exclusion list weekly against an approved configuration so drift is obvious. Scope this to hosts where the endpoint agent is installed and expected to be running. The coverage you lose is tampering performed through the official management console API, which will not appear as a local process, so also alert on exclusion list changes reported by the console that were not made by an approved administrator account.",
+  "severity": "critical"
+}

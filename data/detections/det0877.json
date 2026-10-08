@@ -1,0 +1,104 @@
+{
+  "id": "det0877",
+  "type": "detection",
+  "title": "Detection of DNS/Passive DNS",
+  "shortTitle": "Detection of DNS/Passive DNS",
+  "externalId": "DET0877",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the passive collection of Domain Name System data, where an adversary studies public and commercial records of your name resolutions instead of querying your servers directly. It matters because passive collection never touches your infrastructure, so it produces no local alert, and the only visible effect is domain enumeration through sources such as certificate transparency feeds and resolver logs you already hold. The telemetry that makes it possible includes recursive resolver query logs with response codes, certificate transparency and passive domain feed subscriptions, and threat intelligence records showing your subdomains referenced outside normal use. It fails in practice because enumeration traffic is spread across many public sources, so the rule must lean on your own resolver patterns and on detecting first time resolution of internal names from unexpected hosts.",
+  "tags": [
+    "mitre t1596.001",
+    "reconnaissance",
+    "passive dns",
+    "certificate transparency",
+    "attack surface"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of DNS/Passive DNS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0877/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of DNS/Passive DNS - EASY",
+      "path": "exercises/det0877/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of DNS/Passive DNS - MEDIUM",
+      "path": "exercises/det0877/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of DNS/Passive DNS - HARD",
+      "path": "exercises/det0877/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of DNS/Passive DNS - EXTREMELY HARD",
+      "path": "exercises/det0877/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Passive Domain Name System collection, called passive DNS for short, means studying records of past name lookups rather than asking your servers questions. Attackers use it to learn your subdomains and hosting. This detection looks for the signs of that study in the records you can see.",
+    "whyItMatters": "This kind of research leaves no mark on your network. That makes it easy to miss. The results tell the attacker which systems exist and which are forgotten. Forgotten systems are often unpatched systems. Watching your own name resolution and public records can still reveal the pattern, and it can help you find names you should retire.",
+    "howItWorks": [
+      "Your resolvers write a record for each lookup, including the name asked for, the answer code and the host that asked.",
+      "Public certificate and domain feeds are collected into the same platform when your teams subscribe to them.",
+      "The rule counts how many different names under your domain were requested in a window, and how many did not exist.",
+      "It also flags names that should never be resolved by ordinary users, such as internal only hostnames appearing in a public feed.",
+      "When the pattern appears, the analyst checks whether the source is an approved research or monitoring service."
+    ],
+    "example": "Think of a museum visitor book. You cannot tell who studied the exhibits by watching the halls, but the book shows someone asked for the location of every closed store room in one afternoon. That is not a normal visit, and the book is the only evidence you have.",
+    "takeaways": [
+      "Passive collection produces almost no local signal, so you must learn what your own patterns look like.",
+      "Empty answers to name lookups are a useful and often ignored signal.",
+      "A public feed can reveal your internal names, which is itself a finding to fix."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between active scanning and passive record collection",
+    "Describe how certificate transparency and passive domain feeds expose subdomains",
+    "Build a baseline of normal name lookup volume and empty answer rates for your domain",
+    "Write a rule that flags unusual enumeration of names under your domain",
+    "Use detection findings to retire forgotten hostnames and reduce exposure"
+  ],
+  "techniqueId": "t1596-001",
+  "detectsTechniques": [
+    "t1596-001"
+  ],
+  "dataSources": [
+    "Recursive DNS resolver query logs recording queried name, response code and requesting client address",
+    "Certificate transparency feed subscriptions listing issued certificates for names under your registered domains",
+    "Authoritative name server query logs showing request rates per zone and per source",
+    "External attack surface inventory listing hostnames and addresses the organisation knows about"
+  ],
+  "logic": "The pattern is a high count of distinct names under one of your registered domains being resolved or referenced from a small set of sources, with a large share of empty answers, or the appearance in public feeds of internal hostnames that should never be published. The fields to correlate are the queried name, the response code, the requesting source and the time window, plus the zone that owns the name. The benign case is a monitoring service that probes a fixed short list of published hostnames from known addresses, while the malicious or unintended case shows a long tail of never seen names, many empty answers and a source with no relationship to your published services.",
+  "pseudoQuery": "# title: Bulk enumeration of names under our domain with empty answers\n# logsource:\n#   product: network\n#   service: dns\n# detection:\n#   selection:\n#     query_name|endswith: '.our-company-domain.example'\n#     response_code:\n#       - NXDOMAIN\n#       - NOERROR_EMPTY\n#   filter:\n#     client_ip|in: approved_monitoring_ranges\n#   timeframe: 10m\n#   condition: selection and not filter | count(distinct query_name) by client_ip > 150\n# level: medium",
+  "falsePositives": [
+    "A marketing or brand protection service that checks many lookalike and legacy names on your behalf",
+    "An internal migration project that resolves old hostnames in bulk to build a redirect map",
+    "A search engine crawler that follows published links and requests legacy names from an old site map",
+    "A vulnerability scanner that resolves every host in scope before each scheduled assessment"
+  ],
+  "tuningNotes": "Allow list the addresses of approved monitoring, brand protection and assessment services first, then baseline the distinct name count your domain normally receives per hour and set the threshold above the busiest legitimate hour. Scope the rule to registered public domains where enumeration matters, and keep a second monitored view for internal zones that should never appear in public feeds. You lose visibility of enumeration performed entirely through third party data brokers, so pair the rule with a quarterly external attack surface review rather than expecting full coverage.",
+  "severity": "low"
+}

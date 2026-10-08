@@ -1,0 +1,109 @@
+{
+  "id": "det0009",
+  "type": "detection",
+  "title": "Supply-chain tamper in dependencies/dev-tools (manager→write/install→first-run→egress)",
+  "shortTitle": "Supply-chain tamper in dependencies/dev-tools (manager→wr...",
+  "externalId": "DET0009",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects tampering with software dependencies and developer tooling in the build path (T1195.001, Supply Chain Compromise: Compromise Software Dependencies and Development Tools). The technique matters out of proportion to its frequency because a single poisoned package or build script propagates to every downstream system and can reach production with valid signatures. Detection is behavioural and chain based: a package manager or build tool writes or installs files, a process runs from the fresh install for the first time, and that process makes network egress to an address the build host has never contacted. Correlating those four stages is what makes it work, since any one stage alone is routine. It fails in practice because build hosts are noisy, ephemeral and often excluded from endpoint monitoring.",
+  "tags": [
+    "supply chain",
+    "build pipeline",
+    "dependencies",
+    "t1195.001",
+    "egress",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Supply-chain tamper in dependencies/dev-tools (manager→write/install→first-run→egress)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0009/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Supply-chain tamper in dependencies/dev-tools (manager→write/install→first-run→egress) - EASY",
+      "path": "exercises/det0009/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Supply-chain tamper in dependencies/dev-tools (manager→write/install→first-run→egress) - MEDIUM",
+      "path": "exercises/det0009/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Supply-chain tamper in dependencies/dev-tools (manager→write/install→first-run→egress) - HARD",
+      "path": "exercises/det0009/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Supply-chain tamper in dependencies/dev-tools (manager→write/install→first-run→egress) - EXTREMELY HARD",
+      "path": "exercises/det0009/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Modern software is built from many ready made parts, called dependencies. A build machine downloads those parts and runs them. An attacker can hide code inside a part or inside the tool that fetches it. This detection looks for a newly installed part that runs and then reaches out to the network.",
+    "whyItMatters": "One poisoned part can end up inside thousands of products and updates. The code arrives through a trusted process, so it may be signed and approved like any other release. Build machines hold keys that sign software and credentials for publishing, which makes them a high value target. They are also busy, which makes their activity easy to hide in. Watching the build path protects everything downstream of it.",
+    "howItWorks": [
+      "The endpoint agent records the package manager or build tool that runs, with its command line and working directory.",
+      "It records the files that the tool creates or changes during installation, including scripts inside the package.",
+      "It records the next process to start from that freshly installed location, along with its parent.",
+      "It records network connections from that new process, including the destination address and port.",
+      "The detection ties these events together by host and short time window and scores the combination.",
+      "Alerting happens when a first run process from a new install makes egress to an address outside the approved package sources."
+    ],
+    "example": "Think of a bakery that buys ready made pastry from a supplier. One delivery contains a filling nobody ordered. The baker uses it without checking, and every cake that day is affected. The shop looked normal. Only the delivery note and the kitchen log show what changed.",
+    "takeaways": [
+      "The build path is high value because its output is trusted everywhere.",
+      "No single event proves tampering, so link install, first run and egress together.",
+      "Fresh install directories making outbound connections are the strongest clue."
+    ]
+  },
+  "objectives": [
+    "Explain how dependency and development tool tampering reaches production systems.",
+    "Identify the four observable stages of the attack chain and the telemetry for each.",
+    "Describe why build and continuous integration hosts need endpoint monitoring like servers.",
+    "Correlate a package installation with the first run of a new binary and its network egress.",
+    "List the legitimate package sources and registries your builds are allowed to contact.",
+    "Choose a response that preserves evidence without breaking an active build pipeline."
+  ],
+  "techniqueId": "t1195-001",
+  "detectsTechniques": [
+    "t1195-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing package manager and build tool command lines with parent image and working directory",
+    "Sysmon event 11 file creation capturing package installation directories such as node_modules or site-packages",
+    "Sysmon event 3 network connection made by a process launched from a newly written installation path",
+    "Continuous integration build logs recording dependency resolution and the source registry for each package",
+    "Linux audit execve and file write records for package managers on build agents"
+  ],
+  "logic": "The rule chains four behaviours on the same host inside a short window. The first is a package manager or build tool performing an install or update, identified by the process image and command line. The second is a file write inside a dependency or tool directory. The third is the first execution of a process whose image path lies in that freshly written directory, which is usually a lifecycle or post install script. The fourth is an outbound network connection from that process. Fields that must be correlated are the host, the parent process chain, the written path, the newly executed image, the destination address and port, and the resolving process. The malicious case is a post install script reaching a newly registered domain or an address that is not an approved package registry, or a build tool writing outside its expected directories. The benign case is a package that contacts its official registry, a licence server or a well known content delivery network, so the destination must be compared with an allow list rather than judged alone.",
+  "pseudoQuery": "# title: Dependency Install Then First Run Egress\n# logsource:\n#   product: linux\n# detection:\n#   selection_install:\n#     Image|endswith:\n#       - 'npm'\n#       - 'pip'\n#     CommandLine|contains: 'install'\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - 'node_modules'\n#       - 'site-packages'\n#   selection_egress:\n#     EventID: 3\n#     DestinationPort: 443\n#   filter_registry:\n#     DestinationHostname|endswith:\n#       - 'registry.npmjs.org'\n#       - 'pypi.org'\n#   condition: sel_install and sel_write and sel_egress and not filter_registry\n# level: high",
+  "falsePositives": [
+    "Build agents that download native libraries or toolchains from vendor content delivery networks",
+    "Packages that check for updates or report anonymous telemetry to their own project endpoint",
+    "Developer laptops running an install for the first time on a new project",
+    "Continuous integration caching proxies that fetch a dependency from an internal mirror service",
+    "Post install scripts that fetch a platform specific binary from the package author's release page"
+  ],
+  "tuningNotes": "Begin with an inventory of every registry and content delivery network your builds legitimately contact, and allow list by domain rather than by address, because release endpoints move. Limit the rule to build agents, release hosts and pipeline runner pools, where a first run process reaching a new destination is genuinely rare. Baseline the packages that run post install scripts in your projects, since some ecosystems rely on them heavily. Add a filter for internal mirror addresses. The coverage you lose by scoping to build hosts is a compromised developer workstation, so run a lower severity variant on developer subnets and combine it with detection of new publishing credentials appearing in a build log.",
+  "severity": "critical"
+}

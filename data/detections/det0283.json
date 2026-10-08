@@ -1,0 +1,106 @@
+{
+  "id": "det0283",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1134 Access Token Manipulation on Windows",
+  "shortTitle": "Behavior-chain detection for T1134 Access Token Manipulat...",
+  "externalId": "DET0283",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects access token manipulation on Windows by correlating identity evidence with process evidence, rather than trusting either source alone. An access token is the object that carries a process security context, and adversaries duplicate, steal, or impersonate tokens so a process runs as another user, often a highly privileged one, without authenticating. The enabling telemetry is process creation with the creating account and token details, logon events carrying logon type and impersonation level, records of special privileges assigned to a logon, and token right adjustment records. The strategy fails in practice because service accounts and scheduled tasks legitimately run as other users, so the rule needs a baseline of which accounts may appear as a process owner with no matching logon on that host.",
+  "tags": [
+    "access token",
+    "windows",
+    "privilege escalation",
+    "identity correlation",
+    "credential access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1134 Access Token Manipulation on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0283/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1134 Access Token Manipulation on Windows - EASY",
+      "path": "exercises/det0283/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1134 Access Token Manipulation on Windows - MEDIUM",
+      "path": "exercises/det0283/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1134 Access Token Manipulation on Windows - HARD",
+      "path": "exercises/det0283/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1134 Access Token Manipulation on Windows - EXTREMELY HARD",
+      "path": "exercises/det0283/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "An access token is a small record that tells Windows who a running program is. Every running program carries one of these records. Attackers can copy a token from another program so their code runs as a more powerful user. This detection looks for programs that act as a user who never signed in on that computer.",
+    "whyItMatters": "A stolen token lets an attacker act as an administrator without knowing any password. Password changes and multi factor prompts do not stop this, because no new sign in happens. The activity often looks like a normal service or an ordinary program on the system. Catching the mismatch between identity records and process records is one of the few reliable ways to see it.",
+    "howItWorks": [
+      "The sensor collects process creation events, which name the account that started each new program.",
+      "It also collects sign in events, which record the account, the logon type and the impersonation level.",
+      "A separate record shows when a logon receives powerful rights, such as the right to debug programs.",
+      "The rule joins these sources by account name and by computer, inside a short time window.",
+      "A process that runs as an account with no matching sign in on that host is scored as suspicious.",
+      "High confidence alerts add a second signal, such as a powerful right granted to the same process."
+    ],
+    "example": "Imagine a staff car park where every car has a badge on the windscreen. A guard checks each badge against the list of people who signed in that morning. Most badges match a name on the list, and the guard waves the car through. If a car arrives with a valid badge, yet nobody with that name signed in, the guard asks why. Token manipulation creates exactly that gap between the badge and the sign in sheet.",
+    "takeaways": [
+      "The strongest signal is a process acting as a user who has no sign in record on that computer.",
+      "You need both process records and sign in records, because neither one proves anything alone.",
+      "Build a baseline of service accounts that legitimately run programs as other users."
+    ]
+  },
+  "objectives": [
+    "Describe what an access token is and how a process obtains one.",
+    "Identify the event fields that link a process to a sign in identity.",
+    "Explain why impersonation and token theft leave a gap between identity and process records.",
+    "Correlate process creation, logon and privilege assignment events in a SIEM.",
+    "Reduce false positives using a service account baseline instead of blanket exclusions."
+  ],
+  "techniqueId": "t1134",
+  "detectsTechniques": [
+    "t1134"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation including the creating account, parent process, token elevation type and command line",
+    "Windows Security event 4624 logon events with logon type, target account and impersonation level fields",
+    "Windows Security event recording special privileges assigned to a new logon, with the account and full privilege list",
+    "Sysmon event 1 process creation showing the user field, integrity level and parent image",
+    "Windows Security event recording a token right adjustment on a running process"
+  ],
+  "logic": "Token manipulation appears as a mismatch between who the records say is acting and who could legitimately be acting. The pattern is a process whose creating account has no corresponding interactive, network, or service logon on the same host within the surrounding minutes, or a process whose effective user changes while its parent image stays the same. The fields to correlate are the creating account and token elevation type in process creation records, the logon type and impersonation level in logon events, and the privilege list in the event that records special privileges assigned to a logon. The benign case is a scheduled task, service, or management agent that runs as another account, where a matching service logon or a known agent image exists and the privilege list stays stable. The malicious case shows a new identity with no logon behind it, or debugging and impersonation rights granted to a process that does not normally hold them.",
+  "pseudoQuery": "# title: Impersonation Logon Followed by Privileged Process Creation\n# logsource:\n#   product: windows\n# detection:\n#   selection_logon:\n#     EventID: 4624\n#     LogonType: 9\n#     ImpersonationLevel: 'Impersonation'\n#   selection_proc:\n#     EventID: 4688\n#     TokenElevationType: 'TokenElevationTypeFull'\n#   filter:\n#     ParentImage|endswith:\n#       - '\\\\services.exe'\n#       - '\\\\taskeng.exe'\n#   condition: selection_logon and selection_proc and not filter\n# level: high",
+  "falsePositives": [
+    "Administrators using run as with the network only option, which creates a logon of type 9 by design.",
+    "Backup and monitoring agents that start processes under a service account with elevated rights.",
+    "Scheduled tasks configured to run as a privileged service account during a maintenance window.",
+    "Remote management tooling that opens a session and then launches helper processes inside it."
+  ],
+  "tuningNotes": "Before enabling this at high severity, inventory the service accounts, agent images, and scheduled tasks that legitimately start processes under a different identity, and load them as a filter on the parent image and the creating account. Scope the first deployment to servers that hold privileged credentials, where impersonation pays off most, then widen to workstations. Keep the token elevation and privilege list conditions active, because they separate routine service behaviour from a process that suddenly gains debugging rights. Narrowing to known agents and privileged hosts costs visibility into ad hoc administrative impersonation in ordinary user sessions, so log those matches at low severity for later review.",
+  "severity": "high"
+}

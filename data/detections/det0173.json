@@ -1,0 +1,106 @@
+{
+  "id": "det0173",
+  "type": "detection",
+  "title": "Detection Strategy for Endpoint DoS via Service Exhaustion Flood",
+  "shortTitle": "Detection Strategy for Endpoint DoS via Service Exhaustio...",
+  "externalId": "DET0173",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects endpoint denial of service through service exhaustion flooding, where an adversary opens or requests services so fast that the host can no longer serve legitimate clients. It matters because the victim is a single host or application rather than the whole network, so volumetric monitoring at the network edge stays quiet while a business critical service becomes unavailable. Detection depends on connection level telemetry: firewall or load balancer connection logs, web server access logs, system socket or connection table counters collected by the host agent, and kernel or service crash records. The practical failure is that legitimate traffic spikes, retry storms and health check bursts look identical in shape to a small flood, so the rule must weigh source diversity, connection lifetime and error rate together rather than raw request volume alone.",
+  "tags": [
+    "denial of service",
+    "network",
+    "availability",
+    "connection flood",
+    "web server"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Endpoint DoS via Service Exhaustion Flood",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0173/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Endpoint DoS via Service Exhaustion Flood - EASY",
+      "path": "exercises/det0173/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Endpoint DoS via Service Exhaustion Flood - MEDIUM",
+      "path": "exercises/det0173/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Endpoint DoS via Service Exhaustion Flood - HARD",
+      "path": "exercises/det0173/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Endpoint DoS via Service Exhaustion Flood - EXTREMELY HARD",
+      "path": "exercises/det0173/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A service is a program on a computer that answers requests, such as a web server. This detection looks for one computer being asked so many times that it stops answering everyone. It catches a flood aimed at a single machine.",
+    "whyItMatters": "Edge protections often guard the whole network, not one host. A flood aimed at one busy server can take it down while the rest of the network looks healthy. Customers see errors or a slow page and lose trust. Finding the pattern quickly lets you rate limit the traffic instead of waiting for the service to crash.",
+    "howItWorks": [
+      "The firewall, the load balancer and the web server each write a line for every connection they accept.",
+      "Host monitoring agents also record how many open connections and half open connections a machine holds at any moment.",
+      "The detection counts new connections per destination service over a short window.",
+      "It then checks how spread out the sources are. Many connections from very few addresses is a stronger sign than the same count from many addresses.",
+      "It looks for connections that close almost immediately, which often means clients are giving up or the server is refusing them.",
+      "If the count, the source spread and the error rate all move together, the alert fires so the team can rate limit the service."
+    ],
+    "example": "Think of a single ticket window at a train station. One long queue is fine and it moves. But if a crowd keeps pushing to the front and never buys a ticket, the clerk cannot serve anyone. The clue is not how many people came. It is that the queue never turns into sales.",
+    "takeaways": [
+      "Host level floods are easy to miss, because edge traffic totals can look normal.",
+      "Read source spread and connection lifetime together with the request count.",
+      "Know your service baselines, or normal busy periods will trigger the rule."
+    ]
+  },
+  "objectives": [
+    "Describe how service exhaustion differs from volumetric denial of service at the network edge",
+    "Identify connection level metrics and log fields that indicate a flood against one service",
+    "Combine request rate, source diversity and error rate into a single detection signal",
+    "Establish per service baselines that separate peak load from abuse",
+    "Plan a response that rate limits or filters without taking the service offline"
+  ],
+  "techniqueId": "t1499-002",
+  "detectsTechniques": [
+    "t1499-002"
+  ],
+  "dataSources": [
+    "Firewall or load balancer connection logs recording source address, destination port and connection duration",
+    "Web server access logs recording request rate, response status and client address per virtual host",
+    "Host based socket and connection table counters collecting total and half open connection counts per service",
+    "Application or service error and crash records showing request queue saturation and restarts",
+    "Network flow records summarising packets and connections per destination service"
+  ],
+  "logic": "The detection combines a sharp rise in new connections to one service with a collapse in the ratio of successful responses and an unusually narrow set of source addresses or source networks. The fields that must be correlated are the destination service or port, the connection request rate over a short window, the count of distinct source addresses, the average connection duration and the rate of failed or reset responses. Benign load always shows a corresponding rise in completed transactions and a source distribution that matches the normal user population; a service exhaustion flood shows connections that are opened and abandoned, retries from a small set of addresses, and a request queue that grows while completed work does not. Correlating on the service identity prevents the rule from firing on a fleet wide traffic increase, and including duration separates a flood from a genuine busy period.",
+  "pseudoQuery": "# title: Connection Flood Against Single Service With Abandoned Sessions\n# logsource:\n#   product: network\n#   service: firewall\n# detection:\n#   selection:\n#     action: connection_accept\n#     dst_port|in:\n#       - 443\n#       - 80\n#   filter:\n#     bytes_out|gt: 4096\n#     duration|gt: 5\n#   condition: selection and not filter | count(dst_port) by dst_ip > 2000\n# level: medium",
+  "falsePositives": [
+    "A mobile application release that causes thousands of clients to retry synchronisation at the same moment",
+    "Monitoring or health check systems that open many short lived probes against every service endpoint",
+    "Load testing performed by the application team in a pre production environment without prior notice",
+    "A caching layer failure that pushes all client traffic directly onto origin servers within seconds"
+  ],
+  "tuningNotes": "Establish an hourly and daily baseline of new connections, distinct source addresses and error ratio for each public service, and set the threshold as a multiple of the observed peak rather than a fixed number. Add filters for the known monitoring and health check subnets and for load test windows announced through the change process, and raise severity only when completed transaction rate falls at the same time the connection rate rises. Scoping the rule to externally reachable services keeps alert volume manageable but leaves internal service floods uncovered, so run a lower severity variant for internal ports and correlate it with host level connection counters.",
+  "severity": "medium"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0313",
+  "type": "detection",
+  "title": "Detection Strategy for HTML Smuggling via JavaScript Blob + Dynamic File Drop",
+  "shortTitle": "Detection Strategy for HTML Smuggling via JavaScript Blob...",
+  "externalId": "DET0313",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects HTML smuggling, where a web page builds a payload in the browser at run time and saves it to disk instead of downloading it from a server. It maps to the obfuscated files or information area, recorded in the assignment as t1027-006, and it matters because the malicious page often carries no payload for a proxy to scan and the file that lands on the endpoint was never fetched over the network. The telemetry that exposes it is file creation by a browser process into a user writable directory, paired with the web response size and reputation of the page that triggered it. The common failure is that the same pattern appears during ordinary downloads, so the rule must inspect the dropped file extension and the parent browser process rather than the file name alone.",
+  "tags": [
+    "html smuggling",
+    "obfuscation",
+    "browser",
+    "file creation",
+    "defense evasion",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for HTML Smuggling via JavaScript Blob + Dynamic File Drop",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0313/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for HTML Smuggling via JavaScript Blob + Dynamic File Drop - EASY",
+      "path": "exercises/det0313/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for HTML Smuggling via JavaScript Blob + Dynamic File Drop - MEDIUM",
+      "path": "exercises/det0313/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for HTML Smuggling via JavaScript Blob + Dynamic File Drop - HARD",
+      "path": "exercises/det0313/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for HTML Smuggling via JavaScript Blob + Dynamic File Drop - EXTREMELY HARD",
+      "path": "exercises/det0313/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "HTML smuggling hides a payload inside a web page instead of sending it as a file. When the page opens, the browser builds the file in memory and then saves it. The network sees a normal page, and the disk sees a new file.",
+    "whyItMatters": "Most web defences scan files that travel across the network. Here the payload is built after the page arrives, so the file scanner sees nothing. The dropped file can be an installer, an archive or a shortcut. This detection looks at the endpoint, where the file finally appears.",
+    "howItWorks": [
+      "A user opens a link, often from an email, and the browser loads a page from the internet.",
+      "The page contains instructions that create the payload inside the browser memory.",
+      "The browser then asks the user to save a file, or saves it without a prompt.",
+      "The endpoint agent records the new file, the program that created it, and the folder where it landed.",
+      "The rule keeps only files created by a browser process in folders such as downloads, and only risky file types.",
+      "It also checks the web proxy logs for a large page from a new domain, then raises the alert."
+    ],
+    "example": "Think of a courier who is only allowed to deliver sealed boxes. A sender posts a flat envelope that contains a folded box and tape. The courier sees an envelope and waves it through, and the box is assembled on the doorstep. The proxy checked the envelope, and the endpoint has to check the box.",
+    "takeaways": [
+      "The payload is assembled in the browser, so a network scan may never see it.",
+      "File creation events by browser processes are the strongest endpoint signal.",
+      "The file type and the folder it lands in decide whether the alert is useful."
+    ]
+  },
+  "objectives": [
+    "Explain why HTML smuggling can bypass network file inspection",
+    "Identify the endpoint event that records a browser writing a file to disk",
+    "List the dropped file types that deserve the highest severity",
+    "Correlate a browser file write with the web session recorded in proxy logs",
+    "Filter routine browser downloads and updater activity without losing coverage",
+    "Describe how to test the rule with a harmless sample page in a lab"
+  ],
+  "techniqueId": "t1027-006",
+  "detectsTechniques": [
+    "t1027-006"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation capturing the target file name, the creating image and the destination folder",
+    "Sysmon event 15 or the alternate data stream record for the zone identifier mark that shows a download origin",
+    "Secure web gateway or proxy logs with response size, content type, full URL and domain age for the page that triggered the save",
+    "Endpoint agent browser download history showing the source URL mapped to the local file path"
+  ],
+  "logic": "The rule fires when a browser process creates a file in a user writable location and the file extension is one that users are commonly tricked into running, such as an archive, disk image, script, shortcut or installer. Because that pattern also covers normal downloads, the detection adds two qualifiers: the web response that preceded it was unusually large or came from a domain with little history, and the creating process is the browser rather than a known software updater. The malicious case is the combination, a large template page from a new domain followed within seconds by an executable capable file in the downloads folder, while the benign case is a signed document or installer fetched from an established vendor domain with a matching content type.",
+  "pseudoQuery": "# title: Browser Drops Executable File to Disk\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_file:\n#     EventID: 11\n#     Image|endswith:\n#       - chrome.exe\n#       - msedge.exe\n#       - firefox.exe\n#     TargetFilename|endswith:\n#       - .iso\n#       - .img\n#       - .lnk\n#       - .js\n#       - .hta\n#       - .zip\n#     TargetFilename|contains: \\Downloads\\\n#   filter_updater:\n#     TargetFilename|contains: \\Edge\\Update\\\n#   condition: selection_file and not filter_updater\n# level: medium",
+  "falsePositives": [
+    "Corporate portal downloads of signed installers and disk images that users save into the downloads folder",
+    "Developer workflows that fetch archives, scripts or container images through the browser from public repositories",
+    "Software updaters that use an embedded browser component to save an update package before installing it",
+    "Virtual desktop provisioning that pulls a virtual hard disk image through the browser during image refresh",
+    "Email attachment retrieval flows where the web mail client writes the attachment into the downloads folder"
+  ],
+  "tuningNotes": "Begin by listing the domains your organisation routinely downloads executable capable file types from and allowlist those domains in the web log source rather than allowlisting file names, because names are trivial to change. Add the zone identifier check so files still carrying an internet mark and created by a browser rank higher than files produced by a managed installer, and set the largest severity for disk image and shortcut types because those usually lead straight to execution. Narrowing to browser processes loses coverage of smuggling that ends in a script host writing the file after browser handoff, so keep an adjacent rule on script hosts writing to user download paths.",
+  "severity": "high"
+}

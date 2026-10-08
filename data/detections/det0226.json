@@ -1,0 +1,108 @@
+{
+  "id": "det0226",
+  "type": "detection",
+  "title": "Detection Strategy for Masquerading via File Type Modification",
+  "shortTitle": "Detection Strategy for Masquerading via File Type Modific...",
+  "externalId": "DET0226",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects masquerading through file type modification, tracked as ATT&CK T1036.008, where an adversary changes how a file is presented or interpreted so that its true type no longer matches its appearance. Two common shapes are double extensions on email attachments, such as a document name ending in a second dangerous extension, and writes to the Windows registry that alter the executable path or perceived type associated with a file extension. It matters because the entire trust decision made by a user or by an application is based on that appearance, so one registry value or one renamed file defeats controls that only look at the name. The telemetry that makes it detectable is file creation with the full path and extension, registry value set events on the file association areas, and process creation showing the interpreter that actually ran the file. The main failure mode is noise: installers, browsers, and synchronisation clients legitimately write extension associations, so the rule must correlate the association change with an execution of the affected file type instead of alerting on either event alone.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "file association",
+    "masquerading",
+    "registry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Masquerading via File Type Modification",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0226/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Masquerading via File Type Modification - EASY",
+      "path": "exercises/det0226/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via File Type Modification - MEDIUM",
+      "path": "exercises/det0226/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via File Type Modification - HARD",
+      "path": "exercises/det0226/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via File Type Modification - EXTREMELY HARD",
+      "path": "exercises/det0226/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection catches files that pretend to be a different kind of file. A file type is the last part of a file name, such as the letters after the final dot. An attacker can add a second ending. They can also change a Windows setting, so a program looks like a picture or a document. You then open it, and code runs instead.",
+    "whyItMatters": "People and computers both decide how to open a file by looking at its name. If that name is misleading, the wrong program opens the file and the safety checks are skipped. Email filters that block one file type can be bypassed by adding a harmless looking ending in front. This trick is cheap to perform and hard for a user to notice at a glance.",
+    "howItWorks": [
+      "The endpoint agent records every new file, including the full name and its ending.",
+      "The rule looks for names that carry two endings, where the last one can run code.",
+      "Separately, the agent records changes to the Windows settings that link a file ending to a program.",
+      "The rule checks whether a changed link points to a scripting host or a temporary folder.",
+      "It then looks for a process starting from that changed file type, within a short time.",
+      "An alert means the file was not only renamed but actually executed."
+    ],
+    "example": "Imagine a parcel with two labels. The top label says books, so the mail room waves it through. Underneath, a second label says live animals. The mail room only read the top label, and the true contents were never checked.",
+    "takeaways": [
+      "Double file endings, and changed file ending settings, hide the true type of a file.",
+      "Alert only when the misleading type is followed by an actual execution.",
+      "Users cannot see the difference, so detection must not depend on them."
+    ]
+  },
+  "objectives": [
+    "Describe how Windows associates a file extension with the program that opens it",
+    "Identify file creation events whose path contains a second executable extension",
+    "Detect registry modification of file association keys that redirect an extension to a script host",
+    "Correlate a file type change with the process creation that follows it",
+    "Baseline legitimate extension changes made by browsers and software installers",
+    "Explain to end users why a visible file name is not a reliable trust signal"
+  ],
+  "techniqueId": "t1036-008",
+  "detectsTechniques": [
+    "t1036-008"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create including the full target file name and extension",
+    "Sysmon event 13 registry value set on the Classes keys that map file extensions to handlers",
+    "Windows Security event 4688 process creation showing image path and parent process",
+    "Windows Security event 4657 registry value modification with the old and new value data",
+    "Email gateway attachment metadata listing file names as delivered to the recipient"
+  ],
+  "logic": "The pattern is a file whose name carries two extensions, where the final extension is an executable or scripting type such as exe, scr, lnk, js, or vbs, or a registry association change that makes a document extension resolve to a scripting host, followed by a process creation for that file. The fields that must be joined are the file name and extension, the directory the file landed in, the registry key and new value data, the image path of the process that started, and its parent image. Benign activity shows a stable association written by a signed installer with a matching software inventory entry and a user facing message that a default application was set, while the malicious case typically shows the file arriving from a mail client or browser download directory, the association written by a non installer process such as a script host, and an immediate execution under a parent that is an office application or archive tool.",
+  "pseudoQuery": "# title: Double Extension File Executed From a User Path\n# logsource:\n#   product: windows\n# detection:\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|re: '\\.(pdf|doc|xls|jpg|png|zip)\\.(exe|scr|lnk|js|vbs)$'\n#   selection_exec:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\outlook.exe'\n#       - '\\winword.exe'\n#       - '\\explorer.exe'\n#   selection_assoc:\n#     EventID: 13\n#     TargetObject|contains: '\\Classes\\.'\n#     Details|contains:\n#       - 'wscript.exe'\n#       - 'mshta.exe'\n#   condition: (selection_file and selection_exec) or selection_assoc\n# level: high",
+  "falsePositives": [
+    "Software packaging tools that create launcher files with a descriptive name plus an lnk extension in a user profile",
+    "Browser or file manager user settings that register a new default application for an extension during first run",
+    "Developer workflows that generate samples such as invoice.pdf.exe in a test directory on a build agent",
+    "Archive tools that extract nested files and reuse the original name plus a second extension for the extracted item",
+    "Remote support software that writes a session recording named with two extensions into the operator profile"
+  ],
+  "tuningNotes": "Start by baselining extension association writes for two weeks and allowlisting the signers and installers that account for them, because a single Windows feature update can generate a large burst of legitimate association changes. Scope the double extension branch to files written under user download, temporary, or mail cache directories and exclude known packaging and development hosts by asset group, so build agents and software distribution servers do not dominate the queue. Require execution of the file within a short window, since a file that is only renamed is a weak signal, and add a filter for names whose second extension matches the first, which several legitimate products produce. The coverage you lose by scoping to user directories is a masquerading file that an attacker drops into a shared application folder, so keep a lower severity version of the rule enabled for those paths and review it weekly rather than in real time.",
+  "severity": "medium"
+}

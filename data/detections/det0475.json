@@ -1,0 +1,107 @@
+{
+  "id": "det0475",
+  "type": "detection",
+  "title": "Detection Strategy for T1218.011 Rundll32 Abuse",
+  "shortTitle": "Detection Strategy for T1218.011 Rundll32 Abuse",
+  "externalId": "DET0475",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the signed Windows utility rundll32.exe to execute attacker supplied dynamic link libraries or script content, which maps to the rundll32 technique under system binary proxy execution. Because rundll32 is a legitimate Microsoft binary, application allowlisting usually permits it, so the detection has to examine what it was asked to load and how: export names that run script content, libraries in user-writable or remote paths, ordinal-only exports, and parent processes that should never launch it. The required telemetry is process creation with the full command line and parent image, image load events for the loaded library, and registry or file events for libraries placed on disk shortly before execution. It fails in practice because many legitimate installers, control panel applets and printer drivers call rundll32 constantly, so the rule must key on path, export and parent context rather than the binary name.",
+  "tags": [
+    "mitre t1218.011",
+    "rundll32",
+    "signed binary proxy",
+    "defense evasion",
+    "windows",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1218.011 Rundll32 Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0475/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1218.011 Rundll32 Abuse - EASY",
+      "path": "exercises/det0475/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1218.011 Rundll32 Abuse - MEDIUM",
+      "path": "exercises/det0475/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1218.011 Rundll32 Abuse - HARD",
+      "path": "exercises/det0475/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1218.011 Rundll32 Abuse - EXTREMELY HARD",
+      "path": "exercises/det0475/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "rundll32 is a small Windows program that runs functions inside a library file. It is trusted, because it is part of Windows and carries a valid signature. An attacker can ask it to run a harmful library instead. This detection looks at which library was loaded and from where.",
+    "whyItMatters": "Security controls often allow signed Microsoft programs to run. That trust makes them useful to an attacker as a disguise. The harmful action happens inside a file that the trusted program loads, so the visible process looks normal. Watching the arguments and the loaded file reveals what really happened.",
+    "howItWorks": [
+      "The endpoint records new processes, including the full command line and the parent process.",
+      "The detection selects runs of the Windows library host utility.",
+      "It reads the library path and the function name from the command line arguments.",
+      "It checks whether the library sits in a user folder, a temporary folder or a network path.",
+      "It also checks the parent process, because a document reader or mail client should not start it.",
+      "A matching event becomes an alert with the file hash for the analyst to review."
+    ],
+    "example": "Think of a hotel where only staff with a master key may open any door. A guest asks a staff member to open a room for them and the staff member does it. The door log shows a valid staff key was used, so nothing looks wrong. This detection asks which room was opened and who asked.",
+    "takeaways": [
+      "A valid signature does not make a run safe; the arguments matter more.",
+      "Libraries in temporary, download or remote paths are the strongest signal.",
+      "An unexpected parent process, such as a document reader, raises the risk a lot."
+    ]
+  },
+  "objectives": [
+    "Explain what rundll32 does and why attackers use signed utilities.",
+    "Read the command line arguments of a rundll32 run and identify the library and function.",
+    "Recognise the export names and call forms associated with script execution.",
+    "Use the parent process and file path to separate malicious from administrative runs.",
+    "Write a rule that combines path, export and parent context."
+  ],
+  "techniqueId": "t1218-011",
+  "detectsTechniques": [
+    "t1218-011"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image, parent image and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled and the creating process name",
+    "Sysmon event 7 image loaded showing the loaded library path and signature status for the library host process",
+    "Windows Defender or antivirus operational events recording detections associated with the loaded library file",
+    "Sysmon event 11 file creation capturing new dynamic link library files written to user or temporary directories"
+  ],
+  "logic": "The pattern is the library host utility loading a library from a location or with an export that does not match normal system behaviour. Correlate the command line from the process creation event with the image load event that records the resolved library path and its signature, then add the parent image and the account from the same process creation record. In the benign case the library sits in a system directory, it is signed by Microsoft or an approved vendor, the export name relates to a control panel or driver function, and the parent is the shell, a scheduled task or an installer. In the malicious case the library is in a temporary, download or remote share path, the export is a script entry point, the library was written seconds earlier, and the parent is a document reader, an archive tool or a script host.",
+  "pseudoQuery": "# title: Rundll32 Loading Library from User Writable Path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: '\\\\rundll32.exe'\n#   selection_path:\n#     CommandLine|contains:\n#       - '\\\\Users\\\\'\n#       - '\\\\Temp\\\\'\n#       - '\\\\Downloads\\\\'\n#   selection_export:\n#     CommandLine|contains:\n#       - 'JavaScript'\n#       - 'RegisterXLL'\n#   filter_system:\n#     CommandLine|contains: '\\\\System32\\\\'\n#   condition: selection and (selection_path or selection_export) and not filter_system\n# level: high",
+  "falsePositives": [
+    "Printer driver and control panel applets launched through the library host from system directories",
+    "Software installers that register components by calling exported functions during setup",
+    "Legitimate line of business applications that load a signed plugin library from their own program folder",
+    "Administrative scripts that call system library functions for network or display configuration tasks"
+  ],
+  "tuningNotes": "Allowlist the system paths and the signed vendor libraries you actually use, then alert on everything else rather than on the utility name alone; a rule based on the binary name will be unusable in most companies. Add the parent image to the score and treat document readers, mail clients and archive tools as high risk, which lets you keep the path filter fairly broad. Baseline which parent processes call the library host in your estate so that an installer or configuration tool does not generate repeated alerts. Narrowing to user-writable paths costs you detection of abuse that copies a signed library into a system directory, so keep file creation events under system paths in a supporting rule.",
+  "severity": "high"
+}

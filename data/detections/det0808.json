@@ -1,0 +1,107 @@
+{
+  "id": "det0808",
+  "type": "detection",
+  "title": "Detection of Vulnerabilities",
+  "shortTitle": "Detection of Vulnerabilities",
+  "externalId": "DET0808",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the search for vulnerabilities that affect the victim, ATT&CK sub technique T1588.006, where an adversary reviews public vulnerability disclosures, vendor advisories and exploit information to find a weakness that matches the software the target organisation runs. It is a preparation step that leaves traces in two places: an internal request pattern against vulnerability databases and advisory sources from an account or host with no patch management role, and scanning traffic against the organisation's own internet facing services that enumerates software versions and product signatures. Detection joins those two streams with asset inventory so an alert can say which of your systems are actually exposed, which is what makes the lead actionable. The signal is inherently weak because vulnerability research is normal work for any engineer, and because internet wide scanning generates constant background traffic in every organisation's logs. The strategy fails when the exposed services are not inventoried, when scanner traffic is discarded as noise before it can be correlated, and when the same source is treated as a single event rather than a campaign.",
+  "tags": [
+    "t1588.006",
+    "reconnaissance",
+    "vulnerability management",
+    "network sensor",
+    "asset inventory",
+    "scanning"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Vulnerabilities",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0808/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Vulnerabilities - EASY",
+      "path": "exercises/det0808/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Vulnerabilities - MEDIUM",
+      "path": "exercises/det0808/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Vulnerabilities - HARD",
+      "path": "exercises/det0808/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Vulnerabilities - EXTREMELY HARD",
+      "path": "exercises/det0808/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Attackers study public reports about software flaws. They want to find one that fits the software your company uses. This detection looks for two things. It looks for unusual interest in vulnerability information from inside your network. It also looks for active probing of your internet facing systems. It then uses your asset list to connect the two.",
+    "whyItMatters": "A public flaw report is not dangerous by itself. It becomes dangerous when it matches a system you run and have not patched. Attackers know this, so they check what you use and then look for a known weakness in it. Spotting that research early tells you which systems are being studied. You can then patch, block or watch exactly those systems instead of guessing. It also reveals exposure you did not know you had.",
+    "howItWorks": [
+      "Your network sensors and web server logs record requests that probe for product names and version numbers.",
+      "The rule identifies requests that look like version discovery or vulnerability testing rather than normal use.",
+      "Separately, web proxy logs show which accounts are reading advisory and exploit information sites.",
+      "Both streams are matched against your asset inventory to find the systems that could actually be affected.",
+      "The rule groups activity by source address and time so that a campaign appears as one item.",
+      "Alerts that match a live system and an active campaign are raised at a higher level than research alone."
+    ],
+    "example": "Think of a locksmith's workshop. There is a public note about a certain lock model. The note says the lock can be opened with a paperclip. Reading that note is not a crime, and a locksmith reads such notes daily for work. The worrying behaviour comes next. Someone reads the note and then walks down your street. They check the model number printed on every front door. Neither action alone is proof. Together they tell you which door is at risk tonight. This detection connects the reading with the checking.",
+    "takeaways": [
+      "Vulnerability research is only useful to an attacker when it matches software you really run.",
+      "Correlating with your asset inventory is what turns endless scanner noise into a short, useful list.",
+      "Group campaign activity by source and time, or every single probe becomes a separate alert."
+    ]
+  },
+  "objectives": [
+    "Explain why vulnerability discovery is a preparation step rather than an attack",
+    "Identify network and web telemetry that reveals version discovery and vulnerability probing",
+    "Explain how asset inventory turns reconnaissance noise into an actionable finding",
+    "Detect internal interest in vulnerability and exploit information sources outside patch management roles",
+    "Group probe activity into campaigns by source address and time window",
+    "Translate a confirmed reconnaissance finding into patching, blocking and monitoring actions"
+  ],
+  "techniqueId": "t1588-006",
+  "detectsTechniques": [
+    "t1588-006"
+  ],
+  "dataSources": [
+    "Web server and reverse proxy access logs containing request path, user agent, status code and client address",
+    "Network intrusion detection or network sensor alerts for version enumeration and vulnerability probe signatures",
+    "Secure web gateway logs for requests to vendor advisory, vulnerability database and exploit information sites",
+    "Configuration management database or asset inventory listing running software versions and internet facing services"
+  ],
+  "logic": "The detection correlates probing behaviour against exposed assets. On the network side it looks for requests that enumerate product or version information, such as repeated requests for product specific paths, banners or version endpoints from one client address to several hosts, or sensor signatures for vulnerability probe patterns. On the proxy side it looks for an account or host that reads vulnerability and exploit information sources without belonging to the patch or security engineering group. The fields that must be joined are the destination host or service, the observed product and version, the source address, the account and the time window for counting. The benign case is an authorised vulnerability scanner running from a documented range on a schedule, a penetration test, or a threat intelligence analyst reading advisories as part of their job. The malicious case is an undocumented source probing several hosts in sequence, using a generic or spoofed user agent, or a client that follows its probing with requests to exploit information sources.",
+  "pseudoQuery": "# title: Version Enumeration Against Internet Facing Service From Undocumented Source\n# logsource:\n#   product: network\n#   service: webserver\n# detection:\n#   selection_probe:\n#     cs_uri_stem|contains:\n#       - '/wp-login.php'\n#       - '/phpinfo.php'\n#       - '/server-status'\n#       - '/actuator/env'\n#   filter_scanners:\n#     c_ip|startswith:\n#       - '10[.]30[.]0[.]'\n#   filter_baseline:\n#     sc_status: 404\n#   condition: selection_probe and not filter_scanners and not filter_baseline\n# level: medium",
+  "falsePositives": [
+    "Authorised vulnerability scanning and penetration testing performed from documented scanner ranges under a change ticket",
+    "Search engine crawlers and security research organisations that perform broad internet wide scanning without targeting the organisation",
+    "Application developers probing their own staging services for configuration and diagnostic endpoints during testing",
+    "Monitoring platforms that request health, status and version endpoints on a fixed schedule and therefore generate repeating version lookups"
+  ],
+  "tuningNotes": "Start by allow listing the documented scanner ranges and the internal monitoring user agents, then ensure those ranges are visible in the same logs, or the rule will generate constant noise from your own tooling. Correlate the probe with the asset inventory so the alert names the affected system and its version, and increase severity only when the probed product matches a system you run. Group probes by source address over an hour or a day rather than alerting per request, and exclude the paths that your own load balancer health checks use. Excluding known scanners costs you visibility into an attacker who borrows a hosting range that looks like a scanner, so keep a companion alert for known scanner user agents arriving from a new address range.",
+  "severity": "medium"
+}

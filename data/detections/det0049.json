@@ -1,0 +1,107 @@
+{
+  "id": "det0049",
+  "type": "detection",
+  "title": "Behavioral Detection of Network History and Configuration Tampering",
+  "shortTitle": "Behavioral Detection of Network History and Configuration...",
+  "externalId": "DET0049",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1070.007, Network Connection History and Configuration, where an adversary removes or alters the local evidence of network activity, such as the stored wireless profiles, the address resolution cache, or the routing table, to frustrate later investigation. It matters because the damaged records are often the same records an incident responder needs to scope what the host contacted and who else was affected. The telemetry that supports the detection is command execution and configuration state: shell history and audit records for network configuration utilities, file modification events against the files that store wireless profiles and host mappings, and registry writes to the network profile keys. The main failure is that helpdesk staff and network engineers run these same commands for legitimate troubleshooting, so the rule must require a clearing or flushing action and correlate it with the session context rather than alerting on the command name alone.",
+  "tags": [
+    "mitre t1070.007",
+    "defense evasion",
+    "network configuration",
+    "windows",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Network History and Configuration Tampering",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0049/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Network History and Configuration Tampering - EASY",
+      "path": "exercises/det0049/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Network History and Configuration Tampering - MEDIUM",
+      "path": "exercises/det0049/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Network History and Configuration Tampering - HARD",
+      "path": "exercises/det0049/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Network History and Configuration Tampering - EXTREMELY HARD",
+      "path": "exercises/det0049/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for commands that wipe or change the network records on a computer. Those records show which networks and addresses a machine has used. Attackers delete them so investigators cannot follow the trail. This rule watches for the deletion and the configuration changes that come with it.",
+    "whyItMatters": "After a breach, responders ask one main question: what did this machine talk to. The local network records help answer that question. If they are wiped, the investigation slows and some victims may go unnoticed. Support staff also clear these records when fixing a network fault, so context decides whether the action is hostile. That context is what this rule adds.",
+    "howItWorks": [
+      "The agent records command execution for network tools, including the full command line.",
+      "The rule separates read only commands from commands that flush, delete, or reset network state.",
+      "It watches for file modification of the wireless profile store and the local host mapping file.",
+      "It correlates the command with the parent process, the account, and the session type.",
+      "It looks for several clearing actions together, which suggests deliberate tidying rather than troubleshooting.",
+      "A confirmed pattern raises an alert and preserves the raw telemetry before it can be overwritten."
+    ],
+    "example": "Think of a paper visitor book at an office reception desk. The book records who came in and when. A thief who tears out the pages is not trying to get in, because they are already inside. They are trying to stop the guard from knowing where they went. Deleting network history works the same way. The command itself is small. The reason behind it is the real story.",
+    "takeaways": [
+      "Destroying network records is a sign that an intruder wants to hide a path, so treat it as high interest.",
+      "Normal support work uses the same tools, so the clearing or flushing action plus the session context matters.",
+      "Preserve the raw endpoint telemetry quickly, because the next step of the technique targets the same evidence."
+    ]
+  },
+  "objectives": [
+    "Explain what network connection history records contain and why an attacker would remove them.",
+    "Identify the command, file, and registry telemetry that shows network configuration tampering.",
+    "Separate read only network diagnostics from commands that clear or reset state.",
+    "Write a pseudo rule that requires a clearing action and excludes routine diagnostics.",
+    "Describe how to correlate the command with the account and the session type for triage.",
+    "Explain why evidence preservation must happen early in the response to this technique."
+  ],
+  "techniqueId": "t1070-007",
+  "detectsTechniques": [
+    "t1070-007"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including command line for network configuration and cache utility execution",
+    "Windows Security event 4688 process creation with command line auditing and the creating process name",
+    "Sysmon event 11 file creation or file modification for the wireless profile store and the local host mapping file",
+    "Sysmon event 13 registry value set for the network profile and interface configuration keys",
+    "Linux auditd command execution records for network configuration utilities on servers running Linux"
+  ],
+  "logic": "The rule looks for state destroying network actions rather than network commands in general. It selects process creation records where the command line performs a flush, delete, reset, or profile removal against the address resolution cache, the routing table, or the wireless profile store, and it correlates those records with file modification events against the files that hold wireless profiles and host mappings and with registry writes to the network profile keys. The malicious case is a chain of clearing actions by a non administrator account or from a process whose parent is an office application or a scripting host, especially immediately after outbound connections to new destinations. The benign case is a support engineer flushing the cache during a ticket, a network driver install that resets the interface, or a scheduled script that cleans stale profiles. The account, the parent process, and the number of distinct clearing actions in one session are the fields that separate them.",
+  "pseudoQuery": "# title: Network History Cleared Or Wireless Profiles Removed\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains: ipconfig /flushdns, netsh wlan delete profile, netsh interface ip delete, arp -d\n#   filter:\n#     ParentImage|endswith: \\services.exe, \\MsMpEng.exe\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Helpdesk engineers flushing the resolver cache while troubleshooting a reported name resolution fault",
+    "Network driver or virtual private network client installs that reset interface configuration as part of setup",
+    "Scheduled maintenance scripts on laptops that remove stale wireless profiles for networks no longer in use",
+    "Penetration test and vulnerability scan activities inside an approved engagement window on named test hosts"
+  ],
+  "tuningNotes": "Require at least two distinct clearing actions in one session, or a softening of the parent process rule, so that a single diagnostics command from an approved support tool does not alert. Baseline which accounts and which parent images run these commands in your estate, then exclude only those exact account and parent image pairs rather than excluding the utility name. Scope the rule to servers and to administrative jump hosts at high severity, and keep user laptops at low severity with a volume threshold. The coverage you lose is a single quiet flush performed by an attacker using a stolen support account, so monitor account activity for those support accounts separately.",
+  "severity": "medium"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0139",
+  "type": "detection",
+  "title": "Detection of Credential Harvesting via API Hooking",
+  "shortTitle": "Detection of Credential Harvesting via API Hooking",
+  "externalId": "DET0139",
+  "theme": "Detection Strategy",
+  "summary": "Credential API hooking (T1056.004) is an input capture technique in which a program intercepts calls to authentication functions inside a process that handles credentials, so that secrets are captured as a user or an application supplies them. Detection cannot lean on the payload, because the malicious code lives inside another process, so this strategy looks for the mechanics: a process requesting memory write access to a credential handling process, a memory write into an executable region, a new remote thread, or a module appearing inside a signed system process. The telemetry that makes this possible is endpoint sensor records for memory operations and module loads, plus process access records and handle auditing for sensitive processes. It fails because the same operations are routine for security agents, debuggers, and accessibility tools, and because a careful hook leaves no obvious module behind, only small in memory changes that many sensors never record.",
+  "tags": [
+    "credential access",
+    "t1056.004",
+    "api hooking",
+    "memory monitoring",
+    "process access",
+    "endpoint telemetry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Credential Harvesting via API Hooking",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0139/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Credential Harvesting via API Hooking - EASY",
+      "path": "exercises/det0139/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Credential Harvesting via API Hooking - MEDIUM",
+      "path": "exercises/det0139/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Credential Harvesting via API Hooking - HARD",
+      "path": "exercises/det0139/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Credential Harvesting via API Hooking - EXTREMELY HARD",
+      "path": "exercises/det0139/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "An API, or application programming interface, is a set of functions that programs use to talk to Windows. Hooking means quietly replacing part of one of those functions. An attacker hooks the login functions, so the password passes through their code. This detection looks for programs that change the code inside another program.",
+    "whyItMatters": "A stolen password is often in plain text, so it works everywhere that password is valid. The victim sees a normal login screen and a normal day. Nothing appears with an obvious name, because the code hides inside a trusted process. That makes the theft very hard to notice. This detection watches the method rather than a known file, so it covers many tools at once.",
+    "howItWorks": [
+      "Endpoint sensors record memory operations inside running programs.",
+      "The rule looks for writes that change executable code in a credential process.",
+      "It also looks for a new thread that one process starts inside another.",
+      "Handle records show a program asking for wide access to a sensitive process.",
+      "Module records show an unsigned library appearing in a signed system program.",
+      "An analyst checks whether an approved security or debugging tool caused the change."
+    ],
+    "example": "Picture a hotel reception desk. Guests write their name and room number on a form, and the clerk copies it into the guest book. A thief bribes the clerk to swap the pen for a special pen. The pen writes the real entry and also copies it onto a hidden sheet. Guests see nothing unusual, because the form and the clerk both look normal. API hooking works like that hidden sheet. The program that receives the password still behaves normally, but a copy goes to the attacker.",
+    "takeaways": [
+      "Hooking changes another running program instead of adding a new one.",
+      "Memory access into credential processes is the key signal to watch.",
+      "Security agents do the same thing for good reasons, so context is essential."
+    ]
+  },
+  "objectives": [
+    "Explain what an API hook is and how it captures credentials in memory.",
+    "Describe the memory, thread, handle, and module records that reveal hooking mechanics.",
+    "Identify the legitimate agents and debugging tools that produce the same events.",
+    "Correlate process access with subsequent module loads inside the same sensitive process.",
+    "Prioritise alerts where an unapproved image targets a credential handling process."
+  ],
+  "techniqueId": "t1056-004",
+  "detectsTechniques": [
+    "t1056-004"
+  ],
+  "dataSources": [
+    "Endpoint detection agent telemetry for memory write and code modification events inside credential handling processes",
+    "Sysmon event 10 process access records showing handles requested against credential handling processes with the granted access mask",
+    "Sysmon event 8 create remote thread records showing thread creation into another process",
+    "Sysmon event 7 image loaded records showing unsigned modules appearing inside signed system processes",
+    "Windows Security event 4656 handle request records with object access auditing enabled"
+  ],
+  "logic": "The detection targets the mechanics of a hook rather than a known tool. The pattern is a process that opens a handle to a credential handling process with the access rights needed to write memory or create a thread, followed within a short interval by a memory write into an executable region of that target, a new remote thread inside it, or an unsigned module appearing in its loaded module list. The fields to correlate are the requesting process identifier and image path, the target process identifier and image, the granted access mask, the memory region written where the sensor records it, and the path and signature of anything loaded into the target afterwards. The benign case is an endpoint security agent, a debugger, an accessibility tool, or a backup agent performing exactly these operations from an approved signed image in a stable installation directory. The malicious case has the same access pattern but comes from an unsigned or recently written binary, from a user writeable directory, or from a process whose parent is an office document or a script host, and it gains weight when the target is the process that holds interactive credentials.",
+  "pseudoQuery": "# title: Unapproved process requests wide access to a credential process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 10\n#     TargetImage|endswith: '\\lsass.exe'\n#     GrantedAccess|contains:\n#       - '0x1010'\n#       - '0x1410'\n#       - '0x1438'\n#       - '0x1fffff'\n#   filter_approved:\n#     SourceImage|startswith:\n#       - 'C:\\Program Files\\'\n#       - 'C:\\Program Files (x86)\\'\n#   condition: selection and not filter_approved\n# level: critical",
+  "falsePositives": [
+    "Endpoint protection agents that inject a monitoring library into credential handling processes",
+    "Single sign-on or smart card middleware that hooks authentication functions for the signed in user",
+    "Authorised debugging or crash analysis on a server, performed by an administrator with a change record",
+    "Accessibility and screen reader software that attaches to processes to read user interface elements",
+    "Backup or migration software that reads process memory to capture open application state"
+  ],
+  "tuningNotes": "Begin with the list of signed images that are authorised to touch credential handling processes, and allow them by full image path and publisher hash rather than by process name, because injection tooling can be renamed in a moment. Keep the memory write and remote thread conditions at full severity for any source image outside that list, and escalate immediately when the source image sits in a user profile, a temporary directory, or a download directory. Baseline the accessibility and security agents in your estate first, since they produce most of the volume. Trusting those images costs real coverage, because an attacker who loads a signed but vulnerable library can hide inside the trusted set, so pair this rule with driver load monitoring and with detection on unsigned modules appearing inside signed processes.",
+  "severity": "critical"
+}

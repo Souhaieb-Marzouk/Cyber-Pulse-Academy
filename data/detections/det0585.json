@@ -1,0 +1,106 @@
+{
+  "id": "det0585",
+  "type": "detection",
+  "title": "Behavior-chain detection strategy for T1127.003 Trusted Developer Utilities Proxy Execution: JamPlus (Windows)",
+  "shortTitle": "Behavior-chain detection strategy for T1127.003 Trusted D...",
+  "externalId": "DET0585",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1127.003, Trusted Developer Utilities Proxy Execution through JamPlus, a signed build tool that can be abused to compile and run attacker-supplied build scripts so the resulting child process appears to descend from a trusted binary. The detection is a behaviour chain rather than a single event: a signed developer utility executing from an unexpected path, reading a build script from a user writable location, and then spawning a scripting host, a command shell, or a network connection. Process creation telemetry with full ancestry, file creation events for temporary build artefacts, and image load records supply the evidence. The main failure is that development machines run these tools constantly, so the rule must be scoped and the normal build ancestry baselined first.",
+  "tags": [
+    "defense evasion",
+    "proxy execution",
+    "windows",
+    "process ancestry",
+    "developer tools"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection strategy for T1127.003 Trusted Developer Utilities Proxy Execution: JamPlus (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0585/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection strategy for T1127.003 Trusted Developer Utilities Proxy Execution: JamPlus (Windows) - EASY",
+      "path": "exercises/det0585/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.003 Trusted Developer Utilities Proxy Execution: JamPlus (Windows) - MEDIUM",
+      "path": "exercises/det0585/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.003 Trusted Developer Utilities Proxy Execution: JamPlus (Windows) - HARD",
+      "path": "exercises/det0585/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.003 Trusted Developer Utilities Proxy Execution: JamPlus (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0585/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Build tools turn source code into programs. They are signed and trusted, so security tools allow them to run. An intruder can ask such a tool to build a harmful script, and the process it starts looks trusted. This detection watches the chain of programs, not just one program.",
+    "whyItMatters": "A signed tool is rarely blocked by application control. Its children inherit that trust in many simple rules. Scripts and logs alone will not reveal the abuse, because the parent looks normal. Following the chain of parent and child processes is what exposes it.",
+    "howItWorks": [
+      "The endpoint agent records every new process, along with its parent process and full command line.",
+      "The rule finds a signed build utility that starts from an unusual folder such as a user download area.",
+      "It then checks what that utility started, looking for a command shell or a scripting host.",
+      "It also checks whether the tool read a build file from a user writable path.",
+      "Network connections made by those child processes raise the score further.",
+      "The whole chain is sent to your security information and event management (SIEM) platform as one alert."
+    ],
+    "example": "Imagine a hospital where only doctors may unlock the medicine cabinet. A cleaner asks a doctor to open it for them, then takes what they want. The log shows that a doctor opened the cabinet, which looks acceptable. Only a record that links the cleaner's request to the doctor's key turns a normal entry into a clear breach.",
+    "takeaways": [
+      "The evidence is the chain of processes, not any single trustworthy program.",
+      "A trusted tool running from a user folder and starting a shell is the strongest pattern.",
+      "Development teams use these tools heavily, so baseline their normal ancestry before alerting."
+    ]
+  },
+  "objectives": [
+    "Explain what proxy execution through a developer utility means and why trust matters",
+    "Read a process ancestry chain from recorded parent and child events",
+    "Identify the command line patterns that indicate a build script is driving execution",
+    "Distinguish a normal build from an abused one using path, ancestry, and network activity",
+    "Design a scoped rule that keeps developer productivity while still alerting"
+  ],
+  "techniqueId": "t1127-003",
+  "detectsTechniques": [
+    "t1127-003"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, parent command line, and process ancestry identifiers",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 11 file creation events for build artefacts written to user temporary directories",
+    "Sysmon event 3 network connection events attributed to the spawned child process",
+    "Endpoint detection and response image load and signature validation events for the executed developer utility"
+  ],
+  "logic": "The pattern is a signed developer utility invoked from a user writable path that immediately produces an unexpected child process. The rule chains process creation events by parent identifier to build a short ancestry tree, then checks three things together: the utility image path is outside the approved toolchain directories, the command line references a build script located in a download or temporary folder, and a child process appears within seconds that is a command shell or scripting interpreter. The malicious case shows that shell then making a network connection or writing an executable. The benign case shows the same utility launched by an integrated development environment from a standard toolchain path with children that are compilers and linkers.",
+  "pseudoQuery": "# title: Signed Build Utility Spawning Shell from User Writable Path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_util:\n#     EventID: 1\n#     Image|endswith: '\\jam.exe'\n#   selection_child:\n#     EventID: 1\n#     ParentImage|endswith: '\\jam.exe'\n#     Image|endswith:\n#       - '\\cmd.exe'\n#       - '\\powershell.exe'\n#       - '\\wscript.exe'\n#   filter_toolchain:\n#     Image|startswith: 'C:\\Program Files\\Toolchain\\'\n#   condition: selection_util and selection_child and not filter_toolchain\n# level: high",
+  "falsePositives": [
+    "Developers and build servers running the utility from a source checkout under a user profile with an approved script",
+    "Continuous integration agents that download the build utility into a workspace directory before each job",
+    "Software packaging teams validating third party build scripts on isolated test workstations",
+    "In-house installation wrappers that call the utility with a generated script to produce a release binary"
+  ],
+  "tuningNotes": "First collect two weeks of process ancestry for the utility across the estate and note which parent images and script directories are normal, then allowlist those exact combinations rather than the tool name. Require the spawned child to make a network connection or write an executable to raise severity, which downgrades routine compiler children. Scope the alerting rule to servers and administrative workstations, and keep developer laptops in a report-only tier that feeds the baseline. The coverage you give up is quiet abuse on a developer machine that stays inside the allowlisted script directory, so review that allowlist whenever a build system changes.",
+  "severity": "high"
+}

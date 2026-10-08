@@ -1,0 +1,107 @@
+{
+  "id": "det0447",
+  "type": "detection",
+  "title": "T1136.001 Detection Strategy - Local Account Creation Across Platforms",
+  "shortTitle": "T1136.001 Detection Strategy - Local Account Creation Acr...",
+  "externalId": "DET0447",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the creation of local accounts, which adversaries use to keep access to a host after the original foothold is closed or to gain a quiet identity that is not tied to a central directory. Coverage across platforms means joining Windows security event 4720 with the account name and creator, Unix account administration commands such as the user add utilities recorded by process execution auditing, and cloud or appliance records where a local operator account is created outside the normal provisioning flow. The technique is easy to detect in isolation, which is exactly why it fails in practice: service onboarding, lab builds, appliance setup and vendor support create local accounts constantly, so the rule needs the creator identity, the account naming pattern and the timing relative to other suspicious activity before it can rank an alert.",
+  "tags": [
+    "persistence",
+    "account creation",
+    "local accounts",
+    "windows",
+    "linux",
+    "t1136.001"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: T1136.001 Detection Strategy - Local Account Creation Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0447/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "T1136.001 Detection Strategy - Local Account Creation Across Platforms - EASY",
+      "path": "exercises/det0447/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "T1136.001 Detection Strategy - Local Account Creation Across Platforms - MEDIUM",
+      "path": "exercises/det0447/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "T1136.001 Detection Strategy - Local Account Creation Across Platforms - HARD",
+      "path": "exercises/det0447/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "T1136.001 Detection Strategy - Local Account Creation Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0447/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new local user accounts. A local account lives on one machine and not in the central directory. Attackers create them to keep a way back into a system. The detection records who made the account and when.",
+    "whyItMatters": "Closing the first stolen password does not remove a local account. That account may survive for months. It may also sit outside your normal joiner and leaver process. Central reviews often miss accounts that were made on a single host. Detecting creation at the source closes that gap.",
+    "howItWorks": [
+      "The operating system records each successful account creation.",
+      "The record includes the new account name and the account that created it.",
+      "The rule compares the creator with the approved administration groups.",
+      "It checks whether the request came from a normal management tool or a shell.",
+      "The alert lists the host, the new account, the creator and the logon source."
+    ],
+    "example": "Think of a building where every new key is issued at the front desk and written in a book. A key cut in the basement with no book entry is the problem. The book, not the key, tells you something is wrong.",
+    "takeaways": [
+      "Local accounts can outlive the intrusion that made them.",
+      "The creator identity is the most useful field.",
+      "Compare creation events with your normal build and onboarding process."
+    ]
+  },
+  "objectives": [
+    "Describe how a local account differs from a directory account.",
+    "Read an account creation record and identify the new account and the creator.",
+    "Collect equivalent account creation evidence on Linux hosts.",
+    "Recognise creation patterns that match automated builds or provisioning.",
+    "Correlate account creation with privilege group changes on the same host.",
+    "Design an alert that names a review owner for each new account."
+  ],
+  "techniqueId": "t1136-001",
+  "detectsTechniques": [
+    "t1136-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4720 user account created with the target account name, creator account and subject logon identifier",
+    "Windows Security event 4732 and event 4728 group membership changes that add the new account to a privileged group",
+    "Linux auditd process execution records for the user add commands including the full argument list",
+    "Linux system log entries from the account management tools recording the new user name",
+    "Cloud or appliance management logs that record a local operator or break glass account being created"
+  ],
+  "logic": "The pattern is an account creation event whose creator is not an approved provisioning service or a named administrator, or an account created on a host that has no automated build process, especially when the account is added to a privileged group minutes later. The fields to correlate are the new account name, the creator account and its logon session, the host and its role, the source address of the request and any follow up group membership change on the same host. A benign case is a provisioning platform that creates the account under a documented service identity with a predictable naming convention and a matching ticket, while the malicious case uses a random or system sounding name, is created from a shell session or a web service account, and is followed by a privilege change.",
+  "pseudoQuery": "# title: Local Account Created Outside Provisioning Service\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4720\n#   filter:\n#     SubjectUserName|endswith: ['$', 'svc_provision']\n#     TargetUserName|startswith: 'adm-'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Server build automation that creates a standard local administrator account for each image.",
+    "Appliance and network device setup that creates an operator account during commissioning.",
+    "Vendor support procedures that add a temporary account for a scheduled maintenance window.",
+    "Lab or training environments where students create local accounts as part of the exercise."
+  ],
+  "tuningNotes": "Collect account creation events for a month and label them by creator identity and naming pattern before you tune. Allow list the exact provisioning service accounts and the naming prefixes that your build pipeline uses, then alert on every account that falls outside those patterns. Enrich the alert with the host role and any group membership change in the following hour, because that pairing is what makes the event actionable. Restricting the rule to servers and tier zero assets reduces noise but leaves attacker persistence on user endpoints invisible, so run a second low severity rule across all hosts and report new local accounts weekly.",
+  "severity": "medium"
+}

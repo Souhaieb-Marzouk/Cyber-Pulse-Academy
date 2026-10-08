@@ -1,0 +1,105 @@
+{
+  "id": "det0401",
+  "type": "detection",
+  "title": "Detection Strategy for Launch Daemon Creation or Modification (macOS)",
+  "shortTitle": "Detection Strategy for Launch Daemon Creation or Modifica...",
+  "externalId": "DET0401",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers persistence on macOS through launch daemons and launch agents, matching the launch daemon technique where an adversary adds or edits a property list file so the system starts their program at boot or on a schedule. It matters because a launch daemon runs as root before anyone logs in, so it survives restarts, needs no user session, and often disappears from view once the initial file write is done. The telemetry that reveals it is file creation and modification monitoring on the launch daemon and launch agent directories, Endpoint Security process execution events for the launch control utility, property list content showing the program arguments, and process ancestry linking the writer to an installer or a shell. The common failure is noise from legitimate package installers and endpoint agents that place their own property list files in the same folders, so ownership, signature and path must be part of the judgement.",
+  "tags": [
+    "macos",
+    "persistence",
+    "mitre t1543.004",
+    "launchd",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Launch Daemon Creation or Modification (macOS)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0401/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Launch Daemon Creation or Modification (macOS) - EASY",
+      "path": "exercises/det0401/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Launch Daemon Creation or Modification (macOS) - MEDIUM",
+      "path": "exercises/det0401/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Launch Daemon Creation or Modification (macOS) - HARD",
+      "path": "exercises/det0401/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Launch Daemon Creation or Modification (macOS) - EXTREMELY HARD",
+      "path": "exercises/det0401/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for new or changed start up files on a Mac. A launch daemon is one of these files. It tells macOS to run a program when the computer starts. The alert means something added a start up instruction that was not there before.",
+    "whyItMatters": "A start up item runs again after every reboot, so an attacker only needs to create it once. Start up items that run before login act with the highest rights on the machine. Most users never look at these files, and the program itself may only run briefly at boot. Catching the file change is often the only chance you get to see the persistence being installed.",
+    "howItWorks": [
+      "An endpoint agent records every file created or changed in the macOS start up folders.",
+      "The same record shows which process wrote the file and which account it used.",
+      "Property list files are also read so the rule can see which program those files will launch.",
+      "Separately, process events show when the launch control utility is used to load a service.",
+      "It compares the target program path and its signature against known vendor software.",
+      "Anything unsigned or stored in a user writable folder becomes an alert with the file path and the writing process."
+    ],
+    "example": "Think of a building where the cleaners arrive before the staff. If someone adds a new name to the after hours access list, that person can enter every night. Nobody questions the visitor at the door, because the visit looks normal. The access list is the thing to watch.",
+    "takeaways": [
+      "Start up files on macOS reload the attacker's program after every restart.",
+      "Record which process wrote the file, not only the file itself.",
+      "Vendor installers write to the same folders, so signature checks are essential."
+    ]
+  },
+  "objectives": [
+    "Describe the difference between a launch daemon and a launch agent on macOS.",
+    "Identify the directories where start up property list files are stored.",
+    "Use the writing process, file owner and signature to judge whether a new start up file is expected.",
+    "Explain what the launch control utility does and how its use appears in telemetry.",
+    "Correlate a new property list file with the process it launches at the next boot."
+  ],
+  "techniqueId": "t1543-004",
+  "detectsTechniques": [
+    "t1543-004"
+  ],
+  "dataSources": [
+    "macOS file creation and modification events for property list files under the system and user Library LaunchDaemons and LaunchAgents directories",
+    "Endpoint Security framework process execution events for the launch control utility including arguments and parent process",
+    "macOS unified log launchd service loading messages naming the service label and the program path",
+    "Endpoint Security framework file events capturing the writing process path and code signature for new property list files"
+  ],
+  "logic": "The pattern is a property list file appearing or changing in a launch daemon or launch agent directory, written by a process that is not a signed installer or a known management agent, where the file points to a program in a user writable directory or to an interpreter with a long script argument. The fields to correlate are the property list path, the writing process and its signature, the owning user, the program path and arguments inside the file, and the launch control invocation if one accompanied the change. The benign case is a package installer or endpoint agent writing a signed property list that points at a binary in a system directory; the malicious case is an unsigned relative path, a payload copied to a hidden folder, a label designed to look like an Apple service, or a daemon created by a shell that was started by an office application.",
+  "pseudoQuery": "# title: Suspicious Launch Daemon Property List Created on macOS\n# logsource:\n#   product: macos\n#   service: endpoint_security\n# detection:\n#   selection:\n#     event_type: 'file_create'\n#     file_path|startswith:\n#       - '/Library/LaunchDaemons/'\n#       - '/Library/LaunchAgents/'\n#       - '/Users/'\n#     file_path|endswith: '.plist'\n#   filter_installers:\n#     signer|endswith:\n#       - 'Apple'\n#       - 'Approved Developer ID'\n#   condition: selection and not filter_installers\n# level: high",
+  "falsePositives": [
+    "Package installers and endpoint agents that register their own helper daemon during deployment or upgrade",
+    "Software management tools that rewrite a launch agent to change a configuration value on a schedule",
+    "Virtualisation and container products that install a privileged helper service for networking",
+    "Administrators who script a temporary maintenance job as a launch daemon and remove it afterwards"
+  ],
+  "tuningNotes": "Baseline for a month to enumerate every legitimate property list in both daemon directories, together with its owning package and signature, then allow list by signing identity and target program path rather than by file name, because attackers copy legitimate looking labels. Add a filter for writes whose parent process is your signed installer or management agent, and a second filter for files whose target binary sits in a system directory and carries a valid signature. Scope the alert to changes that introduce a new label so routine config rewrites do not fire. Narrowing this way can hide a legitimate daemon that has been altered to run an extra command, so also alert when an existing allow listed property list changes its program arguments.",
+  "severity": "high"
+}

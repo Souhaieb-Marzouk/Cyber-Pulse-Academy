@@ -1,0 +1,108 @@
+{
+  "id": "det0074",
+  "type": "detection",
+  "title": "Detect Use of Stolen Web Session Cookies Across Platforms",
+  "shortTitle": "Detect Use of Stolen Web Session Cookies Across Platforms",
+  "externalId": "DET0074",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets the reuse of a stolen web session token, where an operator imports a cookie taken from a victim browser and reaches a web application without ever knowing the password. It matters because a session cookie is a bearer credential: the application cannot tell the real user from anyone holding the same value, and the sign in is not repeated, so password changes, lockouts and most authentication alerts never fire. The telemetry that makes this visible is the web tier access log that records the session cookie, user agent and source address on every request, the identity provider sign in log that records device and location context at the moment the session was created, and network flow or proxy records that link the request source to a host or address range. The reliable pattern is one session identifier appearing from two source addresses, or from a source address whose user agent and device context do not match the original sign in, inside the lifetime of that session. It fails in practice because mobile networks, corporate proxies and privacy features change source addresses and user agent strings on perfectly normal traffic, so the rule needs a baseline of each account's browser and address history before it can rank anything.",
+  "tags": [
+    "session hijacking",
+    "web",
+    "credential access",
+    "cookie theft",
+    "identity",
+    "network monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Use of Stolen Web Session Cookies Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0074/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Use of Stolen Web Session Cookies Across Platforms - EASY",
+      "path": "exercises/det0074/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Use of Stolen Web Session Cookies Across Platforms - MEDIUM",
+      "path": "exercises/det0074/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Use of Stolen Web Session Cookies Across Platforms - HARD",
+      "path": "exercises/det0074/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Use of Stolen Web Session Cookies Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0074/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "When you sign in to a website, the site gives your browser a small token. That token is called a session cookie. Your browser shows the token with each request instead of your password. This detection looks for the same token being used from two different places.",
+    "whyItMatters": "A person who steals that token can use the site as you without your password. The site cannot tell the difference, because the token is the proof. Sign in logs often stay quiet, because no new sign in happens. Watching where a token is used is one of the few ways to catch this.",
+    "howItWorks": [
+      "The web server writes a log line for each request. That line includes the cookie and browser name.",
+      "The sign in service records the address, device and browser used when the session was created.",
+      "The detection builds a picture of each account. It notes the usual browsers and addresses.",
+      "It then compares each later request against that picture, using the session token as the link.",
+      "If one token appears from two addresses at once, the pair is treated as suspicious.",
+      "A browser name that has never been seen for that account raises the score further."
+    ],
+    "example": "Think of a hospital sign in sheet at the ward door. A visitor signs in, takes a badge and walks to a patient. Later the same badge number appears at a second entrance at the same time. Someone else is wearing it. The sheet looks normal, because every entry has a badge number. Only the timing and the place give the trick away.",
+    "takeaways": [
+      "A session token works like a password, so anyone holding it is treated as the user.",
+      "Watch where a token is used, because the sign in log may show nothing at all.",
+      "Learn each account normal browsers and addresses before you alert on changes."
+    ]
+  },
+  "objectives": [
+    "Explain why a session cookie behaves as a bearer credential and bypasses later authentication checks.",
+    "Identify the log fields that allow one session identifier to be traced across different requests.",
+    "Correlate web access logs with identity provider sign in records using session, device and address fields.",
+    "Describe how to baseline an account normal browser and network context to rank anomalies.",
+    "Outline the response steps for a suspected stolen session, including revocation and scope review."
+  ],
+  "techniqueId": "t1550-004",
+  "detectsTechniques": [
+    "t1550-004"
+  ],
+  "dataSources": [
+    "Web server or reverse proxy access logs including the session cookie value, user agent string and client address",
+    "Identity provider sign in logs recording device details, browser, address and authentication method for the session",
+    "Web application firewall or reverse proxy records linking requests to authenticated account identifiers",
+    "Network flow records mapping client addresses to internal hosts, network ranges or remote access gateways",
+    "Endpoint browser process records showing where a browser profile exists on disk and when it was last accessed"
+  ],
+  "logic": "Track each session identifier across requests and alert when it is presented from more than one client address inside a short window, or when the presenting user agent differs from the one recorded when the session was created. The fields that must be correlated are the session identifier, the account, the client address, the user agent and the timestamp of the original authentication event. Benign traffic changes address legitimately when a device moves between a mobile network and wireless, when traffic egresses through a rotating proxy pool, or when a user opens the same account in a second browser. What separates the malicious case is simultaneity: both contexts stay active at once, the new context has no prior history for that account, and the requests that follow from it touch data the account does not normally open, such as bulk exports or administrative pages. Ranking the alert on the sensitivity of the pages requested after the context switch keeps volume manageable without losing the cases that matter.",
+  "pseudoQuery": "# title: Web Session Token Reused From A Second Address\n# logsource:\n#   product: network\n#   service: web_proxy\n# detection:\n#   session_request:\n#     cs_cookie|contains: 'sessionid='\n#   concurrent_contexts:\n#     condition: count(distinct c_ip) by cs_cookie > 1 within 15m\n#   filter_nat:\n#     c_ip|cidr: '10[.]0[.]0[.]0/8'\n#   condition: session_request and concurrent_contexts and not filter_nat\n# level: high",
+  "falsePositives": [
+    "Employees who work from a laptop and a phone at the same time while a load balancer presents one shared session token",
+    "Mobile devices that move between wireless and cellular data during a single browsing session",
+    "Corporate remote access gateways that egress traffic through a pool of addresses so one user appears from several",
+    "Browser privacy features or extensions that strip or rewrite the user agent string mid session",
+    "Automated monitoring accounts that replay a stored session from a scheduled job while a person uses the same account"
+  ],
+  "tuningNotes": "Build a per account baseline of known user agents and address ranges over at least thirty days and treat any new combination as the trigger, which converts an absolute rule into a behaviour rule. Exclude shared egress addresses and known proxy pools explicitly, and normalise user agent strings so a browser patch does not register as a device change. Keep an allow list for accounts that legitimately run automation against the application, and route those to a low severity lane rather than removing them. Never store full cookie values in the detection output or the alert record; hash the session identifier and keep only enough of it to group requests, because an alert that leaks a live token creates the very problem you are trying to find. The coverage you lose by filtering shared addresses is a real hijack from inside the corporate network, so pair this rule with monitoring for unusual data access volume by the same account.",
+  "severity": "high"
+}

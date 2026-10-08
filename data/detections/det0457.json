@@ -1,0 +1,105 @@
+{
+  "id": "det0457",
+  "type": "detection",
+  "title": "Detection of Non-Application Layer Protocols for C2",
+  "shortTitle": "Detection of Non-Application Layer Protocols for C2",
+  "externalId": "DET0457",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects command and control that avoids the usual application layer protocols, using raw transport protocols or non standard protocols such as raw transmission control protocol payloads, user datagram protocol streams, or tunnelled traffic on protocols that should not carry general traffic. It matters because most detection content watches HTTP and DNS, so a channel built on a bare socket or an unexpected protocol can carry commands for months. Detection depends on flow records with protocol, port, direction, byte and duration fields, on packet inspection or protocol parsers that can flag a protocol mismatch, and on firewall or proxy logs that show which protocols are permitted from each segment. It fails in practice because legitimate industrial, backup, and telemetry traffic also uses fixed non standard ports, so the rule needs an allow list and a sense of what each host should be talking to.",
+  "tags": [
+    "command and control",
+    "network",
+    "protocol",
+    "flow analysis",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Non-Application Layer Protocols for C2",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0457/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Non-Application Layer Protocols for C2 - EASY",
+      "path": "exercises/det0457/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Non-Application Layer Protocols for C2 - MEDIUM",
+      "path": "exercises/det0457/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Non-Application Layer Protocols for C2 - HARD",
+      "path": "exercises/det0457/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Non-Application Layer Protocols for C2 - EXTREMELY HARD",
+      "path": "exercises/det0457/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Most internet traffic uses well known rules called protocols, such as web or mail traffic. Some traffic ignores those rules and sends raw data instead. This detection looks for computers talking in unusual ways for a long time, which can mean a hidden control channel.",
+    "whyItMatters": "Detection tools mostly understand common protocols. Traffic that avoids them can slip past those checks. Attackers use this gap to keep control of a computer while defenders see only a strange quiet connection.",
+    "howItWorks": [
+      "Network devices record flows, which are summaries of each conversation.",
+      "Each flow lists the protocol, the ports, the byte counts and the duration.",
+      "The rule checks whether the protocol matches the port it is using.",
+      "It flags long lived sessions with small, steady amounts of data.",
+      "Known industrial, backup and monitoring flows are placed on an allow list.",
+      "An unexplained mismatched flow from a server is sent for review."
+    ],
+    "example": "Think of a postal service that reads the labels on parcels. Someone sends letters in unlabelled crates that the sorting office cannot open. The crates travel normally, and the staff can only record that a large box passed through.",
+    "takeaways": [
+      "Detection coverage is uneven, and attackers aim for the gaps.",
+      "A protocol that does not match its port is a strong warning.",
+      "Long, small and steady sessions matter more than large transfers."
+    ]
+  },
+  "objectives": [
+    "Explain what an application layer protocol is and why attackers avoid it",
+    "Identify flow and packet telemetry fields that expose protocol misuse",
+    "Interpret a protocol and port mismatch in flow records",
+    "Build an allow list of expected non standard traffic per segment",
+    "Investigate a suspected covert channel without disrupting business traffic"
+  ],
+  "techniqueId": "t1095",
+  "detectsTechniques": [
+    "t1095"
+  ],
+  "dataSources": [
+    "Network flow records with protocol number, source and destination ports, byte counts and session duration",
+    "Firewall and router logs showing permitted and denied protocols per internal segment",
+    "Packet capture or intrusion detection alerts for protocol and port mismatch on sensitive segments",
+    "Proxy and secure web gateway logs showing which protocols were inspected against which passed uninspected"
+  ],
+  "logic": "The pattern is a sustained session that uses a transport or protocol in a way the environment does not normally permit. Correlate the source address and its asset role, the destination address and reputation, the protocol number, the source and destination ports, the byte counts in each direction, the session duration, and the regularity of repeated sessions. The benign case is a documented industrial control, database replication, backup, or voice service whose ports and peers are stable and on the permit list, with byte counts that match the task. The malicious case is a workstation or server initiating long sessions on a raw transport protocol to an external address, a protocol that does not match the well known port it uses, small and near constant payloads with long idle periods, or the same destination contacted by several internal hosts in a staggered pattern. The mismatch between protocol and port, plus the absence of the destination from any business record, is what makes the case actionable.",
+  "pseudoQuery": "# title: Long lived protocol and port mismatch from a server segment\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     protocol: 'icmp_tunnel_or_raw'\n#     bytes_out: < 20000\n#     duration: '> 1800'\n#   filter_approved:\n#     destination.ip|cidr:\n#       - '10[.]0[.]0[.]0/8'\n#       - '192[.]168[.]0[.]0/16'\n#   filter_services:\n#     destination.port:\n#       - 5001\n#       - 9100\n#   condition: selection and not filter_approved and not filter_services\n# level: medium",
+  "falsePositives": [
+    "Industrial control and building management systems that use fixed non standard protocols and ports",
+    "Database replication or storage traffic that runs over raw sockets between known server pairs",
+    "Voice over internet protocol and video conferencing media streams on high user datagram protocol ports",
+    "Custom in house applications in a research or laboratory network that use their own binary protocol"
+  ],
+  "tuningNotes": "Create a documented inventory of approved non standard protocol and port combinations per network segment, and allow those pairs rather than allowing whole hosts. Baseline session duration and byte volume per asset group, then alert on deviation from that baseline, which keeps the rule useful even where unusual ports are expected. Scope first to workstation subnets and internet facing servers where raw protocol egress has no business purpose. Filtering by port alone loses coverage of a channel that hides on a permitted port, so keep a second rule that looks for protocol and port mismatch regardless of volume, and review new external destinations that appear in either rule.",
+  "severity": "high"
+}

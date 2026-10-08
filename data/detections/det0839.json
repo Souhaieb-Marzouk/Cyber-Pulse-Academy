@@ -1,0 +1,107 @@
+{
+  "id": "det0839",
+  "type": "detection",
+  "title": "Detection of Stage Capabilities",
+  "shortTitle": "Detection of Stage Capabilities",
+  "externalId": "DET0839",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Stage Capabilities, the resource development technique in which an adversary places tools, payloads, or services on infrastructure they control so the capability is ready to be used at the moment of the attack. It matters because staging is the bridge between preparation and execution: uploads to a web server, a public cloud bucket, or a content delivery location turn stored files into retrievable capabilities, and the change usually happens shortly before the first victim contact. Detection relies on file integrity monitoring at web roots, cloud storage access logs for public object writes, process creation for archive and transfer utilities, and web server access logs showing downloads of newly placed files. It fails most often because deployment pipelines write files to the same locations constantly, so the rule needs content type, permission change, and timing context rather than a simple file write.",
+  "tags": [
+    "resource development",
+    "mitre attack",
+    "staging",
+    "web server",
+    "cloud storage",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Stage Capabilities",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0839/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Stage Capabilities - EASY",
+      "path": "exercises/det0839/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Stage Capabilities - MEDIUM",
+      "path": "exercises/det0839/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Stage Capabilities - HARD",
+      "path": "exercises/det0839/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Stage Capabilities - EXTREMELY HARD",
+      "path": "exercises/det0839/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for tools and files being placed on servers ready for an attack. Staging means putting something in position so it can be used later. The detection looks for new files in web folders, new public cloud objects, and downloads of those files.",
+    "whyItMatters": "A staged file is a step away from being used. It may be a payload, a script, or a fake login page. Because it sits on your server or your cloud account, it looks trusted to everyone else. Finding it early lets you remove it before anyone downloads it. It also shows you which server the attacker has already reached.",
+    "howItWorks": [
+      "File integrity monitoring records every new or changed file in the web server folders.",
+      "Cloud storage logs record new objects and their permission settings.",
+      "The rule flags executable content and archives written outside a deployment window.",
+      "Web access logs then show whether anyone downloaded the new file.",
+      "Records are joined by host, path, and time to link the write with the download.",
+      "Files matching approved release patterns are filtered, and the rest are reviewed."
+    ],
+    "example": "Think of a theatre before a performance. Props on the stage are normal and expected. But if a prop appears backstage at midnight, in a locked room, with no show scheduled, the stage manager wants to know who put it there. The prop itself is harmless. Its position and the timing are what make it suspicious.",
+    "takeaways": [
+      "Staging is the hand off between preparation and execution, so it is a high value detection point.",
+      "New executable content in a web root, especially outside a release window, is the core signal.",
+      "Linking the file write to a later download proves the capability was reachable and used."
+    ]
+  },
+  "objectives": [
+    "Define staging and explain why it sits between preparation and execution",
+    "Identify file integrity, cloud storage, process, and web access telemetry for staged content",
+    "Distinguish deployment pipeline artefacts from files written by an interactive session",
+    "Correlate a staged file write with the download that follows it",
+    "Plan containment that removes the file and investigates how it was placed"
+  ],
+  "techniqueId": "t1608",
+  "detectsTechniques": [
+    "t1608"
+  ],
+  "dataSources": [
+    "File integrity monitoring events for new files in web server document roots with file type and size",
+    "Cloud storage access logs for object writes and permission changes that allow public read",
+    "Sysmon event 11 file creation events showing archives and scripts written by server processes",
+    "Web server access logs recording requests for newly created paths and their response codes",
+    "Windows Security event 4688 and Linux process accounting showing compression and transfer tools run on servers"
+  ],
+  "logic": "The pattern is a capability being positioned for retrieval: a new executable, script, or archive appearing in a web accessible directory or public storage location outside a known release window, followed by external requests for that path. The fields to correlate are the file path, the writing process and account, the creation timestamp, the object permission setting, and the web access log entries for the same path. Benign cases are deployment pipelines, content management uploads, certificate renewals, and administrative scripts placed during a change window. The malicious case is a write by a web server process rather than by a deployment agent, a file extension the site never serves, and download requests from addresses that have never used the site before.",
+  "pseudoQuery": "# title: New Executable Content In Web Root Followed By Download\n# logsource:\n#   product: linux\n#   category: file_event\n# detection:\n#   selection:\n#     TargetFilename|contains:\n#       - '/var/www/'\n#       - '/srv/www/'\n#     TargetFilename|endswith:\n#       - '.php'\n#       - '.jsp'\n#       - '.aspx'\n#   filter:\n#     Image|contains:\n#       - 'deploy-agent'\n#       - 'git'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Application deployments and content management uploads that publish new files during a change window",
+    "Administrators placing maintenance or diagnostic scripts on a server with a change ticket",
+    "Backup and restore operations that recreate files with new timestamps after a migration",
+    "Plugins and themes installed by a website administrator through the normal management interface"
+  ],
+  "tuningNotes": "Baseline the writing processes and accounts allowed to place files in web roots, then filter by process image and deployment window rather than by file extension, because attackers reuse common extensions. Scope the alert to internet facing servers and keep internal application servers at lower severity. Add a condition for files whose extension the site does not normally serve, and enrich with web log requests for the same path. Narrowing to known deployment windows will miss a compromise that occurs during normal business hours, so keep file integrity data for at least ninety days and review it during incident response.",
+  "severity": "high"
+}

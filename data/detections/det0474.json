@@ -1,0 +1,107 @@
+{
+  "id": "det0474",
+  "type": "detection",
+  "title": "Environmental Keying Discovery-to-Decryption Behavioral Chain Detection Strategy",
+  "shortTitle": "Environmental Keying Discovery-to-Decryption Behavioral C...",
+  "externalId": "DET0474",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the behavioral chain of environmental keying, where malware first checks that it is running in the intended victim environment and only then decrypts or fetches its payload. The detection does not rely on any single event but on sequence and proximity: discovery commands that read host, domain, virtualisation or language details, followed within a short window by cryptographic activity using key material that seems to come from those same values, and then unusual network or file activity from the same process tree. Useful telemetry includes process creation with command lines, script block logging, cryptographic interface tracing and registry or file reads of machine identity values. It fails in practice because legitimate installers, licensing services and management agents also read machine identifiers and then decrypt content, so correlation with the parent process and the rarity of the keys distinguishes the cases.",
+  "tags": [
+    "mitre t1480.001",
+    "environmental keying",
+    "defense evasion",
+    "behavior chain",
+    "discovery",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Environmental Keying Discovery-to-Decryption Behavioral Chain Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0474/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Environmental Keying Discovery-to-Decryption Behavioral Chain Detection Strategy - EASY",
+      "path": "exercises/det0474/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Environmental Keying Discovery-to-Decryption Behavioral Chain Detection Strategy - MEDIUM",
+      "path": "exercises/det0474/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Environmental Keying Discovery-to-Decryption Behavioral Chain Detection Strategy - HARD",
+      "path": "exercises/det0474/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Environmental Keying Discovery-to-Decryption Behavioral Chain Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0474/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Environmental keying means harmful code checks where it is running before it does anything. It may look at the computer name, the domain or the language settings. Only if the answers match does it unlock its real payload. This detection looks for the check and the unlock happening close together.",
+    "whyItMatters": "Code that stays locked looks harmless in a sandbox or on the wrong machine. Analysts who test a sample in the wrong place may see nothing at all. Attackers use this to defeat automated review. Detection therefore has to follow behaviour and order of events, not file content.",
+    "howItWorks": [
+      "Endpoint agents record process creation, command lines and script text as it runs.",
+      "The detection watches for commands that read machine identity values, such as host name, domain or virtualisation details.",
+      "It then looks for cryptographic work in the same process tree, such as key derivation or decryption of a buffer.",
+      "It checks whether the key material came from the values read in the first step.",
+      "It also watches for network contacts or file writes that follow in the same short window.",
+      "The analyst reconstructs the sequence and decides whether a real application explains it."
+    ],
+    "example": "Imagine a parcel with a lock that opens only in one city. In any other city the parcel is just a heavy box, and nobody bothers to open it. The courier who delivers it must first check the street sign and then turn the key. This detection watches the moment when the key is turned after the sign is read.",
+    "takeaways": [
+      "Environment checks keep harmful code hidden until it is in the right place.",
+      "Detection must follow the order of events rather than scan file content.",
+      "Sandbox results can be misleading when the sample is keyed to a location."
+    ]
+  },
+  "objectives": [
+    "Explain why an attacker would make code depend on the environment before running it.",
+    "Identify the discovery and cryptographic telemetry needed to build a chain rule.",
+    "Describe how to correlate parent and child process identifiers across a short window.",
+    "Explain why sandbox detonation can produce false negatives for keyed samples.",
+    "Build a chain rule that scores sequence rather than a single event."
+  ],
+  "techniqueId": "t1480-001",
+  "detectsTechniques": [
+    "t1480-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with full command line, parent image and process identifiers",
+    "Windows PowerShell script block logging and module logging capturing discovery commands and key handling script text",
+    "Sysmon event 13 registry value set and Sysmon event 11 file creation recording key material written or read by the process",
+    "Endpoint detection and response telemetry for cryptographic application programming interface calls such as key derivation and buffer decryption",
+    "Network proxy or firewall connection logs showing the first outbound connection from the processes in the chain"
+  ],
+  "logic": "The pattern is a short sequence in one process tree: reads of machine identity such as host name, domain, locale or virtualisation indicators, then cryptographic work that produces a usable key, then a network callback or payload write. Correlate the process identifier and parent process identifier from the process creation events with the script block records and the cryptographic call events, then check that the discovery outputs correspond to the values used as key input. In the benign case the sequence belongs to a signed installer, a licensing library or a management agent, runs on many hosts in the same way, and the network destination is a known vendor service. In the malicious case the parent is a document reader, archive tool or script host, the discovery commands look for analysis environments, the same binary behaves differently on different hosts, and the callback happens only on hosts whose identity matches a narrow pattern.",
+  "pseudoQuery": "# title: Environment Discovery Followed by Decryption and Callback\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_discovery:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'ComputerName'\n#       - 'Win32_ComputerSystem'\n#       - 'vmware'\n#   selection_crypto:\n#     operation:\n#       - 'CryptDeriveKey'\n#       - 'CryptDecrypt'\n#   filter_signed_installers:\n#     Image|endswith:\n#       - '\\\\setup.exe'\n#       - '\\\\msiexec.exe'\n#   condition: selection_discovery and selection_crypto and not filter_signed_installers\n# level: high",
+  "falsePositives": [
+    "Software installers and licensing services that read machine identifiers and then decrypt licence files",
+    "Virtual desktop and cloud agents that detect the platform and unlock the correct configuration bundle",
+    "Backup and encryption products that derive keys from host identity before protecting data",
+    "Endpoint management scripts that branch on host name or domain and then retrieve encrypted payloads"
+  ],
+  "tuningNotes": "Chain rules need a tight time window and a shared process tree, otherwise unrelated events will match; start with a window of a few minutes and tune from observed benign pairs. Build a baseline of which signed products perform identity discovery followed by cryptographic calls in your estate, and filter those by publisher and file path rather than by command text. Keep the rule scored rather than binary: raise severity when the parent is a document reader or archive tool and when the callback target is a new domain registered recently. Narrowing to known benign publishers costs you detection of a keyed sample that hides inside a signed host process, so retain the discovery command patterns as standalone low-severity hunting records.",
+  "severity": "high"
+}

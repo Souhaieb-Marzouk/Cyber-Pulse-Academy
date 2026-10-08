@@ -1,0 +1,108 @@
+{
+  "id": "det0318",
+  "type": "detection",
+  "title": "Detection Strategy for Exfiltration to Code Repository",
+  "shortTitle": "Detection Strategy for Exfiltration to Code Repository",
+  "externalId": "DET0318",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects data being moved out of the environment into a source code hosting service, the exfiltration over web service behaviour recorded in the assignment as t1567-001. The pattern is attractive to attackers because code repositories are usually allowed through egress controls, accept arbitrary file types inside a commit, and can be written to with a token that looks like ordinary developer traffic. Detection depends on joining proxy or firewall records of push operations to code hosting domains with repository audit events that name the actor, the repository and the volume of change. The practical difficulty is that your engineering teams do the same thing legitimately with personal repositories, so the rule has to separate sanctioned organisation repositories and identities from everything else.",
+  "tags": [
+    "exfiltration",
+    "code repository",
+    "web service",
+    "data loss prevention",
+    "cloud audit",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exfiltration to Code Repository",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0318/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exfiltration to Code Repository - EASY",
+      "path": "exercises/det0318/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Code Repository - MEDIUM",
+      "path": "exercises/det0318/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Code Repository - HARD",
+      "path": "exercises/det0318/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration to Code Repository - EXTREMELY HARD",
+      "path": "exercises/det0318/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for company data being sent to an online code hosting service, such as a public repository site. People use these services to store source code. An attacker can use the same service to hide stolen files inside a project.",
+    "whyItMatters": "Most networks allow code hosting sites, so this route often bypasses blocks that stop unknown file sharing services. Traffic is encrypted, so a network scanner cannot read the file. The upload also leaves a record on the service side, which you can request. Catching it early limits how much data leaves.",
+    "howItWorks": [
+      "A developer or an attacker sends a request that writes data into a remote project, called a push.",
+      "The web gateway logs the destination address, the path and the amount of data sent.",
+      "The code hosting service keeps its own audit log of who pushed what, and when.",
+      "Your platform collects both the gateway logs and any organisation level audit events you can export.",
+      "The rule looks for pushes from accounts or networks that normally do not push, especially with large data volumes.",
+      "Analysts then compare the actor, the repository and the timing against the list of approved developers."
+    ],
+    "example": "Think of a company that lets staff post parcels through a courier everyone trusts. Most parcels are spare parts. Someone starts sending sealed boxes of company files through that same courier. The loading bay trusts the courier, so it never checks. The audit is simply the courier's own delivery book.",
+    "takeaways": [
+      "Trusted code hosting services give attackers a route that is usually allowed.",
+      "Push volume and actor identity matter more than the destination address.",
+      "Export the service side audit log so you can confirm what was uploaded."
+    ]
+  },
+  "objectives": [
+    "Explain why code hosting services are used for data exfiltration",
+    "Identify gateway, identity and repository audit telemetry relevant to pushes",
+    "Distinguish sanctioned engineering activity from anomalous uploads",
+    "Write a detection that scores destination, actor and transfer volume together",
+    "Describe the request process for repository audit data during an investigation",
+    "Assess which data classification levels require this rule to run at high severity"
+  ],
+  "techniqueId": "t1567-001",
+  "detectsTechniques": [
+    "t1567-001"
+  ],
+  "dataSources": [
+    "Secure web gateway or proxy logs recording HTTP and HTTPS requests to code hosting domains with method, path, bytes sent and user identity",
+    "Source code hosting audit log events for repository creation, push and token usage with actor and repository name",
+    "Identity provider sign-in logs for repository linked accounts, including token based and single sign-on authentication",
+    "Endpoint process creation showing command line tools for version control used with remote addresses outside the approved organisation"
+  ],
+  "logic": "The rule looks for write operations toward code hosting destinations and then enriches them with three attributes: the identity that performed the push, the network location it came from, and the volume of data transferred. Malicious exfiltration usually differs from engineering work in at least two of these, for example a service or dormant account pushing for the first time from a corporate virtual desktop rather than a developer workstation, or a very large single push into a repository created days earlier. Detection should not fire on the destination alone, because every organisation has developers who legitimately push to external projects, which is why the assertion of maliciousness rests on the actor being outside the approved developer inventory or the destination repository being unapproved for the data involved.",
+  "pseudoQuery": "# title: Data Push to Unapproved Code Hosting Repository\n# logsource:\n#   product: network\n#   service: proxy\n# detection:\n#   selection:\n#     url|contains:\n#       - github.com\n#       - gitlab.com\n#       - bitbucket.org\n#     method: POST\n#     bytes_out: '>50000000'\n#   filter_approved_orgs:\n#     url|contains:\n#       - github.com/our-organisation\n#   filter_developer_subnets:\n#     src_ip|cidr: 10[.]20[.]0[.]0/16\n#   condition: selection and not filter_approved_orgs and not filter_developer_subnets\n# level: high",
+  "falsePositives": [
+    "Engineers contributing to public open source projects on personal accounts during work hours",
+    "Build pipelines that publish release artefacts to an external package registry from a build subnet",
+    "Recruitment or documentation teams uploading sample code and screenshots to a vendor hosted demo repository",
+    "Contractors who push to a client owned repository outside the corporate network but on a managed laptop",
+    "Automated mirror jobs that replicate an internal repository to an external backup remote on a nightly schedule"
+  ],
+  "tuningNotes": "Build an inventory of approved repositories and the identities permitted to write to them, then allowlist exact repository paths rather than whole hosting domains, since domain level allowlisting hides almost everything. Add a data volume threshold that reflects your real developer push sizes, and treat the first push from an account with no prior history as a separate medium severity signal so you can spot stolen token use before volume grows. Narrowing to corporate subnets will miss exfiltration from home or virtual desktop sessions, so extend coverage with the identity provider sign-in records for the same accounts rather than expanding the network rule.",
+  "severity": "high"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0392",
+  "type": "detection",
+  "title": "Multi-Platform Software Discovery Behavior Chain",
+  "shortTitle": "Multi-Platform Software Discovery Behavior Chain",
+  "externalId": "DET0392",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers software discovery, where an adversary inventories what is installed on a host so they can pick a target with a known weakness or choose tooling that matches the environment. The behaviour appears as registry reads for installed program records on Windows, package database queries on Linux, and system profiling commands on macOS. The key insight is that the individual commands are unremarkable, so the rule scores the chain instead: a shell or script host that runs several different discovery commands in one short session, or a discovery command with a parent that has no reason to look at installed software. The strategy fails in practice because patch management, asset inventory, licence auditing, and support scripts run the same commands constantly, so an unfiltered rule covers the whole fleet in noise.",
+  "tags": [
+    "discovery",
+    "windows",
+    "linux",
+    "macos",
+    "command line",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Platform Software Discovery Behavior Chain",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0392/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Platform Software Discovery Behavior Chain - EASY",
+      "path": "exercises/det0392/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Platform Software Discovery Behavior Chain - MEDIUM",
+      "path": "exercises/det0392/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Platform Software Discovery Behavior Chain - HARD",
+      "path": "exercises/det0392/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Platform Software Discovery Behavior Chain - EXTREMELY HARD",
+      "path": "exercises/det0392/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Software discovery means listing the programs installed on a computer. Attackers do this to find a program with a known problem. This detection looks for a command that lists installed software when it runs from a strange parent program.",
+    "whyItMatters": "Knowing what is installed tells an attacker which tool will work. The list also shows which security agents are present and which are missing. Each single command is normal, so the value comes from the pattern of several commands in one short session.",
+    "howItWorks": [
+      "Process creation records show the command line and the parent process for every program that runs.",
+      "The rule matches command lines that query installed software, on Windows, Linux, and macOS.",
+      "It checks the parent process, because a shell or an office document should not query software records.",
+      "The rule counts how many different discovery commands ran in one short window on the host.",
+      "A session with several different queries, or a suspicious parent, becomes an alert for the analyst."
+    ],
+    "example": "Picture a burglar walking a street. Looking at one house tells them little. A stranger who walks the whole street and writes down which doors have new locks and which have alarms is doing something else entirely. No single glance was a crime, the survey was.",
+    "takeaways": [
+      "One installed software query is normal, so count distinct queries per session instead.",
+      "The parent process is the strongest clue, since inventory tools have known parents.",
+      "Different platforms use different commands, so the rule needs one branch for each system."
+    ]
+  },
+  "objectives": [
+    "Name the commands used to list installed software on Windows, Linux, and macOS",
+    "Explain why the parent process matters more than the command itself",
+    "Count distinct discovery commands per host session to separate a survey from routine use",
+    "Build an allow list from known inventory and patch management agents for each platform",
+    "Correlate discovery activity with the process that spawned the shell that ran it",
+    "Describe which discovery steps a rule of this type will always miss"
+  ],
+  "techniqueId": "t1518",
+  "detectsTechniques": [
+    "t1518"
+  ],
+  "dataSources": [
+    "Sysmon event 1 or Windows Security event 4688 process creation with command line and parent image recorded",
+    "Windows registry auditing records for read access to the installed software keys",
+    "Linux audit framework program execution records for package query utilities such as dpkg, rpm, and snap",
+    "macOS endpoint process telemetry capturing receipt database and system profile queries",
+    "Endpoint detection agent process lineage data that links a shell to its originating application or service"
+  ],
+  "logic": "The pattern is a chain of software inventory queries issued from a context that has no reason to inventory anything. The rule matches process creation events whose command line queries package or program inventories on Windows, Linux, or macOS, then groups them by host and by session over a short window and counts distinct queries rather than total calls. It raises severity when the parent process is a shell, a script host, an office application, or a web server, and reduces severity when the parent is a known inventory, patch, or licence management agent. The benign case is an asset inventory agent, a patch scanner, or a helpdesk script that queries a stable single source with a consistent parent on a schedule. The malicious case is a shell started by a document, a service, or a remote management tool that runs several different inventory commands in the same minute and then moves on to network or credential discovery.",
+  "pseudoQuery": "# title: Multi Platform Software Inventory Query From Script Host\n# logsource:\n#   product: windows\n#   service: process_creation\n# detection:\n#   selection_win:\n#     CommandLine|contains: 'Uninstall'\n#   selection_lin:\n#     CommandLine|contains:\n#       - 'dpkg -l'\n#       - 'rpm -qa'\n#   selection_mac:\n#     CommandLine|contains: 'system_profiler'\n#   filter_inventory:\n#     ParentImage|endswith:\n#       - '\\\\sccmexec.exe'\n#       - '\\\\nessusd.exe'\n#   condition: (selection_win or selection_lin or selection_mac) and not filter_inventory\n# level: low",
+  "falsePositives": [
+    "Asset inventory and configuration management agents that list installed packages on a nightly schedule",
+    "Patch management scanners that query the installed software registry key before and after a deployment",
+    "Helpdesk and support scripts that collect an installed program list while troubleshooting a user ticket",
+    "Software licence auditing tools run by the finance or procurement team during a review cycle"
+  ],
+  "tuningNotes": "Build the allow list from the parent process and command line pairs you see every day, then exclude them so only new lineages alert. Use the distinct query count as the primary filter, since a single query is almost always routine and a burst of four or more different inventory commands is not. Scope the higher severity tier to hosts that hold sensitive data or administrative rights, and leave ordinary user workstations at low severity for trend review. Narrowing by parent loses coverage of an attacker who uses a legitimate inventory agent binary, so watch for that binary running outside its usual schedule or from an unusual path.",
+  "severity": "low"
+}

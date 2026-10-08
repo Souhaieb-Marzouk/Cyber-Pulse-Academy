@@ -1,0 +1,106 @@
+{
+  "id": "det0356",
+  "type": "detection",
+  "title": "Endpoint DoS via OS Exhaustion Flood Detection Strategy",
+  "shortTitle": "Endpoint DoS via OS Exhaustion Flood Detection Strategy",
+  "externalId": "DET0356",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects an operating system exhaustion flood against a single endpoint, the T1499.001 Endpoint Denial of Service variant where an attacker or a stressor tool consumes processor time, memory, process slots or connection table entries until the host stops responding. The telemetry that makes it visible is host performance counter data for processor, memory and non-paged pool, combined with process creation records, thread and handle counts, and the volume of inbound network connections tracked per process. The pattern of interest is a sudden sustained jump that starts within seconds of a new process and ends when that process is stopped or the host reboots. It fails in practice when performance data is sampled every fifteen minutes, because the flood is over well before the first sample arrives.",
+  "tags": [
+    "windows",
+    "linux",
+    "denial of service",
+    "performance",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Endpoint DoS via OS Exhaustion Flood Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0356/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Endpoint DoS via OS Exhaustion Flood Detection Strategy - EASY",
+      "path": "exercises/det0356/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Endpoint DoS via OS Exhaustion Flood Detection Strategy - MEDIUM",
+      "path": "exercises/det0356/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Endpoint DoS via OS Exhaustion Flood Detection Strategy - HARD",
+      "path": "exercises/det0356/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Endpoint DoS via OS Exhaustion Flood Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0356/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection finds a computer that is being worn down until it stops answering. A flood of work is aimed at one machine instead of many. The machine uses all of its processor time, memory or network slots until normal programs cannot run.",
+    "whyItMatters": "A worn down endpoint cannot run security tools, save work or report its own state. Users lose work in progress. If the target is a server, other services and users are affected too. The attacker may also start the flood to hide another action on the same host.",
+    "howItWorks": [
+      "An agent samples processor use, memory use and open connection counts on the monitored host.",
+      "It also records every new process with its parent process and command line.",
+      "A rule looks for a resource spike that is much larger than the host's own baseline.",
+      "The spike must start shortly after a new process appears and stay high for more than a few minutes.",
+      "If the process is unsigned, unusual for that host, or has a very large thread count, the rule alerts."
+    ],
+    "example": "Think of one clerk at a counter who is handed every form in the building at once. The clerk is not broken and the forms are not false. There are simply far too many, and the queue never moves again.",
+    "takeaways": [
+      "A single host denial of service looks like a resource spike, not like a security alert.",
+      "Sampling speed decides whether you see the event at all.",
+      "Always name the process and the parent process, because a flood without an owner cannot be handled."
+    ]
+  },
+  "objectives": [
+    "Explain how resource exhaustion on one host differs from a network volumetric attack",
+    "List the performance counters that indicate processor, memory and connection table exhaustion",
+    "Correlate process creation records with the start of a resource spike on the same host",
+    "Establish per-host baselines so that normal batch work is not treated as an attack",
+    "Choose a sampling interval that is fast enough to observe a short flood",
+    "Describe containment options that do not require rebuilding the affected host"
+  ],
+  "techniqueId": "t1499-001",
+  "detectsTechniques": [
+    "t1499-001"
+  ],
+  "dataSources": [
+    "Host performance counters sampled at one minute or less for processor time, available memory, non-paged pool and free handle count",
+    "Sysmon event 1 or Windows Security event 4688 process creation including parent image, command line and user",
+    "Sysmon event 3 network connection records with source and destination address and owning process",
+    "Linux process accounting or auditd execve records with process identifier and resource usage",
+    "Endpoint agent health check records that report missed heartbeats from the monitoring service"
+  ],
+  "logic": "The pattern is a resource profile change on one host that is both sudden and attributable. Analysts compare the current processor, memory and connection counts against that host's own baseline, then look for a process creation event in the seconds before the rise. A benign case is a scheduled backup, indexing job or software update that is known to the asset owner and repeats on a calendar; the malicious case is an unknown binary started from a temporary directory or a download path that opens hundreds of connections or spawns thousands of threads, and is not part of any maintenance window. Correlation of the owning process identifier, the parent process and the timing is what converts an operational alert into a security finding.",
+  "pseudoQuery": "# title: Single host resource exhaustion by unknown process\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_proc:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\temp\\\\'\n#       - '\\\\downloads\\\\'\n#   selection_perf:\n#     counter: processor_time_percent\n#     value: '> 95'\n#     duration: 5m\n#   filter_maint:\n#     ParentImage|endswith: '\\\\services.exe'\n#   condition: selection_proc and selection_perf and not filter_maint\n# level: medium",
+  "falsePositives": [
+    "Scheduled backup, antivirus scan or disk indexing jobs that consume all processor time for a defined period",
+    "Software deployment tools that install or patch a large application on many endpoints at once",
+    "A developer workstation running a compiled build or a container image build that saturates memory",
+    "A monitoring or log forwarding agent that stalls and opens a very large number of outbound connections"
+  ],
+  "tuningNotes": "First collect thirty days of per-host performance data and build a baseline by asset class, because a build server and a domain controller look nothing alike at rest. Exclude maintenance windows and the processes that own them, expressed as a filter on parent process and working directory rather than on file name, since file names are easy to reuse. Scope the rule to servers and to endpoints with critical business roles to reduce queue volume. The coverage you lose is a genuine flood on ordinary user laptops, so keep a lower-severity copy of the rule for those assets and confirm the endpoint agent heartbeats resume after the event, which is itself evidence of impact.",
+  "severity": "medium"
+}

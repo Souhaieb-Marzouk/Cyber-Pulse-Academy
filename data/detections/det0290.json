@@ -1,0 +1,105 @@
+{
+  "id": "det0290",
+  "type": "detection",
+  "title": "Cross-Platform Detection of Cron Job Abuse for Persistence and Execution",
+  "shortTitle": "Cross-Platform Detection of Cron Job Abuse for Persistenc...",
+  "externalId": "DET0290",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the cron scheduler on Linux and other Unix like systems for persistence and execution. Cron is attractive to an adversary because a scheduled job survives reboots, runs as the account that owns it, and blends into a large volume of legitimate maintenance. Detection works by correlating three things: process execution of the scheduler and the crontab editing utility with their full arguments, file change records for the cron directories and the per user spool, and execution of the scheduled command by the daemon at the appointed time. The strategy fails when a rule only watches process names, because packaging tools, configuration management agents and backup software all write cron entries, and the fields that separate malicious from benign are usually the writing account and the path of the scheduled command.",
+  "tags": [
+    "cron",
+    "linux",
+    "persistence",
+    "scheduled task",
+    "file monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cross-Platform Detection of Cron Job Abuse for Persistence and Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0290/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cross-Platform Detection of Cron Job Abuse for Persistence and Execution - EASY",
+      "path": "exercises/det0290/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cross-Platform Detection of Cron Job Abuse for Persistence and Execution - MEDIUM",
+      "path": "exercises/det0290/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cross-Platform Detection of Cron Job Abuse for Persistence and Execution - HARD",
+      "path": "exercises/det0290/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cross-Platform Detection of Cron Job Abuse for Persistence and Execution - EXTREMELY HARD",
+      "path": "exercises/det0290/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cron is a scheduler found on Linux and similar systems. It runs commands at the times you choose, such as every night at two o'clock. Attackers like it because a scheduled job keeps running after the computer restarts. This detection watches who creates cron jobs and what those jobs run.",
+    "whyItMatters": "A cron job gives an attacker regular access that survives a reboot. The person who created it may never log in again, and the job still runs on time. Cron entries are ordinary text files, so file scanning rarely flags them. Normal system maintenance relies on cron very heavily. You need the writer and the command path to separate good jobs from bad ones.",
+    "howItWorks": [
+      "The audit system on the host records each command that runs, along with the user and the full arguments.",
+      "The rule keeps the events where the scheduler or the crontab editing utility is the command being run.",
+      "File monitoring then reports any change to the system cron directories or to a user spool file.",
+      "The rule links that change to the account that made it, which is often a service account.",
+      "When the daemon later runs the job, the command and its path are checked against known good jobs.",
+      "Jobs that fetch a script from the network, or that run from a temporary directory, are ranked highest."
+    ],
+    "example": "Think of an office cleaner who is allowed into the building every night. Nobody questions a cleaner at two in the morning, because that is when cleaners work. Now imagine that cleaner also pins a note on the staff board saying run this job every night at three. The note, not the person, is the thing your rule needs to watch.",
+    "takeaways": [
+      "Cron means persistence, so a confirmed malicious job must be removed and not simply blocked once.",
+      "The account that writes the job is often your strongest clue.",
+      "Baseline the scheduled jobs on your servers so that new ones stand out clearly."
+    ]
+  },
+  "objectives": [
+    "Explain why cron is useful to an attacker for persistence.",
+    "Identify the telemetry that shows both job creation and later job execution.",
+    "Correlate file change records for cron directories with the account that made the change.",
+    "Recognise scheduled commands that fetch content over the network or run from temporary paths.",
+    "Baseline legitimate cron entries on each server class so additions are visible."
+  ],
+  "techniqueId": "t1053-003",
+  "detectsTechniques": [
+    "t1053-003"
+  ],
+  "dataSources": [
+    "Linux auditd process execution records for the cron daemon and the crontab utility with the acting user and full arguments",
+    "Linux syslog or journald entries from the cron daemon naming the account and the command it executed",
+    "File integrity monitoring events for /etc/crontab, /etc/cron.d and the per user spool directories",
+    "Endpoint detection process events on Linux showing parent process, user and command line for scheduled commands"
+  ],
+  "logic": "The pattern is a scheduled job created or executed in a way that does not match the normal maintenance of that host. The fields to correlate are the account that wrote the cron entry, the path of the file that changed from file integrity telemetry, the command line that the daemon logged when the job ran, and the parent process chain in process execution telemetry. The benign case is a configuration management agent or a package manager writing a job for the service account that owns the package, with the scheduled command pointing at a file inside a system or application directory and repeating across many hosts. The malicious case is a web or service account writing a job, a change to the spool file of an account that never schedules work, or a scheduled command that fetches content from the network or runs a script from a temporary or world writable directory.",
+  "pseudoQuery": "# title: Cron Job Created by Web or Service Account\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     process_name|endswith: '/crontab'\n#     user:\n#       - 'www-data'\n#       - 'apache'\n#       - 'nginx'\n#   filter:\n#     command_line|contains: '/etc/cron.d/package-managed'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Configuration management tooling that installs a scheduled job for a service account during package deployment.",
+    "Application installers that create a cron entry to rotate logs or refresh a cache under the web service account.",
+    "Backup and monitoring scripts that add a recurring job from a shared service account on managed hosts.",
+    "Developers on build servers who schedule their own jobs under a build account outside the normal change process."
+  ],
+  "tuningNotes": "Baseline the cron entries present on each server class and the accounts that normally write them, then filter the configuration management agent and package manager paths rather than the crontab command itself. Scope the high severity rule to internet facing servers and hosts that handle regulated data, where a web account writing a job nearly always means the web application has been compromised. Always carry the scheduled command path into the alert, because a job that pulls content from the network or runs from a temporary directory is the clearest malicious shape. Baseline only filtering costs coverage of an attacker who hides a job inside a path your agent already manages, so add a separate rule that alerts when a managed cron file changes outside a deployment window.",
+  "severity": "high"
+}

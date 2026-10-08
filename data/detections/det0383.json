@@ -1,0 +1,107 @@
+{
+  "id": "det0383",
+  "type": "detection",
+  "title": "Detection Strategy for Masquerading via Account Name Similarity",
+  "shortTitle": "Detection Strategy for Masquerading via Account Name Simi...",
+  "externalId": "DET0383",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets account name similarity, where an adversary creates or renames an account so that its name looks close to a trusted one, often by swapping letters for lookalike characters, adding a trailing space, or inserting a hyphen. The goal is to make helpdesk staff, administrators, and automated tools treat the fake account as the real one during access requests or log reviews. Account creation and rename events are the foundation, supported by authentication logs and directory change auditing that show the new account immediately signing in. The strategy fails in practice because the distance measure is noisy across many legitimate naming conventions, and because a name change event is easy to overlook when it arrives among routine helpdesk tickets.",
+  "tags": [
+    "defense evasion",
+    "account management",
+    "windows",
+    "active directory",
+    "identity",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Masquerading via Account Name Similarity",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0383/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Masquerading via Account Name Similarity - EASY",
+      "path": "exercises/det0383/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via Account Name Similarity - MEDIUM",
+      "path": "exercises/det0383/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via Account Name Similarity - HARD",
+      "path": "exercises/det0383/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via Account Name Similarity - EXTREMELY HARD",
+      "path": "exercises/det0383/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This is when someone makes an account with a name that looks almost the same as a trusted account. They may swap a letter for a similar looking one, or add a small mark that is hard to see. This detection compares new account names with existing trusted names and looks for a close match.",
+    "whyItMatters": "People skim names. A name that reads like a known administrator can pass a quick check. An attacker who holds that account may be able to request a password reset, join a group, or hide in an access report. Comparing names by sight is slow and easy to get wrong, so a rule that measures similarity helps the team see the fake.",
+    "howItWorks": [
+      "Directory audit events record every new account and every rename, with the actor who made the change.",
+      "The rule compares each new name against the list of existing privileged and service account names.",
+      "A similarity measure gives a score, and a score above the chosen limit marks the name as close.",
+      "Authentication records then show whether the new account signed in soon after it was created.",
+      "An alert states the new name, the trusted name it resembles, and the account that created it."
+    ],
+    "example": "Picture a ward sign in sheet. A visitor writes a name that is one letter away from the senior doctor on duty. At a glance the name looks right, and the nurse waves them through. A second reader, who checks every new name against the staff list, spots the extra letter and asks for identification.",
+    "takeaways": [
+      "Lookalike names pass human review, so compare new names with a trusted list by rule.",
+      "Watch the rename event as closely as the create event, because an old name may already be trusted.",
+      "Pair the name check with a sign in record so you can rank which fake accounts are actually in use."
+    ]
+  },
+  "objectives": [
+    "Explain how confusingly similar account names defeat visual review of access lists",
+    "List the directory events that record account creation and account rename",
+    "Apply a name similarity measure to new accounts and set a workable threshold",
+    "Correlate a suspicious account creation with authentication events from the same account",
+    "Identify legitimate naming conventions that the rule must filter to stay quiet",
+    "Describe how to respond when a live account with a lookalike name is found"
+  ],
+  "techniqueId": "t1036-010",
+  "detectsTechniques": [
+    "t1036-010"
+  ],
+  "dataSources": [
+    "Windows Security event 4720 account creation with the subject user name of the actor who created it",
+    "Windows Security event 4781 account name change with the old name and the new name recorded",
+    "Windows Security event 4624 successful logon with the new account name and the source workstation",
+    "Directory service change auditing events for object modification in the domain naming context",
+    "The identity inventory or configuration management database that lists approved privileged account names"
+  ],
+  "logic": "The pattern is a new or renamed account whose name is close to an existing trusted name. The rule takes each account creation and rename event, computes a similarity score such as a small edit distance against the current list of privileged and service accounts, and fires when the score passes the threshold and the names are not identical. It then correlates the new account with authentication events in the following hours to show whether the account is in active use, and with group membership events to show whether it gained rights. The benign case is a deliberate naming convention, such as a disaster recovery twin account or a staged migration account that a change record explains. The malicious case is a name that differs by one lookalike character, a trailing space, or a hyphen from a real administrator account, created by an actor outside the identity team and used shortly afterwards.",
+  "pseudoQuery": "# title: Account Created With Name Similar To Privileged Account\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4720\n#   filter_approved:\n#     TargetUserName|endswith:\n#       - '-dr'\n#       - '-staging'\n#       - '_svc'\n#   condition: selection and not filter_approved\n# level: medium",
+  "falsePositives": [
+    "Disaster recovery or break glass twin accounts that deliberately mirror an administrator name with a documented suffix",
+    "Migration projects that create a near duplicate of a user name while a directory move is in progress",
+    "Contractor onboarding where a name resembles an existing employee name and the collision is genuine",
+    "Test tenants or lab domains that intentionally recreate production account names with a small change"
+  ],
+  "tuningNotes": "Start by exporting the approved privileged and service account names, then restrict the comparison to that set, because comparing against every user name in a large directory produces constant noise. Exclude approved suffix patterns such as a documented disaster recovery tag, and require that the creating actor is not a member of the identity administration team. Baseline how many creation events your directory normally produces per day so you can set a sane alert volume. The coverage you give up by scoping to privileged names is detection of a lookalike of an ordinary user, which matters for phishing and approval fraud, so keep a weekly report of all near duplicate names across the whole directory as a secondary control.",
+  "severity": "medium"
+}

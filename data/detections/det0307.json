@@ -1,0 +1,108 @@
+{
+  "id": "det0307",
+  "type": "detection",
+  "title": "Detect Access to Unsecured Credential Files Across Platforms",
+  "shortTitle": "Detect Access to Unsecured Credential Files Across Platforms",
+  "externalId": "DET0307",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers access to unsecured credentials stored in files, mapped to T1552.001, where an adversary reads configuration files, scripts or key material that contain plaintext secrets rather than stealing them from memory or the credential store. It matters because these files are everywhere: deployment configuration, continuous integration variables, home directory key files and application settings often hold credentials with no expiry, so a single read of the wrong file can hand over durable access to another system. The telemetry that makes detection possible is file access auditing on sensitive paths, process creation that shows the reading command and its arguments, and cloud or directory service authentication events that use the harvested credential later. In practice the difficulty is twofold: search tools, backup agents and monitoring software read these files constantly, so the rule must focus on unusual readers and unusual breadth, and many environments do not have the file level access auditing that would show a read at all.",
+  "tags": [
+    "mitre t1552.001",
+    "credential access",
+    "file auditing",
+    "secrets management",
+    "unsecured credentials"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Access to Unsecured Credential Files Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0307/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Access to Unsecured Credential Files Across Platforms - EASY",
+      "path": "exercises/det0307/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Access to Unsecured Credential Files Across Platforms - MEDIUM",
+      "path": "exercises/det0307/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Access to Unsecured Credential Files Across Platforms - HARD",
+      "path": "exercises/det0307/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Access to Unsecured Credential Files Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0307/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Some programs keep their passwords in plain files on the disk. One example is a key file for remote login. Another is a settings file for a cloud service. This rule looks for programs that read those files. It is most interested when the reader is not the program that owns them.",
+    "whyItMatters": "A password written in a file does not expire. It also has no extra protection in memory. One careful read can give an attacker lasting access to another system. Nobody changed a password, so nothing looks wrong. The files are also scattered, so defenders often do not know where their secrets live.",
+    "howItWorks": [
+      "File access auditing records which program read which file on monitored paths.",
+      "The rule watches sensitive paths, such as home directory key folders, cloud command line credential files and application configuration directories.",
+      "It looks at the process that read the file. It compares that reader with the programs that normally read that path.",
+      "It also counts how many distinct sensitive files one process read in a short time, because collection is usually broad.",
+      "Command line records add context, for example a search for files with common secret file names.",
+      "It then watches authentication logs for use of that credential from a new host or address within the following hours."
+    ],
+    "example": "Think of a cleaner who is allowed into the office at night. Nobody minds them reading the cleaning cupboard list. Later the same cleaner opens the drawer with the spare keys. Then they open the safe code envelope and the alarm code folder. No single drawer is the problem. That pattern of drawers is the problem.",
+    "takeaways": [
+      "Unsecured credential files are a quiet but lasting way for an attacker to gain access.",
+      "Alert on unusual readers and on broad reads of several sensitive files, not on the file type alone.",
+      "Without file access auditing on those paths you will only see the later login, which is often too late."
+    ]
+  },
+  "objectives": [
+    "Identify the common locations of unsecured credential files on Windows, Linux and cloud connected hosts.",
+    "Explain why file stored credentials are more dangerous than a single captured password.",
+    "Configure and interpret file access auditing on sensitive credential paths.",
+    "Distinguish the legitimate owner process of a credential file from an unexpected reader.",
+    "Correlate the read of a credential file with later authentication using that credential.",
+    "Describe a secret inventory process that reduces the number of credential files in scope."
+  ],
+  "techniqueId": "t1552-001",
+  "detectsTechniques": [
+    "t1552-001"
+  ],
+  "dataSources": [
+    "Linux auditd file watch records for reads of key and credential files such as files under the secure shell directory and cloud provider credential files, with the acting process and user",
+    "Windows Security object access audit records for file reads on sensitive configuration paths, including the object name and the accessing process",
+    "Sysmon event 1 process creation and event 11 file creation showing search or archive commands that target credential file patterns",
+    "Endpoint detection agent telemetry recording a single process reading many distinct files across credential directories in a short window",
+    "Cloud provider audit logs and directory service authentication events showing use of an access key or service account credential from a new address or host"
+  ],
+  "logic": "The pattern is a process reading credential bearing files outside the set of programs that legitimately read them, or one process reading many such files across several directories in a short window, optionally preceded by a search command that names secret file patterns. The fields that must be correlated are the file path, the reading process image and command line, the acting user and session, the host, and the count and timing of distinct files read. The benign case involves the owning application reading its own configuration at start up, a backup or monitoring agent with a documented path list, or an administrator inspecting a single file on a host they own. The malicious case is an interactive shell, a scripting engine or an unknown binary reading credential paths that belong to a different account or a different application, often paired with broad directory listing, and followed within hours by an authentication that uses the harvested secret from a host that has never used it before, which is the strongest confirmation available.",
+  "pseudoQuery": "# title: Unusual Process Reading Credential Files on Host\n# logsource:\n#   product: linux\n# detection:\n#   selection_read:\n#     type: 'PATH'\n#     name|endswith:\n#       - '/.ssh/id_rsa'\n#       - '/.aws/credentials'\n#       - '/.config/gcloud/credentials.db'\n#   filter_owner:\n#     exe|endswith:\n#       - '/usr/bin/ssh'\n#       - '/usr/bin/backup-agent'\n#   condition: selection_read and not filter_owner\n# level: high",
+  "falsePositives": [
+    "Backup agents that read credential files as part of a documented application aware backup job",
+    "Configuration management runs that verify a service account key file is present and correctly formatted",
+    "Developers reading their own personal key files on their own workstation during normal work",
+    "Vulnerability scanners that check file permissions on sensitive paths and incidentally read file metadata",
+    "Application start up routines that load their own configuration file which happens to contain a service credential"
+  ],
+  "tuningNotes": "First reduce the problem: run a secret inventory to find where credential files actually live, then retire or move the ones you can into a managed store, because every file you remove is coverage you no longer need. On the remaining paths, allowlist the owning application binary and the documented backup and monitoring agents by path and account, so that a read by a shell, a scripting interpreter or an unknown binary still alerts. Aggregate by process and host over a short window and alert on breadth, such as several distinct credential paths read by one process, which removes single legitimate reads. Scope the high severity tier to servers and build agents, and correlate with subsequent authentications using that credential so that you can escalate with confidence. Narrowing to a path list loses coverage of credentials stored in unusual or renamed files, so extend the list from post incident findings and monitor for searches that target secret like file name patterns.",
+  "severity": "high"
+}

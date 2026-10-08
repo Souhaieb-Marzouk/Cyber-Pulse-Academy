@@ -1,0 +1,106 @@
+{
+  "id": "det0124",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1132.001 Data Encoding: Standard Encoding (Base64/Hex/MIME) across Windows, Linux, macOS, ESXi",
+  "shortTitle": "Behavior-chain detection for T1132.001 Data Encoding: Sta...",
+  "externalId": "DET0124",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects standard encoding, such as base64, hexadecimal or MIME encoding, used to carry commands or staged data in a way that hides intent from casual review. The technique matters because encoding is cheap, does not require custom malware, and defeats keyword based inspection of command lines, script blocks and file contents, especially when the decoded material is assembled at run time. Detection depends on command line and script block logging on Windows, shell history and audit process records on Linux and macOS, and log records from hypervisor hosts where encoded payloads are passed to management interfaces. It fails in practice because encoding is also completely normal in packaging, certificate handling and file transfer, so the rule needs length, entropy and context thresholds rather than a simple pattern match.",
+  "tags": [
+    "defense evasion",
+    "encoding",
+    "base64",
+    "command line",
+    "script block"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1132.001 Data Encoding: Standard Encoding (Base64/Hex/MIME) across Windows, Linux, macOS, ESXi",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0124/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1132.001 Data Encoding: Standard Encoding (Base64/Hex/MIME) across Windows, Linux, macOS, ESXi - EASY",
+      "path": "exercises/det0124/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1132.001 Data Encoding: Standard Encoding (Base64/Hex/MIME) across Windows, Linux, macOS, ESXi - MEDIUM",
+      "path": "exercises/det0124/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1132.001 Data Encoding: Standard Encoding (Base64/Hex/MIME) across Windows, Linux, macOS, ESXi - HARD",
+      "path": "exercises/det0124/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1132.001 Data Encoding: Standard Encoding (Base64/Hex/MIME) across Windows, Linux, macOS, ESXi - EXTREMELY HARD",
+      "path": "exercises/det0124/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for data that has been changed into a coded form so people cannot read it. Encoding means turning text into another alphabet, such as base64. The rule watches for commands that carry coded content and then run it.",
+    "whyItMatters": "Attackers use encoding so that their commands do not contain obvious words. Your search for bad keywords finds nothing, because the command is a block of letters and numbers. Detection has to reason about the shape and size of the coded block instead.",
+    "howItWorks": [
+      "The rule reads the full command line or script block that was recorded.",
+      "It looks for long runs of characters from the base64 alphabet, or long hex strings.",
+      "It checks for command line switches that tell a tool to decode and run content.",
+      "It measures how long the coded block is, because long blocks usually carry a real program.",
+      "It notes which account ran the command and whether the parent process is a shell or a document.",
+      "A long coded block with an execution switch raises an alert."
+    ],
+    "example": "Think of a note written in a simple letter substitution code. The note uses only letters, so a guard searching for the word knife finds nothing. The guard has to notice other things instead. The note is long, it uses an odd alphabet, and it arrived at a strange hour.",
+    "takeaways": [
+      "Encoding hides meaning, not activity, so watch the shape of the data.",
+      "Long coded blocks are far more interesting than short ones.",
+      "Record full command lines, or this detection cannot work."
+    ]
+  },
+  "objectives": [
+    "Describe common standard encodings and why attackers use them",
+    "Identify logging sources that capture full command lines and script blocks",
+    "Apply length and character set thresholds to reduce benign matches",
+    "Correlate an encoded command with the parent process that launched it",
+    "Decode suspicious content safely in an isolated environment during triage"
+  ],
+  "techniqueId": "t1132-001",
+  "detectsTechniques": [
+    "t1132-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "PowerShell script block logging records that capture the decoded script text",
+    "Linux auditd execve records and shell history files that show the argument list",
+    "macOS unified log entries for process execution with the full argument list",
+    "Hypervisor host shell and management interface command logs where encoded arguments are supplied"
+  ],
+  "logic": "The pattern is a recorded command line or script block that contains a long run of characters from an encoding alphabet together with a switch or function that decodes and executes content. Fields to correlate are the encoding alphabet match, the length of the encoded run, the command line switch such as an encoded command flag or a decode function name, the parent process, and the account. The benign case is short encoded values used by installers and package managers, or a legitimate tool carrying a certificate blob, which are usually well under a hundred characters and appear inside a signed parent process; the malicious case is a long block, often several hundred characters or more, launched from a shell, a document reader or a scheduled task with an interpreter as the image. Threshold on length, then use the parent to separate automation from interactive abuse.",
+  "pseudoQuery": "# title: Long base64 encoded command executed by script interpreter\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection:\n#     CommandLine|contains:\n#       - ' -EncodedCommand '\n#       - 'FromBase64String'\n#       - ' -enc '\n#     CommandLine|re: '[A-Za-z0-9+/]{120,}={0,2}'\n#   filter:\n#     ParentImage|endswith:\n#       - '\\\\sccmexec.exe'\n#       - '\\\\wsussvc.exe'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Configuration management tools that transmit encoded configuration blobs inside command lines",
+    "Certificate and key handling scripts that pass encoded material as an argument",
+    "Software packaging pipelines that embed encoded installation payloads in deployment scripts",
+    "Cloud command line interfaces that base64 encode user data passed to virtual machine start up options"
+  ],
+  "tuningNotes": "Tune the minimum encoded length first, since short values are almost always benign, and raise it until the rule matches only content large enough to hold real code. Then filter the parent processes and command line prefixes of your deployment and backup tooling. Baseline how often encoded commands run in a week so you can see a change. The coverage you lose with a high length threshold is a small encoded payload that downloads the real one, so pair this rule with network rules that watch for a process reaching a raw address after an encoded command, and keep script block logging enabled so you can decode alerts safely.",
+  "severity": "medium"
+}

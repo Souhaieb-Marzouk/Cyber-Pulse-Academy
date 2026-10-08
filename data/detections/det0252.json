@@ -1,0 +1,108 @@
+{
+  "id": "det0252",
+  "type": "detection",
+  "title": "User-Initiated Malicious Library Installation via Package Manager (T1204.005)",
+  "shortTitle": "User-Initiated Malicious Library Installation via Package...",
+  "externalId": "DET0252",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects a user initiated installation of a malicious library through a package manager, covering both the command a person runs by hand and the install time scripts that a package executes on their behalf. The technique matters because package managers are trusted, run with the user's rights, fetch code from public registries that anyone can publish to, and can execute arbitrary commands during installation without any further user action. Detection depends on process creation records showing the package manager command line, child process and file write telemetry from the install, and network flows from the build or user host to public registries. The main way it fails is that development hosts run installs all day, so the rule must key on the registry source, the child processes, the account and the host role rather than on the command itself.",
+  "tags": [
+    "supply chain",
+    "user execution",
+    "package manager",
+    "linux",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: User-Initiated Malicious Library Installation via Package Manager (T1204.005)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0252/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "User-Initiated Malicious Library Installation via Package Manager (T1204.005) - EASY",
+      "path": "exercises/det0252/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "User-Initiated Malicious Library Installation via Package Manager (T1204.005) - MEDIUM",
+      "path": "exercises/det0252/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "User-Initiated Malicious Library Installation via Package Manager (T1204.005) - HARD",
+      "path": "exercises/det0252/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "User-Initiated Malicious Library Installation via Package Manager (T1204.005) - EXTREMELY HARD",
+      "path": "exercises/det0252/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a harmful software package installed on purpose by a user. A package is a small bundle of code that adds a feature, kept in a public library called a registry. Anyone can publish one, and some names look almost like real ones. The rule watches install commands and the programs they start during installation.",
+    "whyItMatters": "Installing a package is usually safe, so people do it without much thought. But the package can run its own commands while it installs. That gives an attacker code execution with no file for an email filter to see. Typosquatting, where a name is one letter off, makes the mistake easy to make.",
+    "howItWorks": [
+      "A user runs an install command for a package, or a script runs it for them.",
+      "The package manager contacts a public registry and downloads the package.",
+      "Windows or Linux records the install command together with its arguments.",
+      "It also records any program the package starts, such as a shell or a download tool.",
+      "The rule checks the package name, the registry used and the parent process.",
+      "A shell, a network download or a script from inside the package raises an alert."
+    ],
+    "example": "Think of a market where anyone can open a stall. Most sellers are honest, but one sign reads almost like a famous shop, one letter different. Buying there is normal shopping, and nothing feels wrong until the box you carry home starts making phone calls. The install script inside the package is that phone call.",
+    "takeaways": [
+      "A package install is code execution, not just a download.",
+      "The install scripts are the part that gives an attacker a free hand.",
+      "Check the registry source, the package name and the processes started."
+    ]
+  },
+  "objectives": [
+    "Describe how a package manager is a code execution path.",
+    "Identify the process and file events that an installation produces.",
+    "Explain typosquatting and dependency confusion in plain terms.",
+    "Correlate the install command with child processes and outbound connections.",
+    "Describe which hosts and accounts should legitimately install packages.",
+    "Explain why install time scripts are the highest risk part of a package."
+  ],
+  "techniqueId": "t1204-005",
+  "detectsTechniques": [
+    "t1204-005"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation records showing npm, pip, gem and similar package manager commands with full arguments",
+    "Linux auditd process execution records for package manager commands with the parent process and effective user",
+    "Sysmon event 11 file creation records for files written into package cache and node module directories during an install",
+    "Network flow or proxy logs showing connections from developer hosts to public package registries",
+    "Sysmon event 1 child process records where a script interpreter or download utility runs with a package manager as parent"
+  ],
+  "logic": "The pattern is a package installation in which the installing account, the registry, the package name or the child processes do not match the normal development profile of that host. The fields that must be correlated are the package manager image and command line, the package name and version, the registry or index address, the parent process of the install, the installing account, and any child process or outbound connection created while the install runs. The malicious case usually shows an install by an account on a host that is not a build agent, a package name that is close to a popular one or that is not in the approved dependency list, a post install script that spawns a shell, an encoder or a download utility, and an immediate connection to an address unrelated to the package registry. The benign case is a continuous integration agent resolving a lock file, a developer adding a documented dependency, native module compilation that legitimately calls a compiler, and package manager telemetry or update checks.",
+  "pseudoQuery": "# title: Package Install Spawning Shell or Download Utility\n# logsource:\n#   product: linux\n# detection:\n#   selection_install:\n#     Image|endswith|any:\n#       - '/npm'\n#       - '/pip'\n#       - '/pip3'\n#       - '/gem'\n#   selection_child:\n#     ParentImage|endswith|any:\n#       - '/npm'\n#       - '/pip'\n#       - '/pip3'\n#     Image|endswith|any:\n#       - '/sh'\n#       - '/bash'\n#       - '/curl'\n#       - '/wget'\n#   filter_ci:\n#     user|endswith: '-builder'\n#   condition: (selection_install or selection_child) and not filter_ci\n# level: medium",
+  "falsePositives": [
+    "Continuous integration build agents that install dependencies from a lock file on every pipeline run",
+    "Native module compilation during an install that legitimately invokes a compiler and a shell",
+    "Developers testing a package they published themselves from a private or scoped registry namespace",
+    "Package manager version checks and telemetry calls that contact vendor addresses during install"
+  ],
+  "tuningNotes": "Scope the first version to user workstations and to hosts that run both office work and development tools, and allow list the build agents by account and by the registry they reach, so a build agent stops producing noise. Keep an approved dependency list and alert on packages outside it that also spawn a shell, a scripting engine or a download utility as a child of the package manager. Watch for names within a small edit distance of popular packages, since that is the usual trick. The coverage you lose by allowing build agents is a poisoned package inside the locked dependency set, so pair this rule with pinned versions, checksum verification and alerts when a dependency file changes outside a review.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0499",
+  "type": "detection",
+  "title": "Behavioral Detection of Fallback or Alternate C2 Channels",
+  "shortTitle": "Behavioral Detection of Fallback or Alternate C2 Channels",
+  "externalId": "DET0499",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects a switch to a fallback or alternate command and control channel, where an implant that has lost its main channel starts using a second protocol, port or destination to restore contact. The signal is a change in the communication profile of one host, such as a protocol it has never used, a move from regular short beacons to a long lived encrypted session, or a sudden shift to a different external provider from the same process. Telemetry comes from web proxy logs, firewall session records, network flow exports and endpoint network connection events, scored with destination reputation and domain age. It fails in practice because a single process may legitimately use several destinations, so the rule must compare a host against its own history rather than against a global allow list.",
+  "tags": [
+    "command and control",
+    "fallback channel",
+    "network flow",
+    "proxy log",
+    "beaconing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Fallback or Alternate C2 Channels",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0499/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Fallback or Alternate C2 Channels - EASY",
+      "path": "exercises/det0499/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Fallback or Alternate C2 Channels - MEDIUM",
+      "path": "exercises/det0499/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Fallback or Alternate C2 Channels - HARD",
+      "path": "exercises/det0499/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Fallback or Alternate C2 Channels - EXTREMELY HARD",
+      "path": "exercises/det0499/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Command and control, or C2, is the channel an attacker uses to give orders to a compromised computer. This detection looks for a sudden change to a second channel. It catches a program that cannot reach its first address and tries another one. The change itself is the clue.",
+    "whyItMatters": "Attackers plan for failure, because defenders block addresses every day. When the main channel dies, the implant looks for a backup route. That switch is much noisier than the quiet beacon that came before it. Watching for the switch gives you a chance to catch an implant you missed at the start, and it shows you which hosts were already compromised.",
+    "howItWorks": [
+      "Firewall, proxy and network flow records show each host connection and its protocol.",
+      "The rule builds a communication profile for each host over the last thirty days.",
+      "It flags a new protocol, port or destination that the host has not used before.",
+      "It also flags a change in session shape, such as many short beacons or one long session.",
+      "The destination is scored with threat intelligence, domain age and hosting provider data.",
+      "The alert shows the process, the old profile and the new destination."
+    ],
+    "example": "Think of a courier who always delivers parcels to your office by van. One day the road is closed, so he sends the parcels by motorcycle instead. The parcels still arrive on time, so nobody complains. A watchful clerk at the loading bay notices a new rider and a different route. This detection is that clerk, watching for a change in how deliveries arrive.",
+    "takeaways": [
+      "A change in communication pattern is often more useful than the destination alone.",
+      "Baseline each host protocol mix before you enable the rule.",
+      "Treat a fallback switch as evidence that the host was already compromised."
+    ]
+  },
+  "objectives": [
+    "Define fallback channels and explain why attackers plan for them.",
+    "Name the log sources that reveal host communication profiles.",
+    "Describe how to baseline protocol and destination use for one host.",
+    "Explain how domain age and reputation scoring reduce false alerts.",
+    "Write a pseudo-rule that flags a new protocol for a known host."
+  ],
+  "techniqueId": "t1008",
+  "detectsTechniques": [
+    "t1008"
+  ],
+  "dataSources": [
+    "Web proxy logs with full URL, user agent, bytes transferred and destination address per request",
+    "Firewall session logs with source host, destination address, port, protocol and session duration",
+    "Network flow records such as IPFIX or NetFlow exports summarising bytes and packets per conversation",
+    "Sysmon event 3 network connection with owning process image and destination address",
+    "Domain registration age and reputation data used to score newly observed destinations"
+  ],
+  "logic": "The pattern is a host that changes how it talks to the internet within a short period, for example a move from a well known protocol to an uncommon port, or from regular short beacons to a long encrypted session with a provider that host has never used. Analysts correlate the source host and owning process across proxy, firewall, flow and endpoint network connection records, then compare the new destination and protocol against a thirty day baseline for the same host. Benign cases are explained by a software update, a cloud service rollout or an approved application install, and the new pattern then repeats consistently across many hosts. The malicious case shows one host deviating alone, a destination with a very recent registration date, and beacon timing that matches the host's earlier pattern despite the new protocol.",
+  "pseudoQuery": "# title: Internal Host Uses New Destination and Protocol\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: 'session'\n#     initiated: 'true'\n#   filter_baseline:\n#     destination_address|contains: '10[.]0[.]0[.]'\n#     destination_port:\n#       - 80\n#       - 443\n#   condition: selection and not filter_baseline\n# level: medium",
+  "falsePositives": [
+    "Cloud backup agent that fails over to a secondary provider endpoint after a service outage",
+    "Video conferencing client switching to a different relay region in the middle of a call",
+    "Software update client that starts using a new content delivery network after a vendor change",
+    "Remote worker whose virtual private network client moves to a different gateway address"
+  ],
+  "tuningNotes": "Build the per host destination and protocol baseline for at least thirty days, and allow list the destinations that repeat weekly so that update and telemetry traffic stays quiet. Scope the rule to server subnets and to user groups with access to sensitive data, and use low severity for a first occurrence on a workstation. Add a filter for hosts running approved remote support or backup agents, which change endpoints often. This cuts false alerts sharply, but you lose some coverage of an implant that hides inside an already approved destination and protocol mix.",
+  "severity": "medium"
+}

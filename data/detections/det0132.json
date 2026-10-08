@@ -1,0 +1,106 @@
+{
+  "id": "det0132",
+  "type": "detection",
+  "title": "Detection of Mutex-Based Execution Guardrails Across Platforms",
+  "shortTitle": "Detection of Mutex-Based Execution Guardrails Across Plat...",
+  "externalId": "DET0132",
+  "theme": "Detection Strategy",
+  "summary": "Mutex based execution guardrails (T1480.002) are a defense evasion pattern in which a program creates a named mutual exclusion object and exits quietly if an object with that name already exists, so only one copy of the payload runs on a host and repeated execution produces no repeated side effects. The detection problem is that a mutex is not a file or a network event but a kernel object, so the strategy depends on endpoint agents that record named object creation together with the owning process. The strongest observable shape is a chain: a binary attempts to create a named object, does no user visible work, and terminates within a second or two, often repeatedly at every run. Verification combines the object name, the image path and hash, and the process lifetime. It fails because single instance applications legitimately use the same mechanism, because object names are frequently random or host specific, and because a host without kernel level instrumentation records nothing at all.",
+  "tags": [
+    "defense evasion",
+    "t1480.002",
+    "mutex",
+    "execution guardrail",
+    "process monitoring",
+    "endpoint telemetry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Mutex-Based Execution Guardrails Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0132/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Mutex-Based Execution Guardrails Across Platforms - EASY",
+      "path": "exercises/det0132/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Mutex-Based Execution Guardrails Across Platforms - MEDIUM",
+      "path": "exercises/det0132/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Mutex-Based Execution Guardrails Across Platforms - HARD",
+      "path": "exercises/det0132/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Mutex-Based Execution Guardrails Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0132/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A mutex is a named marker that a program creates to say it is already running. Some malicious programs use one as a guard. They check for the marker and stop if they find it. This detection looks for programs that create such markers and then exit at once.",
+    "whyItMatters": "Attackers want their tool to run once and stay quiet. Running twice can create duplicate network traffic or crash the tool. A guard also makes defensive testing harder, because a second copy refuses to start. The marker is invisible on the screen and invisible in most event logs. This detection helps you see the guard itself, not only the tool.",
+    "howItWorks": [
+      "The endpoint agent records when a process creates a named system object.",
+      "The record includes the object name and the process that created it.",
+      "The rule looks for a process that talks to an object and then exits very quickly.",
+      "It checks whether that object name has appeared on this host before.",
+      "It compares the process path and hash with known software on the same host.",
+      "An analyst confirms whether a normal single instance application is responsible."
+    ],
+    "example": "Picture a small meeting room with a sign on the door. The first person inside flips the sign to busy. Anyone who arrives later sees the sign and walks away. The sign is not a lock, and the room is not really protected. It only tells later arrivals to give up. A mutex guard works in the same way. It shows that the program is already running, so the next copy leaves without doing anything.",
+    "takeaways": [
+      "A mutex is a named marker that a program uses to check whether it already runs.",
+      "The guard makes a payload run once per host and stay quiet afterwards.",
+      "Detection needs deep system records, because the marker creates no file."
+    ]
+  },
+  "objectives": [
+    "Explain what a named mutex is and how a guardrail uses it to limit execution.",
+    "Identify the telemetry that records named object creation and process lifetime.",
+    "Recognise the short lived process pattern that a guardrail check creates.",
+    "Distinguish single instance application behaviour from deliberate execution guarding.",
+    "Correlate object names with image hashes to link repeated payloads across hosts."
+  ],
+  "techniqueId": "t1480-002",
+  "detectsTechniques": [
+    "t1480-002"
+  ],
+  "dataSources": [
+    "Endpoint detection agent telemetry recording named object or mutex creation with the owning process identifier and the object name",
+    "Sysmon event 1 process creation and the matching process termination record, which together reveal very short process lifetimes",
+    "Kernel object manager auditing records for handle creation against named mutex objects",
+    "Sysmon event 11 file creation for the binary that created the object when it arrived from a user writeable directory"
+  ],
+  "logic": "The pattern has two halves that must be joined. First, a named synchronisation object is created, or creation fails because an object with that name already exists on the host. Second, the process that attempted the creation exits within about a second without starting a child process and without doing any user visible work. The fields to correlate are the object name and object type, the process identifier, the image path and hash, the user account, and the process start and end timestamps. A first seen object name owned by an unsigned binary in a user writeable directory is far more interesting than a well known object name owned by a signed application installed under a program directory, because the latter is the ordinary single instance pattern that dominates the volume. The benign case is a desktop application that stays open for hours holding its marker, so both the long duration and the stable signed image path separate it from a guardrail check.",
+  "pseudoQuery": "# title: Process exits immediately after a named mutex check\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventType: 'mutex_create'\n#     ProcessLifetimeSeconds: '< 3'\n#   filter_signed:\n#     Image|startswith:\n#       - 'C:\\Program Files\\'\n#       - 'C:\\Windows\\'\n#     Signed: 'true'\n#   condition: selection and not filter_signed\n# level: medium",
+  "falsePositives": [
+    "Single instance utilities that refuse to start when the same application is already open for that user",
+    "Endpoint agents that take a per host lock so that two copies of a scan cannot run at the same time",
+    "Update helpers that exit at once when a sibling updater already holds the lock",
+    "Software that fails to start because a previous crashed session left its marker behind until the next reboot"
+  ],
+  "tuningNotes": "Build a list of the object names that signed applications in your estate create, and filter those names rather than process names, because a guardrail binary can be renamed at any moment. Scope the rule to servers and to endpoints where interactive users are not expected to run development tooling, and keep the short lifetime condition so that normal long running applications never match. Baseline object creation events for two weeks before you enable alerting, because several management agents create the same markers on every check in. Filtering by object name loses coverage against a guardrail that randomises its name per host, so keep a second, lower severity rule for any unsigned process that creates a named object and exits within a second.",
+  "severity": "medium"
+}

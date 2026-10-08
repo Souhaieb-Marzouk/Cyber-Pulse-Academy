@@ -1,0 +1,107 @@
+{
+  "id": "det0034",
+  "type": "detection",
+  "title": "Detection of Adversarial Process Discovery Behavior",
+  "shortTitle": "Detection of Adversarial Process Discovery Behavior",
+  "externalId": "DET0034",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects adversarial process discovery, the enumeration of running programs and services tracked as T1057. Discovery is how an intruder decides what to do next: which security agent is installed, whether a database or backup service is running, and which business application holds the data worth stealing. The telemetry is process creation with full command lines, ideally with parent process and user context, plus the interactive shell or script host that requested the listing. The strategy fails in practice because process listing is used constantly by legitimate administrators, monitoring agents, and backup software, so an alert on the command name alone floods the queue and the reliable signal is the requesting parent process and the burst pattern across hosts.",
+  "tags": [
+    "discovery",
+    "t1057",
+    "process creation",
+    "endpoint",
+    "command line",
+    "hunting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Adversarial Process Discovery Behavior",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0034/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Adversarial Process Discovery Behavior - EASY",
+      "path": "exercises/det0034/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Adversarial Process Discovery Behavior - MEDIUM",
+      "path": "exercises/det0034/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Adversarial Process Discovery Behavior - HARD",
+      "path": "exercises/det0034/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Adversarial Process Discovery Behavior - EXTREMELY HARD",
+      "path": "exercises/det0034/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for tools that list the programs running on a computer. Programs like tasklist on Windows or ps on Linux show that list. An attacker uses them to learn what is on the machine.",
+    "whyItMatters": "Before an attacker takes data or disables a tool, they need to know what is there. A process list tells them about security agents, databases, and backup jobs. One listing is normal on a server; many listings from a new script are not.",
+    "howItWorks": [
+      "The endpoint agent records each new process, including the full command line.",
+      "The rule matches command lines that use process listing tools.",
+      "It also records the parent program that launched the listing.",
+      "A high score is given when the parent is a script host, a mail client, or an office program.",
+      "It counts how many listings one account or host made in a short time.",
+      "It removes known administrator consoles and monitoring agents with a filter."
+    ],
+    "example": "Think of a person in an office car park writing down every car. One visitor reading plates is odd. Someone writing plates at three in the morning, and photographing the security van, deserves a question.",
+    "takeaways": [
+      "The command matters less than the parent process that asked for it.",
+      "Volume and timing turn a normal command into a useful signal.",
+      "Baseline your monitoring and backup agents first, or the rule will be noisy."
+    ]
+  },
+  "objectives": [
+    "List the common built in tools that enumerate running processes on Windows and Linux.",
+    "Explain why process discovery is a normal step before lateral movement.",
+    "Correlate a discovery command with its parent process and user account.",
+    "Set a volume threshold that reflects normal administrative work.",
+    "Describe how to baseline monitoring and backup agents that enumerate processes.",
+    "Decide which alert fields help a responder judge intent quickly."
+  ],
+  "techniqueId": "t1057",
+  "detectsTechniques": [
+    "t1057"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image, user account, and full command line",
+    "Linux auditd execve records showing the executed program, its arguments, and the parent process",
+    "Endpoint detection and response process inventory with a count of discovery commands per host and hour"
+  ],
+  "logic": "The pattern is a process listing utility executed by a parent process that has no normal reason to enumerate processes, repeated across a short interval or across several hosts. The fields that must be correlated are the child command line, the parent image, the user account, the host, and the event time, because the command name alone is meaningless. The malicious case is a script host, an office document handler, a web server account, or a mail client that launches a listing tool, or a single account that runs several different discovery commands within minutes on hosts it does not normally touch. The benign case is an interactive administrator shell, an endpoint management agent, or a backup job that lists processes as part of its signed daily routine, which is stable in parent, command line, and schedule. Reducing the rule to unusual parents and to counting behaviour keeps recall high while removing the everyday inventory noise.",
+  "pseudoQuery": "# title: Process Discovery Command Run by Script Host or Office Parent\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'tasklist'\n#       - 'Get-Process'\n#   filter:\n#     ParentImage|endswith:\n#       - '\\explorer.exe'\n#       - '\\services.exe'\n#       - '\\MonitoringAgent.exe'\n#     User|endswith: '$'\n#   condition: selection and not filter\n# level: low",
+  "falsePositives": [
+    "Endpoint management and monitoring agents that enumerate running processes on a fixed schedule and run under a service account",
+    "Backup software that lists processes to detect open files before it starts a snapshot job",
+    "Software deployment scripts that check whether a target application is already running before an install",
+    "Help desk staff who run a process listing interactively as the first step of a documented troubleshooting procedure"
+  ],
+  "tuningNotes": "The fastest way to cut noise is to filter on the parent process and the service account, not on the command name, and to allow list the exact command lines your management agents use. Then add a threshold so that a single listing during an interactive session stays quiet while several listings by the same account within a short window raise the alert. Baseline discovery volume per host role first, because a build server or a database host will legitimately run far more of these commands than a laptop. If you filter only to known malicious parents you lose coverage of an attacker who uses a signed management binary as the parent, so keep a lower severity version of the rule that alerts on volume alone.",
+  "severity": "low"
+}

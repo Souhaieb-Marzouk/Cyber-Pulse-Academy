@@ -1,0 +1,107 @@
+{
+  "id": "det0338",
+  "type": "detection",
+  "title": "Behavioral Detection Strategy for Use Alternate Authentication Material (T1550)",
+  "shortTitle": "Behavioral Detection Strategy for Use Alternate Authentic...",
+  "externalId": "DET0338",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the use of alternate authentication material (T1550), where an adversary authenticates with stolen credentials that are not a plaintext password: password hashes, Kerberos tickets, application access tokens, web session cookies or cloud access keys. The technique is important because it defeats password resets and multi-factor prompts, and it looks like a normal successful logon. Detection therefore depends on context rather than on the authentication result: logon type anomalies, accounts authenticating from hosts they never use, token or key use from new source addresses, and mismatches between the account and the requesting process. Correlating directory, endpoint and cloud audit telemetry is essential, and the strategy fails when each source is monitored in isolation.",
+  "tags": [
+    "mitre t1550",
+    "credential access",
+    "authentication",
+    "identity",
+    "cloud audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection Strategy for Use Alternate Authentication Material (T1550)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0338/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection Strategy for Use Alternate Authentication Material (T1550) - EASY",
+      "path": "exercises/det0338/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Use Alternate Authentication Material (T1550) - MEDIUM",
+      "path": "exercises/det0338/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Use Alternate Authentication Material (T1550) - HARD",
+      "path": "exercises/det0338/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Use Alternate Authentication Material (T1550) - EXTREMELY HARD",
+      "path": "exercises/det0338/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for sign-ins that use stolen login material instead of a password. Examples are a saved ticket, a token or a copied password fingerprint. Attackers use these because they work even after you change the password.",
+    "whyItMatters": "A normal password reset does not stop a stolen ticket or token. These sign-ins look successful, so simple failure alerts never fire. They often let an attacker move between machines without being noticed. Watching where and how an account signs in is the main way to catch this.",
+    "howItWorks": [
+      "Directory servers record each sign-in, the account, the sign-in type and the source.",
+      "Cloud services record each token or access key being used, with the address it came from.",
+      "The detection builds a picture of where each account normally signs in and how.",
+      "It flags sign-ins that use a type the account never uses, or that come from a new address.",
+      "It compares the process making the request with the account, because a service account should not sign in from a user program.",
+      "Related events across directory, cloud and endpoint logs are joined so the analyst sees one story."
+    ],
+    "example": "Think of an office that gives staff a door card. If someone copies a card, the door still opens and the system logs a valid entry. Nothing looks broken. Only one detail stands out later. The same card opens the finance door at two in the morning. The person never visits that building.",
+    "takeaways": [
+      "Successful sign-ins can still be malicious, so judge context, not just the result.",
+      "Changing a password does not revoke stolen tickets or tokens, so plan for that.",
+      "Join directory, cloud and endpoint records or you will miss the pattern."
+    ]
+  },
+  "objectives": [
+    "List the kinds of authentication material an attacker can reuse without a password",
+    "Identify sign-in fields that reveal an unusual authentication type or source",
+    "Build per-account baselines of normal sign-in hosts, types and addresses",
+    "Correlate endpoint process activity with directory authentication events",
+    "Explain why password resets alone do not stop this technique"
+  ],
+  "techniqueId": "t1550",
+  "detectsTechniques": [
+    "t1550"
+  ],
+  "dataSources": [
+    "Windows Security event 4624 logon success with logon type, authentication package and source workstation",
+    "Domain controller Kerberos service ticket request events recording the account name and requested service",
+    "AWS CloudTrail management events showing which access key or assumed role performed each action",
+    "Sysmon event 1 process creation showing a user program or shell running in an unexpected account context",
+    "Identity provider sign-in logs with the client address, application and whether multi-factor authentication was satisfied"
+  ],
+  "logic": "The pattern is an authentication that succeeds with material the account does not normally present: a logon type reserved for network or service use from a workstation account, a Kerberos ticket requested for services the account never touches, a cloud access key used from a new address or country, or a session token replayed from a different client fingerprint. The fields to correlate are the account, the authentication type or credential identifier, the source address and host, the target service, and the endpoint process that generated the authentication. The benign case is a service account authenticating from its own servers with a stable key and logon type across a regular schedule. The malicious case is one account authenticating to many distinct hosts within minutes, new source addresses with no travel or network precedent, and a user program or scripting interpreter generating the authentication rather than a service.",
+  "pseudoQuery": "# title: Success Logon With Anomalous Type or New Source\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4624\n#     LogonType: [3, 8, 9]\n#     AuthenticationPackageName: 'NTLM'\n#   filter_baseline:\n#     WorkstationName|endswith: '$'\n#     SourceIp: ['10[.]10[.]0[.]0/16', '10[.]11[.]0[.]0/16']\n#   condition: selection and not filter_baseline | timeframe 10m | group by TargetUserName | count(distinct SourceIp) > 5\n# level: high",
+  "falsePositives": [
+    "Single sign-on and federation services that authenticate on behalf of users from a small set of gateway addresses",
+    "Backup and inventory tools that use a service account to read from many servers in a short period",
+    "Virtual desktop infrastructure where many sessions appear to come from one gateway address",
+    "Vulnerability scanners that authenticate with a dedicated account across the whole estate",
+    "Cloud automation that runs under a shared role and is executed from ephemeral build runners"
+  ],
+  "tuningNotes": "Build per-account baselines of source addresses, logon types, client applications and destination services over at least thirty days, and allow only the patterns that appear consistently. Treat any new source address for a privileged account as high severity until confirmed, but require more than one correlated signal before alerting on ordinary user accounts. Exclude service accounts used by scanning and backup tools only after mapping their parent processes and schedules, and prefer filtering on the process rather than the account. The coverage you lose by baselining source addresses is an attacker operating from an already trusted address, which then requires token theft detection at the endpoint.",
+  "severity": "high"
+}

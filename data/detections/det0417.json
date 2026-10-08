@@ -1,0 +1,108 @@
+{
+  "id": "det0417",
+  "type": "detection",
+  "title": "Detection Strategy for Power Settings Abuse",
+  "shortTitle": "Detection Strategy for Power Settings Abuse",
+  "externalId": "DET0417",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers power settings abuse, tracked as T1653, where an adversary changes sleep, hibernate or shutdown behaviour on a host so that the machine stays awake and their tools keep running, or so that forensic evidence is lost on a sudden power event. It matters because keeping a laptop awake is a small change with a large operational benefit for an intruder, and because power configuration is rarely monitored and is easy to overlook during incident review. The telemetry that makes detection possible is command line and process creation records for the built in power configuration tools, registry change events on the power management keys, file modification on the system power policy database, and scheduled task or group policy changes that apply power settings at scale. The main way it fails is that help desk staff and management tools legitimately change power settings, so the rule has to look at who made the change, from which host, with which command and how often.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "persistence",
+    "configuration",
+    "power settings"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Power Settings Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0417/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Power Settings Abuse - EASY",
+      "path": "exercises/det0417/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Power Settings Abuse - MEDIUM",
+      "path": "exercises/det0417/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Power Settings Abuse - HARD",
+      "path": "exercises/det0417/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Power Settings Abuse - EXTREMELY HARD",
+      "path": "exercises/det0417/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Power settings control when a computer sleeps, hibernates or shuts down. An attacker may change them so the machine never sleeps and their tools keep working. This detection watches for those setting changes. It focuses on changes made in a strange way, such as from a remote management session.",
+    "whyItMatters": "A sleeping computer breaks an attacker's remote access, so they have a reason to change this. The change is quiet and does not look like an attack. It also changes how evidence survives a power loss. Normal staff and management tools do change these settings, so you must look at who and how. Catching it gives you a small but reliable sign of hands on activity.",
+    "howItWorks": [
+      "The operating system records every program that runs, including the full command line typed by the user or script.",
+      "The rule selects runs of the built in power configuration program. It also watches the command that changes the active power plan.",
+      "It records the account, the computer and the exact arguments used, such as disabling sleep timeouts.",
+      "It also watches the registry where these settings are stored, so a direct change is still visible.",
+      "It compares the change with the normal pattern for that computer and that account.",
+      "When a remote session, a service account or a script host makes the change, the alert goes to the analyst."
+    ],
+    "example": "Think of an office that locks its doors at night for safety. A worker props the fire door open with a chair so they can step out without a key. The door is not broken and no alarm sounds. The night watchman notices because that one worker always holds it open, and nobody with a real reason ever does.",
+    "takeaways": [
+      "Power settings are a small change that keeps an intruder's access alive overnight.",
+      "The command line, the account and the source session matter more than the setting itself.",
+      "Record the change even when you do not alert, because it helps in later investigations."
+    ]
+  },
+  "objectives": [
+    "Describe how power settings affect whether an attacker's tools keep running.",
+    "Identify the built in command line utilities that change power configuration on Windows.",
+    "Read process creation records to see the full argument list of a power setting change.",
+    "Recognise the registry keys that hold the active power policy.",
+    "Distinguish a help desk change from a remote or scripted change.",
+    "Explain what evidence is lost when a host is allowed to shut down uncleanly."
+  ],
+  "techniqueId": "t1653",
+  "detectsTechniques": [
+    "t1653"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with the full command line for power configuration utilities",
+    "Sysmon event 1 process creation including parent image, user and arguments for the same utilities",
+    "Sysmon event 13 registry value set on the power management policy keys",
+    "Windows Security event 4657 registry value modification with object name and new value",
+    "File modification records for the system power policy database and for applied group policy power settings"
+  ],
+  "logic": "The pattern is a change to sleep, hibernate or shutdown behaviour made through command line power utilities or a direct registry write, where the account is a service or administrative account, the parent process is a remote management agent or a script host, and the change happens outside a documented maintenance window. The fields to correlate are the process image and full command line, the parent process, the acting account, the source of the session, and the registry path and new value in the registry event. Legitimate changes come from the management platform, apply during a change window, are recorded in the change system and often affect many hosts at once in a consistent way. Malicious changes arrive singly, through an interactive or remote shell, and target exactly the setting that prevents sleep. The distinguishing factor is the source session and whether the change matches a scheduled configuration task.",
+  "pseudoQuery": "# title: Power settings changed outside maintenance window\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_proc:\n#     EventID: 1\n#     Image|endswith: ['\\powercfg.exe', '\\shutdown.exe']\n#     CommandLine|contains: ['/change', '/hibernate', '-h off', '/standby-timeout']\n#   selection_reg:\n#     EventID: 13\n#     TargetObject|contains: '\\Control\\Power\\User\\PowerSchemes'\n#   filter_mgmt:\n#     ParentImage|endswith: ['\\CcmExec.exe', '\\gpsvc.dll']\n#   condition: (selection_proc or selection_reg) and not filter_mgmt\n# level: low",
+  "falsePositives": [
+    "Help desk staff adjusting sleep timeouts on a user laptop during a support call",
+    "Management platforms that apply a standard power plan to all workstations during a maintenance window",
+    "Virtual machine images and templates that set power policy as part of a provisioning pipeline",
+    "Users on presentation or kiosk machines who disable sleep so the screen stays on during an event",
+    "Vendor support engineers who change power settings while troubleshooting a hardware fault under a ticket"
+  ],
+  "tuningNotes": "Start by recording the change without alerting, so you can see the real population and the accounts that make legitimate changes on your estate. Then filter on the parent process and the acting account for your management platform, and keep alerts for changes whose parent is a remote shell, a scripting host or an interactive session from a workstation that does not normally administer that host. Restrict the rule to server and kiosk groups first, where power configuration should only change through the management platform, which makes the benign set very small. Add a filter for changes that occur inside a declared change window and are referenced by a change record if your process allows that. The coverage you lose by scoping to servers is a laptop being kept awake to maintain remote access, which is a realistic attacker goal, so retain a weekly count of power changes on laptops by account and review anything that repeats.",
+  "severity": "low"
+}

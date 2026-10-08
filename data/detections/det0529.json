@@ -1,0 +1,107 @@
+{
+  "id": "det0529",
+  "type": "detection",
+  "title": "Behavioral Detection of Native API Invocation via Unusual DLL Loads and Direct Syscalls",
+  "shortTitle": "Behavioral Detection of Native API Invocation via Unusual...",
+  "externalId": "DET0529",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy looks for code that calls operating system functions in ways ordinary compiled programs do not, the behaviour behind native application programming interface invocation. Attackers use this to reach low level functions directly and to avoid the user mode hooks that endpoint tools place on those functions. Image load records for a system library loaded from an unexpected directory or loaded twice, thread creation pointing into memory that has no file behind it, and processes that never load the libraries their behaviour implies provide the evidence. The rule fails because a large share of software uses native interfaces legitimately, and a careful implementation leaves very little telemetry, so the alert must be scoped to processes where the pattern is rare.",
+  "tags": [
+    "defense evasion",
+    "windows",
+    "endpoint",
+    "process injection",
+    "api"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Native API Invocation via Unusual DLL Loads and Direct Syscalls",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0529/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Native API Invocation via Unusual DLL Loads and Direct Syscalls - EASY",
+      "path": "exercises/det0529/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Native API Invocation via Unusual DLL Loads and Direct Syscalls - MEDIUM",
+      "path": "exercises/det0529/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Native API Invocation via Unusual DLL Loads and Direct Syscalls - HARD",
+      "path": "exercises/det0529/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Native API Invocation via Unusual DLL Loads and Direct Syscalls - EXTREMELY HARD",
+      "path": "exercises/det0529/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that call the deepest parts of the operating system in an unusual way. Most programs use friendly libraries that security tools can watch. Attackers call the deep functions another way to avoid those watch points. The alert fires when a system library loads from a strange place. It also fires when a program starts a thread in memory with no file behind it.",
+    "whyItMatters": "Endpoint protection often works by placing hooks, which are watch points, on common operating system functions. If an attacker calls the same functions by another route, those hooks never see the call. The attacker can then act without your tools recording it. This behaviour is hard to spot, so even a small number of good signals is useful. Finding it early tells you that a machine may be running a serious tool that hides itself.",
+    "howItWorks": [
+      "Endpoint agents record each library loaded into a process, with its full path and its signing status.",
+      "The rule flags the core system library when it loads from outside the system folder. A second load inside one process is also flagged.",
+      "Thread creation events are checked for a start address in memory that has no file behind it.",
+      "The rule adds context to each finding. That includes the parent process, the user account and the signing status of the binary.",
+      "Each finding is scored against how rare that combination is on the same asset group.",
+      "Only the rare combinations reach the analyst, together with the process tree and the memory region details."
+    ],
+    "example": "Think of a building with a staff entrance where every visitor signs in. Someone finds a service corridor that leads to the same rooms and never passes the desk. That person still reaches the office, but the visitor book stays empty. The detection looks for the use of that corridor. An empty visitor book is not proof on its own, which is why the corridor matters.",
+    "takeaways": [
+      "Direct calls to low level functions can bypass the watch points that endpoint tools place on common functions.",
+      "A system library loading from an unexpected path, or a thread starting in memory with no file, are strong clues.",
+      "Legitimate software uses these interfaces too, so rarity on the asset group is what makes an alert."
+    ]
+  },
+  "objectives": [
+    "Describe how endpoint tools monitor common operating system functions and why a direct call path avoids them",
+    "Identify image load fields, including image, loaded library, signature and signature status",
+    "Interpret a thread creation event whose start address falls in memory with no backing file",
+    "Explain why a copy of a core system library outside the system folder deserves investigation",
+    "Build an allow list for security and backup agents that inject libraries into other processes",
+    "Choose a severity that reflects a hidden tool on the host rather than how hard the pattern is to see"
+  ],
+  "techniqueId": "t1106",
+  "detectsTechniques": [
+    "t1106"
+  ],
+  "dataSources": [
+    "Sysmon event 7 image load with image, image loaded, signature and signature status fields",
+    "Sysmon event 8 remote thread creation with source process, target process, start address and start module fields",
+    "Sysmon event 1 process creation including parent image, command line and signature status",
+    "Endpoint detection and response (EDR) telemetry that records memory regions with no backing file and thread start addresses",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is a process reaching core operating system functions through an unusual path. Correlate image load records, thread creation events and process creation records for the same process: a core system library loading from a user writable directory or loading a second time, or a remote thread whose start address falls in a memory region with no backing file and no start module. The benign case is a security or backup agent that injects its own signed library, or a packaged application that ships a private copy of a system library. The malicious case combines an unsigned binary, an unusual parent process and an unbacked thread start on a host where that combination has never appeared before.",
+  "pseudoQuery": "# title: System Library Load Or Unbacked Thread Start\n# logsource:\n#   product: windows\ndetection:\n  selection_load:\n    EventID: 7\n    ImageLoaded|endswith: '\\ntdll.dll'\n  filter_system:\n    ImageLoaded|startswith: 'C:\\Windows\\'\n  selection_thread:\n    EventID: 8\n    StartModule: ''\n  condition: (selection_load and not filter_system) or selection_thread\nlevel: high",
+  "falsePositives": [
+    "Application compatibility and just in time compiler software that loads a private copy of the system library from an application folder",
+    "Security products and backup agents that inject a library into many processes and create remote threads",
+    "Games and graphics drivers with overlay or anti tamper components that call low level functions directly",
+    "Packaged or virtualised applications that ship their own copy of a system library inside the package"
+  ],
+  "tuningNotes": "Scope the image load condition to server and administrative asset groups, and allow signed copies of the system library under your application packaging directories. For the thread condition, allow your endpoint security and backup agents by publisher, then keep everything else at high severity. Baseline how often unbacked thread starts appear in normal operation, because some runtime environments produce them. Removing those publishers reduces noise but weakens coverage against an attacker who reuses their names, so alert when such a name appears with an unsigned binary path.",
+  "severity": "high"
+}

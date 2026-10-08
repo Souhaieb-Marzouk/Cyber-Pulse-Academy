@@ -1,0 +1,107 @@
+{
+  "id": "det0180",
+  "type": "detection",
+  "title": "Detection Strategy for T1547.009 – Shortcut Modification (Windows)",
+  "shortTitle": "Detection Strategy for T1547.009 – Shortcut Modification ...",
+  "externalId": "DET0180",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects modification of shortcut files on Windows, where an adversary edits the target, arguments or working directory of a link file so that opening it starts attacker code instead of the intended program. It matters because users trust shortcuts on the desktop and in startup folders, and a modified shortcut is not a new executable, so hash and signature checks on programs do not flag it. Detection relies on file creation and modification events for link files, registry and startup folder monitoring for shortcut based autoruns, process creation showing a link file as the parent, and shell or command line telemetry where a script writes a new shortcut. The main difficulty is that installers, deployment tools and users create and update shortcuts constantly, so the useful signals are location, timing and what the link points to.",
+  "tags": [
+    "windows",
+    "persistence",
+    "shortcut",
+    "file creation",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1547.009 – Shortcut Modification (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0180/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1547.009 – Shortcut Modification (Windows) - EASY",
+      "path": "exercises/det0180/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1547.009 – Shortcut Modification (Windows) - MEDIUM",
+      "path": "exercises/det0180/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1547.009 – Shortcut Modification (Windows) - HARD",
+      "path": "exercises/det0180/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1547.009 – Shortcut Modification (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0180/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A shortcut is the small arrow icon that opens a program, such as the one on your desktop. An attacker can edit it so it runs something else. This detection looks for shortcut files that were changed or created in the wrong place.",
+    "whyItMatters": "People click shortcuts without thinking, and security tools often only check real programs. A changed shortcut can point to a malicious file while keeping the same name and icon. It can also start automatically from a startup folder. Spotting the edit is easier than cleaning up the infection later.",
+    "howItWorks": [
+      "Windows writes a file when a shortcut is created or changed, and endpoint monitoring records that event.",
+      "The detection reads where the shortcut sits, such as the desktop or a startup folder.",
+      "It reads the shortcut's target path, arguments and working directory, because those show what will run.",
+      "It checks who or what made the change by looking at the program that wrote the file.",
+      "It watches for the shortcut being opened, which appears as a process whose parent is the shortcut file.",
+      "A change in a startup location, or a target in a temporary or user folder, is raised for urgent review."
+    ],
+    "example": "Think of a labelled drawer in a workshop. The label says screws, and everyone trusts it. If someone moves the label to a drawer of broken glass, workers still reach in without looking. Nobody checks the label until someone gets hurt.",
+    "takeaways": [
+      "A changed shortcut can run anything while keeping a trusted name and icon.",
+      "Location matters most: startup folders and desktop shortcuts are high value.",
+      "Read the target path and arguments, not just the shortcut file name."
+    ]
+  },
+  "objectives": [
+    "Explain how shortcut files store a target, arguments and working directory that determine what runs",
+    "Identify file, registry and process telemetry that records shortcut creation and modification",
+    "Recognise high risk shortcut locations such as startup folders and desktop links",
+    "Attribute a shortcut change to an installer, a deployment tool, a user action or a script",
+    "Remediate a modified shortcut and check for the same change on other hosts"
+  ],
+  "techniqueId": "t1547-009",
+  "detectsTechniques": [
+    "t1547-009"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation recording new link files with their full paths",
+    "Windows file system auditing on startup folder and user profile link file modifications",
+    "Sysmon event 1 process creation where the parent image is a link file on the desktop or startup folder",
+    "Windows registry change records for autorun entries that reference shortcut locations",
+    "PowerShell script block logging showing script content that creates or edits shortcut objects"
+  ],
+  "logic": "The detection focuses on link files created or modified outside the expected installation pattern, and on processes launched with a shortcut as the parent. The fields that must be correlated are the shortcut file path, its target path, arguments and working directory, the process that wrote the file, the account context, and the child process that started when the link was opened. A benign case is an installer or a software deployment tool updating a shortcut in the program menu to a signed executable under the program files directory, usually during a known deployment window. The malicious case shows a shortcut in a startup folder or on a user desktop whose target sits in a temporary, download or public folder, often with arguments that include a script or an encoded command, written by a script interpreter or an office application rather than by an installer.",
+  "pseudoQuery": "# title: Shortcut In Startup Location Pointing To Non Standard Target\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith: '.lnk'\n#     TargetFilename|contains:\n#       - '\\Start Menu\\Programs\\Startup\\'\n#       - '\\Desktop\\'\n#   filter:\n#     Image|endswith:\n#       - \\msiexec.exe\n#       - \\setup.exe\n#       - \\intunewinapp.exe\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Software deployment tooling that creates or replaces desktop shortcuts during a managed install",
+    "Users creating their own shortcuts to shared folders, scripts or line of business applications",
+    "An office suite or browser update that refreshes its start menu shortcuts and skips the installer process name used in the filter",
+    "Remote monitoring agents that place a support shortcut on each workstation for helpdesk use",
+    "Roaming profile synchronisation that rewrites link files when a user logs in on a different computer"
+  ],
+  "tuningNotes": "Build a baseline of the processes that legitimately write link files in your estate, which will be dominated by the installer service and your own deployment agent, and filter those by signer rather than by name. Keep the highest severity for shortcut files in startup folders and for shortcut targets inside temporary or public directories, since those two conditions carry most of the risk. Filtering on location reduces alert volume noticeably but misses a shortcut planted deep in a user profile that is opened later by its owner, so also alert on any shortcut whose target changes while the file name and location stay the same, which is the pattern that indicates tampering with an existing link.",
+  "severity": "medium"
+}

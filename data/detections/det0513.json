@@ -1,0 +1,109 @@
+{
+  "id": "det0513",
+  "type": "detection",
+  "title": "Detection of Cached Domain Credential Dumping via Local Hash Cache Access",
+  "shortTitle": "Detection of Cached Domain Credential Dumping via Local H...",
+  "externalId": "DET0513",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers cached domain credential dumping, the sub technique tracked as T1003.005. Windows keeps a limited number of domain sign in verifiers in a protected area of the registry so that a user can sign in when the domain controller is unreachable, and an attacker with administrator rights can read that cache either from the live registry or from an offline copy of the system and security registry hives. The telemetry that makes this visible is process access events against the security process that manages the cache, registry key access to the local security authority secrets path, creation of hives or dump files in user writable folders, and command line evidence of hive export activity. The common failure is that the strong signal sits in the same events as legitimate administration, so the rule must separate a signed administrative tool run by a change process from an unsigned binary running out of a temporary directory at an unusual hour.",
+  "tags": [
+    "credential dumping",
+    "t1003.005",
+    "registry",
+    "windows security",
+    "privilege abuse",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Cached Domain Credential Dumping via Local Hash Cache Access",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0513/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Cached Domain Credential Dumping via Local Hash Cache Access - EASY",
+      "path": "exercises/det0513/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Cached Domain Credential Dumping via Local Hash Cache Access - MEDIUM",
+      "path": "exercises/det0513/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Cached Domain Credential Dumping via Local Hash Cache Access - HARD",
+      "path": "exercises/det0513/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Cached Domain Credential Dumping via Local Hash Cache Access - EXTREMELY HARD",
+      "path": "exercises/det0513/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for someone copying the saved sign in data that Windows keeps for domain users. Windows stores this cache so you can still log in when the office network is down. An attacker with administrator rights can read that store and reuse the data. The rule watches who opens that store, and from where.",
+    "whyItMatters": "The cache holds sign in data for accounts that signed in on that machine, including administrators. Reading it can hand over logins that still work on many other machines. Attackers often use this instead of taking a full memory image. That needs fewer rights and leaves less traffic on the endpoint. Detection has to work alongside normal administrator activity without drowning in it.",
+    "howItWorks": [
+      "The endpoint agent records every process that opens the security process which manages the cache.",
+      "It also records registry key access to the protected path where the cache is stored.",
+      "The rule checks the image path of the process doing the reading and whether it is signed.",
+      "A binary running from a temporary folder, a download folder or a removable drive is scored higher.",
+      "It then looks for hive export or dump files created next to that activity on the same host.",
+      "The read event plus the new dump file is what produces a high confidence alert."
+    ],
+    "example": "Think of a hotel front desk that keeps a few spare keys. Those keys are for guests who arrive when the main office is closed. The spare keys are useful, but the box they sit in is the most valuable thing in the room. This rule watches who opens the box, and whether they are staff on duty or a stranger.",
+    "takeaways": [
+      "Saved domain sign in data can be read from the registry, not only from process memory.",
+      "Administrator tools do this legitimately, so image path and signer are the deciding fields.",
+      "Collect this data only where you have a documented reason and a retention rule."
+    ]
+  },
+  "objectives": [
+    "Explain why Windows caches domain sign in data and where that cache is stored.",
+    "Identify the telemetry that shows a process reading the security registry path or the security process.",
+    "Distinguish a signed administration tool from an unsigned utility based on image path and signer.",
+    "Correlate a cache read with the creation of registry hive exports or dump files on the same host.",
+    "Decide which hosts should never show this activity at all, such as standard user laptops.",
+    "Describe a response that removes the exposed machine from the network and resets affected accounts."
+  ],
+  "techniqueId": "t1003-005",
+  "detectsTechniques": [
+    "t1003-005"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation including command line and parent process",
+    "Sysmon event 1 process creation showing hive export utilities and their arguments",
+    "Sysmon event 13 registry value set and registry key access to the local security authority secrets path",
+    "Endpoint detection and response process access events against the local security authority subsystem service",
+    "Sysmon event 11 file creation of registry hive or dump files in user writable directories"
+  ],
+  "logic": "The pattern is a process that reads the protected registry path holding cached domain verifiers, or opens the local security authority subsystem service process in order to read the same area, followed by the creation of a dump or hive export file on a host where that combination is not part of normal administration. The fields that must be correlated are the accessing image path and its digital signer, the parent process, the exact registry key or target process, and the dump file name and directory, joined on host within a window of a few minutes. The malicious case usually shows an unsigned or renamed utility started from a temporary, download or removable location, a parent process such as a script host, and a dump file written outside the standard administrative work folders. The benign case is a signed backup or migration product, or a help desk administrator running a documented recovery procedure during a change window.",
+  "pseudoQuery": "# title: Read of Cached Domain Credential Store With Hive Export File Created\n# logsource:\n#   product: windows\n# detection:\n#   selection_reg:\n#     EventID: 13\n#     TargetObject|contains: 'SECURITY\\Cache'\n#   selection_proc:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'save'\n#       - 'reg export'\n#       - 'SECURITY'\n#   filter_admin:\n#     Image|endswith:\n#       - '\\reg.exe'\n#       - '\\BackupAgent.exe'\n#     User|endswith: '$'\n#   condition: selection_reg or (selection_proc and not filter_admin)\n# level: high",
+  "falsePositives": [
+    "Signed backup and disaster recovery products that capture registry hives as part of a scheduled system image",
+    "Help desk administrators who export registry hives during a documented credential recovery or domain rejoin task",
+    "Migration projects that move user profiles and machine settings between hardware generations",
+    "Endpoint forensic collection tools run by the incident response team under a case ticket",
+    "Configuration management agents that read security registry keys to report compliance settings"
+  ],
+  "tuningNotes": "Allow list the signed backup and configuration agents by image path and signer, and add a filter that requires the reading process to run from a user writable directory before the rule fires. Scope high severity alerting to workstations and non administrative servers, where this activity has no routine explanation. Baseline which tools read the secrets path in a normal month so that a new image stands out. The coverage you lose is a determined attacker who repackages the reading tool with a trusted signer, and any cache read performed by a binary you have already allow listed.",
+  "severity": "high"
+}

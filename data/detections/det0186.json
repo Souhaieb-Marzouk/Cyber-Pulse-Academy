@@ -1,0 +1,108 @@
+{
+  "id": "det0186",
+  "type": "detection",
+  "title": "Automated File and API Collection Detection Across Platforms",
+  "shortTitle": "Automated File and API Collection Detection Across Platforms",
+  "externalId": "DET0186",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects automated collection, where an adversary uses scripting or built in command interpreters to gather files and data across a host or estate in bulk instead of browsing by hand. It matters because bulk collection converts a quiet foothold into a data theft pipeline, and because the collection commands often run through the same interpreters that administrators already use. Detection relies on process creation with full command lines, file access or read auditing on directories, and archive or compression process telemetry that reveals staging. The common failure is volume: backup, indexing and content management software also read whole directories, so the rule needs to weigh breadth, account privilege and destination of the gathered data rather than match a single command.",
+  "tags": [
+    "collection",
+    "automation",
+    "scripting",
+    "file access",
+    "data staging",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Automated File and API Collection Detection Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0186/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Automated File and API Collection Detection Across Platforms - EASY",
+      "path": "exercises/det0186/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Automated File and API Collection Detection Across Platforms - MEDIUM",
+      "path": "exercises/det0186/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Automated File and API Collection Detection Across Platforms - HARD",
+      "path": "exercises/det0186/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Automated File and API Collection Detection Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0186/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a script or command that copies many files at once. Attackers automate collection because clicking through folders is slow. The rule measures how much is read and where it is put. A person reading a few files is normal; a script reading thousands is not.",
+    "whyItMatters": "Data theft is the goal of most intrusions that reach this stage. Automation lets an attacker gather far more than a human could carry by hand. It also usually leaves a compressed archive behind, which is a strong clue. Finding the collection step can stop the theft before anything leaves your network. Bulk reads are also much rarer than ordinary file access, so they stand out once you measure them.",
+    "howItWorks": [
+      "A command interpreter or scripting host starts on a host or share.",
+      "Its command line shows a copy, archive or search operation against a broad path.",
+      "Your endpoint tool records the process, its parent, and its command line.",
+      "File read auditing or file access telemetry counts how many files that process touched.",
+      "The rule compares that count with what the same account normally reads in an hour.",
+      "A large jump, especially followed by an archive file, raises the alert."
+    ],
+    "example": "Imagine a library where visitors may photocopy pages. One reader copies three pages from one book. Another reader loads a trolley with forty books, wheels it to the copier, and stays for two hours. Nothing was stolen yet. But the trolley, the time, and the pile of paper tell the librarian exactly what to check.",
+    "takeaways": [
+      "Automated collection is a volume and behaviour problem, not a keyword problem.",
+      "Watch for compression after a large read, because that is the staging step.",
+      "The account and the destination path decide whether the pattern is benign or not."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries automate collection instead of copying files interactively.",
+    "Identify process and file access telemetry that reveals bulk reads on a host.",
+    "Use file read counts per process as a behavioural signal rather than a static match.",
+    "Recognise archive creation immediately after a large read as a staging indicator.",
+    "Compare collection activity against the normal read volume of the same account and host.",
+    "Describe the limits of read auditing at scale and how to sample it usefully."
+  ],
+  "techniqueId": "t1119",
+  "detectsTechniques": [
+    "t1119"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including full command line and parent image",
+    "Sysmon event 11 file creation recording archive files written to staging directories",
+    "Windows Security event 4663 object access attempts on files and folders with read auditing enabled",
+    "Linux auditd execve records for interpreter invocations with their argument vectors",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is a scripting or command interpreter process whose command line targets a wide directory tree and whose read volume greatly exceeds the norm for that account and host within a short period. The fields to correlate are the process image and full command line, the parent process, the executing account, the set of accessed paths from file access auditing, and any archive file created afterwards by the same process tree. The malicious case is characterised by recursive or wildcard reads across user home directories, shares or document folders, execution from an atypical parent such as a web server or scheduled task created days earlier, and an output file written to a temporary or public directory. The benign case is a single known process, for example a backup or search indexer, running under a service account with a fixed schedule and writing into its own managed directory.",
+  "pseudoQuery": "# title: Bulk Read Followed by Archive Staging\n# logsource:\n#   product: windows\n# detection:\n#   selection_collect:\n#     EventID: 1\n#     Image|endswith|any: ['\\\\powershell.exe', '\\\\cmd.exe']\n#     CommandLine|contains|any: ['Get-ChildItem -Recurse', 'robocopy']\n#   selection_archive:\n#     EventID: 11\n#     TargetFilename|endswith|any: ['.zip', '.tar.gz']\n#     TargetFilename|contains: '\\\\Windows\\\\Temp\\\\'\n#   filter_backup:\n#     ParentImage|endswith: '\\\\backupagent.exe'\n#   condition: selection_collect and selection_archive and not filter_backup\n# level: medium",
+  "falsePositives": [
+    "Backup software running under a service account that walks entire volumes and writes compressed archives to a staging directory",
+    "A developer running a recursive copy of a project folder into a temporary build directory during normal work",
+    "Data migration tooling that compresses a file share before transferring it to a new storage platform",
+    "E discovery or legal hold processes that package mailbox and file exports into archives on request"
+  ],
+  "tuningNotes": "Filter on the parent process and the account together rather than on the archiving utility alone, because archiving utilities and PowerShell are used legitimately every day, and keep the staging directory condition because it is the cheapest discriminator you have. Baseline read volume per account per hour for a fortnight and set the threshold above the ninety ninth percentile for each asset group, since file servers and developer workstations have completely different normal profiles. Scope the first version to servers holding regulated data where bulk reads are rare and reviewable, and accept that you lose coverage on workstations. The coverage you give up by whitelisting known backup parents is real, so alert separately if an approved backup account starts writing archives to a path outside its configured staging directory.",
+  "severity": "medium"
+}

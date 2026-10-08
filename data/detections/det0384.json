@@ -1,0 +1,107 @@
+{
+  "id": "det0384",
+  "type": "detection",
+  "title": "Behavioral Detection of Unix Shell Execution",
+  "shortTitle": "Behavioral Detection of Unix Shell Execution",
+  "externalId": "DET0384",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Unix shell execution, the everyday behaviour an adversary uses after gaining access to a Linux or macOS host. Because the same shells are started constantly by administrators, cron jobs, configuration management, and container entrypoints, the technique cannot be detected by the shell name alone; the rule has to weigh who started the shell, from which parent process, and what the shell was asked to do. Process execution telemetry, shell history collection, audit records for program execution, and container runtime events all contribute. In practice the strategy fails for two opposite reasons: on a large server fleet a rule that matches any shell produces an unreadable queue, and on hardened hosts with minimal images there may be no shell at all, so a rule keyed to the shell binary detects nothing.",
+  "tags": [
+    "execution",
+    "linux",
+    "macos",
+    "shell",
+    "command line",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Unix Shell Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0384/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Unix Shell Execution - EASY",
+      "path": "exercises/det0384/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Unix Shell Execution - MEDIUM",
+      "path": "exercises/det0384/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Unix Shell Execution - HARD",
+      "path": "exercises/det0384/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Unix Shell Execution - EXTREMELY HARD",
+      "path": "exercises/det0384/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A shell is a program that reads typed commands and runs them. On Linux and macOS the common shells are called sh, bash, and zsh. This detection looks for shells that start in unusual places, such as a web server process starting a shell or a shell downloading a file.",
+    "whyItMatters": "After an attacker gets into a machine, a shell is how they look around and run more tools. Yet a shell on its own is normal, so a simple alert for every shell is useless. The value comes from context, because a shell started by a web server at three in the morning is worth a look, while a shell started by the backup job is not.",
+    "howItWorks": [
+      "The audit or endpoint agent records each program that starts, with its full path and its arguments.",
+      "The same record names the parent process, so the rule can see who asked for the shell.",
+      "The rule keeps shells that come from service processes such as a web server or a database engine.",
+      "It also keeps shells whose arguments contain tools that fetch or decode content from the network.",
+      "Known automation accounts and scheduled job parents are filtered out, and what remains becomes an alert."
+    ],
+    "example": "Think of a building where anyone may use the front desk phone. Calls are constant, so the guard cannot react to every one. The guard reacts when a call is made from the station that should only print labels, or when the caller asks for an outside line at a strange hour. The phone is normal, the situation is not.",
+    "takeaways": [
+      "A shell is normal, so judge it by parent process, user, and arguments together.",
+      "Service processes that start shells are the highest value pattern on a server fleet.",
+      "Collect the parent process and full arguments, or the rule cannot separate normal from odd."
+    ]
+  },
+  "objectives": [
+    "Explain why shell execution cannot be alerted on by process name alone",
+    "Identify the parent processes that make a shell start suspicious on a server",
+    "Interpret shell arguments that fetch, decode, or run content from a remote source",
+    "Use allow lists for automation accounts and scheduled jobs without hiding real activity",
+    "Compare shell telemetry across Linux and macOS collection agents",
+    "Describe how to validate shell alerts by reconstructing a short session timeline"
+  ],
+  "techniqueId": "t1059-004",
+  "detectsTechniques": [
+    "t1059-004"
+  ],
+  "dataSources": [
+    "Linux audit framework program execution records that capture the executed path, arguments, and the parent process",
+    "Sysmon for Linux event 1 process creation with command line, user, and parent image",
+    "Endpoint detection agent process creation telemetry from Linux and macOS hosts including the effective user",
+    "Web server access and error logs that show requests followed by a shell started by the web service account",
+    "Container runtime process events that show a shell started inside a running workload"
+  ],
+  "logic": "The pattern is a shell whose context does not fit the host role. The rule matches process creation where the image is a Unix shell and then requires at least one additional condition: the parent process is a network facing service such as a web server, application server, or database engine, or the command line contains a fetch, decode, or raw socket utility, or the effective user is a service account that never starts interactive shells. It also keeps a lower priority branch for shells started on hosts whose role is a container or appliance, where interactive shells are rare. The benign case is configuration management, backup, monitoring, and deployment automation that starts a shell from a scheduler under a named service account with a stable argument pattern. The malicious case is a shell whose parent is a public facing daemon, or a shell that downloads a file and immediately executes it, especially when the same host shows a burst of enumeration commands afterwards.",
+  "pseudoQuery": "# title: Unix Shell Started By Network Facing Service\n# logsource:\n#   product: linux\n#   service: process_creation\n# detection:\n#   selection_shell:\n#     Image|endswith:\n#       - '/bin/sh'\n#       - '/bin/bash'\n#       - '/bin/zsh'\n#   selection_parent:\n#     ParentImage|endswith:\n#       - '/usr/sbin/apache2'\n#       - '/usr/sbin/nginx'\n#       - '/usr/bin/php-fpm'\n#       - '/usr/bin/java'\n#   filter_automation:\n#     User|endswith:\n#       - 'ansible'\n#       - 'backup'\n#   condition: selection_shell and selection_parent and not filter_automation\n# level: high",
+  "falsePositives": [
+    "Configuration management runs that start a shell from a service account on a fixed schedule with identical arguments",
+    "Application health check scripts and log rotation wrappers started by a web server or a scheduler",
+    "Container build and start scripts that use a shell as the entrypoint of a workload",
+    "Legitimate administrative troubleshooting sessions on jump hosts where the parent is a terminal multiplexer"
+  ],
+  "tuningNotes": "Baseline two weeks of shell starts per host role and build the automation filter from named service accounts, scheduled job parents, and stable argument hashes rather than from process names alone, because the same binary serves both normal and hostile use. Scope the high severity tier to internet facing hosts and domain controllers, where a shell from a web service is almost always wrong. Add a companion rule for shells that resolve a network tool as their first child, since that pattern survives argument obfuscation. Narrowing by host role costs you coverage on internal workstations, so keep a low severity fleet wide rule and review it as a weekly trend instead of an hourly alert.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0272",
+  "type": "detection",
+  "title": "Detect Modification of Network Device Authentication via Patched System Images",
+  "shortTitle": "Detect Modification of Network Device Authentication via ...",
+  "externalId": "DET0272",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects tampering with the authentication logic of network devices, such as routers, switches, firewalls and virtual private network gateways, where an adversary replaces or patches a system image so that a hidden credential or an altered login routine survives reboots. The technique is rare but severe: it defeats credential rotation and gives quiet, durable access to the network fabric itself. Because these devices rarely run endpoint agents, detection depends on configuration and image change notifications sent to a central log server, operating system level file integrity monitoring on the management host, and strong authentication telemetry from the device itself. The practical failure is that many organisations only pull device logs and never verify image integrity or configuration hashes, leaving no baseline to compare against.",
+  "tags": [
+    "network devices",
+    "authentication tampering",
+    "image integrity",
+    "persistence",
+    "routers",
+    "t1556.004"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Modification of Network Device Authentication via Patched System Images",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0272/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Modification of Network Device Authentication via Patched System Images - EASY",
+      "path": "exercises/det0272/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Modification of Network Device Authentication via Patched System Images - MEDIUM",
+      "path": "exercises/det0272/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Modification of Network Device Authentication via Patched System Images - HARD",
+      "path": "exercises/det0272/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Modification of Network Device Authentication via Patched System Images - EXTREMELY HARD",
+      "path": "exercises/det0272/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for changes to the software image and login settings on network equipment such as routers and firewalls. An attacker who changes that image can keep a hidden way in, even after passwords are reset. The detection compares what is on the device with what should be there.",
+    "whyItMatters": "Network devices sit under all your other security controls. If one is changed, traffic can be redirected and logging can be turned off. These devices are often updated only a few times a year, so a bad change can stay hidden for a long time. They also rarely run normal security agents, which means you must build the monitoring yourself. A verified image and a change log are your main defences.",
+    "howItWorks": [
+      "Each device sends configuration and image change notices to a central log server.",
+      "The detection hashes the running system image and the startup configuration at a known good moment.",
+      "On every later check, it compares the new hash and the reported software version with that stored baseline.",
+      "It also looks for new local accounts, changed authentication servers, or disabled logging on the device.",
+      "It adds file integrity monitoring on the management server that pushes images to these devices.",
+      "When the image hash, the version or the login settings change without an approved ticket, it raises an alert."
+    ],
+    "example": "Think of the lock on a building entrance. You change the keys for every staff member after a theft. But if someone replaced the lock body itself and kept a copy of the new master key, changing keys changes nothing. You must inspect the lock hardware and its serial number, not just hand out new keys.",
+    "takeaways": [
+      "Rotating passwords does not help if the authentication logic on the device has been changed.",
+      "Store a known good hash of each device image and configuration, or you have nothing to compare against.",
+      "Watch the management server too, because it is the easiest way to push a modified image to many devices."
+    ]
+  },
+  "objectives": [
+    "Explain how patching or replacing a network device system image can create durable access that survives credential resets.",
+    "Set up image and configuration hash baselines for network devices and management servers.",
+    "Identify which device log messages indicate authentication or logging changes that need investigation.",
+    "Correlate a device image change with management plane logins that occurred just before it.",
+    "Describe the containment options, including image restore, credential reset and management network segmentation."
+  ],
+  "techniqueId": "t1556-004",
+  "detectsTechniques": [
+    "t1556-004"
+  ],
+  "dataSources": [
+    "Network device configuration change and image upgrade syslog messages sent to a central collector, including the operator account and source address",
+    "File integrity monitoring on the management server that stores and pushes device images, recording new or modified files and their hashes",
+    "Authentication records from the device or its management controller for management plane logins, showing local accounts and remote authentication server use",
+    "Device software version and image hash inventory collected by a network management platform at regular intervals"
+  ],
+  "logic": "The pattern is a change to the operating image, the startup configuration or the authentication configuration of a network device that is not tied to an approved change, especially when it is preceded by a management plane login from an unexpected source. The fields that must be correlated are the device host name, the reported software version and image hash, the hash of the startup configuration, the operator account and source address from the change message, and the time relative to the last approved change ticket. The benign case is a scheduled firmware upgrade or an approved configuration push from the management platform, which will match a change record and originate from a known management address. The malicious case shows a version or hash drift with no matching change record, or a changed authentication server setting, or a local account added immediately after a login from an address that is not part of the management network.",
+  "pseudoQuery": "# title: Network Device Image or Authentication Configuration Changed\n# logsource:\n#   product: network\n# detection:\n#   selection_change:\n#     message|contains:\n#       - image upgrade\n#       - startup config changed\n#       - aaa authentication\n#   selection_login:\n#     action: management-login\n#   filter_management:\n#     src_ip|startswith: 10[.]20[.]0[.]\n#   condition: selection_change and not filter_management\n# level: high",
+  "falsePositives": [
+    "Scheduled firmware upgrades performed from the network management platform during a maintenance window and recorded in the change system",
+    "Automated configuration backups that rewrite the startup configuration file without changing its effective settings",
+    "Engineers migrating a device from local accounts to a central authentication server as part of a documented access project",
+    "Vendor remote support sessions that amend a configuration setting while troubleshooting a hardware fault under an open case"
+  ],
+  "tuningNotes": "Scope the rule to devices that carry production traffic or sit on the management network, and filter changes that arrive from the documented management platform address space and match an approved change record where one is available. Baseline each device image hash, software version and authentication configuration once, then alert on hash or version drift rather than on every configuration edit, which is far too noisy. The coverage you give up is benign looking configuration changes made by an attacker using a legitimate management account from the correct source address, so pair this rule with weekly manual reconciliation of management logins against the change calendar and with periodic out of band verification of image hashes.",
+  "severity": "high"
+}

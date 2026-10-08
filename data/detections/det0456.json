@@ -1,0 +1,106 @@
+{
+  "id": "det0456",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1134.002 Create Process with Token (Windows)",
+  "shortTitle": "Behavior-chain detection for T1134.002 Create Process wit...",
+  "externalId": "DET0456",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects creation of a process with an existing access token on Windows, where an attacker reuses a stolen or duplicated token to start a new process as another user without knowing that user's password. It matters because this is a common step from local administrator to domain level access, and the resulting process holds valid credentials that later authentication looks legitimate. Detection depends on process creation records that show the token based logon type, on token manipulation or access events from an endpoint agent, and on the network authentication that the new process performs. It fails in practice because remote management and backup software also create processes with alternate tokens, so the alert must weigh the source process, the target account, and whether the two accounts are normally linked.",
+  "tags": [
+    "privilege escalation",
+    "windows",
+    "defense evasion",
+    "access token",
+    "lateral movement"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1134.002 Create Process with Token (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0456/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1134.002 Create Process with Token (Windows) - EASY",
+      "path": "exercises/det0456/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.002 Create Process with Token (Windows) - MEDIUM",
+      "path": "exercises/det0456/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.002 Create Process with Token (Windows) - HARD",
+      "path": "exercises/det0456/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.002 Create Process with Token (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0456/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "When you log in to Windows, the system gives you a token, which is like a pass that states who you are and what you may do. This detection looks for a new process started with someone else's pass instead of a fresh login. The program then runs as that other person.",
+    "whyItMatters": "This trick lets an attacker act as another user without a password. The new process is a real logged in session, so later checks accept it. It is a common way to move from a normal account to an administrator account.",
+    "howItWorks": [
+      "An endpoint sensor records each process start and the logon session behind it.",
+      "The rule looks for a process whose logon type shows a token was reused.",
+      "It records the identity that started the process and the identity it now holds.",
+      "It notes the source process that supplied the token.",
+      "It links that process to the network logins it performs soon after.",
+      "A token based process that then authenticates to another host is escalated."
+    ],
+    "example": "Think of a staff canteen where you show a pass to enter. Someone borrows a manager's pass, walks in and collects the manager's mail every day. The door log shows only that a manager pass was used, which looks normal.",
+    "takeaways": [
+      "Reused tokens create processes that look like real user sessions.",
+      "Compare the starting identity with the identity the process holds.",
+      "Follow the process to the network logins it makes next."
+    ]
+  },
+  "objectives": [
+    "Explain what an access token is and how it can be reused",
+    "Identify process and logon telemetry that reveals token based creation",
+    "Distinguish legitimate remote management from token theft",
+    "Correlate a token based process with the authentication that follows",
+    "Describe containment steps for a suspected stolen token"
+  ],
+  "techniqueId": "t1134-002",
+  "detectsTechniques": [
+    "t1134-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing and the creating process recorded",
+    "Windows Security event 4624 logon records showing logon type 9 for a new credentials based session",
+    "Sysmon event 1 process creation with user, parent image and parent command line",
+    "Endpoint detection agent events for token duplication and process creation with an alternate token",
+    "Windows Security event 4648 records for a logon attempted with explicit credentials"
+  ],
+  "logic": "The pattern is a process whose logon session was created by reusing a token rather than by an interactive or network logon. Correlate the new process image and its identifier, the account the process runs as, the parent or source process, the logon type recorded for the session, and the network authentications that the process identifier performs within the next few minutes. The benign case is remote management or backup software running as a service account that impersonates the connecting administrator, or a scheduled job that uses a stored credential, where the source and target identities have a documented relationship and the software is signed and expected on that host. The malicious case is an uncommon source process, such as a command shell or a database service, creating a process as a highly privileged account, especially when the two identities have no normal relationship and the new process immediately opens a network session to another host.",
+  "pseudoQuery": "# title: Process created with a reused access token by an unexpected source\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4688\n#     LogonType: 9\n#     TokenType: 'Impersonation'\n#   filter_management:\n#     NewProcessName|endswith:\n#       - '\\\\ccmexec.exe'\n#       - '\\\\winrs.exe'\n#       - '\\\\backup-agent.exe'\n#   filter_accounts:\n#     SubjectUserName|endswith: '$'\n#   condition: selection and not filter_management and not filter_accounts\n# level: high",
+  "falsePositives": [
+    "Remote management platforms that impersonate the connecting administrator for each task",
+    "Backup software that runs as a service account and reads data as the file owner",
+    "Scheduled jobs or application pools that use stored credentials to start worker processes",
+    "Security scanning tools that run a probe under a different identity to test permissions"
+  ],
+  "tuningNotes": "Baseline which service accounts and signed management binaries create impersonated or alternate token processes in your environment, and allow those exact parent and child pairs. Keep the network authentication join so that a token change is only escalated when the new process reaches another host, which is the behaviour that distinguishes intrusion from administration. Scope to servers and domain controllers first. Excluding all service accounts loses coverage of the case where a service account itself is abused, so instead alert on service accounts creating processes as a human privileged account or authenticating to workstations they never normally touch.",
+  "severity": "high"
+}

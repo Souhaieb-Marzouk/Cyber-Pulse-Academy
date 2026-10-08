@@ -1,0 +1,107 @@
+{
+  "id": "det0092",
+  "type": "detection",
+  "title": "Detection of Malicious or Unauthorized Software Extensions",
+  "shortTitle": "Detection of Malicious or Unauthorized Software Extensions",
+  "externalId": "DET0092",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects browser extensions that are installed without approval or that quietly change their behaviour after installation. Extensions run inside the browser with access to cookies, session tokens, page content and sometimes the clipboard, so a single hostile extension can defeat multi factor authentication and read corporate mail. Detection leans on file creation inside browser profile extension folders, registry and policy keys that control forced installation, and process creation that shows a browser launching a shell. The common failure is that extensions update constantly, so file churn alone produces heavy noise and the rule must key on the manifest, the policy source and the process tree. This is study material and not an authoritative control set.",
+  "tags": [
+    "persistence",
+    "browser extension",
+    "execution",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Malicious or Unauthorized Software Extensions",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0092/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Malicious or Unauthorized Software Extensions - EASY",
+      "path": "exercises/det0092/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Malicious or Unauthorized Software Extensions - MEDIUM",
+      "path": "exercises/det0092/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Malicious or Unauthorized Software Extensions - HARD",
+      "path": "exercises/det0092/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Malicious or Unauthorized Software Extensions - EXTREMELY HARD",
+      "path": "exercises/det0092/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for small add on programs that install themselves into a web browser. These add ons can read the pages you visit, your saved logins and your session cookies. Some arrive with other software and some are pushed in by an attacker. The detection watches the folders where browsers keep extensions and the settings that force an extension to load.",
+    "whyItMatters": "Modern work happens in the browser, including email, chat and finance systems. An extension inside that browser can read all of it without touching the operating system. Many organisations control installed software carefully but never look at browser extensions. Attackers know this and use it as a short path to valuable accounts. Checking the browser closes a gap that endpoint controls often leave open.",
+    "howItWorks": [
+      "The endpoint sensor records new files in the folders where browsers store their extensions.",
+      "The rule reads the extension manifest file, which describes the name, version and the permissions requested.",
+      "It watches registry and policy keys, because these can force an extension to load even when the user removed it.",
+      "It looks at the process tree, because an extension that starts a command shell is a strong sign of abuse.",
+      "It compares the extension identifier and signature against the approved list for the organisation.",
+      "Alerts include the user, the browser and the extension name so an analyst can confirm the change quickly."
+    ],
+    "example": "Think of a company car that is inspected once a year. The tyres, brakes and lights are checked, but nobody opens the glovebox. A driver could keep a duplicate key to the office there and the inspection would pass. Browser extensions are that glovebox: the machine looks fine, yet something inside can reach sensitive things. Checking the browser profile is how you finally open the glovebox.",
+    "takeaways": [
+      "Browser extensions inherit the trust of the browser and can read sessions and page content.",
+      "Watch the extension folders, the manifest permissions and the policy keys that force installation.",
+      "An extension that starts a command shell should always be treated as hostile until proven otherwise."
+    ]
+  },
+  "objectives": [
+    "Explain what a browser extension can access and why that is valuable to an attacker.",
+    "Identify the profile folder and policy telemetry that reveals extension installation.",
+    "Read an extension manifest and judge the risk of its requested permissions.",
+    "Create an approved extension list and alert on anything outside it.",
+    "Describe the safe way to inspect a suspect extension without executing its code."
+  ],
+  "techniqueId": "t1176",
+  "detectsTechniques": [
+    "t1176"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation inside browser profile extension directories",
+    "Sysmon event 1 process creation showing a browser process spawning a command shell or scripting host",
+    "Sysmon event 13 registry value set on browser extension policy and forced install keys",
+    "Windows Security event 4688 process creation with command line auditing for software that installs browser add ons",
+    "File integrity monitoring of the extension manifest and preferences files in user profiles"
+  ],
+  "logic": "The pattern is an extension appearing in a browser profile or a policy key outside the approved set, especially when its manifest asks for broad permissions or when the browser process tree shows unexpected child processes. The fields that matter are the extension folder name and manifest identity, the permissions declared in the manifest, the installing process and its parent, the user account, and any browser spawned child such as a command shell. Benign activity comes from managed deployment that pushes a named extension through browser policy, from vendor extensions listed in the software catalogue, and from normal automatic updates that change the version but not the identity. Malicious or unauthorized activity usually appears as an extension installed from a local file path, an identifier missing from the catalogue, permissions far broader than the stated purpose, and immediate outbound traffic to a domain that is new to the environment.",
+  "pseudoQuery": "# title: Unapproved Browser Extension or Spawned Shell\n# logsource:\n#   product: windows\n# detection:\n#   sel_ext:\n#     EventID: 11\n#     TargetFilename|endswith: 'manifest.json'\n#   sel_pol:\n#     EventID: 13\n#     TargetObject|contains: 'ExtensionInstallForcelist'\n#   sel_child:\n#     EventID: 1\n#     ParentImage|endswith: ['\\\\chrome.exe', '\\\\firefox.exe']\n#     Image|endswith: ['\\\\cmd.exe', '\\\\powershell.exe']\n#   filter:\n#     User|endswith: 'svc_browserpolicies'\n#   condition: (sel_ext or sel_pol or sel_child) and not filter\n# level: medium",
+  "falsePositives": [
+    "Managed browser policy that pushes an approved password manager extension to the whole fleet",
+    "Accessibility or translation extensions installed by users and later approved by the security team",
+    "Extension auto updates that rewrite the manifest file in the profile folder several times a month",
+    "Developer mode extensions loaded from a local folder by a web developer on an engineering workstation",
+    "Browser vendors that ship a built in extension folder with every new browser version"
+  ],
+  "tuningNotes": "Build the approved extension list from browser policy and the software catalogue first, and match on extension identity rather than folder path, because paths change between browser versions. Exclude the routine update churn by requiring a new extension identity rather than a manifest write, and separate the policy rule from the file rule so each can be tuned alone. Scope the strictest version to finance, executive and administration users, where session theft has the largest impact. The cost of this narrowing is losing sight of a hostile extension that reuses the identifier of an approved product, so keep the browser child process rule active everywhere and review newly seen publisher domains monthly.",
+  "severity": "high"
+}

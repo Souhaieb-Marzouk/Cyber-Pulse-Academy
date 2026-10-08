@@ -1,0 +1,108 @@
+{
+  "id": "det0184",
+  "type": "detection",
+  "title": "Behavioral Detection of Indicator Removal Across Platforms",
+  "shortTitle": "Behavioral Detection of Indicator Removal Across Platforms",
+  "externalId": "DET0184",
+  "theme": "Detection Strategy",
+  "summary": "This strategy addresses indicator removal, the family of actions an adversary takes to erase or falsify the traces their activity left behind. It covers log clearing, file deletion, timestamp changes and the removal of records from security tooling, because those behaviours share a single observable property: a defensive record disappears or becomes inconsistent. Detection rests on audit log integrity signals, command line telemetry for deletion and timestamp utilities, and file system events on log directories. The practical failure mode is that day to day administration also deletes files and rotates logs, so the rule has to key on the artifact being destroyed rather than on the command being run.",
+  "tags": [
+    "indicator removal",
+    "log tampering",
+    "anti forensics",
+    "audit integrity",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Indicator Removal Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0184/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Indicator Removal Across Platforms - EASY",
+      "path": "exercises/det0184/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Indicator Removal Across Platforms - MEDIUM",
+      "path": "exercises/det0184/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Indicator Removal Across Platforms - HARD",
+      "path": "exercises/det0184/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Indicator Removal Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0184/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection catches someone deleting or changing the records that would show what they did. It covers clearing a log, wiping a file, or resetting a file time. The goal is to spot the cover up, not just the break in.",
+    "whyItMatters": "Most attacks leave tracks. An attacker knows this, so a careful one erases those tracks. If the logs are gone, you cannot tell what was touched or how far the damage spread. The clean up action is often louder than the original attack. Watching for it protects the evidence your team needs.",
+    "howItWorks": [
+      "A command runs that clears an event log or deletes a file.",
+      "The audit system records that the log was cleared, or the file system records the deletion.",
+      "The monitoring tool keeps a copy of that record somewhere the attacker cannot reach.",
+      "The rule checks whether the deleted item is security relevant, such as a log or a tool folder.",
+      "It also checks whether the account doing this normally performs that kind of work.",
+      "Matching events are grouped by host so the analyst sees one story, not twenty alerts."
+    ],
+    "example": "Picture a hospital sign in sheet at the front desk. Visitors write their name, the time, and who they are seeing. Now imagine a visitor who tears out the page for the last hour. The torn page tells you as much as the writing would have. You now know exactly which hour to ask about, and you know someone cared enough to hide it.",
+    "takeaways": [
+      "Clearing a log is itself an alert, because honest work rarely needs it.",
+      "Keep copies of audit records outside the system that produced them.",
+      "Focus on what was destroyed, since deleting files is a normal daily task."
+    ]
+  },
+  "objectives": [
+    "Recognise the behaviours that make up indicator removal and why they cluster around the end of an intrusion.",
+    "Explain why a log clearing event is a high value alert even without other evidence.",
+    "Identify which audit records must be forwarded off host to survive a clean up attempt.",
+    "Distinguish routine log rotation and file cleanup from deliberate destruction of security artifacts.",
+    "Correlate process creation with file system deletion on the same host inside one time window.",
+    "Describe the residual risk when an attacker holds domain administrator rights over the audit pipeline."
+  ],
+  "techniqueId": "t1070",
+  "detectsTechniques": [
+    "t1070"
+  ],
+  "dataSources": [
+    "Windows Security event 1102 recording that the audit log was cleared",
+    "Windows System event 104 recording that an event log file was cleared",
+    "Sysmon event 1 process creation including command line for wevtutil and cmd deletion utilities",
+    "Sysmon event 23 or file system auditing recording deletion of files under log directories",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is one process both touching security relevant artifacts and doing so with a tool that destroys records, such as an event log clearing utility, a recursive delete aimed at a log directory, or a timestamp modification utility pointed at a security tool binary. The fields that matter are the process image, the full command line including the target path or log name, the parent process, and the account context, correlated on the same host within a short window. The malicious case targets files whose loss reduces visibility, for example Windows event logs, endpoint agent directories, or forensic tool output, and it frequently runs from a script or an uncommon parent such as a document reader or a web server process. The benign case is a scheduled maintenance task that rotates or archives logs into a known directory using an approved account, and the target path and account identity are what separate the two.",
+  "pseudoQuery": "# title: Audit Log Cleared or Security Tool Directory Deleted\n# logsource:\n#   product: windows\n# detection:\n#   selection_log_cleared:\n#     EventID:\n#       - 1102\n#       - 104\n#   selection_destructive_cli:\n#     EventID: 1\n#     CommandLine|contains|any:\n#       - 'wevtutil cl'\n#       - 'Clear-EventLog'\n#       - '\\\\Windows\\\\System32\\\\winevt\\\\Logs'\n#   filter_maintenance:\n#     User|endswith: '$'\n#     ParentImage|endswith: '\\\\svchost.exe'\n#   condition: (selection_log_cleared or selection_destructive_cli) and not filter_maintenance\n# level: high",
+  "falsePositives": [
+    "Backup software that removes aged log archives from a staging directory on a nightly schedule",
+    "Application installers that overwrite and delete their own previous version files under ProgramData",
+    "Administrators clearing a full application log on a lab or test host before a controlled exercise",
+    "Log shipping agents that delete local event log files after successful upload to the central collector"
+  ],
+  "tuningNotes": "Baseline first which accounts and parent processes legitimately clear logs in your estate, then filter on that pair rather than filtering on the utility name alone, because wevtutil and the native delete commands are also used by real administrators. Scope the production rule to hosts that hold security value, such as domain controllers, jump boxes and servers running the endpoint agent, and treat log clearing on those hosts as critical while leaving workstation cleanup unattended. Forward the audit records to a collector the monitored host cannot write to, otherwise a successful log clear also removes the alert. Narrowing this way trades away coverage on workstations where an attacker may perform local file deletion, so keep a lower severity rule for deletion inside endpoint agent directories on all hosts.",
+  "severity": "high"
+}

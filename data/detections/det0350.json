@@ -1,0 +1,107 @@
+{
+  "id": "det0350",
+  "type": "detection",
+  "title": "Detecting Downgrade Attacks",
+  "shortTitle": "Detecting Downgrade Attacks",
+  "externalId": "DET0350",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Downgrade Attacks (T1689), where an adversary forces a system to fall back to an older, weaker protocol, algorithm or security setting so that traffic or authentication can be intercepted or forged. The technique matters because the weakened session usually still succeeds, so nothing fails and the victim keeps working while protection quietly disappears. Detection depends on transport layer security handshake metadata that records the negotiated version and cipher, proxy and load balancer logs that show what each client was allowed to negotiate, authentication records that carry the negotiated encryption type, and configuration change records that relax a minimum protocol or signing requirement. It fails most often because legacy devices genuinely cannot speak modern protocols, so a weak negotiation alone is not proof of an attack.",
+  "tags": [
+    "downgrade",
+    "protocol security",
+    "tls",
+    "authentication",
+    "t1689"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Downgrade Attacks",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0350/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Downgrade Attacks - EASY",
+      "path": "exercises/det0350/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Downgrade Attacks - MEDIUM",
+      "path": "exercises/det0350/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Downgrade Attacks - HARD",
+      "path": "exercises/det0350/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Downgrade Attacks - EXTREMELY HARD",
+      "path": "exercises/det0350/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a connection that uses an older and weaker security setting. An attacker can push two systems to agree on a weak option. The session then works, but it is much easier to read or change.",
+    "whyItMatters": "Nothing breaks when a system downgrades, so nobody notices the weaker setting. Traffic that people believe is private can then be read or altered. Old settings often allow an attacker to fake the other side of the conversation. Many networks keep old options switched on for old devices, which widens the risk. Watching the negotiated setting shows you where the weak path still exists.",
+    "howItWorks": [
+      "The network sensor records the security details of each new session, such as the version and the cipher suite.",
+      "The rule compares those details with the minimum that your policy allows for that service.",
+      "It notes the client, the server name and how often the weak option is chosen.",
+      "On the authentication side, it reads the encryption type agreed for each successful logon.",
+      "It also watches for configuration changes that lower a required minimum or turn off signing.",
+      "A weak session that repeats, or that follows a relaxed setting, raises an alert."
+    ],
+    "example": "Think of a door that can lock in two ways, one strong and one weak. The weak lock still keeps the door shut, so the building looks secure. Only a list of which lock was used each night shows the problem. That list is the handshake record.",
+    "takeaways": [
+      "A successful session can still be a weak one, so always log what was negotiated.",
+      "Legacy devices explain many weak sessions, so baseline them first.",
+      "A change that relaxes a minimum setting deserves its own alert."
+    ]
+  },
+  "objectives": [
+    "Explain how a downgrade lets an adversary weaken a session without breaking it",
+    "Identify handshake, authentication and configuration telemetry that records negotiated security settings",
+    "Define the minimum acceptable protocol and algorithm for each categorised service",
+    "Write a rule that flags weak negotiation and relaxed configuration as separate but related signals",
+    "Triage a match by checking whether a known legacy device or an approved change explains it",
+    "Describe the coverage lost when session metadata is only available for unencrypted traffic"
+  ],
+  "techniqueId": "t1689",
+  "detectsTechniques": [
+    "t1689"
+  ],
+  "dataSources": [
+    "Transport layer security handshake metadata from a network sensor including negotiated version, cipher suite and server name",
+    "Web proxy and load balancer logs recording the protocol version and cipher accepted for each client connection",
+    "Directory service authentication records showing the encryption type and package agreed for successful logons",
+    "Cloud provider audit records for changes to load balancer, storage or identity policy that relax a minimum protocol or signing requirement",
+    "Server configuration monitoring that records edits to protocol, signing and cipher enforcement settings"
+  ],
+  "logic": "The pattern is a session or an authentication exchange that completes with a weaker protocol, cipher or signing state than the policy baseline for that service, especially when it repeats from the same client or follows a configuration change. The fields that must be correlated are the client address, the server name, the negotiated version and algorithm, the authenticating account, the policy baseline for the service, and any recent change to the enforcement setting. The benign case is a documented legacy device, scanner or appliance that only supports older settings and is placed in a known network segment. The malicious case is a modern client suddenly negotiating a weaker option with an internal service, or a setting change that disables a minimum version or signing requirement without a change record.",
+  "pseudoQuery": "# title: Session Negotiated Below Approved Protocol Minimum\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: tls_handshake\n#     tls_version: 'TLSv1.0'\n#   selection_setting:\n#     event_type: policy_change\n#     setting|contains: 'minimum_version'\n#   filter_legacy:\n#     client_class: legacy_device\n#   condition: (selection or selection_setting) and not filter_legacy\n# level: high",
+  "falsePositives": [
+    "Medical, industrial or point of sale devices that only support an older protocol version and cannot be upgraded",
+    "A vulnerability scanner or inventory agent that probes every supported protocol version as part of a scheduled scan",
+    "Test and laboratory environments where weak settings are enabled on purpose to reproduce a customer issue",
+    "Temporary compatibility settings applied to a service during a migration and left in place longer than planned"
+  ],
+  "tuningNotes": "Define a minimum protocol and algorithm per service category first, otherwise every legacy device becomes an alert. Baseline the weak negotiations you already have, tag them with the device or application owner and an expiry date, and filter them by client address so that only new weak clients alert. Treat the configuration change signal separately, because relaxing a minimum version is the step that enables the attack and is rare enough to review every time. The coverage you lose is a downgrade achieved inside a session that your sensor cannot see, for example after a terminated inspection point, so keep the authentication side of the rule alongside the network side.",
+  "severity": "high"
+}

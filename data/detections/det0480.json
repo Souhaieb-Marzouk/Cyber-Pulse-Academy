@@ -1,0 +1,108 @@
+{
+  "id": "det0480",
+  "type": "detection",
+  "title": "Detection of Credential Harvesting via Web Portal Modification",
+  "shortTitle": "Detection of Credential Harvesting via Web Portal Modific...",
+  "externalId": "DET0480",
+  "theme": "Detection Strategy",
+  "summary": "Credential harvesting through a web portal hides theft behind a login page that looks entirely normal, usually by editing the files, includes or templates that render the sign in form for a portal, webmail front end or single sign on page. This strategy pairs file integrity monitoring of the web root with web server request logs and process telemetry showing which account wrote the changed file, because a page edit alone is routine while a page edit followed by successful posts to it is not. The main failure mode is treating every web root change as deployment noise, so the rule depends on a file hash baseline and a reliable record of release windows.",
+  "tags": [
+    "web",
+    "credential access",
+    "file integrity",
+    "iis",
+    "apache",
+    "nginx"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Credential Harvesting via Web Portal Modification",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0480/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Credential Harvesting via Web Portal Modification - EASY",
+      "path": "exercises/det0480/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Credential Harvesting via Web Portal Modification - MEDIUM",
+      "path": "exercises/det0480/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Credential Harvesting via Web Portal Modification - HARD",
+      "path": "exercises/det0480/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Credential Harvesting via Web Portal Modification - EXTREMELY HARD",
+      "path": "exercises/det0480/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This plan looks for changes to the login pages of a web portal on your own network. An attacker edits a page so that it keeps a copy of each password typed into it. The detection compares the portal files and the web logs against the normal state. It raises an alert when the page changes and is then used.",
+    "whyItMatters": "People trust an internal login page more than a link in an email. When that page is edited, the theft looks like a normal sign in. The server logs then show real user names and passwords being sent to it. Finding the file change quickly limits how many accounts are exposed. It also tells you which portal must be reset.",
+    "howItWorks": [
+      "A file integrity tool or the endpoint agent reports every write inside the folder that serves the login page.",
+      "The detection keeps an approved hash list for the portal page files and compares each new hash with it.",
+      "Web server access logs are parsed for requests to the login path, with the source address and response code.",
+      "The account that wrote the file is checked, because a web service account writing page code is unusual.",
+      "A new capture file, an unexpected include line, or a write by a non deployment account raises the alert.",
+      "You then confirm whether a planned release happened in the same time window."
+    ],
+    "example": "Think of a hospital sign in sheet on the front desk. A clerk slides a second sheet underneath, so every visitor writes their name twice. Visitors see only one sheet and suspect nothing. The problem is found by comparing the thickness of today's pad with the standard one. In the same way, a portal page can quietly keep a copy of passwords. You catch it by comparing the files with the approved version.",
+    "takeaways": [
+      "The login page itself is a target, not only the accounts behind it.",
+      "File hashes and web logs together prove a page changed and was used.",
+      "A release calendar is the cheapest way to cut false alerts."
+    ]
+  },
+  "objectives": [
+    "Describe how a web portal can capture credentials without any code on the client.",
+    "Identify the telemetry that proves a portal page was modified.",
+    "Correlate a file change with login requests to the changed page.",
+    "Separate planned deployments from unexpected web root edits.",
+    "Explain the first response steps when a capture page is confirmed."
+  ],
+  "techniqueId": "t1056-003",
+  "detectsTechniques": [
+    "t1056-003"
+  ],
+  "dataSources": [
+    "Web server access logs recording POST requests to the login path with source address and response code",
+    "File integrity monitoring events for the web root including file hash and the account that wrote the file",
+    "Sysmon event 11 file create and overwrite including the target path and the creating process",
+    "Load balancer or web application firewall request logs for the portal host",
+    "Windows Security event 4688 process creation showing a script host started by the web service account"
+  ],
+  "logic": "Harvesting credentials from a portal produces a file change and a matching burst of login traffic. The file side shows a new or modified script, include or template under the folder that renders the login form, written by an account that is not the deployment pipeline or outside a release window. The web log side shows posts to that same path succeeding, often from a small set of source addresses with a clear jump in volume. Neither half is convincing alone, because releases rewrite pages daily and attackers also generate failed logins elsewhere. The defensible pattern is a hash change on the login page followed within minutes by successful posts to it from sources that never used the portal before, joined on portal host, file path, timestamp and source address.",
+  "pseudoQuery": "# title: Portal Login Page Changed Outside A Release Window\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     EventType: file_change\n#     TargetFile|contains: '/login'\n#   filter:\n#     User|endswith: 'deploy'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Scheduled application releases that rewrite login templates from a deployment service account",
+    "Web developers editing portal code directly on a staging host while fixing an incident",
+    "Content management plugins that update theme templates and login widgets automatically",
+    "Approved security scans that fetch and submit the login form many times in a short test window",
+    "Single sign on vendor updates that replace the shared login include file"
+  ],
+  "tuningNotes": "Anchor the rule to the exact file paths that render the login form, and suppress the deployment service accounts and the nightly release window. Baseline file hashes for each portal first, because an unbaselined web root will alert on every plugin update and quickly be ignored. Scoping to internet facing portals keeps volume low but leaves internal wikis and admin consoles uncovered, so add those hosts once their change records are trustworthy enough to filter on.",
+  "severity": "high"
+}

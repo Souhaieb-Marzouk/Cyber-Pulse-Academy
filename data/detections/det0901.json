@@ -1,0 +1,108 @@
+{
+  "id": "det0901",
+  "type": "detection",
+  "title": "Detect Windows Firewall",
+  "shortTitle": "Detect Windows Firewall",
+  "externalId": "DET0901",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets modifications to the Windows Defender Firewall that weaken or remove filtering, such as disabling a profile, clearing rules or adding a broad allow rule. It covers technique T1686.003 and matters because the host firewall is often the last filtering layer protecting a workstation or server, and because turning it off is a short, quiet command that leaves little noise. The telemetry that makes it possible is the Windows Firewall operational event log, registry writes under the firewall policy keys, service state changes for the firewall service, and process creation records showing the command line that made the change. In practice the strategy fails because configuration management tools, virtual private network (VPN) clients and application installers all adjust firewall state legitimately, and because firewall logging is often disabled by default on workstations, so the change is simply not recorded. Correlation with the invoking account and process is what makes the alert usable.",
+  "tags": [
+    "mitre t1686.003",
+    "windows firewall",
+    "defense evasion",
+    "registry",
+    "host hardening"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Windows Firewall",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0901/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Windows Firewall - EASY",
+      "path": "exercises/det0901/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Windows Firewall - MEDIUM",
+      "path": "exercises/det0901/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Windows Firewall - HARD",
+      "path": "exercises/det0901/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Windows Firewall - EXTREMELY HARD",
+      "path": "exercises/det0901/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "The Windows Defender Firewall is a filter built into Windows. It decides which network connections are allowed. This detection catches changes that switch it off or open it up.",
+    "whyItMatters": "The firewall blocks unwanted connections from other machines. If an attacker opens it, tools can reach the computer from the network. If the attacker turns it off, you lose a whole layer of defence. These changes take seconds, so the alert must be timely.",
+    "howItWorks": [
+      "Windows writes a record when firewall settings or rules change.",
+      "You collect those records from each computer's event log.",
+      "You collect process creation events, which show the command line used.",
+      "You check whether the change disables a profile, clears all rules or adds a wide allow rule.",
+      "You check the account and the parent process. A script is more suspicious than the settings app.",
+      "You alert the analyst with the host, the command and the new rule details."
+    ],
+    "example": "Imagine a shop with a locked back door and an alarm. The owner can unlock the door for a delivery, and that is normal. But the door is unlocked at three in the morning. The security camera was switched off as well. A firewall change is that back door, and the command line is the camera image.",
+    "takeaways": [
+      "Turning off a firewall profile is a high value, low effort action for an attacker.",
+      "The command line and the account tell you far more than the setting change alone.",
+      "Firewall logging is often off by default, so check that it is enabled."
+    ]
+  },
+  "objectives": [
+    "Describe which firewall state changes reduce protection and deserve a detection",
+    "Locate the Windows Firewall operational event log records for profile and rule changes",
+    "Interpret the registry keys that hold firewall profile state and rule definitions",
+    "Correlate a firewall change with the account, process ancestry and network session behind it",
+    "Recognise the difference between an application installer adding one scoped rule and a script disabling a whole profile",
+    "Verify that firewall logging and audit policy are enabled well enough to record these changes"
+  ],
+  "techniqueId": "t1686-003",
+  "detectsTechniques": [
+    "t1686-003"
+  ],
+  "dataSources": [
+    "Windows Firewall with Advanced Security operational log records for profile state changes, rule additions and rule deletions",
+    "Sysmon event 13 registry value set for keys under the Windows Firewall policy path recording enable and disable state",
+    "Windows Security event 4688 process creation including the command line used to change firewall configuration",
+    "Windows system event log records of the firewall service start type or running state changing",
+    "Windows Security event 4657 registry value modification for firewall policy keys where object access auditing is enabled"
+  ],
+  "logic": "The pattern is a firewall configuration change that removes filtering rather than adding a specific exception. You correlate the firewall operational log entry or registry write with the process creation record that produced it, and with the account and session behind that process. The malicious case disables the domain or private profile, clears the rule set, or adds an allow rule that covers all ports or all programs, and it is usually issued by a scripting interpreter or a remote management tool rather than the Windows settings interface or a signed installer. The benign case is a network client or an application installer adding a narrow rule for a named program and port during a known deployment. Direction and scope decide the severity: removing filtering across all profiles on a server outweighs a single program specific rule on a laptop.",
+  "pseudoQuery": "# title: Windows Firewall Profile Disabled or Rules Cleared\n# logsource:\n#   product: windows\n#   service: firewall\n# detection:\n#   selection_registry:\n#     EventID: 13\n#     TargetObject|contains:\n#       - 'FirewallPolicy\\\\DomainProfile\\\\EnableFirewall'\n#       - 'FirewallPolicy\\\\StandardProfile\\\\EnableFirewall'\n#     Details: 'DWORD (0x00000000)'\n#   selection_cmd:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'netsh advfirewall set'\n#       - 'Set-NetFirewallProfile'\n#   condition: selection_registry or selection_cmd\n# level: high",
+  "falsePositives": [
+    "Virtual private network (VPN) client installation adding broad allow rules for its own tunnel adapters during setup",
+    "Game or video conferencing applications prompting the user to allow inbound traffic on private networks",
+    "Configuration management runs that reapply an approved firewall baseline and briefly disable profiles during the change",
+    "Troubleshooting by a network administrator who disables a profile to test connectivity on a single lab machine",
+    "Third party host firewall products that disable the built in Windows firewall to avoid conflicting filters"
+  ],
+  "tuningNotes": "First confirm that firewall logging and object access auditing are enabled on the platforms you care about, because without them the detection has no input. Then allowlist the signed installers and network clients that add scoped rules, and keep the rule focused on profile disablement, rule clearing, and all port or all program allow rules. Scope to servers first, where a disabled profile has immediate exposure, and add workstations at a lower severity. Excluding known installers means you will miss a malicious installer that signs nothing, so keep an alert on unusual parent processes writing to firewall policy keys even when the command line looks ordinary.",
+  "severity": "high"
+}

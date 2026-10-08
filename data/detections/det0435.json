@@ -1,0 +1,108 @@
+{
+  "id": "det0435",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow: Dynamic Linker Hijacking",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow: Dynamic Lin...",
+  "externalId": "DET0435",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects dynamic linker hijacking on Linux, where an adversary forces a process to load an attacker supplied shared library by setting the preload environment variable, by altering the library search path, or by writing to the system preload configuration file. It matters because the injected library runs inside a trusted program before its own code, so it can capture credentials, hide activity or persist without modifying the target binary. Detection depends on process telemetry that captures the environment of executed programs, kernel audit records for writes to the linker configuration, and file monitoring for new libraries in world writable locations. The main way it fails in practice is that packaging tools, container builds and some performance agents legitimately use preload for instrumentation, so the rule must weigh the library path, the writing account and the target binary.",
+  "tags": [
+    "linux",
+    "dynamic linker",
+    "t1574-006",
+    "persistence",
+    "privilege escalation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow: Dynamic Linker Hijacking",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0435/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow: Dynamic Linker Hijacking - EASY",
+      "path": "exercises/det0435/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow: Dynamic Linker Hijacking - MEDIUM",
+      "path": "exercises/det0435/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow: Dynamic Linker Hijacking - HARD",
+      "path": "exercises/det0435/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow: Dynamic Linker Hijacking - EXTREMELY HARD",
+      "path": "exercises/det0435/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs on Linux that are told to load an extra shared library before they start. A shared library is a file of reusable code that programs load at startup. The rule reports load requests that point at unusual files or folders.",
+    "whyItMatters": "The extra library runs inside a trusted program and can read anything that program can read. It is a quiet way to watch or change behaviour without touching the original file. Common tools also use this feature, so context decides the verdict. The library location is often the clearest clue.",
+    "howItWorks": [
+      "A shell sets an environment variable that names a library to load first.",
+      "The program starts and the system linker reads that variable before running the program.",
+      "Endpoint monitoring records the process, its environment and the parent that set it.",
+      "The rule checks whether the named library sits in a system or application directory.",
+      "It also watches for writes to the system linker configuration file.",
+      "A load request pointing at a temporary or home directory raises an alert."
+    ],
+    "example": "Think of a delivery van that always carries its own toolbox. Before the driver starts work, a stranger swaps one standard tool for a copy that looks the same. The van, the route and the driver are unchanged. Only the tool is different, and that tool quietly copies every key it touches. Checking the toolbox is the point of this rule.",
+    "takeaways": [
+      "Preloading a library inserts code into a trusted program before it runs.",
+      "The library path and the account that set the variable are the key details.",
+      "Legitimate instrumentation uses the same feature, so expect some noise."
+    ]
+  },
+  "objectives": [
+    "Explain how the dynamic linker selects libraries and why preloading changes program behaviour.",
+    "Identify the environment variables and configuration files that influence library loading.",
+    "Correlate a preload value with the executed binary, its parent process and the owning account.",
+    "Separate approved instrumentation libraries from libraries in writable directories.",
+    "Detect writes to system linker configuration that would apply the hijack to every program.",
+    "Describe why static binaries and privileged programs resist this technique."
+  ],
+  "techniqueId": "t1574-006",
+  "detectsTechniques": [
+    "t1574-006"
+  ],
+  "dataSources": [
+    "Linux auditd execve records including the argument vector and environment of each executed program",
+    "Kernel audit file watch records for writes to the dynamic linker preload configuration file",
+    "Process creation telemetry capturing the shell command line and the exporting parent process",
+    "File creation telemetry for new shared library objects in temporary, home and shared directories",
+    "Package inventory evidence showing which libraries were installed by the system package manager"
+  ],
+  "logic": "The pattern is a program executed with a preload variable that names a library outside the standard system and application library directories, or a write to the system preload configuration file, or a shared library appearing in a world writable directory that is then referenced by a running service. The fields that must be correlated are the executed binary and its arguments, the environment variable value, the parent process that set it, the user and group context, the file path of the library, and package inventory evidence that shows whether the library was installed through the package manager. The benign case is dominated by instrumentation and debugging tools, by container image builds that preload a compatibility library, and by the package manager itself installing libraries into standard directories, so the library location and its provenance separate the two. The malicious case is distinguished by a library in a temporary, home or shared directory, by an unprivileged account setting the variable for a privileged or long running process, and by the preload configuration file being modified outside a package transaction.",
+  "pseudoQuery": "# title: Program Executed With Preload Library Outside System Directories\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: 'EXECVE'\n#     env|contains: 'LD_PRELOAD='\n#   selection_config:\n#     type: 'PATH'\n#     name: '/etc/ld.so.preload'\n#     nametype: 'CREATE'\n#   filter_approved:\n#     env|contains:\n#       - 'LD_PRELOAD=/usr/lib/company/instrument'\n#       - 'LD_PRELOAD=/opt/monitoring/'\n#   condition: (selection or selection_config) and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Application performance monitoring or profiling agents that preload an instrumentation library into services",
+    "Container image builds that preload a compatibility or shim library for a legacy application",
+    "Package manager transactions that install and configure a vendor supplied library in a standard directory",
+    "Engineers debugging a memory issue with a preload shim on a development host",
+    "Central configuration management that deploys an approved preload entry fleet wide after a change record"
+  ],
+  "tuningNotes": "Baseline which binaries in your estate normally receive a preload value and which library paths they use, then filter on the exact approved library paths and the accounts that set them rather than on the variable itself, because instrumentation accounts for most of the volume. Treat any write to the system preload configuration file outside a package manager transaction as high severity, since that path affects nearly every program on the host, and keep a separate medium severity rule for preload values that reference temporary or home directories. Scope the production rule to production servers and to privileged accounts where a hijack has the greatest impact. You lose coverage for a hijack delivered through a legitimate instrumentation path that an attacker has replaced, and for injection that uses other mechanisms such as library search path manipulation inside a wrapper script, so also alert on new library files appearing in directories that are writable by more than the owner and on services that start loading libraries from unexpected paths after an update.",
+  "severity": "high"
+}

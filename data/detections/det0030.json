@@ -1,0 +1,107 @@
+{
+  "id": "det0030",
+  "type": "detection",
+  "title": "Detect Conditional Access Policy Modification in Identity and Cloud Platforms",
+  "shortTitle": "Detect Conditional Access Policy Modification in Identity...",
+  "externalId": "DET0030",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers detection of conditional access policy tampering, the access control changes tracked as T1556.009. Conditional access is the rule set that decides whether a sign-in needs multi factor authentication, a compliant device, or a trusted network, so weakening one rule can reopen access for a stolen password without touching any credential. The telemetry is cloud audit data: directory audit records for policy create, update, and delete operations, sign-in records for the administrator who made the change, and change history showing the before and after values. It fails in practice because policy edits are legitimate administrator work, so a rule that only looks for the operation name drowns in change windows unless it also weighs the actor, the origin address, and whether authentication strength or coverage was reduced.",
+  "tags": [
+    "cloud",
+    "identity",
+    "conditional access",
+    "t1556.009",
+    "audit",
+    "privileged access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Conditional Access Policy Modification in Identity and Cloud Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0030/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Conditional Access Policy Modification in Identity and Cloud Platforms - EASY",
+      "path": "exercises/det0030/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Conditional Access Policy Modification in Identity and Cloud Platforms - MEDIUM",
+      "path": "exercises/det0030/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Conditional Access Policy Modification in Identity and Cloud Platforms - HARD",
+      "path": "exercises/det0030/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Conditional Access Policy Modification in Identity and Cloud Platforms - EXTREMELY HARD",
+      "path": "exercises/det0030/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Conditional access is a set of cloud rules that add checks at sign in. This detection watches for changes to those rules. It catches the moment a rule is turned off or weakened, because that is often how an attacker keeps access.",
+    "whyItMatters": "Stolen passwords are common, and conditional access is the control that limits what a stolen password can do. An attacker who can edit these rules can remove the extra checks. The change can be one small edit, and it avoids malware on a laptop.",
+    "howItWorks": [
+      "The cloud collects an audit record each time an administrator changes a policy.",
+      "That record includes the operation name, the account, the origin address, and the old and new values.",
+      "The rule looks for operations that create, update, or delete a named conditional access policy.",
+      "It checks if the new value turns the policy off or lowers the sign in strength it demands.",
+      "It joins the record with sign in data to see if the account normally works from that address.",
+      "The final alert names the policy, the account, and the exact field that changed."
+    ],
+    "example": "Think of a museum with a motion alarm. The alarm only helps if nobody switches it off. A guard would notice the moment the alarm is disabled, not only when something is stolen. This rule watches the alarm switch.",
+    "takeaways": [
+      "Policy edits are normal, so the actor and the origin address matter as much as the edit.",
+      "A reduced authentication strength is as serious as a disabled policy.",
+      "Record the before and after values so a responder can restore the rule."
+    ]
+  },
+  "objectives": [
+    "Describe how conditional access controls sign in risk in a cloud identity platform.",
+    "List the audit operations that change a conditional access policy.",
+    "Read an audit record and separate a normal change window from a suspicious edit.",
+    "Explain why authentication strength changes matter as much as state changes.",
+    "Choose alert fields that let a responder restore the previous policy value.",
+    "Decide which administrator groups should be excluded from the rule."
+  ],
+  "techniqueId": "t1556-009",
+  "detectsTechniques": [
+    "t1556-009"
+  ],
+  "dataSources": [
+    "Cloud identity directory audit log entries for conditional access policy create, update, and delete operations with before and after values",
+    "Cloud identity sign-in log records for the administrator account including origin IP address, user agent, and authentication method",
+    "Privileged role assignment audit records showing when administrator rights were granted or elevated",
+    "Change management system tickets recording approved identity configuration work"
+  ],
+  "logic": "The pattern is an audit operation that modifies a conditional access policy, correlated with the actor identity, the origin address, and the specific property that changed. The fields that must be joined are the policy name or identifier, the administrator account, the operation result, and the modified properties block, then enriched with sign-in data for the same account and address. The malicious case usually weakens coverage: the policy state is set to disabled, a target group or application is removed from scope, an allowed location is added that the organisation does not own, or the authentication strength drops from a strong method to a single factor. The benign case is an administrator who works inside a change window, from a managed address, and who changes one policy in a way the ticket describes. Volume and grouping matter: one account editing many unrelated policies within minutes is far more suspicious than a single documented edit.",
+  "pseudoQuery": "# title: Conditional Access Policy Weakened by Non Approved Actor\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     operation|contains: 'conditional access policy'\n#     result: success\n#   weaken:\n#     policyState: disabled\n#   filter:\n#     actorIp|startswith:\n#       - '10.0.0.'\n#       - '192.168.'\n#   condition: selection and weaken and not filter\n# level: high",
+  "falsePositives": [
+    "Identity administrators performing planned conditional access changes inside an approved change window with a signed ticket",
+    "A new policy rollout that temporarily disables a legacy rule while its replacement is tested in report only mode",
+    "Automation that updates policy definitions to keep device compliance rules aligned with a mobile device management baseline",
+    "Emergency break glass access where a team disables a policy to restore service during an outage and documents it afterwards"
+  ],
+  "tuningNotes": "First build a baseline of which accounts and which administrative addresses normally touch identity policy, and allow list those exact pairs rather than the whole administrator role. Add a filter for change windows drawn from your change management system, and keep a separate lower severity alert for edits outside those windows so you still see them. Do not filter on the operation name removal entirely, because an attacker using the same connection as a legitimate administrator will match those fields; instead alert on property level changes such as scope removal or authentication strength reduction, which are rarely legitimate. The coverage you lose is the slow, careful attacker who lowers a single control inside a normal working hour from the expected address.",
+  "severity": "high"
+}

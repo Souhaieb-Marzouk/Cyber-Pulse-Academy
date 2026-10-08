@@ -1,0 +1,107 @@
+{
+  "id": "det0262",
+  "type": "detection",
+  "title": "Detection Strategy for Dynamic Resolution through DNS Calculation",
+  "shortTitle": "Detection Strategy for Dynamic Resolution through DNS Cal...",
+  "externalId": "DET0262",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers dynamic resolution through domain calculation, tracked as T1568.003, where the malicious program derives its command and control domain by computing it, often from its own address or from the current date, instead of storing a fixed name. The result is a name that is valid for a short period and changes constantly, which defeats static blocklists. Detection relies on resolver query logs and endpoint name resolution telemetry, looking for high volumes of unique subdomains under one parent, unusual numeric or hexadecimal labels, and a heavy share of non-existent answers. It fails when the client bypasses the corporate resolver, when the host uses a public encrypted resolver, or when a legitimate service genuinely uses random subdomains.",
+  "tags": [
+    "dns",
+    "t1568.003",
+    "command and control",
+    "domain generation",
+    "resolver logs",
+    "beaconing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Dynamic Resolution through DNS Calculation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0262/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Dynamic Resolution through DNS Calculation - EASY",
+      "path": "exercises/det0262/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution through DNS Calculation - MEDIUM",
+      "path": "exercises/det0262/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution through DNS Calculation - HARD",
+      "path": "exercises/det0262/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution through DNS Calculation - EXTREMELY HARD",
+      "path": "exercises/det0262/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Every website call starts with a name lookup, called Domain Name System resolution. The Domain Name System turns a name into a numeric address. Some malicious programs do not store the name they need. They calculate it from a changing number, such as the current date. This detection looks for name lookups that follow a pattern of calculation rather than a normal browsing habit.",
+    "whyItMatters": "A fixed bad domain can be blocked by a list. A domain that is calculated changes every day, so the list is stale immediately. This is why intruders use calculation to keep their channels alive. The lookups still have to happen, and they leave records on the resolver. Those records show the shape of the activity, even when every single name is new. Analysing the shape gives defenders a way to catch channels that never reuse a name.",
+    "howItWorks": [
+      "The resolver records each lookup with the requested name, the client address, and the answer it gave.",
+      "The rule splits each name into its labels and checks the letters and numbers in each part.",
+      "It counts how many different names one client requests under the same parent domain.",
+      "A high count of unique names in a short time is a strong sign of calculation.",
+      "A high share of names that do not exist adds weight, because calculated names often miss.",
+      "Where the detail is collected, the alert links back to the program that made the lookups."
+    ],
+    "example": "Think of a courier who must guess a house number from a rule. Each day the rule changes, so the number changes too. The courier knocks on many wrong doors before finding the right one. The neighbours see a stranger trying every door on the street. They do not know the rule, but they see the pattern. Resolver logs show the same thing: many guesses and very few correct answers.",
+    "takeaways": [
+      "Calculated names change, but the lookup pattern stays the same.",
+      "Count unique names per client and per parent domain over a short window.",
+      "A high rate of non-existent names is as useful as the names themselves."
+    ]
+  },
+  "objectives": [
+    "Explain how a calculated domain differs from a fixed command and control domain",
+    "Measure unique subdomain counts per client host over a rolling window",
+    "Interpret the non-existent answer ratio as a signal of automated name generation",
+    "Link name lookups to the process that requested them",
+    "Identify clients that bypass the corporate resolver and lose coverage"
+  ],
+  "techniqueId": "t1568-003",
+  "detectsTechniques": [
+    "t1568-003"
+  ],
+  "dataSources": [
+    "DNS resolver query logs recording the queried name, record type, response code, and the requesting internal host",
+    "Endpoint name resolution telemetry capturing the process image that made the request and the resolved name",
+    "Recursive resolver response logs with non-existent domain counts per parent domain",
+    "Sysmon event 3 network connections to external addresses shortly after a lookup from the same process",
+    "Endpoint DNS client cache or agent telemetry listing recently resolved names per host"
+  ],
+  "logic": "The pattern is a client that requests a large number of distinct names under a single parent domain, most of which do not resolve, at a fairly constant rate. The rule aggregates resolver query logs by client address and registered domain over a rolling window, then measures the count of unique leftmost labels and the proportion of non-existent answers. The distinguishing detail is the combination of high label uniqueness, low successful resolution, and regularity over time, which separates algorithmic name generation from normal browsing where a few names resolve and are reused. Benign cases include content delivery networks that use random-looking subdomains, security products that perform reputation lookups, and software that rotates through a long list of endpoints; each needs a separate allowlist keyed on the parent domain.",
+  "pseudoQuery": "# title: High volume of unique non-resolving subdomains from one client\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: 'dns_query'\n#     response_code: 'NXDOMAIN'\n#   filter:\n#     parent_domain:\n#       - 'cdn.example.net'\n#       - 'telemetry.example.com'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Content delivery networks and cloud services that assign random-looking subdomains to each session",
+    "Endpoint security agents that query reputation services for many distinct names",
+    "A mistyped or expired internal domain that many clients keep retrying",
+    "Software update frameworks that try a rotating list of mirror hosts"
+  ],
+  "tuningNotes": "Baseline unique name counts per client for a week and set the threshold above the ninety-ninth percentile of normal traffic, because a fixed number that works in one network will fail in another. Allowlist high volume parent domains one by one after review, rather than excluding all non-resolving lookups, since that exclusion would remove the core signal. Scope the alert to hosts that should never contact arbitrary external domains, such as servers in the data centre. Narrowing to those hosts loses coverage for roaming laptops that use a public resolver, so monitor resolver configuration drift as a separate control.",
+  "severity": "medium"
+}

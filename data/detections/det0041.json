@@ -1,0 +1,107 @@
+{
+  "id": "det0041",
+  "type": "detection",
+  "title": "Detection of Lifecycle Policy Modifications for Triggered Deletion in IaaS Cloud Storage",
+  "shortTitle": "Detection of Lifecycle Policy Modifications for Triggered...",
+  "externalId": "DET0041",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects lifecycle policy changes in cloud storage that are configured to delete data automatically, the destructive behaviour tracked as T1485.001. A lifecycle rule is a scheduled instruction to expire objects, versions, or snapshots, so a single configuration change can cause permanent loss of a whole bucket without any further attacker action and without a conventional delete event to alert on. The telemetry is cloud audit data for storage policy changes, joined with the calling identity, the origin address, the session type, and the retention duration it set. It fails in practice because storage automation and backup tools legitimately manage lifecycle rules on a schedule, so alerts built only on the API call name are dominated by automation and the useful discriminators are the identity, the session origin, and an unusually short expiration.",
+  "tags": [
+    "impact",
+    "t1485.001",
+    "cloud",
+    "storage",
+    "audit",
+    "data destruction"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Lifecycle Policy Modifications for Triggered Deletion in IaaS Cloud Storage",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0041/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Lifecycle Policy Modifications for Triggered Deletion in IaaS Cloud Storage - EASY",
+      "path": "exercises/det0041/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Lifecycle Policy Modifications for Triggered Deletion in IaaS Cloud Storage - MEDIUM",
+      "path": "exercises/det0041/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Lifecycle Policy Modifications for Triggered Deletion in IaaS Cloud Storage - HARD",
+      "path": "exercises/det0041/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Lifecycle Policy Modifications for Triggered Deletion in IaaS Cloud Storage - EXTREMELY HARD",
+      "path": "exercises/det0041/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud storage can hold rules that delete old files for you. This detection watches those rules. It looks for a rule that expires files very quickly. It also looks for a rule added by an account that does not normally manage storage.",
+    "whyItMatters": "A single rule can erase a whole bucket later, at a set time. No attacker command is needed after that. The loss may be permanent because the rule also removes older versions and snapshots. This is a business continuity risk, not only a security one.",
+    "howItWorks": [
+      "The cloud records every management action, including changes to storage rules.",
+      "The rule selects actions that create or change a lifecycle policy.",
+      "It reads the expiration it sets, in days, and the objects it applies to.",
+      "It adds the identity, the origin address, and the type of session that made the call.",
+      "It removes the automation roles that manage storage as part of normal operations.",
+      "A short expiration set by a person, outside a change window, is a critical alert."
+    ],
+    "example": "Think of a library that allows a rule saying every book older than a year is thrown away. The rule is written in one minute, but the loss happens on its own later. A librarian would check who wrote a rule saying every book is thrown away in two days.",
+    "takeaways": [
+      "Destructive rules hide the damage in a scheduled future action.",
+      "A very short expiration, set by a person, is the strongest indicator.",
+      "Version and snapshot rules matter, because they remove the recovery path."
+    ]
+  },
+  "objectives": [
+    "Explain what a storage lifecycle rule does and how it can destroy data.",
+    "Identify cloud audit operations that create or modify a lifecycle policy.",
+    "Read the expiration duration and target scope from a policy change record.",
+    "Separate storage automation identities from human accounts in the audit data.",
+    "Recognise rules that also expire older versions and snapshots as high impact.",
+    "Plan a response that suspends the rule before it runs."
+  ],
+  "techniqueId": "t1485-001",
+  "detectsTechniques": [
+    "t1485-001"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for storage lifecycle configuration changes including the request parameters and the affected bucket",
+    "Cloud audit records for the calling identity showing the user or role, the session type, and the origin IP address and user agent",
+    "Cloud storage inventory and configuration snapshots used to compare the current lifecycle rules against the approved baseline",
+    "Change management tickets recording approved storage retention changes and the accounts permitted to make them"
+  ],
+  "logic": "The pattern is a lifecycle policy change that shortens retention or expands the set of objects to be expired, performed by an identity or session that does not normally manage storage. The fields that must be correlated are the request parameters that contain the expiration in days and the prefix or tag scope, the calling identity and its session origin, the affected bucket, and the time of day compared with the approved change window. The malicious case shows a short expiration or immediate deletion rule applied to a broad prefix, created by a non automation account, often from an unusual address or with temporary session credentials, sometimes immediately after a burst of read and list activity. The benign case is a storage or backup automation role applying a documented retention standard on a schedule from a known address, with durations that match the organisation policy. A short expiration is not suspicious by itself in a temporary or log bucket, so the rule should compare the requested duration with the bucket class and the approved baseline.",
+  "pseudoQuery": "# title: Storage Lifecycle Rule Set to Short Expiration by Non Automation Identity\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName: 'PutBucketLifecycleConfiguration'\n#     userIdentity.type: 'IAMUser'\n#   short_expiry:\n#     requestParameters.rule.expiration.days|lt: 7\n#   filter:\n#     userIdentity.arn|contains: 'storage-automation'\n#   condition: selection and short_expiry and not filter\n# level: critical",
+  "falsePositives": [
+    "Storage automation and backup roles that apply a documented retention standard to new buckets during a platform build",
+    "Data engineering pipelines that set short expiry rules on temporary or intermediate buckets to control cost",
+    "Cost optimisation reviews where an engineer applies a shorter retention to a bucket after an approved review meeting",
+    "Log management tooling that configures lifecycle rules on audit buckets to meet a regulatory retention requirement"
+  ],
+  "tuningNotes": "Allow list the exact automation roles and their normal calling addresses, and keep a strict sub rule that fires whenever a human identity changes a lifecycle rule outside a change window. Enrich with the bucket classification so that a seven day rule on a temporary bucket is treated differently from a seven day rule on a bucket holding the system of record, and prefer a ratio comparison against the previous duration rather than a fixed number. Baseline the current lifecycle configuration for every bucket first, because an unknown starting point makes every change look new. The coverage you lose when you allow list the automation role is a compromised automation credential, so monitor that role separately for changes originating outside its normal address and schedule.",
+  "severity": "critical"
+}

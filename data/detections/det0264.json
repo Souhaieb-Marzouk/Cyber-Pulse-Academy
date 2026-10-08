@@ -1,0 +1,107 @@
+{
+  "id": "det0264",
+  "type": "detection",
+  "title": "Cross-Platform Detection of JavaScript Execution Abuse",
+  "shortTitle": "Cross-Platform Detection of JavaScript Execution Abuse",
+  "externalId": "DET0264",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers JavaScript execution outside the browser, tracked as T1059.007, where an adversary uses the operating system script host or a standalone runtime to run code. The pattern is a scripting engine started with a script that lives in a temporary or user-writable directory, often with a long command line or an encoded payload. The telemetry is process creation with command lines, file creation for the script, and library load events that show a scripting engine appearing inside a process it does not belong to. It fails when the script is typed directly on the command line with no file on disk, when a signed management tool acts as the host, or when the activity happens inside a container with no process monitoring.",
+  "tags": [
+    "javascript",
+    "t1059.007",
+    "script host",
+    "execution",
+    "process creation",
+    "living off the land"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cross-Platform Detection of JavaScript Execution Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0264/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cross-Platform Detection of JavaScript Execution Abuse - EASY",
+      "path": "exercises/det0264/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cross-Platform Detection of JavaScript Execution Abuse - MEDIUM",
+      "path": "exercises/det0264/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cross-Platform Detection of JavaScript Execution Abuse - HARD",
+      "path": "exercises/det0264/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cross-Platform Detection of JavaScript Execution Abuse - EXTREMELY HARD",
+      "path": "exercises/det0264/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "JavaScript is a language used mainly by web pages. It can also run outside a browser through a script host or a runtime program. Attackers use this because the language is already installed and rarely looks unusual. This detection watches for script hosts that run files from places a normal user would not keep them.",
+    "whyItMatters": "Script hosts are present by default on many systems, so an intruder needs no new software. A short script can download tools, gather data, or start other programs. Because the host program is signed and expected, simple allow lists of programs do not help. Detection has to look at what the script host runs and where the file came from. Catching it early often stops the whole chain at the entry point.",
+    "howItWorks": [
+      "A process creation event records the script host, its command line, and its parent process.",
+      "The rule matches known script hosts and JavaScript runtimes by their file names.",
+      "It checks where the script file lives, and treats temporary and download folders as suspicious.",
+      "It adds weight for signs of hiding, such as encoded text or a very long command line.",
+      "Library load events show whether a scripting engine appeared in a process that should not host it.",
+      "The rule groups events per host and raises a single alert for the analyst."
+    ],
+    "example": "Imagine a kitchen where anyone may use the oven. Cooks use it all day, so the oven itself draws no attention. A person who arrives at midnight with their own ingredients and bakes something in a hurry is different. The oven is normal, but the timing and the ingredients are not. A script host is the oven, and the script file, its location, and its timing are the ingredients.",
+    "takeaways": [
+      "The script host is usually legitimate, so the script file and its location carry the signal.",
+      "Temporary and download folders are rare locations for normal administrative scripts.",
+      "Library load events reveal scripting engines inside the wrong process."
+    ]
+  },
+  "objectives": [
+    "Name the script hosts and JavaScript runtimes present on each operating system",
+    "Detect script execution from temporary and user-writable directories",
+    "Interpret command line features that suggest hiding, such as encoded content",
+    "Use library load events to find scripting engines in unexpected processes",
+    "Explain why signed management tools create false alerts for this rule"
+  ],
+  "techniqueId": "t1059-007",
+  "detectsTechniques": [
+    "t1059-007"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation for script hosts and JavaScript runtimes with the full script path and command line",
+    "Windows Security event 4688 process creation with command line auditing enabled for script host launches",
+    "Sysmon event 7 image load showing a scripting engine library loaded into an unexpected process",
+    "Sysmon event 11 file creation for script files written to user temporary or download directories",
+    "Linux auditd execve records for JavaScript runtimes executing scripts from temporary paths"
+  ],
+  "logic": "The pattern is a scripting engine that runs a file from a user-writable or temporary location, or that loads into a process with no legitimate reason to host it. The rule keys on process creation events where the image is a script host or JavaScript runtime and the script path resolves under temporary, download, or public directories, then enriches with command line length, encoding markers, and parent process identity. The malicious case is usually a shell or an office application as the parent, an unsigned script, and a path outside any managed software directory. Benign cases are logon scripts and software deployment wrappers, which run from managed shares under a system parent process and can be allowlisted by path and parent.",
+  "pseudoQuery": "# title: Script host running a JavaScript file from a user writable directory\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     event_id: 1\n#     image|endswith:\n#       - '\\\\wscript.exe'\n#       - '\\\\cscript.exe'\n#       - '\\\\mshta.exe'\n#       - '\\\\node.exe'\n#     command_line|contains:\n#       - '\\\\Temp\\\\'\n#       - '\\\\Downloads\\\\'\n#       - '\\\\Users\\\\Public\\\\'\n#   filter:\n#     parent_image|endswith: '\\\\svchost.exe'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Logon scripts delivered by group policy that run a JavaScript file from the netlogon share",
+    "Software deployment wrappers that use a script host to start an installer from a staging folder",
+    "Developer machines where the runtime executes scripts from a project directory inside the user profile",
+    "Monitoring agents that execute small JavaScript checks written to the temporary folder"
+  ],
+  "tuningNotes": "Allowlist the managed script shares and the system parent processes that run logon and deployment scripts, then require an interactive or office parent for high severity. Keep a low severity version without the parent filter, so that a signed management tool abused by an intruder is still visible. Baseline which hosts legitimately run the standalone runtime, and remove that runtime from the rule on those hosts rather than suppressing the whole host. Narrowing this way loses coverage for inline script execution with no file on disk, which needs command line analytics rather than file path conditions.",
+  "severity": "medium"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0330",
+  "type": "detection",
+  "title": "Detection Strategy for T1546.016 - Event Triggered Execution via Installer Packages",
+  "shortTitle": "Detection Strategy for T1546.016 - Event Triggered Execut...",
+  "externalId": "DET0330",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects event triggered execution through installer packages (T1546.016), where an adversary changes a package manager so that installing or updating a package runs their code as part of the installation. On macOS the installer runs preinstall and postinstall scripts with elevated rights, so a modified package or a modified package mapping turns a routine update into attacker execution. On Windows and Linux the equivalent is a tampered installer database or a repackaged management agent. Detection depends on file integrity monitoring of installer subsystems, process creation showing installation scripts spawning shells or network tools, and unusual parent-child relationships under the installer process. It fails silently when only the generated malicious package is monitored, because the tampered mapping itself is the durable artifact.",
+  "tags": [
+    "mitre t1546.016",
+    "installer packages",
+    "persistence",
+    "file integrity",
+    "macos"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1546.016 - Event Triggered Execution via Installer Packages",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0330/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1546.016 - Event Triggered Execution via Installer Packages - EASY",
+      "path": "exercises/det0330/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1546.016 - Event Triggered Execution via Installer Packages - MEDIUM",
+      "path": "exercises/det0330/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1546.016 - Event Triggered Execution via Installer Packages - HARD",
+      "path": "exercises/det0330/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1546.016 - Event Triggered Execution via Installer Packages - EXTREMELY HARD",
+      "path": "exercises/det0330/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the software that installs and updates programs. Attackers change that software so their own code runs during a normal update. It catches who started a program, not only which program started.",
+    "whyItMatters": "Updates run with high privileges, so their scripts can do almost anything. Users and tools trust them, and they are rarely watched closely. If an attacker lives inside the update path, they get execution again and again. This detection protects one of the most trusted steps on a computer.",
+    "howItWorks": [
+      "The operating system records the installer process and every program it starts.",
+      "The detection builds a parent and child view, because installer scripts normally spawn only known helpers.",
+      "It watches the files that describe how packages install, such as installer databases and script lists.",
+      "It compares those files against a recorded hash and alerts when they change.",
+      "It flags installation scripts that start a command shell, a scripting interpreter or a network tool.",
+      "Both signals are grouped by host so the analyst sees a tampered package source plus the code it ran."
+    ],
+    "example": "Think of a hotel that leaves a welcome card in every room. A thief does not rob rooms one by one. He changes the printing order so every new card contains a key request. The manager notices only when the reports show cards being printed in the middle of the night.",
+    "takeaways": [
+      "Watch the installer itself, because it runs with high privileges and is widely trusted.",
+      "Changing the package mapping is more durable than shipping one malicious package.",
+      "Installation scripts that start shells or download tools deserve immediate attention."
+    ]
+  },
+  "objectives": [
+    "Explain how installer packages provide a durable execution trigger",
+    "Identify the file paths and databases that control package installation on each platform",
+    "Correlate an installer process with unusual child processes and network activity",
+    "Use file integrity monitoring to find tampering with the packaging subsystem",
+    "Describe why monitoring only suspicious packages is insufficient coverage"
+  ],
+  "techniqueId": "t1546-016",
+  "detectsTechniques": [
+    "t1546-016"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing the installer process and its child processes with command lines",
+    "File integrity monitoring of package manager databases, installer script directories and package repositories",
+    "Sysmon event 11 file create events for newly written package files in download and staging directories",
+    "macOS unified logging records for the installer and package utility subsystems",
+    "Sysmon event 3 network connection from a process whose parent is the installer"
+  ],
+  "logic": "The pattern is a change to the packaging subsystem, or a package installation in which the installer process spawns children that do not belong to a normal installation, such as a command shell, a scripting interpreter, a remote access utility or an archiver. The fields to correlate are the installer parent image, the child image and command line, the user context, the package source location and the file integrity status of the package mapping. A benign installation shows a signed package from an approved repository, a trusted signature chain and children that are the vendor's own helpers. The malicious case shows an unsigned or locally authored package, a mapping file modified outside a maintenance window, and a child process that reaches the network or creates persistence shortly after installation.",
+  "pseudoQuery": "# title: Installer Package Spawning Shell or Download Child Process\n# logsource:\n#   product: macos\n# detection:\n#   selection:\n#     ParentImage|endswith: ['/usr/sbin/installer', '/usr/sbin/pkgutil', '/usr/bin/installer']\n#     Image|endswith: ['/bin/sh', '/bin/bash', '/usr/bin/osascript', '/usr/bin/curl', '/usr/bin/python3']\n#   filter_vendor:\n#     SignedBy: 'Developer ID Application: Approved Vendor'\n#   condition: selection and not filter_vendor\n# level: high",
+  "falsePositives": [
+    "Internal packaging teams that ship scripts calling system utilities during an approved software rollout",
+    "Security agents whose own installer runs a shell script to configure kernel extensions on first use",
+    "Developer machines where package managers build tools from source and run configure scripts",
+    "Vendor installers that download a license check or a language pack at the end of installation",
+    "Lab or test environments where unsigned packages are installed deliberately as part of build validation"
+  ],
+  "tuningNotes": "Baseline every installer parent-child pair seen in thirty days of production and allow only the trusted signature identities and child process names from that baseline. Add file integrity monitoring for the package mapping and repository metadata, and alert on any change outside a change window, which is the strongest single signal here. Keep the rule enabled but low severity on developer and laboratory subnets, where unsigned packages are common, and high severity on servers and executive endpoints. The coverage you lose by allow listing vendor signatures is an attacker who signs with a stolen or legitimate certificate, so pair this with review of new publisher identities appearing in your environment.",
+  "severity": "high"
+}

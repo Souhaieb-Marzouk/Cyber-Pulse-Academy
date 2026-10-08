@@ -1,0 +1,107 @@
+{
+  "id": "det0105",
+  "type": "detection",
+  "title": "Post-Credential Dump Password Cracking Detection via Suspicious File Access and Hash Analysis Tools",
+  "shortTitle": "Post-Credential Dump Password Cracking Detection via Susp...",
+  "externalId": "DET0105",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets T1110.002, password cracking, and specifically the stage that follows a credential dump, when an adversary moves hash material to a cracking host or starts a hash analysis tool on the victim machine itself. It matters because cracking turns a stolen hash into a plaintext secret that works against other systems, including legacy protocols that do not require a multi step challenge, and it converts a single host compromise into a fleet wide problem. The telemetry that makes detection possible is file access auditing on credential databases and registry hives, process creation records for names of common cracking and extraction utilities, command line arguments that reference wordlists and hash files, and file creation events for pot files and cracked output. It fails in practice because these tools are standard on penetration testing and forensics workstations, and because a determined attacker can rename a binary, so the rule should lean on access patterns and file relationships rather than tool names alone.",
+  "tags": [
+    "credential-access",
+    "password-cracking",
+    "endpoint",
+    "file-access",
+    "hash"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Post-Credential Dump Password Cracking Detection via Suspicious File Access and Hash Analysis Tools",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0105/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Post-Credential Dump Password Cracking Detection via Suspicious File Access and Hash Analysis Tools - EASY",
+      "path": "exercises/det0105/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Post-Credential Dump Password Cracking Detection via Suspicious File Access and Hash Analysis Tools - MEDIUM",
+      "path": "exercises/det0105/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Post-Credential Dump Password Cracking Detection via Suspicious File Access and Hash Analysis Tools - HARD",
+      "path": "exercises/det0105/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Post-Credential Dump Password Cracking Detection via Suspicious File Access and Hash Analysis Tools - EXTREMELY HARD",
+      "path": "exercises/det0105/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for password cracking after a theft of password files. Cracking means guessing a password from its stored scrambled form. The rule watches for the tools and files involved in that guessing.",
+    "whyItMatters": "A scrambled password, called a hash, is not directly usable everywhere. Cracking turns it into the real password, which then works in many places. Attackers often crack on the victim machine or copy the hashes to a powerful machine. Detecting the cracking step buys time before the stolen secret is reused.",
+    "howItWorks": [
+      "Auditing records every read of the protected files that store account secrets, with the process that read them.",
+      "The endpoint records new processes, including tool names and their full command line arguments.",
+      "File events show hash files, wordlist files and result files being created or opened on the same host.",
+      "All of this flows into the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule links a secret file read with a cracking tool run. It also links a hash file with a wordlist file on the same host.",
+      "The tool or the files may sit outside an approved testing host. The rule then alerts with the host, account and command line."
+    ],
+    "example": "Imagine a thief who steals a locked cash box from an office. The box itself is useless until it is forced open. A guard sees someone carry the box into a workshop full of drills and files. The guard has spotted the real danger, even before the box is opened. This detection watches for the workshop and the tools, not just the theft.",
+    "takeaways": [
+      "The cracking step is what turns stolen hashes into working passwords.",
+      "Watch the read of secret stores and the tools or files that follow it on the same host.",
+      "Approved testing machines will match the pattern too, so keep a short allowlist."
+    ]
+  },
+  "objectives": [
+    "Describe the relationship between a credential dump and the cracking step that follows",
+    "Name the file, process and command line telemetry that reveals hash analysis activity",
+    "Explain why hash and wordlist file pairs on one host are a strong combined signal",
+    "Identify the accounts and hosts where cracking tools are legitimately used",
+    "Recognise the credential types whose theft most often leads to cracking",
+    "Plan response actions that contain the blast radius before cracked passwords are reused"
+  ],
+  "techniqueId": "t1110-002",
+  "detectsTechniques": [
+    "t1110-002"
+  ],
+  "dataSources": [
+    "Windows file access auditing on the system credential database and registry hive files, with the reading process recorded",
+    "Sysmon event 1 process creation including image, parent image and full command line for hash analysis utilities",
+    "Sysmon event 11 file creation events for hash files, wordlists, pot files and cracked output in user writable directories",
+    "Linux auditd file watch records on the shadow password file with the reading process and account",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is a read of a credential store followed within a short window by execution of a hash analysis tool, or by the appearance of a hash file and a wordlist file on the same host, especially where the account doing so is not an approved testing account. The fields that must be correlated are the accessed file path, the reading process image and its signature, the user account, the command line arguments naming a hash file or wordlist, and the resulting output files. The benign case is a sanctioned penetration test or forensic examination run from a dedicated workstation by a named operator with signed tooling and a documented engagement, so a crack attempt on a production server, by a service account, or with output written to a temporary directory is what distinguishes the malicious case.",
+  "pseudoQuery": "# title: Credential Store Read Followed By Hash Analysis Tool Execution\n# logsource:\n#   product: windows\n# detection:\n#   selection_tool:\n#     Image|endswith: ['\\\\hashcat.exe', '\\\\john.exe', '\\\\mimikatz.exe']\n#   selection_files:\n#     CommandLine|contains: ['--wordlist', '-w ', '.potfile', '.txt']\n#   selection_read:\n#     EventType: 'file_access'\n#     TargetFilename|contains: ['\\\\config\\\\SAM', '\\\\config\\\\SYSTEM', '\\\\ntds.dit']\n#   filter_appsec:\n#     User|startswith: 'svc-'\n#   condition: (selection_tool and selection_files) or selection_read\n# level: high",
+  "falsePositives": [
+    "An authorised penetration test using a documented engagement letter and tooling launched from a dedicated testing workstation",
+    "Digital forensics or incident response work that extracts and analyses password hashes from an acquired image",
+    "Password auditing by the identity team to find weak service account passwords in a scheduled review",
+    "Backup software with privileged rights that opens registry hive files to copy them as part of a system state backup"
+  ],
+  "tuningNotes": "Build an explicit allowlist of testing and forensics hosts and accounts, and filter on host group plus tool hash rather than tool name, since names are trivially changed. Keep the credential store read branch of the rule active on all servers, because only backup and security tooling should ever open those files there. Baseline which scheduled jobs read the credential database so you can filter them by parent process and service account. Filtering approved testing hosts means an attacker who operates from a compromised testing machine will be missed, so review that host group separately with its own higher scrutiny rules.",
+  "severity": "high"
+}

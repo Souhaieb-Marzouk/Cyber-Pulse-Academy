@@ -1,0 +1,106 @@
+{
+  "id": "det0268",
+  "type": "detection",
+  "title": "Detect Archiving via Library (T1560.002)",
+  "shortTitle": "Detect Archiving via Library (T1560.002)",
+  "externalId": "DET0268",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects collection and staging activity where an adversary compresses stolen files into an archive before exfiltration. T1560.002 covers archiving performed through a software library inside an existing process instead of a separate command line tool, which removes the obvious child process that analysts normally pivot on. The detection depends on file creation and process access telemetry that records new archive files, the image that created them, and the user context behind the write. In practice it fails most often because backup agents, log rotation, and software deployment tools create archives constantly on legitimate business schedules, so the rule has to be anchored on scripting interpreters and on archive files written into user-writable staging directories.",
+  "tags": [
+    "collection",
+    "archive",
+    "staging",
+    "windows",
+    "file integrity",
+    "t1560.002"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Archiving via Library (T1560.002)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0268/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Archiving via Library (T1560.002) - EASY",
+      "path": "exercises/det0268/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Archiving via Library (T1560.002) - MEDIUM",
+      "path": "exercises/det0268/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Archiving via Library (T1560.002) - HARD",
+      "path": "exercises/det0268/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Archiving via Library (T1560.002) - EXTREMELY HARD",
+      "path": "exercises/det0268/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for the moment when files on a computer are packed into one compressed archive. It catches this even when the packing is done by code running inside another program. An archive is a single file that holds many files, and it is a common way to move stolen data quietly.",
+    "whyItMatters": "Attackers rarely steal files one by one. They gather the files they want and pack them into one archive first. That archive is small, easy to move, and easy to hide. If you can spot the packing, you can stop the theft before any data leaves your network. This detection gives you that early warning.",
+    "howItWorks": [
+      "A logging agent records every new file that appears on the computer. This is called file creation monitoring.",
+      "The detection watches for new files whose names end in known archive extensions, such as .zip, .7z, .rar or .tar.",
+      "It then looks at which program created that file. The image field tells you the program name and its full path.",
+      "It flags archives created by scripting interpreters, because those programs rarely need to compress files.",
+      "It checks where the archive was written. Folders for temporary data and public shares are far more suspicious than a backup folder.",
+      "An analyst receives an alert that lists the archive, the program that made it, and the account behind it."
+    ],
+    "example": "Think of a post room in a large office. Every day, clerks collect letters and put them in boxes for the post van. That is normal. Now imagine one clerk walks through the whole building, gathers documents from every desk, and packs them into a single box at midnight. The box itself is not the crime. The strange gathering is the clue.",
+    "takeaways": [
+      "Staging data into one archive is an early sign of theft, long before anything leaves the network.",
+      "A library call inside a running program leaves fewer traces than a separate compression tool.",
+      "You must pair the new archive file with the program and the account that created it, or the alert means little."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries archive collected data before exfiltration and how T1560.002 differs from command line archiving.",
+    "Identify which telemetry fields prove that an archive was created by a script host rather than a backup agent.",
+    "Build a baseline of legitimate archive creation so that normal business compression stops generating alerts.",
+    "Recognise suspicious destination folders such as temp paths, staging shares and profile directories.",
+    "Describe the limitations of file creation logging when an archive is written through a library call inside a trusted process."
+  ],
+  "techniqueId": "t1560-002",
+  "detectsTechniques": [
+    "t1560-002"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create, which records the new archive path, the creating image and the user",
+    "Windows Security event 4688 process creation with command line auditing, used to resolve the parent lineage of the archiving process",
+    "Sysmon event 1 process creation including image, parent image and command line for the host that writes the archive",
+    "File access auditing or endpoint file integrity monitoring on sensitive directories, showing which accounts read the source files"
+  ],
+  "logic": "The pattern is a new file with an archive extension written by a process image that has no legitimate reason to compress data, most often a scripting interpreter such as a PowerShell or Python host. The fields that have to be correlated are the created file path and extension from the file create event, the image and process identifier that performed the write, the parent image that launched it, and the user account. What separates the malicious case from the benign one is lineage and destination: a backup service runs as a service account on a schedule and writes into a backup share, while staging activity writes into a temporary folder or profile path and is launched from a script host or a document reader. When archive creation cannot be separated from the library call, correlate with file access reads of credential or document directories from the same process identifier inside a short window, because that combination is far more meaningful than the archive alone.",
+  "pseudoQuery": "# title: Archive File Created by Script Host into Staging Path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - .zip\n#       - .7z\n#       - .rar\n#       - .tar\n#       - .gz\n#   selection_image:\n#     Image|endswith:\n#       - \\powershell.exe\n#       - \\pwsh.exe\n#       - \\python.exe\n#       - \\rundll32.exe\n#   filter_backup:\n#     Image|contains: backup\n#   condition: selection_file and selection_image and not filter_backup\n# level: medium",
+  "falsePositives": [
+    "Endpoint management or software deployment agents that package collected log bundles into zip files from a temporary working directory",
+    "PowerShell based automation scripts that compress build artifacts or reports on a schedule as part of a release pipeline",
+    "Support staff using a signed script to gather diagnostic files from a user profile before sending them to a ticketing system",
+    "Security scanning tools that archive quarantined samples into a local store while a service account runs them"
+  ],
+  "tuningNotes": "Start by baselining which images create archives on each asset group, then add a filter that whitelists the exact image paths and service accounts of your backup, deployment and monitoring agents rather than broad keywords. Scope the rule to servers holding regulated or credential data, and to workstations where script hosts rarely compress anything; that removes most of the noise while keeping collection coverage where it matters. You lose visibility into archiving on general office machines and into archives written by an agent that has been abused, so review the whitelist each quarter and keep a second lower severity rule that simply counts archive creation per host to catch volume anomalies.",
+  "severity": "medium"
+}

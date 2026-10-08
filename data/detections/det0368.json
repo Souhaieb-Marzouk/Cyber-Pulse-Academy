@@ -1,0 +1,105 @@
+{
+  "id": "det0368",
+  "type": "detection",
+  "title": "Hardware Supply Chain Compromise Detection via Host Status & Boot Integrity Checks",
+  "shortTitle": "Hardware Supply Chain Compromise Detection via Host Statu...",
+  "externalId": "DET0368",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers the host-visible portion of a hardware supply chain compromise, where tampered firmware, an added expansion card, or a modified boot loader is present before the operating system trusts anything on disk. Detection relies on measurements and attestation rather than on file scanning: Trusted Platform Module Platform Configuration Register values compared with a known good baseline, Secure Boot state and signature database changes, firmware update events from the management controller, and inventory deltas in the hardware inventory table. The technique is hard to detect because the implant sits below the operating system and can hide itself from ordinary agents. Practical failure modes are an unmeasured fleet, no stored baseline, and inventory data that is refreshed only during long maintenance cycles.",
+  "tags": [
+    "firmware",
+    "supply chain",
+    "secure boot",
+    "integrity monitoring",
+    "hardware"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Hardware Supply Chain Compromise Detection via Host Status & Boot Integrity Checks",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0368/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Hardware Supply Chain Compromise Detection via Host Status & Boot Integrity Checks - EASY",
+      "path": "exercises/det0368/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Hardware Supply Chain Compromise Detection via Host Status & Boot Integrity Checks - MEDIUM",
+      "path": "exercises/det0368/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Hardware Supply Chain Compromise Detection via Host Status & Boot Integrity Checks - HARD",
+      "path": "exercises/det0368/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Hardware Supply Chain Compromise Detection via Host Status & Boot Integrity Checks - EXTREMELY HARD",
+      "path": "exercises/det0368/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A hardware supply chain attack means a device was changed before you received it or before it booted. This detection compares what a computer reports about its own boot process and hardware against a record of what it should look like. It catches unexpected firmware, boot settings and device changes.",
+    "whyItMatters": "Code that runs before the operating system can hide from normal security tools. Standard endpoint agents start later, so they may never see it. This makes the boot measurement record one of the few trustworthy sources you have. Reviewing it also helps you notice a device that was tampered with in transit.",
+    "howItWorks": [
+      "Collect the boot measurement values that the Trusted Platform Module records during start up.",
+      "Compare those values with a stored baseline for the same hardware model and firmware version.",
+      "Collect Secure Boot state changes, including edits to the allowed signature database.",
+      "Collect firmware update events and device inventory changes from the management controller.",
+      "Alert when measurements do not match the baseline, or when Secure Boot is turned off, or when an unknown device appears.",
+      "Attach the asset record so the analyst can see when the machine was received and who last serviced it."
+    ],
+    "example": "Think of a hospital sign in sheet at the theatre door. Every person who enters writes their name and staff number. If the sheet later shows a name that no manager recognises, you check the door camera. The boot measurements are that sheet for your computer.",
+    "takeaways": [
+      "Firmware and boot code sit below your endpoint agents, so you need measurements, not scans.",
+      "A baseline of known good values is the whole detection; without one you can only report changes.",
+      "Secure Boot being switched off is a strong signal on its own and deserves a look."
+    ]
+  },
+  "objectives": [
+    "Describe how a hardware supply chain compromise differs from a software supply chain attack.",
+    "Explain what a boot measurement is and why it can be trusted more than an agent report.",
+    "Collect and store a baseline of boot measurements for each hardware model you own.",
+    "Investigate an unexpected Secure Boot configuration change on a server.",
+    "Assess which parts of your fleet produce no integrity telemetry at all."
+  ],
+  "techniqueId": "t1195-003",
+  "detectsTechniques": [
+    "t1195-003"
+  ],
+  "dataSources": [
+    "Trusted Platform Module Platform Configuration Register values collected at boot by an attestation agent",
+    "UEFI Secure Boot configuration state and signature database changes recorded in firmware event logs",
+    "Firmware update and flash events from the baseboard management controller audit log",
+    "Hardware inventory change records from the asset management system, including expansion card serial numbers",
+    "Windows Security event 4697 service installation when it appears on a host with a mismatched boot measurement"
+  ],
+  "logic": "The pattern is disagreement between what a host says about its own boot chain and what the stored baseline says it should be. Telemetry shows a boot measurement value that does not match the model baseline, or a Secure Boot state transition from enabled to disabled, or a firmware event log entry for a flash operation outside a maintenance window. The fields to correlate are the asset identifier, the hardware model and firmware version, and the measured values, because a firmware update legitimately changes all of them at once. What separates malicious from benign is timing and authorisation: an approved update during a change window with a matching vendor version is expected, while an unexplained measurement change on a running server with no ticket is not.",
+  "pseudoQuery": "# title: Boot Measurement or Secure Boot Change Without Approved Firmware Update\n# logsource:\n#   product: windows\n# detection:\n#   selection_boot:\n#     EventType:\n#       - 'BootMeasurementMismatch'\n#       - 'SecureBootDisabled'\n#   selection_firmware:\n#     EventType: 'FirmwareFlash'\n#   filter_change_window:\n#     ApprovedChange: 'true'\n#     VendorSignatureValid: 'true'\n#   condition: (selection_boot or selection_firmware) and not filter_change_window\n# level: high",
+  "falsePositives": [
+    "An approved vendor firmware update delivered by the hardware management platform during a planned maintenance window",
+    "A motherboard replacement by a repair partner that legitimately changes the measured boot values for that asset",
+    "Secure Boot temporarily disabled by an engineer to boot a signed recovery image on a failed server"
+  ],
+  "tuningNotes": "Start by exporting a baseline per hardware model and firmware revision, and treat every difference as a ticket until the baseline is complete, because early noise is mostly from unrecorded model variation. Filter on change management approval and on valid vendor signatures to suppress planned firmware work, and scope first to servers and to laptops that handle regulated data. Do not filter out Secure Boot disabled events on servers, because the coverage you lose is exactly the case an attacker wants. The blind spot you cannot tune away is hardware that reports no measurements at all, so track that count as a separate metric.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0067",
+  "type": "detection",
+  "title": "Detection Strategy for Ignore Process Interrupts",
+  "shortTitle": "Detection Strategy for Ignore Process Interrupts",
+  "externalId": "DET0067",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects processes that deliberately ignore or mask termination signals in order to keep running, a concealment technique often used so that a program survives a service stop, a user logoff or an automated cleanup routine. The technique matters because it defeats the first response action most operators and automated tooling reach for, and it lets an adversary keep persistence or collection activity alive quietly. The telemetry that supports it is process creation with command line and image details, records of signal delivery or process termination attempts that were refused, and runtime state such as a process whose parent has exited while it keeps executing. Detection fails when legitimate daemons, watchdog agents and workload managers are also designed to ignore polite shutdown requests, so the rule must key on which image ignores which signal and on how that image arrived on the host.",
+  "tags": [
+    "linux",
+    "defence-evasion",
+    "process-behaviour",
+    "persistence",
+    "host-monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Ignore Process Interrupts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0067/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Ignore Process Interrupts - EASY",
+      "path": "exercises/det0067/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Ignore Process Interrupts - MEDIUM",
+      "path": "exercises/det0067/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Ignore Process Interrupts - HARD",
+      "path": "exercises/det0067/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Ignore Process Interrupts - EXTREMELY HARD",
+      "path": "exercises/det0067/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that refuse to be closed when the system asks them to stop. On Linux and other systems you can send a program a polite stop request. Some programs hide from that request so they keep running. The detection watches for that behaviour and for where the program came from.",
+    "whyItMatters": "Responders stop a suspicious program first, then investigate. If the program ignores the stop, it can continue collecting data or holding a connection. Automated cleanup is also defeated, so the problem grows over time. Noticing the refusal points you to a program that is trying to stay hidden.",
+    "howItWorks": [
+      "A host sensor records each new process, its command line and the account that started it.",
+      "It records what happens when something tries to stop that process, including the signal used.",
+      "It notes whether the parent process has exited while the child keeps running.",
+      "A SIEM (Security Information and Event Management system) stores these records together.",
+      "The rule checks which programs ignored a stop request and how they were installed.",
+      "An unexpected program that ignores a signal, or survives its parent, raises the alert."
+    ],
+    "example": "Think of a guest in a hotel who hangs a sign saying do not disturb and never leaves. Housekeeping cannot clean the room, and the front desk cannot check anyone else in. A normal guest removes the sign and goes out. The sign that stays up all week is the clue.",
+    "takeaways": [
+      "Refusing a stop request is a deliberate act that keeps malicious code alive.",
+      "You need both the signal record and the process details to judge the case.",
+      "Many legitimate services behave this way, so provenance of the program decides the outcome."
+    ]
+  },
+  "objectives": [
+    "Explain how ignoring or masking termination signals helps a process stay resident.",
+    "Identify the fields that show an image, its parent and the signal it refused.",
+    "Distinguish a service designed to ignore shutdown from an unexpected program doing so.",
+    "Use file provenance and command line detail to rank alerts before escalation.",
+    "Recognise the response actions this technique defeats so that containment steps are adapted."
+  ],
+  "techniqueId": "t1564-011",
+  "detectsTechniques": [
+    "t1564-011"
+  ],
+  "dataSources": [
+    "Linux process execution telemetry with the command line, effective user identifier and parent process identifier",
+    "Process signal records showing a termination or interrupt signal delivered to a process and the outcome",
+    "Host runtime inventory that reports running processes whose parent has exited and which have no controlling terminal",
+    "File integrity monitoring or package inventory showing the path, owner and installation source of the executable",
+    "Container runtime or supervisor logs showing start arguments and restart policies applied to a workload"
+  ],
+  "logic": "The detection looks for a process that receives a termination request but remains in the process table, then checks whether that behaviour is expected for the image involved. The fields that must be joined are the target process identifier, its image path and command line, the signal or stop request recorded against it, and the parent process state at the time. The benign case is well known system daemons, container entrypoints and monitoring agents that trap shutdown signals so they can finish writing state, and these follow a stable pattern: they are installed from packages, they are started by the service manager, and they exit within a grace period when the supervisor escalates. The malicious case is a process started by a shell or a script interpreter, running from a temporary or user writable directory, that refuses the polite signal, survives its parent, holds an outbound network connection, and shows no package ownership, especially on a host where that image has never been seen before.",
+  "pseudoQuery": "# title: Unexpected Process Ignoring Termination Signal and Outliving Parent\n# logsource:\n#   product: linux\n#   category: process_creation\n# detection:\n#   selection:\n#     Image|contains:\n#       - '/tmp/'\n#       - '/var/tmp/'\n#       - '/dev/shm/'\n#   selection_signal:\n#     SignalReceived|contains: 'SIGTERM'\n#     ProcessState: 'running'\n#   filter_managed:\n#     Image|startswith:\n#       - '/usr/lib/systemd/'\n#       - '/opt/monitoring/'\n#   condition: selection and selection_signal and not filter_managed\n# level: medium",
+  "falsePositives": [
+    "Container entrypoint scripts that trap the terminate signal so the application can flush buffers before shutdown",
+    "Monitoring and backup agents that ignore a polite stop request and only exit when the supervisor escalates to a forced kill",
+    "Database engines and message brokers that finish in flight transactions after a termination request and therefore appear to keep running",
+    "Long running batch jobs started by an operations team that are intentionally detached from the terminal and survive their parent shell"
+  ],
+  "tuningNotes": "Build a list of images that legitimately trap shutdown signals in your estate, including their allowed paths and the supervisor that starts them, and filter those out before alerting. Focus the rule on executables in temporary and world writable directories and on hosts that do not normally run custom code, which keeps the signal ratio high. The coverage you lose is a signal ignoring process that lives in a legitimate directory, so add a companion rule that alerts when a known image runs from an unexpected path or when a package owned binary has a modified hash.",
+  "severity": "medium"
+}

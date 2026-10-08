@@ -1,0 +1,107 @@
+{
+  "id": "det0334",
+  "type": "detection",
+  "title": "Detection Strategy for T1525 – Implant Internal Image",
+  "shortTitle": "Detection Strategy for T1525 – Implant Internal Image",
+  "externalId": "DET0334",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects implanting an internal image (T1525), where an adversary uploads a container image or machine image into a registry or cloud account the victim organisation already trusts, then launches workloads from it so the activity looks like a normal internal deployment. The telemetry is control plane and registry oriented: image push events, new image layer digests, registry authentication, image build or import jobs and the subsequent instance or pod creation using that image. Because the technique abuses trusted internal sources rather than external downloads, it defeats rules that only look outward. It fails in practice when push logging is not enabled, when shared build accounts are used by many teams, and when the image is modified in place without a registry event.",
+  "tags": [
+    "mitre t1525",
+    "cloud",
+    "container registry",
+    "supply chain",
+    "image integrity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1525 – Implant Internal Image",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0334/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1525 – Implant Internal Image - EASY",
+      "path": "exercises/det0334/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1525 – Implant Internal Image - MEDIUM",
+      "path": "exercises/det0334/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1525 – Implant Internal Image - HARD",
+      "path": "exercises/det0334/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1525 – Implant Internal Image - EXTREMELY HARD",
+      "path": "exercises/det0334/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for new software images added to your own private library. An image is a saved copy of a whole system that you can start again and again. Attackers put their own image inside your library, then start it as if it were yours.",
+    "whyItMatters": "Your teams trust images that come from your own library. A malicious image there spreads to every machine that uses it. It also looks like ordinary deployment work in your records. Narrowing this gap stops an attacker from hiding behind your own supply chain.",
+    "howItWorks": [
+      "Your image library records every upload, who did it and when.",
+      "The detection looks for uploads from accounts or networks that do not normally publish images.",
+      "It compares the new image with the previous version of the same name to see unexpected changes.",
+      "It records where the image came from, such as a build system or a manual import.",
+      "It then watches for machines or workloads started from that image within a short time.",
+      "An upload followed by new workloads, from an unusual publisher, becomes one grouped alert."
+    ],
+    "example": "Think of a company cafeteria that only serves food from its own kitchen. Nobody checks the food again, because the kitchen is trusted. If a stranger in a kitchen coat adds a dish to the counter, everyone still eats it. The person checking who entered the kitchen is your best control.",
+    "takeaways": [
+      "Trusted internal sources need their own monitoring, because nobody re-checks them.",
+      "An image upload is only interesting when you link it to who published it and what used it.",
+      "Compare image versions, because a small change to a familiar name is easy to miss."
+    ]
+  },
+  "objectives": [
+    "Explain how a trusted internal image becomes an execution path",
+    "List the registry and cloud control plane events that record an image being published",
+    "Correlate an image publish event with the workloads created from that image",
+    "Use image digests and layer history to spot unexpected changes to a familiar name",
+    "Describe why rules that only watch external downloads miss this technique"
+  ],
+  "techniqueId": "t1525",
+  "detectsTechniques": [
+    "t1525"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for image and container registry publish operations including the caller identity",
+    "Container registry push and pull audit records with repository name, image digest and authenticated user",
+    "Cloud audit logs for instance launch or image import operations showing the image identifier used",
+    "Kubernetes audit events recording workload creation with the referenced image and namespace",
+    "Build pipeline logs recording which job produced each image tag and digest"
+  ],
+  "logic": "The pattern is an image publish event, an image import or a repository tag change performed by an identity or source network that has no history of publishing, followed within a short window by the creation of workloads that reference the new image digest. The fields to correlate are the caller identity, the source address, the repository and tag, the resulting image digest, and the compute resources launched from that digest. The benign case is a continuous integration service account publishing on a schedule from a known build network, with a commit reference attached and workloads deployed through the normal pipeline. The malicious case is a human identity or an unfamiliar access key pushing outside change windows, a digest that has no matching build record, and workloads started by a different identity than usual from the same tag.",
+  "pseudoQuery": "# title: Image Published by Unusual Identity Then Launched\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName: ['PutImage', 'BatchCheckLayerAvailability', 'InitiateLayerUpload', 'CompleteLayerUpload']\n#   filter_pipeline:\n#     userIdentity.arn|contains: 'role/ci-build'\n#     sourceIPAddress: '10[.]40[.]0[.]0/16'\n#   condition: selection and not filter_pipeline\n# level: high",
+  "falsePositives": [
+    "Platform teams performing a manual hotfix image push during an incident from a jump host",
+    "Migration projects that import prebuilt vendor images into a private registry as part of onboarding",
+    "Developers in a sandbox account who build and push images directly while prototyping",
+    "Disaster recovery exercises that re-publish a known-good image to a standby region",
+    "Third-party software vendors delivering an appliance image through an agreed delivery account"
+  ],
+  "tuningNotes": "First enable and retain registry push logging with caller identity and source address for every private repository, because without it the rule cannot run at all. Baseline which identities and networks publish to which repositories, then allow only those pairs and alert on any deviation, including outside change windows. Add a filter for the approved vendor delivery accounts after confirming them with the platform team. The coverage you lose by allow listing publisher identities is a compromised build account, which then requires a companion rule on build pipeline configuration changes and on tags that have no matching build record.",
+  "severity": "high"
+}

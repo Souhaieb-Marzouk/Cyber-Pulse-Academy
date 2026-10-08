@@ -1,0 +1,107 @@
+{
+  "id": "det0836",
+  "type": "detection",
+  "title": "Detection of Malvertising",
+  "shortTitle": "Detection of Malvertising",
+  "externalId": "DET0836",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Malvertising, the resource development technique in which an adversary purchases or seeds advertising space to deliver malicious content to a chosen audience. It matters because the user does not need to be tricked by a message: they visit a legitimate site, click a normal looking advertisement, and land on attacker infrastructure, which makes the initial access path extremely hard to block by sender reputation alone. Detection relies on web proxy logs for suspicious redirect chains and ad network referrals, DNS logs for first seen or algorithmically generated domains, endpoint telemetry for script and file writes after a browser session, and threat intelligence feeds for known malicious advertising infrastructure. It fails most often because advertising is a legitimate business channel, so blocking broadly harms operations, and because the malicious landing page is often live for only a few hours.",
+  "tags": [
+    "resource development",
+    "mitre attack",
+    "malvertising",
+    "web proxy",
+    "redirect chain",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Malvertising",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0836/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Malvertising - EASY",
+      "path": "exercises/det0836/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Malvertising - MEDIUM",
+      "path": "exercises/det0836/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Malvertising - HARD",
+      "path": "exercises/det0836/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Malvertising - EXTREMELY HARD",
+      "path": "exercises/det0836/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for malicious advertising, often called malvertising. An attacker pays for ad space and puts a harmful link inside the advert. The detection watches what a browser does after it loads an advert. It looks for sudden redirects, new domains, and file downloads.",
+    "whyItMatters": "Users trust well known websites, so they click adverts without caution. The advert itself may be harmless at first and only turn harmful later. This makes the attack hard to spot and hard to blame on the user. Catching the redirect chain gives you a block point and a domain to hunt. It also protects people who did nothing wrong.",
+    "howItWorks": [
+      "The proxy logs each web request, including the referring page and the destination address.",
+      "The rule builds a chain of requests from one page visit within a short time window.",
+      "Several redirects through advertising domains ending at a new or low reputation domain score highly.",
+      "Endpoint logs add the next step, such as a script host running or a file appearing in a download folder.",
+      "Known advertising and analytics domains are filtered so that normal browsing is not flagged.",
+      "Remaining chains are grouped by domain and sent to an analyst for blocking."
+    ],
+    "example": "Think of a market stall with a sign that looks like a well known brand. Shoppers trust the sign and walk over. Behind the stall is a narrow alley, then a different shop that sells stolen goods. The sign was never the crime. The path from the trusted sign to the hidden shop is what you need to trace, and that path is exactly what this detection follows.",
+    "takeaways": [
+      "Malvertising abuses trust in normal websites, so sender blocking alone will not stop it.",
+      "The valuable evidence is the redirect chain and the first time a domain is seen.",
+      "Speed matters because malicious advertising infrastructure is often short lived."
+    ]
+  },
+  "objectives": [
+    "Define malvertising and explain why it defeats reputation based email controls",
+    "Reconstruct browser redirect chains from proxy and DNS telemetry",
+    "Identify first seen domains and low reputation advertising destinations",
+    "Correlate a redirect with the endpoint activity that follows it",
+    "Plan a response that blocks the chain and hunts for other users who visited it"
+  ],
+  "techniqueId": "t1583-008",
+  "detectsTechniques": [
+    "t1583-008"
+  ],
+  "dataSources": [
+    "Web proxy logs with full URL, referrer header, user agent, and authenticated user for each request",
+    "DNS resolver query logs including first seen timestamps for external domains",
+    "Sysmon event 1 process creation where the parent image is a browser process",
+    "Sysmon event 11 file creation in user download directories following a browser session",
+    "Threat intelligence feeds listing known malicious advertising and redirect infrastructure"
+  ],
+  "logic": "The pattern is a browser request chain that passes through advertising or redirect infrastructure and ends at a domain with no history in your environment, followed by script execution or a file write originating from the browser. The fields to correlate are the user, the source host, the referrer URL, the sequence of destination domains with timestamps, the first seen date of the final domain, and the child process or file created afterwards. Benign cases are ordinary advertising, analytics, and content delivery redirects from well known networks, which appear frequently and resolve to established domains. The malicious case is a chain of two or more redirects to a first seen domain, often with a randomised subdomain, followed within seconds by a script host or archive download.",
+  "pseudoQuery": "# title: Browser Redirect Chain To First Seen Domain With Script Execution\n# logsource:\n#   product: network\n#   category: proxy\n# detection:\n#   selection:\n#     Referrer|contains:\n#       - 'doubleclick'\n#       - 'adservice'\n#       - 'adnxs'\n#   filter:\n#     DestinationDomain|endswith:\n#       - '.example[.]com'\n#       - '.googleusercontent[.]com'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Legitimate advertising and analytics platforms that use long redirect chains across multiple domains",
+    "Affiliate marketing links that route a user through tracking domains before the destination shop",
+    "Single sign on and payment flows that redirect through several third party domains",
+    "Security awareness training pages that intentionally redirect users to simulated malicious sites"
+  ],
+  "tuningNotes": "Baseline the advertising and content delivery domains seen in normal browsing and allowlist them by registrable domain, not by full URL, because subdomains rotate constantly. Raise severity only when a first seen domain is followed by browser spawned process activity or a download, and keep the redirect only version at low severity for hunting. Scope the rule to finance, executive, and administrative user groups where the impact is highest. Filtering ad networks protects against alert fatigue but blinds you to a malicious advert served from a legitimate network, so pair the rule with user reporting and periodic review of first seen domains by category.",
+  "severity": "medium"
+}

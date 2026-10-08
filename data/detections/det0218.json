@@ -1,0 +1,105 @@
+{
+  "id": "det0218",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow across OS platforms.",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow across OS pl...",
+  "externalId": "DET0218",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1574, Hijack Execution Flow, the family of techniques that make a legitimate program load attacker-controlled code by abusing the order or the configuration in which the operating system resolves its dependencies. Detection is built on two joined signals: a file appearing in a directory that is searched before the real location, and load telemetry showing a trusted program resolving that dependency from a non-standard path with a weak signature. It fails mainly because the same search order behaviour is normal on developer machines and immediately after software updates.",
+  "tags": [
+    "persistence",
+    "privilege escalation",
+    "execution flow",
+    "dll",
+    "search order"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow across OS platforms.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0218/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow across OS platforms. - EASY",
+      "path": "exercises/det0218/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow across OS platforms. - MEDIUM",
+      "path": "exercises/det0218/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow across OS platforms. - HARD",
+      "path": "exercises/det0218/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow across OS platforms. - EXTREMELY HARD",
+      "path": "exercises/det0218/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at a trick where a real program is made to load the wrong helper file. The operating system looks for helper files in a fixed order. An attacker puts their own file earlier in that order. The real program then loads the attacker's file by mistake.",
+    "whyItMatters": "The attacker does not need to break into the program itself. The program trusts the helper file and loads it. The activity therefore looks like normal use of trusted software. This can give lasting access on a machine. It also happens on several operating systems, so one pattern covers a lot of ground.",
+    "howItWorks": [
+      "File monitoring records new files written to folders that programs search for helper files.",
+      "Library load records show which file path each program actually loaded.",
+      "The rule checks whether the loaded path sits outside the program's own folder.",
+      "It checks whether the file appeared shortly before the program started.",
+      "It compares the signature and the owner of the helper file with the program that loaded it.",
+      "A load from a writable folder by a program that usually loads from a trusted folder raises the alert."
+    ],
+    "example": "Think of a cloakroom that hangs coats in numbered slots. If somebody puts a coat into slot one, the next guest is handed that coat instead of their own. The system worked exactly as designed. Only the order was abused.",
+    "takeaways": [
+      "The operating system resolves helper files in a fixed search order.",
+      "Writing a file earlier in that order changes what a trusted program loads.",
+      "Timing, path, and signature together separate abuse from normal updates."
+    ]
+  },
+  "objectives": [
+    "Describe what a search order is and how an attacker can place a file earlier in it.",
+    "Identify telemetry that records dependency load paths on Windows, Linux, and macOS.",
+    "Explain the difference between a legitimate update and a planted helper file.",
+    "Correlate file creation time with the start of the program that loaded the file.",
+    "Choose which directories deserve write monitoring to keep the rule focused."
+  ],
+  "techniqueId": "t1574",
+  "detectsTechniques": [
+    "t1574"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create for files written to application directories or user writable folders that are searched before system paths",
+    "Sysmon event 7 image load showing the resolved module path and the loading process",
+    "Linux auditd or process execution logs showing library resolution with the full path, plus file integrity monitoring of system library directories",
+    "Code signing, notarisation, or file hash reputation data for the loaded file and for the loading binary"
+  ],
+  "logic": "The detection hinges on a mismatch between where a dependency should come from and where it actually came from. The fields to correlate are the loaded file path, the loading process image, the file creation or modification time, and the file's signature or hash. A malicious case shows a file created or modified minutes before a trusted program started, in a directory that the user can write to and that comes earlier in the resolution order than the legitimate copy. Benign cases come from installing software, updating a shared library, or running from a build output folder, where the file is newer than the binary but was written by a signed installer.",
+  "pseudoQuery": "# title: Trusted Program Loads Module From User Writable Directory\n# logsource:\n#   product: windows\n#   category: image_load\n# detection:\n#   selection:\n#     EventID: 7\n#     Image|endswith:\n#       - '\\explorer.exe'\n#       - '\\svchost.exe'\n#     ImageLoaded|contains:\n#       - '\\Users\\Public\\'\n#       - '\\AppData\\'\n#       - '\\Temp\\'\n#   filter_signed:\n#     Signed: 'true'\n#   condition: selection and not filter_signed\n# level: high",
+  "falsePositives": [
+    "Application installers that place a shared library in a user profile folder and register it for the current user only",
+    "Developer environments that intentionally load build output libraries from a project directory before the installed version",
+    "Portable applications that ship their own copy of a common library and load it from the folder they were extracted into",
+    "Remote support sessions where a temporary library is expanded into a writable folder for the length of the session"
+  ],
+  "tuningNotes": "Restrict the rule to a short list of high value binaries that should never load code from user writable paths, and keep that list small so it stays trustworthy. Exclude the build and package output directories your engineering teams own, by path and by signer. Where you can, compare the loaded file hash against a known-good inventory instead of relying on the path alone. Narrowing to a fixed binary list loses coverage of hijacks against less common vendor applications, so maintain a second rule limited to system directories and review it monthly.",
+  "severity": "high"
+}

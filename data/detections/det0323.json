@@ -1,0 +1,108 @@
+{
+  "id": "det0323",
+  "type": "detection",
+  "title": "Detection Strategy for T1542.002 Pre-OS Boot: Component Firmware",
+  "shortTitle": "Detection Strategy for T1542.002 Pre-OS Boot: Component F...",
+  "externalId": "DET0323",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects tampering with component firmware, the pre-OS boot behaviour recorded in the assignment as t1542-002, where an attacker modifies the low level software of a device such as a network adapter, a storage controller or the system board so that code runs below the operating system. Firmware implants survive disk wipes, operating system reinstallations and most endpoint agents, which makes early detection far cheaper than removal. The evidence is limited but specific: execution of firmware update utilities outside maintenance windows, firmware integrity measurement records, and version or hash changes reported by the platform management interface. The technique is genuinely rare in most estates, so the challenge is not noise on a per event basis but building enough visibility to know what normal firmware looks like.",
+  "tags": [
+    "firmware",
+    "pre-os boot",
+    "persistence",
+    "integrity measurement",
+    "hardware",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1542.002 Pre-OS Boot: Component Firmware",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0323/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1542.002 Pre-OS Boot: Component Firmware - EASY",
+      "path": "exercises/det0323/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1542.002 Pre-OS Boot: Component Firmware - MEDIUM",
+      "path": "exercises/det0323/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1542.002 Pre-OS Boot: Component Firmware - HARD",
+      "path": "exercises/det0323/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1542.002 Pre-OS Boot: Component Firmware - EXTREMELY HARD",
+      "path": "exercises/det0323/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Firmware is small software stored inside a hardware chip. It starts a device before the operating system loads. This detection looks for signs that a device chip was rewritten by someone who should not be doing that.",
+    "whyItMatters": "Firmware runs before your security tools start, so it can hide deeply. Reinstalling the operating system may not remove it. Firmware updates are rare events, which makes an unexpected one easy to review. Catching the change early avoids a long and costly rebuild of the hardware.",
+    "howItWorks": [
+      "Firmware update utilities run on a computer or connect to a device to write new chip software.",
+      "Some platforms measure firmware at each boot and record a fingerprint of what was loaded.",
+      "Your central logging platform collects these records from servers and managed clients.",
+      "The rule looks for firmware update tools running outside a planned maintenance window.",
+      "It compares the reported firmware version and hash with the value stored in your hardware inventory.",
+      "A version change without a matching change record also counts. So does a failed measurement check. Both raise an alert."
+    ],
+    "example": "Think of a building where a locksmith changes the lock cylinders once a year. Each change is booked and logged. An unbooked locksmith visit then appears in the door log. Your keys no longer match the register, so you inspect every lock in the building.",
+    "takeaways": [
+      "Firmware sits below the operating system, so ordinary cleanup may not remove it.",
+      "Firmware version and integrity records are the main evidence you can collect.",
+      "Because updates are rare, an unapproved one is worth investigating every time."
+    ]
+  },
+  "objectives": [
+    "Explain what component firmware is and why it persists below the operating system",
+    "Identify the tools and platform records that reveal firmware updates",
+    "Describe how integrity measurement events detect unexpected firmware",
+    "Baseline firmware versions and hashes across your hardware inventory",
+    "Write a rule that compares observed firmware state with the approved baseline",
+    "Plan response steps for a suspected firmware implant, including hardware isolation"
+  ],
+  "techniqueId": "t1542-002",
+  "detectsTechniques": [
+    "t1542-002"
+  ],
+  "dataSources": [
+    "Process creation records for vendor firmware update utilities including command line, parent process and executing account",
+    "Platform firmware integrity measurement events produced by the boot process and collected by the endpoint agent",
+    "Hardware inventory and configuration management records listing approved firmware versions and hashes per device model",
+    "Out of band management controller audit logs recording firmware upload actions, source address and authenticated account"
+  ],
+  "logic": "The detection compares observed firmware state and update activity against an approved baseline. It collects two kinds of evidence: process creation for firmware update utilities, where the account, the parent process and the maintenance window are checked, and integrity measurement records from the boot process, where a hash or version that does not match the inventory entry indicates the chip content changed. The malicious case is characterised by an update performed by an interactive account outside a change window, by a utility launched from a user writable folder rather than an approved package repository, or by a boot measurement that fails while no update was recorded. Legitimate vendor updates are unattended, come from management tooling and are preceded by a change record.",
+  "pseudoQuery": "# title: Unapproved Firmware Update or Boot Integrity Mismatch\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_event:\n#     EventID: 5033\n#   selection_tool:\n#     EventID: 4688\n#     NewProcessName|contains:\n#       - fwupd\n#       - flashrom\n#       - WinFlash\n#       - AfuWin\n#   filter_change_window:\n#     SubjectUserName: svc-firmware-deploy\n#   condition: (selection_event or selection_tool) and not filter_change_window\n# level: high",
+  "falsePositives": [
+    "Vendor firmware updates pushed to a fleet by the hardware management platform during an approved maintenance window",
+    "Field engineers replacing a network card or disk controller and flashing the current approved firmware before returning the host to service",
+    "Manufacturer recall programmes that update system board firmware on affected models over several weeks",
+    "Operating system feature updates that also refresh device firmware for graphics or wireless components",
+    "Laboratory or research systems where firmware is intentionally changed as part of a documented hardware project"
+  ],
+  "tuningNotes": "Invest the effort in the baseline before enabling alerting: export firmware versions and hashes per model from your hardware inventory and your management platform, and treat any deviation as a finding rather than as noise. Allowlist the firmware deployment service account and the exact utilities it runs, by hash where possible, and route vendor scheduled update windows to a low severity queue instead of suppressing them, because an attacker who mimics the deployment account would otherwise be invisible. The security control coverage you lose by trusting the deployment account is significant, so monitor that account's authentication separately and alert on any out of band management login from a network segment that never administers hardware.",
+  "severity": "high"
+}

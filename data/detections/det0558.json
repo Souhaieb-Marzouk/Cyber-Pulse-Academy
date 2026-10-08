@@ -1,0 +1,108 @@
+{
+  "id": "det0558",
+  "type": "detection",
+  "title": "Detection Strategy for ESXi Hypervisor CLI Abuse",
+  "shortTitle": "Detection Strategy for ESXi Hypervisor CLI Abuse",
+  "externalId": "DET0558",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Command and Scripting Interpreter: ESXi Hypervisor command line abuse, where an attacker who has reached a VMware ESXi host uses its shell, its command line interface or its remote management application programming interfaces to run commands. It matters because the hypervisor sits underneath every virtual machine, so control of it means control of the workloads, the ability to disable logging, and the ability to destroy or encrypt many systems at once. The telemetry that makes it visible is ESXi shell and command line interface activity, host daemon logs for remote command execution, vSphere management interface audit events, and authentication events for the host. It fails in practice because the host logs are high volume and rarely forwarded, administrators legitimately run powerful commands, and many environments collect the management interface logs but never the hypervisor's own shell records.",
+  "tags": [
+    "execution",
+    "hypervisor",
+    "esxi",
+    "command-line",
+    "virtualisation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for ESXi Hypervisor CLI Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0558/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for ESXi Hypervisor CLI Abuse - EASY",
+      "path": "exercises/det0558/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for ESXi Hypervisor CLI Abuse - MEDIUM",
+      "path": "exercises/det0558/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for ESXi Hypervisor CLI Abuse - HARD",
+      "path": "exercises/det0558/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for ESXi Hypervisor CLI Abuse - EXTREMELY HARD",
+      "path": "exercises/det0558/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "ESXi is software that runs many virtual machines on one physical server. It has its own command line, which is a text way to give it orders. This detection looks for unusual use of those commands on the hypervisor itself.",
+    "whyItMatters": "If an attacker controls the hypervisor, they control every virtual machine on that server. They can switch off logging so nobody sees what happens next. They can also wipe or lock many systems in one action. Most companies monitor the virtual machines but forget the layer beneath them.",
+    "howItWorks": [
+      "The hypervisor keeps its own logs, including shell activity and remote commands sent from management tools.",
+      "The management server records who sent commands and which host received them.",
+      "A SIEM, which is a central system that collects and searches log events, collects both sets of logs into one place.",
+      "The rule looks for commands that change security settings, stop logging, or move files off the host.",
+      "It also watches for direct shell sign ins by accounts that normally use the management interface only.",
+      "Commands from an unexpected account, or outside the change window, raise the alert for the virtualisation team."
+    ],
+    "example": "Think of an office building where each tenant has a locked door. The building engineer holds keys to all of them, plus the power room. If someone steals the engineer's keys and enters the power room, every tenant is at risk at once. The hypervisor is that power room.",
+    "takeaways": [
+      "The hypervisor is a high value target because it sits under all the virtual machines.",
+      "Forward the hypervisor's own logs, or you will only see the management side of the story.",
+      "Commands that disable logging or change the firewall are strong signals even when the account looks normal."
+    ]
+  },
+  "objectives": [
+    "Explain why hypervisor level access outranks access to any single virtual machine.",
+    "Identify the log sources produced by an ESXi host and by the vSphere management layer.",
+    "Recognise command line patterns that alter host security settings, logging or firewall rules.",
+    "Correlate a management interface action with the corresponding command on the target host.",
+    "Baseline which accounts legitimately run administrative commands on hypervisors.",
+    "Describe containment options for a compromised hypervisor, including host isolation and credential rotation."
+  ],
+  "techniqueId": "t1059-012",
+  "detectsTechniques": [
+    "t1059-012"
+  ],
+  "dataSources": [
+    "ESXi host shell and command line interface logs recording the executed command, the source address and the authenticated user",
+    "ESXi host daemon logs recording remote command execution through the management interface and any changes to logging configuration",
+    "vSphere management server audit events recording the user, the target host or virtual machine, and the API method invoked",
+    "ESXi authentication events recording shell and management interface sign ins with the account name and result",
+    "Syslog or log forwarder configuration records showing which hypervisor hosts actually ship their logs to the central platform"
+  ],
+  "logic": "The pattern is administrative or shell activity on a hypervisor that either comes from an account that never performs such work, originates from an address outside the management network, or includes commands that weaken the host itself. You correlate the ESXi host log entry, which gives the command and the local user, with the management server audit event for the same target host and time window, which gives the originating identity and the calling application programming interface method, and with authentication events for the host. The malicious case shows commands that stop the log service, disable the firewall, change the lockdown or acceptance level settings, enumerate virtual machines, or copy files such as host configuration and password files. The benign case is a documented change by the virtualisation team from a management jump host, using a named administrative account during an approved change window, with matching records on both the management and host sides.",
+  "pseudoQuery": "# title: ESXi Host Security Setting Changed Via Shell\n# logsource:\n#   product: linux\n#   service: esxi\n# detection:\n#   selection:\n#     process|endswith:\n#       - '/bin/esxcli'\n#       - '/bin/vim-cmd'\n#       - '/bin/ash'\n#     message|contains:\n#       - 'firewall'\n#       - 'log'\n#       - 'account'\n#   filter_mgmt:\n#     source_address|cidr: '10.20.0.0/24'\n#   condition: selection and not filter_mgmt\n# level: high",
+  "falsePositives": [
+    "Virtualisation administrators running documented maintenance commands from a management jump host during a change window",
+    "Backup appliances that connect to the host to snapshot virtual machines and issue control commands on a nightly schedule",
+    "Monitoring integrations that query host health through the command line interface on a fixed interval",
+    "Automated build or lab environments that rebuild hypervisors from templates and issue provisioning commands",
+    "Vendor support sessions where an engineer runs diagnostic commands while an internal administrator watches"
+  ],
+  "tuningNotes": "Baseline the accounts, source addresses and command sets used by each virtualisation team and by each backup or monitoring integration, then filter on that baseline rather than on individual command names. Keep the highest severity for commands that stop logging, alter the firewall or modify host acceptance and lockdown settings, because those have no routine equivalent, and treat enumeration and host file access as a separate medium severity signal. Confirm that every hypervisor forwards its logs before you rely on the rule, and alert on any host that stops sending logs. The coverage you lose by allowing the management address range is an attacker operating from a compromised management server, so pair this rule with alerts on management server account changes and new API tokens.",
+  "severity": "critical"
+}

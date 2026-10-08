@@ -1,0 +1,107 @@
+{
+  "id": "det0333",
+  "type": "detection",
+  "title": "Cross-Platform Detection of Scheduled Task/Job Abuse via `at` Utility",
+  "shortTitle": "Cross-Platform Detection of Scheduled Task/Job Abuse via ...",
+  "externalId": "DET0333",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the at job scheduler (T1053.002), which exists on Linux, macOS and other Unix-like systems and executes a command once at a chosen future time. Attackers use it for delayed execution and for persistence that survives a reboot long enough to run their payload, and it is quieter than cron because no recurring entry remains after the job fires. Detection uses process creation of the at client, job file creation in the spool directory, the at daemon starting the queued command, and shell history or audit records that show the pipeline used to submit the job. It fails because at is rarely used in modern fleets, so a single legitimate maintenance job from an administrator looks identical to abuse until you add parent process, submitting user, and command content context.",
+  "tags": [
+    "mitre t1053.002",
+    "scheduled job",
+    "linux",
+    "persistence",
+    "auditd"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cross-Platform Detection of Scheduled Task/Job Abuse via `at` Utility",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0333/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cross-Platform Detection of Scheduled Task/Job Abuse via `at` Utility - EASY",
+      "path": "exercises/det0333/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cross-Platform Detection of Scheduled Task/Job Abuse via `at` Utility - MEDIUM",
+      "path": "exercises/det0333/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cross-Platform Detection of Scheduled Task/Job Abuse via `at` Utility - HARD",
+      "path": "exercises/det0333/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cross-Platform Detection of Scheduled Task/Job Abuse via `at` Utility - EXTREMELY HARD",
+      "path": "exercises/det0333/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches a Unix scheduling tool called at. It runs a command one time, later, at a chosen moment. Attackers use it to delay their actions or to survive a restart. The detection sees both the job being created and the job being run.",
+    "whyItMatters": "Delayed commands are hard to spot because the cause and the effect are far apart in time. A quiet job that runs at midnight can look harmless during the day. Because at jobs are one-off, they leave less trace than recurring schedules. Catching them closes a quiet persistence path.",
+    "howItWorks": [
+      "The system records the command that was typed and the user who typed it.",
+      "The detection looks for the at client being used to queue a job, including the time argument.",
+      "It then watches the spool folder where queued jobs are stored as files.",
+      "The job files are read to see which command will run and under which account.",
+      "Later, the scheduling service starts the command, and that start is linked back to the queued job.",
+      "Jobs sent from a scripting context, from a web server account or with encoded content are escalated to an analyst."
+    ],
+    "example": "Think of a library where you can reserve a study room for a future hour. Most reservations are students booking ahead. But look at a reservation made by someone who never enters the building. The room is next to the archive, and the hour is closing time. That is worth a call to the front desk.",
+    "takeaways": [
+      "One-off scheduled jobs are quieter than recurring ones, so they need their own rule.",
+      "Link the job submission to the job execution to build a complete story.",
+      "The submitting account and its parent process are the strongest context you have."
+    ]
+  },
+  "objectives": [
+    "Describe how the at scheduler differs from cron in trace and persistence value",
+    "Locate the telemetry that records job submission, job storage and job execution",
+    "Correlate a queued job file with the process that later runs it",
+    "Judge a job by submitting user, parent process and command content",
+    "Draft a rule that covers at while tolerating approved maintenance jobs"
+  ],
+  "techniqueId": "t1053-002",
+  "detectsTechniques": [
+    "t1053-002"
+  ],
+  "dataSources": [
+    "Linux auditd execve records showing the at client with its time argument and submitting user",
+    "File integrity monitoring of the job spool directory where queued at jobs are stored as files",
+    "Process creation records showing the scheduling daemon starting the queued command",
+    "Sysmon for Linux event 1 process creation including parent process and command line",
+    "Shell history or shell audit records that show the pipeline used to submit the job"
+  ],
+  "logic": "The pattern is a job queued through the at client by an account or parent process that does not normally schedule work, especially when the queued command downloads content, writes an executable file, creates a user, or calls a scripting interpreter with encoded arguments, followed later by the scheduling daemon executing that exact command line. The fields to correlate are the submitting user, the parent process of the at client, the time argument, the spool file contents and the later execution event on the same host. The benign case is a configuration management agent or a database administrator queuing a single maintenance command during a change window with a plain, readable command line. The malicious case is a web server or service account as the parent, a job scheduled for an unusual hour, and a command that fetches or decodes content before running it.",
+  "pseudoQuery": "# title: At Job Queued With Download or Interpreter Command\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: EXECVE\n#     exe|endswith: '/at'\n#   selection_content:\n#     a0|contains: ['curl', 'wget', 'base64', 'bash -c', 'python -c']\n#   filter_admins:\n#     auid: ['0', '1001']\n#   condition: selection and selection_content and not filter_admins\n# level: high",
+  "falsePositives": [
+    "Database administrators who queue a one-off maintenance command outside a change window under an approved account",
+    "Configuration management agents that schedule a delayed reboot or agent restart after a package upgrade",
+    "Batch data processing teams that submit a single delayed report generation job from a service account",
+    "Backup scripts that queue a retention cleanup to run after the main backup finishes",
+    "Lab and teaching systems where at is used for coursework demonstrations by known student accounts"
+  ],
+  "tuningNotes": "Start by confirming which accounts and parent processes are allowed to use at at all, then allow only those pairs and alert on everything else, which is practical because at is rare in most fleets. Where at is genuinely needed, restrict it to a named administrator group and monitor group membership changes separately. Filtering by submitting account rather than by command content keeps coverage of clever payloads, because an attacker can make the command look innocent. The coverage you lose is abuse that happens from an already trusted administrator account, which then needs to be caught by monitoring that account's session activity instead.",
+  "severity": "medium"
+}

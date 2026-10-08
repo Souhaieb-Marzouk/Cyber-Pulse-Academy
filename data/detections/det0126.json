@@ -1,0 +1,105 @@
+{
+  "id": "det0126",
+  "type": "detection",
+  "title": "Detection Strategy for SSH Key Injection in Authorized Keys",
+  "shortTitle": "Detection Strategy for SSH Key Injection in Authorized Keys",
+  "externalId": "DET0126",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the addition of an attacker controlled public key to an authorized keys file, which grants persistent remote access without a password. The technique matters because key based access survives password resets, is not covered by multi factor prompts and looks like normal administration in the authentication log. Detection depends on file modification auditing for the authorized keys paths, shell history and audit process records showing key generation or file writes, and authentication logs that show a successful key based login from an unfamiliar address. It fails in practice because configuration management and provisioning tools write to these files by design, so the rule has to weigh the writing process, the destination path and whether the login that follows comes from an expected source.",
+  "tags": [
+    "persistence",
+    "linux",
+    "ssh keys",
+    "account manipulation",
+    "file modification"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for SSH Key Injection in Authorized Keys",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0126/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for SSH Key Injection in Authorized Keys - EASY",
+      "path": "exercises/det0126/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for SSH Key Injection in Authorized Keys - MEDIUM",
+      "path": "exercises/det0126/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for SSH Key Injection in Authorized Keys - HARD",
+      "path": "exercises/det0126/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for SSH Key Injection in Authorized Keys - EXTREMELY HARD",
+      "path": "exercises/det0126/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the files that list which public keys may log into a computer. A public key is one half of a pair used for password free login. An attacker who adds their own key can return at any time without a password.",
+    "whyItMatters": "A stolen password can be changed, but an added key is easy to forget. This access survives password resets and does not trigger a second factor prompt. On many servers, this file is the difference between a short incident and a long one.",
+    "howItWorks": [
+      "The rule watches the files that store allowed public keys for each account.",
+      "It records the file path, the account that owns it and the process that wrote to it.",
+      "It looks for a key being added rather than an existing line being reordered.",
+      "It checks whether the writing process is a configuration tool or an interactive shell.",
+      "It watches for a login using a key from a new address soon afterwards.",
+      "A key added by a shell, then used from a new address, raises an alert."
+    ],
+    "example": "Think of a staff sign-in sheet that lists who may enter. Someone adds a new name to the list in their own handwriting. The door staff then let that person in every day, and no password or badge is ever checked again.",
+    "takeaways": [
+      "An added key is quiet access that survives password changes.",
+      "Watch who writes the file, not only what the file says.",
+      "A key added by hand and used from a new address is a strong signal."
+    ]
+  },
+  "objectives": [
+    "Explain how authorized keys files grant password free access",
+    "Identify the audit and file monitoring sources that record key file changes",
+    "Separate configuration management writes from interactive edits",
+    "Correlate a key file change with a following key based login",
+    "Revoke an unwanted key and review the session that added it"
+  ],
+  "techniqueId": "t1098-004",
+  "detectsTechniques": [
+    "t1098-004"
+  ],
+  "dataSources": [
+    "Linux auditd file watch on the authorized keys paths, recording the writing process and the account",
+    "Linux auditd execve records showing key generation commands such as ssh keygen with the argument list",
+    "Secure shell authentication logs recording successful public key authentication with the source address and key fingerprint",
+    "Sysmon for Linux or an equivalent file modification sensor on the secure shell directory"
+  ],
+  "logic": "The detection pairs a write to an authorized keys file with the process responsible and with the authentication that follows. Fields to correlate are the file path, the owning account, the process image and command line that opened the file for writing, the parent process, and later authentication events that show a public key login with a new fingerprint from a source address that is unusual for that account. The benign case is a provisioning or configuration management agent rewriting the file from a version controlled template, with a known parent process and a stable set of key fingerprints; the malicious case is a shell or script editor writing to the file, a key fingerprint that has never been seen for that account, and a login from an address outside the expected network ranges. Fingerprint history is the most reliable discriminator over time.",
+  "pseudoQuery": "# title: Authorized keys file modified outside configuration management\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection:\n#     type: 'PATH'\n#     name|endswith:\n#       - '/.ssh/authorized_keys'\n#       - '/.ssh/authorized_keys2'\n#     nametype: 'CREATE'\n#   filter:\n#     exe|endswith:\n#       - '/usr/bin/ansible'\n#       - '/usr/sbin/sshd'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Configuration management runs that push an approved key set to every server on a schedule",
+    "Provisioning tools that generate a host key pair for a new build and install it",
+    "Administrators following a documented procedure to grant a colleague temporary access",
+    "Backup restoration that recovers a home directory including the secure shell folder"
+  ],
+  "tuningNotes": "Filter the parent processes and accounts used by your configuration management and provisioning systems, and keep a fingerprint inventory so you can alert on any key that is new for an account. Scope to servers that accept inbound secure shell from the internet first, since the impact is highest there, and add the login source check so a new key is only alarming when it is actually used. Baseline how often the files change per host per month. The coverage you lose by trusting your automation account is the case where that account is compromised, so keep a separate alert on it authenticating from a new address.",
+  "severity": "high"
+}

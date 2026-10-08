@@ -1,0 +1,107 @@
+{
+  "id": "det0210",
+  "type": "detection",
+  "title": "Abuse of Domain Accounts",
+  "shortTitle": "Abuse of Domain Accounts",
+  "externalId": "DET0210",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the abuse of valid domain accounts rather than the exploitation of a vulnerability, covering T1078.002 Domain Accounts. The technique matters because a stolen domain credential gives an intruder legitimate access, so there is no malware to find and no exploit to patch, and the activity blends into ordinary administration. Detection rests on logon telemetry, especially the logon type, the source address, and account attributes, joined with directory service changes and whatever the account does next. The practical failure is baselining: without knowing where an account normally signs in from and when, every alert is a guess, so the rule must compare each logon with that account's own history and with peer accounts in the same role.",
+  "tags": [
+    "mitre t1078.002",
+    "defense evasion",
+    "persistence",
+    "active directory",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Abuse of Domain Accounts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0210/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Abuse of Domain Accounts - EASY",
+      "path": "exercises/det0210/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Abuse of Domain Accounts - MEDIUM",
+      "path": "exercises/det0210/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Abuse of Domain Accounts - HARD",
+      "path": "exercises/det0210/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Abuse of Domain Accounts - EXTREMELY HARD",
+      "path": "exercises/det0210/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a real domain account used by the wrong person. A domain account is a login that works across many company computers. If an attacker steals one, the login looks normal to everyone. The rule compares each login with the place and time that the account usually uses. It also watches for sudden changes to the account itself.",
+    "whyItMatters": "Stolen passwords leave no malware on the disk at all. Standard checks may find nothing. The attacker simply signs in and works like an employee. This is why valid accounts are so useful to an intruder. Your best clue is behaviour that does not fit the account. A finance login from a new country at night is that clue.",
+    "howItWorks": [
+      "Domain controllers record each logon with the account, the logon type, and the source address.",
+      "The detection groups those events by account and learns the normal sources and hours.",
+      "It scores a new logon by how far it sits from that learned pattern.",
+      "It adds weight for privileged group membership and for remote interactive logon types.",
+      "It joins directory change events, so a new group membership or password reset adds context.",
+      "It then follows the account activity, such as new service creation or bulk file access."
+    ],
+    "example": "Think of a staff canteen that uses a swipe card. The card only works for the person it belongs to. If someone finds a card on the floor and uses it, the turnstile opens without any complaint. The system knows the card, not the person. The only odd thing is the pattern. The card enters at a door its owner never uses, at an hour when she is asleep. Domain account abuse is that found card.",
+    "takeaways": [
+      "Valid accounts leave no malware, so behaviour is your evidence.",
+      "Compare each account with its own history, not with a global rule.",
+      "Directory changes and later activity give the logon its meaning."
+    ]
+  },
+  "objectives": [
+    "Explain why abuse of valid domain accounts is difficult to detect.",
+    "Read domain controller logon telemetry and interpret the logon type.",
+    "Build per account baselines of source host, source address, and working hours.",
+    "Combine logon anomalies with directory changes and post logon actions.",
+    "Plan a response that contains the account without alerting the intruder."
+  ],
+  "techniqueId": "t1078-002",
+  "detectsTechniques": [
+    "t1078-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4624 successful logon with logon type, source address, and account name",
+    "Windows Security event 4625 failed logon with the same identifying fields",
+    "Windows Security event 4720 and Windows Security event 4728 records for account creation and group membership change",
+    "Domain controller directory service change logs for password resets and attribute edits",
+    "Windows Security event 4688 process creation on the target host after the logon"
+  ],
+  "logic": "The pattern is a domain logon that departs from the account's established source address, source host, workstation, and working hours, and that is followed by activity the account does not usually perform. The fields that must be correlated are the account name and domain, the logon type, the source address and workstation name, the authentication package, and the subsequent process creation or directory change events on the target. The malicious case differs from the benign one by consistency with history and peers: a user travelling may log on from a new address but still reaches their own workstation and applications, whereas an attacker signs in from an address no peer in that role has ever used, maps to hosts the account has never touched, and often creates a service, reads files in bulk, or adds group membership soon after. Failed attempts immediately before a success on the same account raise confidence.",
+  "pseudoQuery": "# title: Domain Account Logon From New Source Outside Normal Hours\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     event_id: 4624\n#     logon_type:\n#       - 3\n#       - 10\n#   filter_known_sources:\n#     source_ip|startswith:\n#       - '10[.]20[.]'\n#       - '10[.]30[.]'\n#   condition: selection and not filter_known_sources\n# level: critical",
+  "falsePositives": [
+    "Administrators working from a jump host or virtual desktop that is not in the baseline",
+    "Service accounts that sign in from a new cluster node after a rebuild",
+    "Users travelling or working from home at unusual hours",
+    "Automated deployment tools that authenticate as a service account from a build agent",
+    "Disaster recovery tests that log on to standby systems from a recovery site"
+  ],
+  "tuningNotes": "Learn each account's normal source address, source workstation, and working hours before you enable alerting, then treat only statistically unusual logons as high severity, because a fresh rule without that baseline will overwhelm the team. Add weight for privileged group membership, remote interactive logon types, and logons to hosts the account has never touched. Scoping to privileged accounts first reduces noise and raises precision, but it hides abuse of ordinary accounts, so run a separate volume based rule for bulk file access and new service creation by any account.",
+  "severity": "critical"
+}

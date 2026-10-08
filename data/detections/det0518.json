@@ -1,0 +1,109 @@
+{
+  "id": "det0518",
+  "type": "detection",
+  "title": "Behavioral Detection of T1498 – Network Denial of Service Across Platforms",
+  "shortTitle": "Behavioral Detection of T1498 – Network Denial of Service...",
+  "externalId": "DET0518",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers network denial of service, the technique tracked as T1498, which includes direct floods and reflection amplification aimed at exhausting bandwidth, connection tables or application capacity. The adversary objective is availability rather than access, so the telemetry that matters is not a single suspicious process but traffic shape: connection rates and packet rates per destination, the ratio of inbound to outbound bytes, source address diversity, protocol and port distribution, and the local resource signals such as socket table growth, processor load and queue drops on the target host. The strategy fails in two opposite ways, because simple volume thresholds either fire during every legitimate traffic peak or stay silent when a low and slow application layer flood consumes worker processes without moving much bandwidth, so the rule has to combine volumetric baselines with a check on local resource exhaustion.",
+  "tags": [
+    "denial of service",
+    "t1498",
+    "network",
+    "availability",
+    "traffic analysis",
+    "baseline"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of T1498 – Network Denial of Service Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0518/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of T1498 – Network Denial of Service Across Platforms - EASY",
+      "path": "exercises/det0518/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of T1498 – Network Denial of Service Across Platforms - MEDIUM",
+      "path": "exercises/det0518/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of T1498 – Network Denial of Service Across Platforms - HARD",
+      "path": "exercises/det0518/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of T1498 – Network Denial of Service Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0518/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for traffic that tries to make a service stop working instead of trying to break in. The attack is called a denial of service. It aims to use up bandwidth or connections until real users cannot get through. The rule watches traffic rates, source addresses and the health of the machine being hit. It alerts when a service is being overwhelmed rather than merely busy.",
+    "whyItMatters": "When a service is offline, customers lose access and staff cannot work. A flood can also hide another attack, because responders are busy restoring the service. Some floods come from many innocent computers at once, so blocking one address does not help. Detection therefore needs to measure patterns over time and across many sources.",
+    "howItWorks": [
+      "The network sensor records every connection with its source address, destination and protocol.",
+      "The rule counts how many connections arrive per second for each destination service.",
+      "It also compares the number of different source addresses with the normal level for that service.",
+      "On the host, it checks socket counts, processor load and dropped packets against a baseline.",
+      "A destination that receives many connections from many addresses and shows resource strain is flagged.",
+      "The alert is raised with the destination, the rate and the time window so the responder can act."
+    ],
+    "example": "Imagine a shop with one checkout till and a queue. A crowd arrives, all wanting to buy one small item, and the queue blocks the door. Real customers cannot get in, even though nobody broke anything. This rule watches queue length and arrival rate, not the intent of each person.",
+    "takeaways": [
+      "Denial of service is about availability, so measure rates and resources, not payloads.",
+      "Many source addresses at once usually means a distributed or reflected flood.",
+      "A service that is slower but not saturated may be under an application layer attack."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between a volumetric flood and an application layer denial of service.",
+    "Name the network telemetry fields used to measure connection rate and source address diversity.",
+    "Identify local host signals such as socket table growth, processor load and packet drops.",
+    "Build a per service baseline that accounts for legitimate daily and seasonal traffic peaks.",
+    "Describe how reflection and amplification change the source address profile of an attack.",
+    "Outline an escalation path that includes the network team and the service owner."
+  ],
+  "techniqueId": "t1498",
+  "detectsTechniques": [
+    "t1498"
+  ],
+  "dataSources": [
+    "Netflow or IPFIX records with source address, destination address, port, protocol, packet count and byte count",
+    "Firewall and load balancer connection logs including connection rate and half open connection counts",
+    "Host performance counters for socket table usage, processor load, queue length and dropped packets",
+    "Web server access logs with request rate, request path and response status distribution",
+    "Domain name system query logs showing query rate and source address diversity per name"
+  ],
+  "logic": "The pattern is a sustained rise in connection or request rate toward one destination, combined with either a source address count far above the baseline for that service or a measurable resource exhaustion signal such as socket table growth, processor saturation or packet drops at the target. The fields that must be correlated are the destination address and port, the connection and packet rate, the count of distinct source addresses, and the local resource counters on the target host, joined on destination and compared against the same service at the same hour on previous days. The malicious case usually shows many distinct or spoofed source addresses, a heavy bias toward a single port or request path, and resources that continue to degrade as traffic grows. The benign case is a product launch, a marketing campaign, a scheduled backup or an update release, where the traffic arrives gradually, the source addresses look like normal clients, and the service stays within its capacity.",
+  "pseudoQuery": "# title: Connection Rate Spike With Source Address Diversity on One Destination\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: 'connection'\n#     destination_port:\n#       - 80\n#       - 443\n#       - 53\n#     connection_rate: '> 5000 per minute'\n#     distinct_source_addresses: '> 1000'\n#   filter_monitoring:\n#     source_address: 'health check and monitoring ranges'\n#   condition: selection and not filter_monitoring\n# level: high",
+  "falsePositives": [
+    "Product launches and marketing campaigns that produce a genuine surge of new visitors to one service",
+    "Content delivery and cache misses that send a large legitimate wave of requests to an origin server",
+    "Scheduled software update releases where many clients check in at the same time from a shared network range",
+    "Monitoring systems that retry a failed health check very quickly against one endpoint",
+    "Network address translation devices that make many internal users appear to come from a small address pool"
+  ],
+  "tuningNotes": "Set thresholds from a per service baseline that covers at least four weeks and includes the busiest legitimate hour, then alert on rate of change as well as absolute rate so that a doubling stands out. Exclude health check and monitoring source addresses, and treat source address diversity as the strongest single indicator when deciding between real load and a flood. Keep the volumetric rule separate from the application layer rule, because their thresholds differ by an order of magnitude. The coverage you lose is a slow application layer attack that stays under the request rate threshold while still exhausting worker processes.",
+  "severity": "high"
+}

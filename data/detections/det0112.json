@@ -1,0 +1,107 @@
+{
+  "id": "det0112",
+  "type": "detection",
+  "title": "Boot or Logon Initialization Scripts Detection Strategy",
+  "shortTitle": "Boot or Logon Initialization Scripts Detection Strategy",
+  "externalId": "DET0112",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses T1037, boot or logon initialization scripts, where an adversary adds or edits a script that the operating system runs automatically when a machine starts or a user signs in. It matters because these scripts run with the rights of the machine or the user before any interactive session exists, so persistence survives restarts and often survives password changes, and the script itself can be a short, readable file that is easy to blend in. The telemetry that makes detection possible is file integrity monitoring on initialization script paths, registry modification events for logon script and startup settings, process creation records that show a script host running a file from those paths, and account or group policy changes that point a user profile at a new script. It fails in practice because administrators and software packages write these files constantly, so the rule must be tied to the writing process, the signature and reputation of the script, and the account whose profile changed.",
+  "tags": [
+    "persistence",
+    "logon-script",
+    "endpoint",
+    "file-integrity",
+    "configuration"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Boot or Logon Initialization Scripts Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0112/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Boot or Logon Initialization Scripts Detection Strategy - EASY",
+      "path": "exercises/det0112/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Boot or Logon Initialization Scripts Detection Strategy - MEDIUM",
+      "path": "exercises/det0112/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Boot or Logon Initialization Scripts Detection Strategy - HARD",
+      "path": "exercises/det0112/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Boot or Logon Initialization Scripts Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0112/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches scripts that run automatically at startup or sign in. A script is a small text file full of commands. The rule looks for new or changed scripts in the places the system runs by itself.",
+    "whyItMatters": "These scripts run before you log in, so they are easy to forget. An attacker who adds one gains execution every time the machine starts. The file is small and looks like a normal administrative file. Because updates also change these files, context is what makes an alert useful.",
+    "howItWorks": [
+      "File monitoring records every create or change inside the folders that hold startup and sign in scripts.",
+      "System settings monitoring records changes to the values that name those scripts for users and machines.",
+      "Process records show the script host running a file from one of those paths, with its parent and command line.",
+      "Directory and policy records show when a user account was pointed at a new script location.",
+      "All of this reaches the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule alerts when an unusual process writes a script. It also alerts when the script runs a program from a temporary or user folder."
+    ],
+    "example": "Imagine an office where a note on the manager's door tells the cleaner to unlock a side entrance every morning. A stranger replaces the note with one that also unlocks the record room. The cleaner follows the note, because that is the routine. This detection is the manager who reads the door note each evening and checks the handwriting and the request.",
+    "takeaways": [
+      "Startup and sign in scripts run with real rights and no user watching.",
+      "Persistence here survives restarts and often survives password changes.",
+      "Judge the script by who wrote it and what it starts, not by its name alone."
+    ]
+  },
+  "objectives": [
+    "Explain how startup and sign in scripts differ from scheduled tasks and services",
+    "Name the file and registry locations that hold initialization scripts on Windows and Unix systems",
+    "Identify the telemetry that records who wrote a script and which account it applies to",
+    "Describe how to check the reputation of the commands inside a new script",
+    "List the legitimate tools that write these scripts so you can filter them by signature",
+    "Explain why removing the script is only part of a complete response"
+  ],
+  "techniqueId": "t1037",
+  "detectsTechniques": [
+    "t1037"
+  ],
+  "dataSources": [
+    "File integrity monitoring events for Windows logon script share paths and Unix initialization directories such as the shell profile directory",
+    "Windows registry modification events under the user and machine logon script configuration keys, captured by Sysmon event 13",
+    "Sysmon event 1 process creation showing a script host executing a file from a logon or startup script path",
+    "Windows Security event 4688 process creation with command line auditing enabled and the owning account recorded",
+    "Directory service change records showing a user profile being assigned a new script path"
+  ],
+  "logic": "The pattern is creation or modification of a file in a directory that the operating system executes at boot or sign in, or a change to the settings that name such a script for a user or a machine, where the writing process is not an approved management tool and the script content starts programs from user writable or temporary locations. The fields that must be correlated are the script path, the process and account that wrote it, the affected user or computer object, the script host process that later runs it, and the child process or destination named inside the script. The benign case is a group policy or configuration management update that rewrites the same path from a management server during a maintenance window with a documented change, so a new script written by an interactive shell, a logon script assigned to a single account rather than a group, or a script that starts a binary from a temporary folder is what distinguishes the malicious case.",
+  "pseudoQuery": "# title: Logon Or Startup Script Created Outside Management Tooling\n# logsource:\n#   product: windows\n# detection:\n#   selection_file:\n#     TargetFilename|contains: ['\\\\System32\\\\GroupPolicy\\\\', '\\\\Scripts\\\\Startup\\\\', '\\\\Scripts\\\\Logon\\\\']\n#   selection_reg:\n#     EventType: 'registry_value_set'\n#     TargetObject|contains: ['\\\\Group Policy\\\\Scripts\\\\', 'UserInitMprLogonScript']\n#   filter_mgmt:\n#     Image|endswith: '\\\\CcmExec.exe'\n#   condition: (selection_file or selection_reg) and not filter_mgmt\n# level: high",
+  "falsePositives": [
+    "Group policy updates that refresh the standard logon scripts for all users during a scheduled maintenance window",
+    "Software packages that install a small login helper script into the script share as a documented prerequisite",
+    "Administrators adding a temporary mapping or printer script for a single user while resolving a ticket",
+    "Operating system upgrades that rewrite default shell profile files inside a user or system home directory"
+  ],
+  "tuningNotes": "Baseline which management systems write these paths and from which server addresses, then filter by signed writing process and by parent server rather than by script name. Keep the rule strict for scripts assigned to individual accounts or created outside a change window, because bulk policy writes usually affect a whole group. Add a content check that flags scripts referencing temporary, public or download folders, and review the script bodies of new files weekly. Filtering management writes means an attacker who compromises the management server can plant a script unnoticed, so monitor that server with a stricter rule and alert on any change to its own tooling.",
+  "severity": "high"
+}

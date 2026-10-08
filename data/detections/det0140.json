@@ -1,0 +1,108 @@
+{
+  "id": "det0140",
+  "type": "detection",
+  "title": "Behavioral Detection of Malicious File Deletion",
+  "shortTitle": "Behavioral Detection of Malicious File Deletion",
+  "externalId": "DET0140",
+  "theme": "Detection Strategy",
+  "summary": "File deletion for indicator removal (T1070.004) covers an adversary erasing the artefacts it created, such as dropped tools, staged archives, and log files, so that later investigation finds less evidence and the timeline becomes harder to rebuild. Detection is difficult because deletion is one of the most common operations on any endpoint, so this strategy scores the combination of what was deleted, which process deleted it, and the pattern across time and directories. Useful telemetry includes file deletion records with the deleted file name and the deleting process, process creation with command lines for deletion utilities and scripting calls, object access records showing delete rights being used, and shadow copy or backup manipulation that removes any chance of recovery. The main failure modes are volume and blindness: ordinary application and user activity produces enormous numbers of deletions, and on hosts without file deletion auditing or a suitable sensor the events simply do not exist.",
+  "tags": [
+    "defense evasion",
+    "t1070.004",
+    "file deletion",
+    "indicator removal",
+    "file monitoring",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Malicious File Deletion",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0140/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Malicious File Deletion - EASY",
+      "path": "exercises/det0140/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Malicious File Deletion - MEDIUM",
+      "path": "exercises/det0140/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Malicious File Deletion - HARD",
+      "path": "exercises/det0140/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Malicious File Deletion - EXTREMELY HARD",
+      "path": "exercises/det0140/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "File deletion is exactly what it sounds like. Attackers delete the files they brought with them so that investigators find less. They may also delete logs that would show what they did. This detection looks for deletion of security relevant files by unusual programs.",
+    "whyItMatters": "An investigation needs evidence, and deleted files are missing evidence. Without those files you may never learn how the attacker entered or what was taken. Attackers also remove their own staging folders to hide their tracks. At the same time, everyone deletes files all day, so a simple alert is useless. This detection helps you separate ordinary cleanup from deliberate erasure.",
+    "howItWorks": [
+      "The endpoint records each deletion with the file name and the program that removed it.",
+      "The rule ignores deletions that come from ordinary application and user activity.",
+      "It focuses on deletions by script hosts, command shells, and unknown binaries.",
+      "It raises the score when many files are deleted inside a short period.",
+      "It adds weight when the files removed are logs, archives, or security tools.",
+      "An analyst then checks whether the deleting program had a reason to be on that host."
+    ],
+    "example": "Picture a guest in a hotel room. Most guests tidy up before they leave, and nobody thinks twice about that. A thief also tidies up, but they remove the room visitor log and the receipt for the safe. When staff arrive, the room looks clean and nothing seems wrong. Later, nobody can say who stayed there or what they took. Deleting the files that record your activity is that kind of tidying. The room still looks fine, but the useful evidence has gone.",
+    "takeaways": [
+      "Deletion is normal, so the alert must combine the file, the program, and the volume.",
+      "Log files and security tools are the deletions that matter most.",
+      "Without deletion auditing or a suitable sensor, these events do not exist at all."
+    ]
+  },
+  "objectives": [
+    "Explain why an attacker removes files and what that costs an investigation.",
+    "Identify the telemetry sources that record a file deletion and the deleting process.",
+    "Distinguish bulk scripted deletion from ordinary user and application cleanup.",
+    "Correlate deletion activity with the process that performed it and with its parent.",
+    "Prioritise deletions of logs, archives, and security tooling above other files."
+  ],
+  "techniqueId": "t1070-004",
+  "detectsTechniques": [
+    "t1070-004"
+  ],
+  "dataSources": [
+    "Sysmon event 23 file delete records including the deleted file path, any archived copy path, and the user account",
+    "Sysmon event 1 process creation including parent image and command line for deletion utilities and script hosts",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows Security event 4663 object access records showing delete access on files with object access auditing enabled",
+    "Endpoint records for volume shadow copy deletion or backup manipulation that removes recovery options"
+  ],
+  "logic": "The detection scores deletion as a combination of three things rather than alerting on the operation itself. The first is the file: deleting log files, archive or staging directories, forensic artefacts, or the security tooling that was meant to record activity carries far more weight than deleting browser cache. The second is the process: a command shell, a script host, a scheduler, or an unsigned binary in a user writeable directory is more interesting than an installer or a signed application maintaining its own files. The third is the pattern: a burst of deletions across many directories in a short window, deletion of files that this same process created earlier in the session, or deletion that happens immediately after a collection or transfer step. The fields to correlate are the deleting process identifier and image, its parent process, the deleted file paths, any archived copy path, the user account, and the timing relative to other activity from the same process. The benign case is an uninstaller, a cleanup script, or a log rotation job, all of which are scheduled, signed, and stable in scope.",
+  "pseudoQuery": "# title: Scripted bulk deletion of log and staging files\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 23\n#     TargetFilename|contains:\n#       - '\\Temp\\'\n#       - '\\Logs\\'\n#       - '.evtx'\n#   filter_cleanup:\n#     Image|endswith: '\\cleanmgr.exe'\n#   condition: selection and not filter_cleanup\n# level: medium",
+  "falsePositives": [
+    "Log rotation and retention jobs that remove old log files on a nightly schedule",
+    "Disk cleanup utilities and management agents that delete temporary files across user profiles",
+    "Application uninstallers that remove their own directories, staged installers, and update packages",
+    "Development and build pipelines that clear output directories before every build",
+    "Endpoint agents that delete quarantined files once the retention period expires"
+  ],
+  "tuningNotes": "Scope the rule first to servers, directory servers, and hosts that hold regulated data, and to deletions performed by script hosts, command shells, and binaries outside approved installation directories. Baseline the accounts and parent processes that normally perform bulk deletion so that log rotation and cleanup jobs can be filtered by their stable identity rather than by file name. Keep two conditions: a near real time alert for deletion of event logs or security tool files, and a lower severity alert for deletion volume inside a short window. Narrowing by process will miss an attacker who deletes files using a signed utility already trusted on the host, so pair this rule with detection on shadow copy deletion and with centralised log collection, which preserves the evidence even when the local copy is removed.",
+  "severity": "medium"
+}

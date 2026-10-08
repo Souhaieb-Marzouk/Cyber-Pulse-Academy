@@ -49,6 +49,11 @@ from xml.sax.saxutils import escape as xml_escape
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 CATALOG_PATH = ROOT / "data" / "catalog.json"
+
+# The cards are built from the source topic files. catalog.json is now the lean
+# browser index and its entries do not carry the text the cards render.
+sys.path.insert(0, str(SCRIPT_DIR))
+from build_catalog import load_topics  # noqa: E402  (path set just above)
 TEMPLATE_PATH = ROOT / "assets" / "img" / "og-template.svg"
 OUT_DIR = ROOT / "assets" / "img" / "og"
 
@@ -403,7 +408,11 @@ def main():
         print(f"FAIL: missing template {TEMPLATE_PATH.relative_to(ROOT)}", file=sys.stderr)
         return 1
 
-    topics = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))["topics"]
+    topics, load_errors = load_topics()
+    if load_errors:
+        print(f"FAIL: {len(load_errors)} data problem(s). Run python scripts/build_catalog.py",
+              file=sys.stderr)
+        return 1
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 

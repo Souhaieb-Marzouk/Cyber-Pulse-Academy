@@ -1,0 +1,106 @@
+{
+  "id": "det0584",
+  "type": "detection",
+  "title": "Detection Strategy for Resource Forking on macOS",
+  "shortTitle": "Detection Strategy for Resource Forking on macOS",
+  "externalId": "DET0584",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects T1564.009, Resource Forking, a macOS hiding technique in which an adversary stores payload or data in the resource fork of a file, for example inside an AppleDouble companion file, rather than in the visible data fork. Many scanners, archive tools, and reviewers only inspect the primary stream, so hidden content survives both inspection and casual copying. Detection draws on endpoint process telemetry for the commands that create or extract these files, file system events for companion file creation, and content inspection of extended attributes. The failure mode is that legitimate macOS software and archives constantly create companion files, so volume and path context must be filtered carefully.",
+  "tags": [
+    "defense evasion",
+    "macos",
+    "file system",
+    "hiding",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Resource Forking on macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0584/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Resource Forking on macOS - EASY",
+      "path": "exercises/det0584/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Resource Forking on macOS - MEDIUM",
+      "path": "exercises/det0584/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Resource Forking on macOS - HARD",
+      "path": "exercises/det0584/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Resource Forking on macOS - EXTREMELY HARD",
+      "path": "exercises/det0584/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "On macOS a file can carry two parts: the visible content and a second hidden part that stores extra information. Malicious code can be placed in the hidden part. This detection looks for files whose hidden part is written, especially in unusual places.",
+    "whyItMatters": "Many tools read only the visible part of a file, so hidden content passes review. It can also travel with a file into an archive and back out. Attackers use this to keep a payload on disk without obvious signs. Catching the hidden write gives you a chance to inspect it properly.",
+    "howItWorks": [
+      "The endpoint agent records every program that runs, with its full command line.",
+      "It also records files created and changed, including companion files that start with a dot and underscore.",
+      "The rule matches commands that write directly into a file's hidden part.",
+      "It checks whether the affected file sits in a user folder, a temporary directory, or a download folder.",
+      "The agent reads the hidden content and looks for script or executable material.",
+      "Suspicious findings are sent to your security information and event management (SIEM) platform."
+    ],
+    "example": "Think of a delivery box with a false bottom. The courier checks the label, weighs the box, and sees nothing unusual. The real contents sit in the hidden compartment. Only a checker who opens the base of the box, not just the lid, finds what is really being shipped.",
+    "takeaways": [
+      "A resource fork is a hidden second part of a file that most simple scanners ignore.",
+      "Companion files that begin with a dot and underscore are the visible clue worth watching.",
+      "The location of the file decides whether the write is normal or suspicious."
+    ]
+  },
+  "objectives": [
+    "Describe the difference between a data fork and a resource fork on macOS",
+    "Recognise the file naming pattern produced when resource fork data is written to a non-native file system",
+    "Identify the command line tools that create or extract resource fork content",
+    "Judge whether the affected path makes a resource fork write suspicious",
+    "Plan an inspection step that reads the hidden content safely"
+  ],
+  "techniqueId": "t1564-009",
+  "detectsTechniques": [
+    "t1564-009"
+  ],
+  "dataSources": [
+    "macOS endpoint agent process execution events with full command line and parent process",
+    "File system event monitoring records for creation of AppleDouble companion files beginning with a dot and underscore",
+    "Extended attribute inspection results returned by the endpoint agent for newly written files",
+    "Unified log entries from the archive and copy utilities that handle resource fork content",
+    "Endpoint detection and response file reputation and signature results for files in user download and temporary directories"
+  ],
+  "logic": "The pattern is content written into a resource fork or AppleDouble companion file in a location where user data is not expected. The rule selects process execution records for the utilities and scripting interpreters that write extended attributes or resource fork data, joins them with file creation events for companion files in the same directory within seconds, and then scores the result by path. The malicious case shows a download folder, a temporary directory, or a user Application Support path receiving a companion file whose hidden content contains script text or an executable header, often launched shortly afterwards. The benign case shows archive extraction to a managed software directory where companion files are normal.",
+  "pseudoQuery": "# title: Resource Fork Content Written in User Download Directory\n# logsource:\n#   product: macos\n#   service: endpoint\n# detection:\n#   selection:\n#     Image|endswith:\n#       - '/usr/bin/xattr'\n#       - '/usr/bin/ditto'\n#       - '/bin/cp'\n#     CommandLine|contains: 'com.apple.ResourceFork'\n#   filter_managed:\n#     TargetPath|startswith: '/Library/Application Support/'\n#   condition: selection and not filter_managed\n# level: medium",
+  "falsePositives": [
+    "Archive tools extracting downloaded packages that legitimately carry resource fork data for custom icons",
+    "Backup and sync clients recreating AppleDouble companion files while copying user documents to network storage",
+    "Software installers built for older macOS versions that store installer settings in a resource fork",
+    "Design and media workflows that preserve resource fork metadata when moving project files between disks"
+  ],
+  "tuningNotes": "Filter by destination path first, allowlisting the managed application directories, package caches, and network backup volumes where companion files are expected, which removes most noise without weakening user folder coverage. Require a short time gap between the write and either a launch of the affected file or a network connection from the same user session, so the alert reflects behaviour rather than a stray copy. Scope the rule to hosts used by finance, engineering, and executives. By narrowing to those paths you lose visibility on hidden content placed in system directories, so keep a weekly inventory of companion files outside the allowlist.",
+  "severity": "medium"
+}

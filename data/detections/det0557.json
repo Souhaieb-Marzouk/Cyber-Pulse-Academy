@@ -1,0 +1,108 @@
+{
+  "id": "det0557",
+  "type": "detection",
+  "title": "Detection Strategy for Event Triggered Execution: AppInit DLLs (Windows)",
+  "shortTitle": "Detection Strategy for Event Triggered Execution: AppInit...",
+  "externalId": "DET0557",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Event Triggered Execution: AppInit DLLs, the Windows mechanism that loads a configured library into every process that loads the user interface library, giving an attacker code execution inside many processes at once. It matters because a single registry change can inject code into a large share of running applications, including security tools, and the mechanism is intended for legitimate accessibility and hooking software. The telemetry that makes it visible is registry value writes to the AppInit library list, Sysmon image load events showing the same library appearing across unrelated processes, the file creation of that library on disk, and the boot configuration that controls whether the mechanism is honoured at all. It fails in practice because the registry key is legitimate, so almost everything depends on whether the loaded library is signed by a trusted publisher.",
+  "tags": [
+    "persistence",
+    "privilege-escalation",
+    "windows",
+    "registry",
+    "dll-injection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Event Triggered Execution: AppInit DLLs (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0557/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Event Triggered Execution: AppInit DLLs (Windows) - EASY",
+      "path": "exercises/det0557/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution: AppInit DLLs (Windows) - MEDIUM",
+      "path": "exercises/det0557/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution: AppInit DLLs (Windows) - HARD",
+      "path": "exercises/det0557/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Event Triggered Execution: AppInit DLLs (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0557/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows can be told to load a chosen library into every program that uses the standard window system. That setting is called AppInit. This detection watches for changes to that setting, and for the library being loaded into many different programs.",
+    "whyItMatters": "One small registry change can put attacker code inside many programs, including browsers and security tools. That is a large amount of access from a single action. Because the setting is a normal Windows feature, a quick review will not always flag it. Watching the library itself is what makes it visible.",
+    "howItWorks": [
+      "The endpoint agent records writes to registry values, including the exact key path and the new value.",
+      "The rule selects writes to the AppInit library list and reads the file path it now points at.",
+      "It then looks for that same library loading into several unrelated processes, which is unusual for normal software.",
+      "A SIEM, which is a central system that collects and searches log events, joins the registry write, the file creation and the load events by path.",
+      "The rule checks whether the library is signed by a publisher your organisation trusts.",
+      "A new unsigned library loaded into many processes raises a high confidence alert."
+    ],
+    "example": "Imagine a building where each office door is fitted with the same master lock. Changing that one lock type means every office is now opened by the same new key. This detection watches who ordered the new lock, and which doors it was fitted to.",
+    "takeaways": [
+      "AppInit gives one code change access inside many processes at once.",
+      "The registry write is expected software behaviour, so the library file and its signature are the real evidence.",
+      "Watch the load events, because they show the mechanism actually took effect and not just that a key changed."
+    ]
+  },
+  "objectives": [
+    "Explain how the AppInit library mechanism injects code into many processes with a single registry change.",
+    "Identify the registry location and value that controls the AppInit library list.",
+    "Correlate a registry write with the file creation and the image load events for the same library path.",
+    "Evaluate a loaded library using its signer, its path and the number of distinct processes that load it.",
+    "Explain how the boot configuration and security features can disable this mechanism.",
+    "Describe the response steps for an unauthorised AppInit library, including removal and process restart."
+  ],
+  "techniqueId": "t1546-010",
+  "detectsTechniques": [
+    "t1546-010"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set where the target object is the AppInit library list value under the Windows registry key",
+    "Sysmon event 7 image load events showing the same library path loaded into multiple unrelated processes",
+    "Sysmon event 11 file create for the library file written to a user writable or temporary directory",
+    "Windows Security event 4688 process creation with command line auditing, used to show which processes load the library after it is registered",
+    "Endpoint boot configuration inventory recording whether the AppInit mechanism is enabled on the host"
+  ],
+  "logic": "The pattern is a write to the AppInit library list, followed by the named library being loaded into processes that have no relationship to each other, especially when that library is unsigned, newly created or stored outside a program directory. You correlate the registry value set event, which gives the new library path and the process that made the change, with file creation events for that same path, and with image load events showing which processes load it. The malicious case shows a library in a user profile or temporary folder, a file with no valid signature, and loads inside security, browser and office processes within minutes of the registry write. The benign case is a signed vendor library in a program files directory, such as an accessibility or input method component, deployed by the vendor installer, with a stable set of processes that load it over weeks.",
+  "pseudoQuery": "# title: AppInit Library Registered From User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|endswith: '\\\\Windows\\\\AppInit_DLLs'\n#   filter_vendor:\n#     Details|startswith: 'C:\\\\Program Files'\n#   condition: selection and not filter_vendor\n# level: high",
+  "falsePositives": [
+    "Accessibility and screen reader software that legitimately installs a signed library into the AppInit list",
+    "Input method or language support packages from a hardware vendor that hook all processes through this mechanism",
+    "Application compatibility shims deployed by an enterprise packager that use a signed vendor library",
+    "Legacy line of business software that relies on AppInit for its licensing component and has a valid signature",
+    "Security or data loss prevention products that inject a monitoring library into every process as designed"
+  ],
+  "tuningNotes": "Make the signature and publisher of the library the primary filter, not the registry key, and keep a short allow list of approved AppInit libraries with their expected hash and publisher. Add the number of distinct loading processes and the presence of security tool processes as confidence signals so a single change stays informational while a broad injection alerts. Scope the high severity rule to servers and managed workstations, and collect the boot configuration value so you can confirm whether the mechanism is even active. The coverage you lose by allowing signed libraries is a stolen signing certificate or a signed binary used as a loader, so alert on any new AppInit entry regardless of signature and investigate the publisher.",
+  "severity": "high"
+}

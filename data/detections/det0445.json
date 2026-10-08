@@ -1,0 +1,107 @@
+{
+  "id": "det0445",
+  "type": "detection",
+  "title": "Detection of Proxy Infrastructure Setup and Traffic Bridging",
+  "shortTitle": "Detection of Proxy Infrastructure Setup and Traffic Bridging",
+  "externalId": "DET0445",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the setup of proxy infrastructure inside a compromised network, where an adversary configures a relay so that external traffic reaches internal systems or so that internal traffic exits through a new path. It covers port forwarding rules, tunnel clients, and additional proxy servers that bridge two networks. Detection depends on process creation telemetry that captures the command line of the utility being used, on configuration change records such as firewall rule events and service installs, and on the listening socket that appears when the relay starts. The recurring failure is that administrators use the same tools for remote support, so a rule that matches the tool name alone becomes unmanageable; the process owner, the presence of a matching listening port, and the direction of the following traffic are what separate support activity from attacker infrastructure.",
+  "tags": [
+    "command and control",
+    "proxy",
+    "tunneling",
+    "network configuration",
+    "process creation",
+    "t1090"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Proxy Infrastructure Setup and Traffic Bridging",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0445/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Proxy Infrastructure Setup and Traffic Bridging - EASY",
+      "path": "exercises/det0445/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Proxy Infrastructure Setup and Traffic Bridging - MEDIUM",
+      "path": "exercises/det0445/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Proxy Infrastructure Setup and Traffic Bridging - HARD",
+      "path": "exercises/det0445/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Proxy Infrastructure Setup and Traffic Bridging - EXTREMELY HARD",
+      "path": "exercises/det0445/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a machine that is set up as a relay. A relay passes traffic from one network to another. Attackers build relays to reach systems that are not on the internet. The detection watches for the tools and settings that create a relay.",
+    "whyItMatters": "A relay turns one compromised host into a doorway. It can reach many other systems from inside the network. That traffic often looks internal and trusted. Finding the relay early stops the doorway from opening wider. It also shows you which host the attacker values most.",
+    "howItWorks": [
+      "A sensor records each command with its full arguments.",
+      "The rule matches arguments that add a forwarding rule or start a tunnel.",
+      "It checks for a service or firewall change that makes the relay permanent.",
+      "It confirms that a new listening port appeared on the same host.",
+      "Alerts show the account, the command line and the listening port together."
+    ],
+    "example": "Think of a reception desk that starts forwarding all calls to a private office. That is useful when the manager asks for it. It is a problem when the desk forwards calls for someone who does not work there. You check who asked and where the calls go.",
+    "takeaways": [
+      "Relays create a new way into the network.",
+      "Look for both the command and the listening port.",
+      "The account that ran the command is the key context."
+    ]
+  },
+  "objectives": [
+    "Describe what a proxy or tunnel does between two networks.",
+    "Recognise command line arguments that create a port forwarding rule.",
+    "Identify configuration changes that make a relay persistent.",
+    "Correlate a forwarding command with a new listening socket on the host.",
+    "Separate documented remote support sessions from unusual relay setup.",
+    "Assess the exposure created by an unintended internal relay."
+  ],
+  "techniqueId": "t1090",
+  "detectsTechniques": [
+    "t1090"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled for forwarding utilities",
+    "Sysmon event 1 process creation including parent image and full command line for tunnel and proxy clients",
+    "Sysmon event 17 and event 18 pipe creation and connection events for tunnelled command channels",
+    "Windows Filtering Platform audit events for new inbound allow rules and port forwarding configuration",
+    "Linux auditd process execution records for commands that add a listening socket or a relay rule"
+  ],
+  "logic": "The pattern is a process that configures a relay, such as a port forwarding rule, a tunnel client or an additional proxy listener, started by an account that does not normally perform network administration. The fields to correlate are the process image, the full command line arguments, the parent process, the account, the host role and any new listening port or inbound firewall rule created in the same window. A benign case is an administrator who runs a documented support session, uses a signed management tool and closes the listener when the session ends, while the malicious case runs an unusual utility from a temporary folder, keeps the listener open for hours and matches inbound traffic arriving from an external address.",
+  "pseudoQuery": "# title: Internal Proxy Or Port Forwarding Rule Created\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains: ['portproxy', '-L ', '-R ', 'socat', 'ssh -D', 'ngrok']\n#   filter:\n#     Image|endswith: '\\\\approved-remote-support.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Help desk staff who tunnel to a user desktop with a signed remote support product.",
+    "Developers who forward a local port to reach a test service during their own work.",
+    "Network engineers who add a documented port proxy on a jump host with a change record.",
+    "Backup or database tools that open a temporary listener during a replication job."
+  ],
+  "tuningNotes": "Begin by listing the accounts and tools that are allowed to change network configuration, then allow list those exact tool paths and the service accounts that run them. Require a matching listening port or firewall change before the rule escalates, which removes most one off developer commands. Scope the high severity version to servers, jump hosts and domain controllers. The coverage you give up by requiring a listener is a relay that is configured now and started later, so add a weekly report of all forwarding rule creation regardless of listener state and review it by owner.",
+  "severity": "high"
+}

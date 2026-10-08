@@ -1,0 +1,106 @@
+{
+  "id": "det0048",
+  "type": "detection",
+  "title": "Detect Remote Email Collection via Abnormal Login and Programmatic Access",
+  "shortTitle": "Detect Remote Email Collection via Abnormal Login and Pro...",
+  "externalId": "DET0048",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1114.002, Remote Email Collection, where an adversary authenticates to a mail service such as Microsoft 365 or Exchange and pulls mailbox content programmatically instead of using a normal client. It matters because the attacker never needs to touch the endpoint, so endpoint rules stay quiet while the mailbox empties. The telemetry that reveals it is identity and service side: unified audit log records for mailbox item access and mailbox permission changes, sign-in logs with client application, network location, and authentication method, and flow records showing non browser access to mail protocols. The main failure is the volume of legitimate mail clients and integrations that also use programmatic access, so the rule must compare against the user baseline and watch for new client identifiers or new network locations rather than any single event.",
+  "tags": [
+    "mitre t1114.002",
+    "collection",
+    "email",
+    "cloud",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Remote Email Collection via Abnormal Login and Programmatic Access",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0048/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Remote Email Collection via Abnormal Login and Programmatic Access - EASY",
+      "path": "exercises/det0048/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Remote Email Collection via Abnormal Login and Programmatic Access - MEDIUM",
+      "path": "exercises/det0048/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Remote Email Collection via Abnormal Login and Programmatic Access - HARD",
+      "path": "exercises/det0048/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Remote Email Collection via Abnormal Login and Programmatic Access - EXTREMELY HARD",
+      "path": "exercises/det0048/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for mailbox access that does not come from a normal mail program. An attacker can sign in from anywhere and read mail through an automated tool. The result looks like a robot reading a mailbox. This rule looks at sign in records and mailbox audit records to spot that pattern.",
+    "whyItMatters": "Remote collection leaves no trace on the computer, so endpoint alerts cannot help you. A stolen password plus an automated tool is enough to copy a whole mailbox. Mail holds reset links and contracts, so the damage spreads to other systems. The records exist, but they sit in the mail service rather than on the device.",
+    "howItWorks": [
+      "The mail service writes an audit record each time an item or folder is accessed.",
+      "The identity service records each sign in, including the client program and the network location.",
+      "The rule pairs those records, so an item read is tied to the session that performed it.",
+      "It compares the client program and location against the recent history for that same account.",
+      "New clients, impossible travel, or access outside working hours raise the risk score.",
+      "A high score plus a burst of item reads raises the alert for the identity team."
+    ],
+    "example": "Picture a library where members can request books by post. The librarian records every request and every pickup. Most members visit in person, and the log shows that habit. Now one member sends ten postal requests from another city in a single night. Each request alone is allowed, yet the pattern stands out. Remote email collection detection reads the same two records. The sign in is the postal request. The item read is the book leaving the shelf.",
+    "takeaways": [
+      "Remote collection leaves no endpoint evidence, so mail service audit records are your only view.",
+      "Automated access is normal for integrations, so compare each session against that account history.",
+      "A new client identifier plus a new network location plus a burst of reads is a strong combination."
+    ]
+  },
+  "objectives": [
+    "Explain how remote mailbox collection differs from local collection on a device.",
+    "Identify the audit, sign-in, and network telemetry available from a cloud mail service.",
+    "Describe the baseline fields that make automated mailbox access look unusual.",
+    "Write a pseudo rule that correlates a sign in record with mailbox item access.",
+    "Explain how mailbox permission changes support an attacker collecting other users mail.",
+    "Describe a triage path that confirms or clears a suspected remote collection quickly."
+  ],
+  "techniqueId": "t1114-002",
+  "detectsTechniques": [
+    "t1114-002"
+  ],
+  "dataSources": [
+    "Microsoft 365 unified audit log records for mailbox item access and mailbox permission changes",
+    "Entra ID sign-in logs including client application, network location, and authentication method for mail access",
+    "Exchange Online message tracking and mailbox audit entries for folder and item retrieval operations",
+    "Network flow records showing non browser sessions to mail protocol ports from user subnets"
+  ],
+  "logic": "The rule correlates identity and mailbox audit events into one session picture. It links a sign-in record to the mailbox item access records that follow it, using the account and the session or client identifier, then compares the client application, the network location, and the time of day against the recent baseline for that user. The malicious case is an unfamiliar client identifier or a scripting library access path combined with a burst of folder enumerations and item reads from a new network location, often shortly after a successful password reset or a new mail permission grant. The benign case is the approved mail client, a corporate integration that reconciles mailboxes on schedule from a known service address, or a user travelling and using a new network. Session level correlation, plus the count of distinct items read against the account baseline, is what separates them.",
+  "pseudoQuery": "# title: Programmatic Mailbox Access From New Client And New Network Location\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     Operation|contains: MailItemsAccessed, Add-MailboxPermission, Set-Mailbox\n#   session:\n#     ClientAppId: null\n#     UserAgent|contains: python, curl\n#   condition: selection or session\n# level: high",
+  "falsePositives": [
+    "Approved backup and archiving integrations that reconcile mailboxes from a fixed service address each night",
+    "Mobile mail clients that authenticate with a new application identifier after a vendor update",
+    "Power user automations and mail merge tools that read folders through a scripting library with a saved consent grant",
+    "Helpdesk delegates whose mailbox access permission was granted in a change record and never added to the baseline"
+  ],
+  "tuningNotes": "Baseline the client application identifiers and network locations used by every mailbox in your tenant for thirty days, and treat additions to that set as the trigger rather than mailbox reads alone. Filter the known service addresses of approved archiving and mail hygiene integrations, and keep the high severity tier for interactive user accounts that suddenly present automation clients. Add a threshold on distinct items read per session, since a small reconciliation job and a full mailbox copy look identical at low volume. The coverage you give up is a slow collection that stays under the threshold, so keep a weekly hunting report on rare client identifiers per tenant.",
+  "severity": "high"
+}

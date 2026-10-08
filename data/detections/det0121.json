@@ -1,0 +1,105 @@
+{
+  "id": "det0121",
+  "type": "detection",
+  "title": "Detection Strategy for T1547.015 – Login Items on macOS",
+  "shortTitle": "Detection Strategy for T1547.015 – Login Items on macOS",
+  "externalId": "DET0121",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence on macOS through login items, which are the applications the operating system starts automatically when a user signs in. The technique matters because login items survive reboots, run with the user's rights and appear in a graphical settings list that most users never open, making them a quiet and durable foothold. Detection depends on file system events for the launch agents and login item property list files, unified log records of the service that manages login items, and process creation showing a login item binary starting with a parent process such as the user session manager. It fails in practice because ordinary applications register login items during installation and update, so the rule has to weigh the file location, the signing status of the referenced binary and the timing of the write.",
+  "tags": [
+    "persistence",
+    "macos",
+    "login items",
+    "launch agents",
+    "autostart"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1547.015 – Login Items on macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0121/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1547.015 – Login Items on macOS - EASY",
+      "path": "exercises/det0121/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1547.015 – Login Items on macOS - MEDIUM",
+      "path": "exercises/det0121/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1547.015 – Login Items on macOS - HARD",
+      "path": "exercises/det0121/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1547.015 – Login Items on macOS - EXTREMELY HARD",
+      "path": "exercises/det0121/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the list of programs that a Mac starts when a user logs in. Those programs are called login items. A new login item can keep an attacker running on the machine after each restart. The rule looks at the files and logs that record these entries.",
+    "whyItMatters": "Persistence means the attacker keeps access after a reboot, so cleaning one process is not enough. Login items are easy to add and easy to overlook. Users rarely check that list, and the entry looks like a normal application.",
+    "howItWorks": [
+      "The rule watches the folders where macOS stores login item and launch agent files.",
+      "It records the file name, the folder and the account that wrote the file.",
+      "It reads the property list content to find the program the entry points to.",
+      "It checks whether that program is signed by a known developer.",
+      "It watches for the program starting at the next user login.",
+      "An entry in a user folder, pointing to an unsigned program, raises an alert."
+    ],
+    "example": "Think of a staff handbook that tells the morning shift which doors to unlock. Someone adds one line to the handbook: also unlock the side door in the alley. Every morning the staff follow the handbook and open that door. The handbook is the login item list, and the added line is the malicious entry.",
+    "takeaways": [
+      "Login items start again after every restart, so they are true persistence.",
+      "The property list file names the program, so read it.",
+      "An entry in a user folder pointing to an unsigned program is a red flag."
+    ]
+  },
+  "objectives": [
+    "Describe how macOS login items and launch agents provide persistence",
+    "Locate the file paths and logs that record login item registration",
+    "Check the signing status and location of the referenced program",
+    "Correlate a login item file with the process it starts at the next login",
+    "Remove a malicious login item cleanly during response"
+  ],
+  "techniqueId": "t1547-015",
+  "detectsTechniques": [
+    "t1547-015"
+  ],
+  "dataSources": [
+    "macOS file system monitoring of the login item and launch agent property list locations under the system and user library folders",
+    "macOS unified log entries from the background task management service that records login item additions and removals",
+    "Endpoint process creation records on macOS showing a process started by the user session with a login item path",
+    "Code signing and notarisation records for the referenced application bundle"
+  ],
+  "logic": "The detection watches for the creation or modification of a login item or launch agent property list, then follows the reference inside it. Fields to correlate are the file path, the writing process, the owning account, the value of the program arguments key inside the file, and the signature of the referenced binary, joined later with a process creation event whose image matches that path. The benign case is an application update that rewrites its own signed login item in the system or application support location with the installer as the writing process; the malicious case is a property list written into a user library folder by a shell or script interpreter, pointing at a binary in a temporary directory that carries no valid signature. Location and signature together carry most of the signal.",
+  "pseudoQuery": "# title: Login item plist written to user library by script process\n# logsource:\n#   product: macos\n#   category: file_event\n# detection:\n#   selection:\n#     TargetFilename|endswith: '.plist'\n#     TargetFilename|contains: '/Library/LaunchAgents/'\n#     Image|endswith:\n#       - '/bin/sh'\n#       - '/bin/bash'\n#       - '/usr/bin/python3'\n#   condition: selection\n# level: medium",
+  "falsePositives": [
+    "Application installers that register a login item so the application starts with the user session",
+    "Developer tooling that installs a launch agent for a background sync process",
+    "Remote management agents deployed by your own information technology team",
+    "Updaters that rewrite an existing login item property list during a version upgrade"
+  ],
+  "tuningNotes": "Filter the writing processes you trust, such as your management agent and signed installers, and allowlist the program paths belonging to approved applications. Focus first on user library folders rather than the system library, because approved software should write there. Baseline how many login item files change weekly in your fleet so that a spike is meaningful. The coverage you lose by trusting an approved installer path is the case where an attacker overwrites the login item of a legitimate application, so keep a hash or signature check on the referenced binary and alert when a known path begins pointing at a different file.",
+  "severity": "medium"
+}

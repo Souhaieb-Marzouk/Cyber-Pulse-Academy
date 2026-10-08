@@ -1,0 +1,107 @@
+{
+  "id": "det0096",
+  "type": "detection",
+  "title": "Account Manipulation Behavior Chain Detection",
+  "shortTitle": "Account Manipulation Behavior Chain Detection",
+  "externalId": "DET0096",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects chains of account manipulation, where an actor creates an account, adds it to a privileged group or attaches credentials to an existing identity. The technique matters because account manipulation converts a single compromised session into durable, legitimate looking access that survives password resets and reboots. Detection works by correlating directory change events, group membership events and credential change events for the same target identity inside a short window. The usual failure is that human resources and identity teams perform the same operations at scale during onboarding, so severity must come from the sequence and the actor rather than from any single change. This is independent study material and not an authoritative source.",
+  "tags": [
+    "persistence",
+    "privilege escalation",
+    "account manipulation",
+    "active directory",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Account Manipulation Behavior Chain Detection",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0096/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Account Manipulation Behavior Chain Detection - EASY",
+      "path": "exercises/det0096/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Account Manipulation Behavior Chain Detection - MEDIUM",
+      "path": "exercises/det0096/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Account Manipulation Behavior Chain Detection - HARD",
+      "path": "exercises/det0096/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Account Manipulation Behavior Chain Detection - EXTREMELY HARD",
+      "path": "exercises/det0096/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes that give an account more power. Examples include creating a new account, adding an account to an administrator group, or adding a second password or key to an account. Attackers make these changes so they can return later with access that looks normal. The detection watches these changes in the company directory service and in cloud identity systems.",
+    "whyItMatters": "A stolen password can be changed by the real owner, which ends the attack. A new account with added rights is much harder to notice and much harder to remove. Adding a second key to an account keeps working even after a password reset. Because these changes look like ordinary administration, they often pass review. Finding the chain early prevents an attacker from building a permanent door.",
+    "howItWorks": [
+      "The directory service records every account change, including who made it, which account was changed and when.",
+      "Group membership events record when an account joins a security group.",
+      "Credential events record when a password is reset or a key is added to an account.",
+      "The rule links these events when the same target account appears in more than one of them in a short period.",
+      "It checks whether the account making the change is a human administrator, a service account or an unusual session.",
+      "A new account that joins a privileged group within minutes is scored as a high priority chain."
+    ],
+    "example": "Imagine a building where staff badges are printed at reception. Printing one badge is normal. Printing a badge and then quietly adding it to the door list for the server room in the same visit is a different story. The printer is not the issue, and neither is the door list. It is the order and the speed of the two actions by the same person that should make you look up, exactly as the account chain does here.",
+    "takeaways": [
+      "Account manipulation turns temporary access into lasting access.",
+      "One change is usually routine, so detect the chain of changes in a short window.",
+      "Always identify which account performed the change, not only which account was changed."
+    ]
+  },
+  "objectives": [
+    "List the account changes that give an attacker durable access.",
+    "Identify the directory and cloud audit events that record accounts, groups and credentials.",
+    "Correlate actor, target, operation and time into a single chain.",
+    "Compare the actor against approved onboarding and identity administration accounts.",
+    "Describe containment for a confirmed account manipulation without breaking legitimate access."
+  ],
+  "techniqueId": "t1098",
+  "detectsTechniques": [
+    "t1098"
+  ],
+  "dataSources": [
+    "Windows Security event 4720 user account created and event 4738 user account changed",
+    "Windows Security event 4728 and 4732 member added to a security enabled global or local group",
+    "Windows Security event 4724 password reset attempt and event 4738 account attribute changes",
+    "Cloud identity audit logs recording user creation, group membership changes and credential additions",
+    "Windows Security event 4672 special privileges assigned to a new logon for the acting account"
+  ],
+  "logic": "The pattern is a short sequence in which one acting identity creates or alters a target account and then raises that target account's privileges or credentials. The fields that carry the meaning are the subject account and its logon identifier, the target account and its security identifier, the operation type, the group or credential touched, and the timestamps that establish the order. Each event alone is normal administration, which is why the rule must join them on the target identity within a window of minutes rather than alerting per event. Benign onboarding is performed by documented identity administration accounts during business hours, follows a ticket, and usually separates account creation from privileged group assignment by hours or days. Hostile manipulation is often performed by an account that has no identity administration role, outside change windows, combines creation, group addition and credential change in one session, and may touch more than one target account in quick succession.",
+  "pseudoQuery": "# title: Account Created Then Added to Privileged Group in One Session\n# logsource:\n#   product: windows\n# detection:\n#   sel_create:\n#     EventID: 4720\n#   sel_group:\n#     EventID: [4728, 4732]\n#     TargetUserName|contains: ['Domain Admins', 'Enterprise Admins', 'Administrators']\n#   sel_cred:\n#     EventID: [4724, 4738]\n#   filter:\n#     SubjectUserName|endswith: ['svc_identity', 'adm_provisioning']\n#   condition: ((sel_create and sel_group) or sel_cred) and not filter\n# level: critical",
+  "falsePositives": [
+    "Onboarding automation that creates a user and assigns group membership during a new hire workflow",
+    "Identity administrators who correct a group membership mistake on the same day it was reported",
+    "Migration projects that recreate accounts and reapply group memberships in bulk over a weekend",
+    "Service account rotations that reset a password and update a stored credential in the same change",
+    "Emergency access procedures that create a temporary privileged account during an incident"
+  ],
+  "tuningNotes": "Start by inventorying the accounts and automation that legitimately create users and change privileged groups, then allowlist by subject account plus source host rather than by operation. Require the chain to complete inside a short window, since that alone removes most onboarding noise, and keep a separate lower severity rule for credential additions to existing privileged accounts. Scope the critical severity to domain controllers and to privileged groups that grant directory wide rights. The trade off is missing a patient attacker who separates the steps across days, so keep a daily summary that lists every actor who both created an account and changed a privileged group in the previous twenty four hours.",
+  "severity": "critical"
+}

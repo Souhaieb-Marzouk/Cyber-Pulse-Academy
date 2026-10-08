@@ -1,0 +1,106 @@
+{
+  "id": "det0361",
+  "type": "detection",
+  "title": "Detecting .NET COM Registration Abuse via Regsvcs/Regasm",
+  "shortTitle": "Detecting .NET COM Registration Abuse via Regsvcs/Regasm",
+  "externalId": "DET0361",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the signed Microsoft .NET registration utilities Regsvcs and Regasm, the T1218.009 System Binary Proxy Execution sub-technique. Both utilities are trusted because Windows ships them and they are used to register legitimate .NET assemblies, but neither should appear in normal day to day endpoint activity, which makes them high value proxy execution candidates for running attacker assemblies outside the ordinary application path. Detection rests on process creation with the full command line and parent image, file creation telemetry for assemblies dropped shortly before the utility runs, module load records for the common language runtime, and network events from the resulting process. It fails in practice because legitimate software installers do invoke these utilities, so a rule that ignores the working directory, the parent process and the assembly path will flag every patch cycle.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "proxy execution",
+    "dotnet",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting .NET COM Registration Abuse via Regsvcs/Regasm",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0361/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting .NET COM Registration Abuse via Regsvcs/Regasm - EASY",
+      "path": "exercises/det0361/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting .NET COM Registration Abuse via Regsvcs/Regasm - MEDIUM",
+      "path": "exercises/det0361/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting .NET COM Registration Abuse via Regsvcs/Regasm - HARD",
+      "path": "exercises/det0361/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting .NET COM Registration Abuse via Regsvcs/Regasm - EXTREMELY HARD",
+      "path": "exercises/det0361/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches two Microsoft command line tools named Regsvcs and Regasm. They register .NET programs, which are programs built for the Microsoft .NET runtime, with Windows. Intruders abuse them because they are signed and trusted by the system.",
+    "whyItMatters": "Security tools often allow signed Microsoft programs to run. An intruder who hides a program behind one of these tools may avoid a simple block. It is a defence evasion step, and stopping it early keeps unknown code off the machine.",
+    "howItWorks": [
+      "An agent records every new process, including the parent process and the full command line.",
+      "A rule matches the two registration utilities by their full file path.",
+      "It records the assembly file path given on the command line and where that file lives.",
+      "It checks whether the assembly appeared on disk in the last few minutes.",
+      "An assembly from a temporary folder or a user download folder, started by an office program, raises the alert."
+    ],
+    "example": "Think of a courier who is allowed into the building because the uniform is official. The uniform is real, but the parcel is not from any supplier, and the courier arrived through the fire door at midnight.",
+    "takeaways": [
+      "Trusted utilities are dangerous because trust is what intruders borrow.",
+      "The working directory and the assembly path are the fields that decide whether this is normal.",
+      "These two utilities should almost never run on a user workstation."
+    ]
+  },
+  "objectives": [
+    "Explain how a signed system utility can be used to run untrusted code",
+    "Name the command line fields that identify which assembly a registration utility will load",
+    "Correlate file creation records with the process that registers a newly written assembly",
+    "Describe where legitimate installers use these utilities and why those paths are filtered",
+    "Identify the runtime module load records that confirm a .NET assembly executed",
+    "Choose between blocking these utilities and alerting on their unexpected use"
+  ],
+  "techniqueId": "t1218-009",
+  "detectsTechniques": [
+    "t1218-009"
+  ],
+  "dataSources": [
+    "Sysmon event 1 or Windows Security event 4688 process creation including full command line, parent image and working directory",
+    "Sysmon event 11 file creation records for assemblies written to temporary, download or user profile paths",
+    "Sysmon event 7 image load records showing the common language runtime loading the registered assembly",
+    "Sysmon event 3 network connection records with owning process for the registered assembly",
+    "Windows application and installer logs recording vendor product registration during software deployment"
+  ],
+  "logic": "The pattern is a registration utility started by a process that has no business registering assemblies, pointing at an assembly in a user writable location that was written moments before. Analysts join the process creation record to file creation records for the same path and to module load records that name the assembly, then check the signer of that assembly. The benign case is a vendor installer running from a signed package under the software distribution service, with the assembly in the product's own program files directory and a valid signature. The malicious case is an office document, a scripting host or a web server process launching the utility with an assembly in a temporary or profile path that has no valid signature, especially when the same host then shows outbound network connections from that process.",
+  "pseudoQuery": "# title: Assembly registered by Regsvcs or Regasm from a user writable path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_tool:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\Regsvcs.exe'\n#       - '\\\\Regasm.exe'\n#   selection_path:\n#     CommandLine|contains:\n#       - '\\\\Temp\\\\'\n#       - '\\\\Downloads\\\\'\n#       - '\\\\AppData\\\\'\n#   filter_installer:\n#     ParentImage|endswith: '\\\\msiexec.exe'\n#   condition: selection_tool and selection_path and not filter_installer\n# level: high",
+  "falsePositives": [
+    "Software deployment packages that register a line of business .NET component during installation",
+    "Developer workstations where engineers register assemblies they built for internal testing",
+    "Legacy applications reinstalled by the service desk with a vendor supplied registration batch file",
+    "Patch or upgrade processes that re-register existing components after an in place application update"
+  ],
+  "tuningNotes": "Filter the software distribution service and signed installer parents by full path, and require the assembly path to be outside programme files or the vendor application directory. Add a signature check so that signed assemblies from known publishers are treated as low severity while unsigned ones alert at high. Scope the rule away from developer groups if your change process allows local registration, or keep them in scope with a lower severity and a note in the runbook. Narrowing by publisher and path means a determined attacker who signs with a stolen certificate can slip through, so also alert on first time use per host, which is cheap to maintain and catches such cases.",
+  "severity": "high"
+}

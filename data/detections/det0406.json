@@ -1,0 +1,106 @@
+{
+  "id": "det0406",
+  "type": "detection",
+  "title": "Detection Strategy for Extended Attributes Abuse",
+  "shortTitle": "Detection Strategy for Extended Attributes Abuse",
+  "externalId": "DET0406",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets the abuse of extended attributes, the small name and value pairs that file systems such as ext4 and the Windows new technology file system attach to a file outside its main content. It matches the hidden artifacts sub technique for extended attributes. It matters because an attribute can carry a script, a configuration flag or a marker that a loader reads later, and the file itself still looks empty, ordinary or signed, so content based inspection sees nothing. The telemetry that reveals it is audit records for attribute write and read operations, file system metadata events showing attribute names and value sizes, process creation for the attribute command line tools, and the extended attribute field that some endpoint agents include with process execution events. It fails most often because many legitimate tools set attributes for quarantine marks, access control lists and backup status.",
+  "tags": [
+    "linux",
+    "defense evasion",
+    "mitre t1564.014",
+    "file metadata",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Extended Attributes Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0406/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Extended Attributes Abuse - EASY",
+      "path": "exercises/det0406/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Extended Attributes Abuse - MEDIUM",
+      "path": "exercises/det0406/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Extended Attributes Abuse - HARD",
+      "path": "exercises/det0406/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Extended Attributes Abuse - EXTREMELY HARD",
+      "path": "exercises/det0406/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for hidden labels that operating systems can attach to a file. The labels live outside the file content. Programmers call them extended attributes. The alert means a program hid data in an attribute place where a script can read it later.",
+    "whyItMatters": "Most security tools read file content. They do not always read these extra labels. An attacker can hide a small script or a flag in a label. The real file then still looks harmless. The label can also travel when the file is copied, so the hiding may survive a move.",
+    "howItWorks": [
+      "The operating system records when a process writes or reads file attributes.",
+      "Those records reach the security monitoring platform with the file path, the attribute name and the value size.",
+      "The rule drops attribute names that common software sets for normal reasons, such as quarantine.",
+      "It then checks the remaining values and the program that performed the write.",
+      "A later process that reads the same attribute and then starts a script interpreter raises the alert.",
+      "The alert shows the file, the attribute, the writer and the reader."
+    ],
+    "example": "Think of a suitcase with a tag tied to the handle. Security opens the suitcase and finds clothes. The tag says something different. If you never read tags, you never see the message. This detection reads the tags as well as the suitcase.",
+    "takeaways": [
+      "Information can hide in file metadata, not only in file content.",
+      "You must know which attribute names are normal before this rule is usable.",
+      "A write followed by a read and a script start is a much stronger signal than a write alone."
+    ]
+  },
+  "objectives": [
+    "Define extended attributes and where file systems store them.",
+    "Name the audit and endpoint telemetry that records attribute writes and reads.",
+    "Classify attribute names into normal, administrative and suspicious groups.",
+    "Correlate an attribute write with a later read that leads to process execution.",
+    "Explain how attribute abuse can bypass content based scanning and file hashing."
+  ],
+  "techniqueId": "t1564-014",
+  "detectsTechniques": [
+    "t1564-014"
+  ],
+  "dataSources": [
+    "Linux audit records for the attribute management command line tools showing the target file, attribute name and acting user",
+    "File system metadata change events capturing attribute names, value sizes and the writing process",
+    "Command history or shell audit records showing attribute tools invoked with encoded values on a downloaded file",
+    "Sysmon event 1 process creation records whose extended attribute field lists user defined attribute names on the executed image",
+    "Endpoint agent process execution events that include the file attribute list of the launched binary"
+  ],
+  "logic": "The pattern is a process writing an extended attribute whose name is not one of the well known system or security labels, especially when the value is large, base64 looking or script like, and a later process reading that same attribute before starting an interpreter or a loader. The fields that must be correlated are the target file path, the attribute name and value size, the process and user that performed the write, the process that read it, the command line of any interpreter that started afterwards, and the elapsed time between write and read. The benign case is software that sets quarantine, capability, access control or backup attributes as designed, which are stable names applied by known binaries; the malicious case is an unrecognised attribute name applied to a file in a download or temporary directory by a script host, followed by an attribute read and a script start from a process with no business relationship to that file.",
+  "pseudoQuery": "# title: Suspicious Extended Attribute Write Followed by Script Execution\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection:\n#     type: 'PATH'\n#     name|contains:\n#       - 'setfattr'\n#       - 'xattr'\n#   filter_known:\n#     key|startswith:\n#       - 'security.'\n#       - 'system.'\n#       - 'user.quarantine'\n#   condition: selection and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Backup and archive software that writes checksum or restore attributes onto every file it touches",
+    "Container runtimes that set security and capability attributes on binaries during image unpack",
+    "Download agents that apply a quarantine attribute to files retrieved from the internet",
+    "Access control tooling that stores a policy identifier in a user attribute on shared documents"
+  ],
+  "tuningNotes": "First collect every attribute name written on a representative set of hosts for a month and group them by the writing binary, then allow list whole name prefixes such as the security and system namespaces and keep only user defined names in scope. Add a filter for writes performed by your backup, container and download agents, because those account for nearly all legitimate volume. Scope the rule to servers that host shared data and to developer workstations, where the technique is most useful to an intruder, and use a lower severity rule elsewhere. Narrowing this way can miss abuse that reuses an allowed name prefix, so also alert when the value size for a known attribute name changes dramatically from its baseline.",
+  "severity": "medium"
+}

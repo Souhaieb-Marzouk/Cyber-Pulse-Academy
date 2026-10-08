@@ -1,0 +1,107 @@
+{
+  "id": "det0477",
+  "type": "detection",
+  "title": "Behavioral Detection of WinRM-Based Remote Access",
+  "shortTitle": "Behavioral Detection of WinRM-Based Remote Access",
+  "externalId": "DET0477",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects remote administration through Windows Remote Management (WinRM), which maps to the remote services technique for Windows Remote Management. Because WinRM uses Hypertext Transfer Protocol (HTTP) on ports 5985 and 5986 and is a normal management channel, port based filtering rarely helps and the useful evidence is the operability stack: the client side event that records the connection target, the server side event that records the authenticated session, and the process creation that follows inside a WinRS or PowerShell remoting session. Detection correlates those three across hosts and adds the source address and account to decide whether the pattern fits the management plane. It fails in practice because management servers, configuration tools and monitoring systems use WinRM legitimately and constantly, so the rule must filter known management sources rather than the protocol itself.",
+  "tags": [
+    "mitre t1021.006",
+    "winrm",
+    "lateral movement",
+    "remote services",
+    "windows",
+    "powershell remoting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of WinRM-Based Remote Access",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0477/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of WinRM-Based Remote Access - EASY",
+      "path": "exercises/det0477/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of WinRM-Based Remote Access - MEDIUM",
+      "path": "exercises/det0477/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of WinRM-Based Remote Access - HARD",
+      "path": "exercises/det0477/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of WinRM-Based Remote Access - EXTREMELY HARD",
+      "path": "exercises/det0477/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows Remote Management is a Windows feature that lets an administrator run commands on another computer. It uses the same kind of web traffic as a browser, on a fixed port. This detection looks for remote command sessions that do not come from your normal management systems.",
+    "whyItMatters": "Remote management that is already built in needs no extra tooling on the target. An attacker with one valid account can move between servers without installing anything. The traffic may look like ordinary web traffic to a filter. Watching who uses this channel gives you a strong signal of movement inside the network.",
+    "howItWorks": [
+      "Each host records when it starts a remote management connection and to which target.",
+      "The target host records the session, the account used and the client address.",
+      "The detection joins the two records so one alert shows the full path.",
+      "It flags sessions where the source address is not a known management server.",
+      "It adds the processes started inside the session, such as a command shell or a scripting host.",
+      "An analyst checks the account, the source host and the commands before deciding on containment."
+    ],
+    "example": "Think of an office with an internal phone line used by managers to give instructions to other floors. It is convenient and everyone trusts it. A stranger who finds a phone can call any floor and give orders, and the call looks normal. This detection checks which extension is calling.",
+    "takeaways": [
+      "Remote management is built into Windows and needs no extra software on the target.",
+      "The port number is not useful for detection because the protocol normally uses a web port.",
+      "Correlating client, server and child process turns three weak events into one strong alert."
+    ]
+  },
+  "objectives": [
+    "Explain what Windows Remote Management is and how clients reach a target host.",
+    "Identify the client side and server side event records for a remote management session.",
+    "Correlate a session with the processes it started on the target.",
+    "Distinguish a management server from a user workstation by source address and schedule.",
+    "Describe triage steps for an unexpected remote management session on a server."
+  ],
+  "techniqueId": "t1021-006",
+  "detectsTechniques": [
+    "t1021-006"
+  ],
+  "dataSources": [
+    "Windows Remote Management operational event log on the target recording session creation with the account and client address",
+    "Windows Security event 4624 successful logon of logon type 3 or 8 with the source workstation and account name",
+    "Sysmon event 1 process creation showing a parent image of the remote management host process with the resulting command line",
+    "Windows PowerShell operational log recording a remote shell session and the commands received",
+    "Network flow or firewall logs showing connections to the remote management ports with source and destination addresses"
+  ],
+  "logic": "The pattern is a remote management session that starts from an address which is not part of the management plane, followed by command execution on the target. Correlate the client side connection event and the target side session creation event by target address and time, then join the session to the child process creation events that carry the remote management host as the parent image. Add the account, the logon type and the destination asset class. In the benign case the source is a management server or jump host in a documented subnet, the account is a service or automation identity, and the session runs on a schedule across many hosts. In the malicious case the source is a workstation, a developer laptop or an unusual server, the account is a user or service account that has never used this channel, the destination is a domain controller or database server, and the child processes are an interactive shell or script host running discovery commands.",
+  "pseudoQuery": "# title: WinRM Session Originating from Non Management Host\n# logsource:\n#   product: windows\n#   service: winrm\n# detection:\n#   selection_session:\n#     EventID: 6\n#   filter_mgmt_sources:\n#     ClientAddress|startswith:\n#       - '10[.]60[.]0[.]'\n#       - '10[.]60[.]1[.]'\n#   selection_child:\n#     ParentImage|endswith:\n#       - '\\\\wsmprovhost.exe'\n#       - '\\\\winrshost.exe'\n#   condition: selection_session and selection_child and not filter_mgmt_sources\n# level: medium",
+  "falsePositives": [
+    "Configuration management and patching systems that push scripts to servers through remote management on a schedule",
+    "Administrators who run interactive remote sessions from a workstation during an approved maintenance window",
+    "Monitoring platforms that collect inventory and health data over remote management from several collector hosts",
+    "Backup and disaster recovery products that execute preparation scripts on target servers through the same channel"
+  ],
+  "tuningNotes": "Build the allowlist from observed behaviour: collect a month of remote management sessions, note the source addresses, accounts and destination classes, and filter only those that are clearly part of the management plane. Scope the strictest severity to domain controllers, certificate authorities and database servers, where interactive remote shells are rare, and keep a lower-severity rule for general servers. Add a condition on the child process command line so that discovery and credential access tooling raises severity on its own. The coverage you lose by trusting management subnets is detection of an attacker who compromises a jump host, so monitor those hosts with separate authentication and process rules.",
+  "severity": "medium"
+}

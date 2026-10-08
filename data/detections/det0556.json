@@ -1,0 +1,108 @@
+{
+  "id": "det0556",
+  "type": "detection",
+  "title": "Behavior-chain detection strategy for T1127.001 Trusted Developer Utilities Proxy Execution: MSBuild (Windows)",
+  "shortTitle": "Behavior-chain detection strategy for T1127.001 Trusted D...",
+  "externalId": "DET0556",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers Trusted Developer Utilities Proxy Execution: MSBuild, the abuse of a signed Microsoft build tool to compile and run attacker supplied code while the parent process looks trustworthy. It matters because MSBuild is a legitimate, signed binary that many organisations allow, so proxy execution can defeat application control and parent process based allow listing at the same time. The telemetry that enables detection is process creation for MSBuild with its full command line, file creation of temporary build output including inline task assemblies, module load events showing a newly written dynamic link library loaded into the build process, and network connection events from the build process. It fails in practice because build servers run MSBuild constantly, so the detection depends on distinguishing developer and continuous integration hosts from user workstations, and on catching suspicious parent processes and project files in user writable paths.",
+  "tags": [
+    "defense-evasion",
+    "proxy-execution",
+    "windows",
+    "developer-tools",
+    "process-lineage"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection strategy for T1127.001 Trusted Developer Utilities Proxy Execution: MSBuild (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0556/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection strategy for T1127.001 Trusted Developer Utilities Proxy Execution: MSBuild (Windows) - EASY",
+      "path": "exercises/det0556/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.001 Trusted Developer Utilities Proxy Execution: MSBuild (Windows) - MEDIUM",
+      "path": "exercises/det0556/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.001 Trusted Developer Utilities Proxy Execution: MSBuild (Windows) - HARD",
+      "path": "exercises/det0556/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.001 Trusted Developer Utilities Proxy Execution: MSBuild (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0556/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "MSBuild is a real Microsoft tool that turns source code files into programs. Attackers abuse it because it can compile and run code, and because the tool is signed and often allowed. This detection watches for the build tool being used in places and ways that normal development does not use it.",
+    "whyItMatters": "Security tools often allow actions taken by trusted signed programs. When an attacker hides inside such a program, the activity looks like ordinary developer work. This can bypass rules that only allow approved software to run. Detecting the context, not just the program, is the only way to see it.",
+    "howItWorks": [
+      "The endpoint records every program start, including the full command line and the parent program.",
+      "The rule selects starts of the build tool, then checks where the project file came from.",
+      "A project file in a temporary folder, a downloads folder or a user profile is treated as suspicious.",
+      "The rule also watches for a new library file being written next to the project and then loaded into the build process.",
+      "A SIEM, which is a central system that collects and searches log events, joins these events by process identifier.",
+      "When a build process writes code, loads it, and then makes a network connection, the alert is raised."
+    ],
+    "example": "Think of a workshop where staff may use the company drill for repairs. A visitor who uses the company drill to break open a cabinet is not suspicious because of the drill. What gives them away is that they used it after hours, on a locker, with the wrong bit. Context, not the tool, is the evidence.",
+    "takeaways": [
+      "Allow listing a signed tool also allow lists everything an attacker can do with it.",
+      "The decisive details are the parent process, the project file location and what the build process writes or connects to.",
+      "Build servers need their own baseline, because on those hosts MSBuild runs all day."
+    ]
+  },
+  "objectives": [
+    "Explain how a signed developer utility can be used to execute code while evading application control.",
+    "Identify the MSBuild command line arguments that indicate a project file supplied by the user rather than a repository.",
+    "Correlate process creation, file creation and module load events by process identifier to detect compiled code being run.",
+    "Separate build server activity from abuse on user workstations using host roles and parent processes.",
+    "Describe the network and file artefacts that a suspicious build leaves behind for investigation.",
+    "Explain why a single process creation event is weak evidence for this technique."
+  ],
+  "techniqueId": "t1127-001",
+  "detectsTechniques": [
+    "t1127-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation for the build tool, including full command line, parent image and current working directory",
+    "Sysmon event 11 file create for temporary project files and build output assemblies written to disk during the build",
+    "Sysmon event 7 image load showing a newly created assembly loaded into the build process",
+    "Sysmon event 3 network connection made by the build process, with destination address and port",
+    "Continuous integration server job logs listing the builds and repositories that legitimately ran on build hosts"
+  ],
+  "logic": "The pattern is a build tool process whose command line points at a project file outside a source repository, or whose parent process is something other than a developer shell, an integrated development environment or a build agent. You correlate the process creation event, which gives the command line and parent image, with file creation events for the same process identifier that show a project file and an output assembly being written to a temporary or user writable path, with module load events showing that assembly being loaded, and with network connections from the same process. The malicious case is a script, an office document macro or a scheduled task launching the build tool with a short inline project in a temporary folder, followed by a network callback. The benign case is a developer or build agent running the tool on a project inside a version controlled working copy, with a parent process and execution path that match the host role.",
+  "pseudoQuery": "# title: MSBuild Project Outside Repository With Network Callback\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     Image|endswith: '\\MSBuild.exe'\n#   filter_repo:\n#     CommandLine|contains:\n#       - '\\\\src\\\\'\n#       - '\\\\builds\\\\'\n#       - '\\\\agent\\\\'\n#       - '\\\\repos\\\\'\n#   condition: selection and not filter_repo\n# level: high",
+  "falsePositives": [
+    "Developers running ad hoc builds from a temporary clone or a scratch folder during debugging",
+    "Software deployment packages that invoke the build tool to compile a small helper during installation",
+    "Integrated development environment background builds that run with a command line pointing at a generated project in the user profile",
+    "Automated test harnesses that generate project files on the fly inside a temporary directory",
+    "Third party installer frameworks that call the build tool with inline project content baked into the installer"
+  ],
+  "tuningNotes": "Use host role as the first filter: allow the build tool broadly on continuous integration agents and developer workstations, and alert on any use on servers, executive machines and shared kiosks. On developer hosts, require a second condition such as a project file in a temporary or download directory, a parent process that is a scripting host or an office application, or an outbound network connection from the build process. Baseline the parent images and command line patterns seen in each team for two weeks before setting the filter. The coverage you lose by relaxing the rule on developer hosts is a compromised developer workstation, so keep an alert on any build process that writes an assembly and immediately connects to an address your proxy classifies as uncategorised.",
+  "severity": "high"
+}

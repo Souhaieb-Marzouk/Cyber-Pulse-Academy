@@ -1,0 +1,108 @@
+{
+  "id": "det0493",
+  "type": "detection",
+  "title": "Detect Abuse of Inter-Process Communication (T1559)",
+  "shortTitle": "Detect Abuse of Inter-Process Communication (T1559)",
+  "externalId": "DET0493",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of inter-process communication (IPC), where code already running on a host hands instructions to a trusted local program through a channel such as a named pipe, a Component Object Model (COM) object or a Dynamic Data Exchange (DDE) message. Adversaries prefer IPC because the work is done by a signed binary, so the parent and child process chain looks ordinary to a casual reviewer. Visibility comes from Sysmon named pipe events, process creation with command lines, Office DDE telemetry and COM activation traces. It fails in practice because administration software, backup agents and endpoint tools use the very same pipes and objects, so volume forces analysts to baseline the environment before the rule can be trusted.",
+  "tags": [
+    "inter-process communication",
+    "named pipe",
+    "com",
+    "dde",
+    "windows",
+    "proxy execution"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Abuse of Inter-Process Communication (T1559)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0493/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Abuse of Inter-Process Communication (T1559) - EASY",
+      "path": "exercises/det0493/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Abuse of Inter-Process Communication (T1559) - MEDIUM",
+      "path": "exercises/det0493/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Abuse of Inter-Process Communication (T1559) - HARD",
+      "path": "exercises/det0493/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Abuse of Inter-Process Communication (T1559) - EXTREMELY HARD",
+      "path": "exercises/det0493/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Inter-process communication, or IPC, is the way programs on the same computer talk to each other. This detection looks for unusual use of those local channels. It catches a program that asks a trusted program to do work for it. Attackers like this because the trusted program already has permission to act.",
+    "whyItMatters": "Attackers often cannot run their own tools on a protected computer. They can, however, ask a trusted program to run a command for them. This trick is called proxy execution, and it hides the attacker behind a signed file. Your endpoint tool may trust that file, so it raises no alarm. This detection gives you a second chance to notice the strange request.",
+    "howItWorks": [
+      "Your endpoint agent records local channel events, such as a named pipe being created or a program connecting to one.",
+      "It also records each new process, with the name of the parent program and the full command line.",
+      "The detection compares the parent program with the channel it uses. Common pairs are learned during a quiet period.",
+      "A pair that never appears in normal work is marked as suspicious and given a score.",
+      "An analyst then reviews the alert with the host name, the user and the exact command line.",
+      "If the same request repeats across many hosts, the alert moves to the top of the review queue."
+    ],
+    "example": "Think of an office building with one receptionist who can open every door. Visitors must ask her for help, because they have no keys of their own. A thief learns this and simply asks her to open the server room. She does it, because the request sounds normal. Your camera sees a trusted employee walking through the door. This detection is the note in the receptionist book that says who asked, and for which room.",
+    "takeaways": [
+      "IPC abuse hides the attacker behind a trusted program, so watch the request, not only the program.",
+      "Baseline the local channels your normal software uses before you turn the rule on.",
+      "The command line and the parent program are the two facts you must correlate."
+    ]
+  },
+  "objectives": [
+    "Explain what inter-process communication is and why attackers abuse it.",
+    "List the telemetry sources that record local channel activity on a host.",
+    "Describe the parent process and command line fields you must correlate.",
+    "Build a baseline of normal named pipe and COM activity for one host group.",
+    "Write a pseudo-rule that flags an unusual parent and channel pair.",
+    "Decide when an IPC alert should be escalated rather than closed."
+  ],
+  "techniqueId": "t1559",
+  "detectsTechniques": [
+    "t1559"
+  ],
+  "dataSources": [
+    "Sysmon event 17 and 18 recording named pipe creation and connection, with pipe name and creating process",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "Event Tracing for Windows (ETW) events that record Component Object Model (COM) class activation",
+    "Microsoft Office application telemetry recording dynamic data exchange (DDE) conversations between documents"
+  ],
+  "logic": "The pattern is a local channel request that does not fit the normal role of the requesting program. Analysts must correlate the requesting process image and its parent chain with the channel object, such as a named pipe name or a COM class identifier, and then with the command line of any process that appears seconds later. Legitimate cases show stable pairs that repeat daily, for example a backup agent that always talks to the same service pipe on the same servers. The malicious case shows a scripting host, an office document or a user writable binary asking a privileged program for the first time, often outside business hours and on a host where that pair has never been observed.",
+  "pseudoQuery": "# title: Named Pipe Created by Script Host or Office Application\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 17\n#     Image|endswith:\n#       - '\\winword.exe'\n#       - '\\excel.exe'\n#       - '\\wscript.exe'\n#       - '\\powershell.exe'\n#   filter_internal:\n#     PipeName|startswith: '\\__'\n#   condition: selection and not filter_internal\n# level: medium",
+  "falsePositives": [
+    "Software deployment tooling that triggers installers through a local service pipe from a management share",
+    "Browser helper components that connect to a vendor updater pipe shortly after each launch",
+    "Local administration scripts that use Component Object Model objects to manage scheduled tasks",
+    "Endpoint protection agents that exchange status data with their own service over a named pipe"
+  ],
+  "tuningNotes": "Start by collecting named pipe and COM activity for two weeks without alerting, then build an allow list per asset group for the pairs that repeat daily, such as the antivirus service pipe or the print spooler. Scope the rule to servers and to hosts that handle finance or source code first, because on developer laptops unusual pipes are normal. Exclude signed Microsoft binaries only when the channel name is also on the allow list. Narrowing this way removes a large share of the noise, but you lose coverage of an attacker who reuses a legitimate pipe name from a user profile directory.",
+  "severity": "high"
+}

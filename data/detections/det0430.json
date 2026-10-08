@@ -1,0 +1,108 @@
+{
+  "id": "det0430",
+  "type": "detection",
+  "title": "Detect Credentials Access from Password Stores",
+  "shortTitle": "Detect Credentials Access from Password Stores",
+  "externalId": "DET0430",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects programs that reach into a local password or secret store, such as a browser credential database, the Windows Credential Manager, an SSH private key directory or a macOS keychain, in order to read saved passwords. It matters because credential theft turns a single workstation compromise into account takeovers, lateral movement and mailbox access, and because the same files are touched by benign tools, so context is everything. Detection depends on process command lines that name those stores, file access auditing for the credential files, and the heavily abused credential dumping access to the local security authority process. The main way it fails in practice is volume and dependency: object access auditing is often switched off for the specific files that matter, and where it is on, backup software and password managers generate far more events than an analyst can triage.",
+  "tags": [
+    "credential access",
+    "t1555",
+    "password stores",
+    "endpoint detection",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Credentials Access from Password Stores",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0430/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Credentials Access from Password Stores - EASY",
+      "path": "exercises/det0430/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Credentials Access from Password Stores - MEDIUM",
+      "path": "exercises/det0430/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Credentials Access from Password Stores - HARD",
+      "path": "exercises/det0430/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Credentials Access from Password Stores - EXTREMELY HARD",
+      "path": "exercises/det0430/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that open saved password files on a computer. Saved passwords live in places like a web browser, a keychain or the Windows Credential Manager. The rule reports a program that reads those stores when it normally should not.",
+    "whyItMatters": "Saved passwords are quick to steal and easy to reuse. One stolen password can open email, file shares and cloud systems. The files are small, so the theft takes seconds. This makes the event a high value warning. It is also common enough that you need a careful rule.",
+    "howItWorks": [
+      "A user or a program opens a file that stores saved credentials.",
+      "The operating system records the access if auditing is enabled for that file.",
+      "Endpoint monitoring also records the process and the full command line that performed the access.",
+      "The rule checks whether the process is a browser or a known password manager.",
+      "It also looks for command line arguments that name credential stores or copy them elsewhere.",
+      "An unexpected process reading several stores in one session becomes an alert."
+    ],
+    "example": "Think of a hospital reception desk with a sign in book for the drug cabinet. Nurses sign in and out all day, and the book grows long. Nobody questions those entries. What stands out is a visitor in a delivery uniform who opens the cabinet three times in one minute. The book cannot show what was taken. It shows that the wrong person opened the door.",
+    "takeaways": [
+      "Saved credentials are small, portable and immediately reusable by an attacker.",
+      "The command line and the process identity are more reliable than the write event alone.",
+      "Object access auditing must be enabled for the specific stores you care about."
+    ]
+  },
+  "objectives": [
+    "Explain why local password stores are a high value target on a workstation.",
+    "Identify the telemetry that records both process execution and access to credential files.",
+    "Recognise command line patterns and staging actions that indicate credential collection.",
+    "Distinguish legitimate password manager and browser activity from harvesting behaviour.",
+    "Correlate credential store access with the local security authority process access events.",
+    "Describe the coverage gap when auditing is enabled only for system directories."
+  ],
+  "techniqueId": "t1555",
+  "detectsTechniques": [
+    "t1555"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation capturing the full command line, process image and parent image of the accessing program",
+    "Windows Security event 4663 object access audit for browser credential databases, credential files and keychain stores",
+    "Sysmon event 10 process access records showing a non standard process opening the local security authority",
+    "Endpoint file creation telemetry showing credential databases copied to a staging or archive directory",
+    "macOS unified log records for keychain unlock and item access by process identifier"
+  ],
+  "logic": "The pattern is a process other than an approved browser, password manager or backup agent reading one or more credential stores, or a process whose command line names those stores, copies them or archives a profile directory, especially when several stores are touched in a short window and the output is written to a temporary location. The fields that must be correlated are the accessing process image and its parent, the full command line, the target file path, the user account context, and any follow on file creation or archive command. The malicious case differs from the benign one by the combination of a foreign process and a staging action: browsers read their own store constantly but do not copy it elsewhere under a new name, whereas collection tooling reads several unrelated stores and then writes a copy or an archive. Access to the local security authority by an unsigned binary that is not a security product is a closely related and strongly malicious indicator.",
+  "pseudoQuery": "# title: Non Browser Process Accessed Multiple Credential Stores and Staged a Copy\n# logsource:\n#   product: windows\n# detection:\n#   selection_cmd:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'Login Data'\n#       - 'logins.json'\n#       - '\\\\Credentials\\\\'\n#       - '.ssh\\\\id_rsa'\n#   filter_known:\n#     Image|endswith:\n#       - '\\\\chrome.exe'\n#       - '\\\\firefox.exe'\n#       - '\\\\backup-agent.exe'\n#   selection_access:\n#     EventID: 10\n#     TargetImage|endswith: '\\\\lsass.exe'\n#   condition: selection_cmd and not filter_known\n# level: high",
+  "falsePositives": [
+    "Password manager browser extensions and desktop clients that read and sync their own vault",
+    "Backup and migration software that captures browser profiles and credential files as part of a full profile backup",
+    "Endpoint security agents that inspect browser storage while scanning for malicious extensions",
+    "Helpdesk staff restoring a user profile and copying saved logins back into place after a device rebuild",
+    "Developers running scripts that read their own device key stores for legitimate automation"
+  ],
+  "tuningNotes": "Confirm first that object access auditing is enabled for the browser credential directories in the user profile, because most default audit policies cover only system folders and will leave this rule blind. Then reduce noise with process identity and staging behaviour: filter the exact browser and password manager executables, and require either a copy or archive action, or access to two or more distinct stores within a short window, before alerting. Scope the rule to workstations belonging to privileged users and administrators first, where the impact of a stolen credential is highest, and keep the wider estate in a lower severity rule for hunting. You lose coverage for theft performed by a signed binary that has been abused, or by a script that uses an approved interpreter, so also alert on any credential file that appears in a temporary or archive path and on command lines that reference several stores at once even from common scripting hosts.",
+  "severity": "high"
+}

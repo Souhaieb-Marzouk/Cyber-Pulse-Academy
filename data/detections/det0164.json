@@ -1,0 +1,106 @@
+{
+  "id": "det0164",
+  "type": "detection",
+  "title": "Detection Strategy for Overwritten Process Arguments Masquerading",
+  "shortTitle": "Detection Strategy for Overwritten Process Arguments Masq...",
+  "externalId": "DET0164",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects process argument masquerading, where code replaces the command line recorded for a running process so that tooling and analysts see a harmless description of an activity that is actually malicious. The covered technique matters because the command line is the single most used field in endpoint detection, so overwriting it blinds almost every rule that was written against it and misleads the person investigating. Process access and process creation telemetry make it possible, because a process that writes to another process memory region, or that rewrites its own parameter block after startup, leaves a measurable difference between the recorded command line and the process behaviour. The main failure mode is that debuggers, endpoint agents and instrumentation frameworks legitimately read and write process memory, so the rule must focus on write access to argument buffers by non debugging processes rather than on process access in general.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "process injection",
+    "command line",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Overwritten Process Arguments Masquerading",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0164/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Overwritten Process Arguments Masquerading - EASY",
+      "path": "exercises/det0164/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Overwritten Process Arguments Masquerading - MEDIUM",
+      "path": "exercises/det0164/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Overwritten Process Arguments Masquerading - HARD",
+      "path": "exercises/det0164/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Overwritten Process Arguments Masquerading - EXTREMELY HARD",
+      "path": "exercises/det0164/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a program that changes the description of itself or of another program. The recorded command line then says something harmless. In truth the program is doing something quite different.",
+    "whyItMatters": "Analysts read command lines first, and many detection rules depend on them. An attacker who rewrites the command line can hide in plain sight and steer the investigation the wrong way. The change also breaks the evidence trail, which makes later incident work harder. Detecting the rewrite protects every other rule you own.",
+    "howItWorks": [
+      "When a process starts, the system stores the command line that was used to launch it.",
+      "Attack code can overwrite that stored text inside its own memory after it starts.",
+      "Writing to another process usually needs a handle with write permission.",
+      "The endpoint records handles that request write access to another process.",
+      "The detection flags writes to the memory region that holds process parameters.",
+      "An analyst then compares the recorded command line with the real behaviour of the process."
+    ],
+    "example": "Think of a delivery van with a magnetic sign that reads flower delivery. The driver stops halfway and swaps the sign for one that reads catering. The gate log recorded the van as flower delivery, and every camera in the yard will be searched using the wrong description.",
+    "takeaways": [
+      "If the command line cannot be trusted, it must be verified against behaviour.",
+      "Watch for write access to another process from programs that are not debuggers.",
+      "Process creation time compared with argument change time is a useful inconsistency signal."
+    ]
+  },
+  "objectives": [
+    "Explain how a process command line is stored and how it can be overwritten after startup.",
+    "Identify the access rights that indicate intent to modify another process memory.",
+    "Recognise the parent and child patterns typical of debugging versus masquerading.",
+    "Correlate process creation records with the access events that follow them.",
+    "Describe what evidence an analyst should collect when the command line looks inconsistent."
+  ],
+  "techniqueId": "t1036-011",
+  "detectsTechniques": [
+    "t1036-011"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access records with the requested access rights, source image, target image and target process identifier",
+    "Sysmon event 1 process creation including parent image, process identifier, process globally unique identifier and the original command line",
+    "Windows Security event 4688 process creation with command line auditing for the launcher of the suspect process",
+    "Endpoint detection agent telemetry showing process memory writes and the same process subsequent child processes or network connections"
+  ],
+  "logic": "The pattern is a process that opens another process with memory write access, or rewrites its own parameter block, outside any debugging or instrumentation context, and whose recorded command line does not match what the process proceeds to do. The telemetry is the process access event, the process creation event and the security process creation record, and the fields that must be correlated are the source image and its command line, the target image, the granted access rights, the process identifiers and globally unique identifiers, the creation time of the target, and the command line that appears at creation compared with later advisory records for the same process. Benign behaviour is a debugger attaching during development, an endpoint agent performing its own inspection with a signed driver, a backup product reading process state, or an application launcher that updates its own process title for display purposes. Malicious behaviour is a signed system utility, a scripting host or an unusual binary requesting memory write access to a process it has no relationship with, followed by a change in what that process does, such as loading a library from a temporary folder or opening an outbound connection. The access rights requested are the most useful discriminator, because read and query access is normal while write access to another process is rare.",
+  "pseudoQuery": "# title: Write access to another process argument memory by a non debugger\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 10\n#     GrantedAccess|contains:\n#       - '0x1F0FFF'\n#       - '0x0020'\n#     CallTrace|contains: 'UNKNOWN'\n#   filter_debuggers:\n#     SourceImage|endswith:\n#       - '\\windbg.exe'\n#       - '\\MsMpEng.exe'\n#   condition: selection and not filter_debuggers\n# level: high",
+  "falsePositives": [
+    "Software developers and support engineers attaching a debugger to a process to diagnose a crash",
+    "Endpoint protection and endpoint detection agents that inspect or patch process memory under their own protected context",
+    "Application compatibility shims and accessibility tools that modify another process window or title for display",
+    "Performance profiling tools that instrument a running application during a load test",
+    "Backup and migration software that reads process state of an application it is coordinating with"
+  ],
+  "tuningNotes": "Collect the signed products in your estate that legitimately hold process memory write access and exclude them by signer and image path rather than by name, because names change between versions. Then focus the rule on memory writes to the process parameter region of a different process and require that the source process has no debug privilege. Scope the highest severity to server and user workstation groups where debugging is uncommon, and keep development and support groups at lower severity. The coverage you lose by excluding signed agents is abuse that masquerades as one of them, so independently monitor for unexpected child processes and network connections from those agents. Baseline the normal ratio of process access events to process creations per host, and investigate any host whose ratio changes sharply.",
+  "severity": "high"
+}

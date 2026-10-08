@@ -1,0 +1,105 @@
+{
+  "id": "det0217",
+  "type": "detection",
+  "title": "Detection Strategy for Extra Window Memory (EWM) Injection on Windows",
+  "shortTitle": "Detection Strategy for Extra Window Memory (EWM) Injectio...",
+  "externalId": "DET0217",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1055.011, Extra Window Memory injection, where an actor writes code into the extra window memory of a shared window object so that a different, trusted process executes it. Because the writes travel through documented window management calls and the payload often has no readable module on disk, detection depends on API call telemetry, cross-process handle requests, and the executable memory or remote thread that follows. The hard part is that accessibility, remote support, and user interface automation tools use the same calls all day, so process pair context decides whether an alert is real.",
+  "tags": [
+    "windows",
+    "process injection",
+    "memory",
+    "api monitoring",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Extra Window Memory (EWM) Injection on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0217/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Extra Window Memory (EWM) Injection on Windows - EASY",
+      "path": "exercises/det0217/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Extra Window Memory (EWM) Injection on Windows - MEDIUM",
+      "path": "exercises/det0217/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Extra Window Memory (EWM) Injection on Windows - HARD",
+      "path": "exercises/det0217/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Extra Window Memory (EWM) Injection on Windows - EXTREMELY HARD",
+      "path": "exercises/det0217/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at a way of hiding code inside a shared window object on Windows. One program writes the hidden code. A second program then runs it. Nothing new appears on the disk. The rule watches the calls that make this possible and the memory they touch.",
+    "whyItMatters": "Code hidden this way runs inside a trusted program. It can avoid tools that only look for unknown files or modules. The program that runs it looks innocent in a process list. That makes the trick useful for staying hidden. It also makes the trick very hard to see without deep logging.",
+    "howItWorks": [
+      "Kernel or user mode call logging records the functions that read and write window memory.",
+      "The rule looks for one process writing into a window that belongs to a different process.",
+      "It then checks whether the written memory becomes executable afterwards.",
+      "It compares the call pattern with processes known to automate the interface, such as accessibility tools.",
+      "A match on cross-process window writes plus later execution raises the alert.",
+      "An analyst reviews the source process, the target process, and the account that ran them."
+    ],
+    "example": "Think of a shared notice board in an office. Anyone can pin a note on it. If a person from another department pins a note, the board still looks normal. A colleague in the same office then acts on that note. This rule watches who pins notes on the shared board.",
+    "takeaways": [
+      "The trick puts code in a window object that programs share.",
+      "Cross-process writes to window memory are the key signal.",
+      "Accessibility and automation tools produce very similar calls."
+    ]
+  },
+  "objectives": [
+    "Explain what extra window memory is and why it can hold executable code.",
+    "Identify telemetry that records window memory read and write calls and the processes involved.",
+    "Explain why a cross-process write is more suspicious than a write inside one process.",
+    "List the legitimate interface automation and accessibility tools that produce similar call patterns.",
+    "Describe how to combine call telemetry with a memory protection change in one rule."
+  ],
+  "techniqueId": "t1055-011",
+  "detectsTechniques": [
+    "t1055-011"
+  ],
+  "dataSources": [
+    "Endpoint API call telemetry for window memory functions, with the calling process and the owner of the target window",
+    "Sysmon create remote thread records, or an equivalent endpoint record showing a new thread started inside another process",
+    "Sysmon event 1 process creation showing the injected process and its parent",
+    "Sysmon process access records showing cross-process handle requests that ask for write or full operation rights"
+  ],
+  "logic": "The pattern is a process obtaining write access to another process and then using shared window object memory to place and trigger code, usually followed by a new thread or an executable memory region inside the target. The fields to correlate are the source process, the target process, the window handle ownership, the memory protection change, and the thread creation that follows. Benign cases come from a small set of signed accessibility, remote support, and automation tools that repeat the same process pair on the same host every day; malicious cases involve unrelated process pairs, unusual parents, and execution within seconds of the write.",
+  "pseudoQuery": "# title: Cross Process Window Memory Write Followed by Remote Thread\n# logsource:\n#   product: windows\n#   category: process_access\n# detection:\n#   selection_access:\n#     EventType: 'process_access'\n#     GrantedAccess|contains:\n#       - '0x1F0FFF'\n#       - '0x0008'\n#   filter_tools:\n#     SourceImage|endswith:\n#       - '\\mstsc.exe'\n#       - '\\explorer.exe'\n#   condition: selection_access and not filter_tools\n# level: high",
+  "falsePositives": [
+    "Screen readers and other accessibility software that manipulate window memory inside the application being read",
+    "Remote support tools that drive another user's interface by writing to window objects",
+    "Automated user interface testing frameworks that quality assurance teams run on build machines",
+    "Input method editors and on-screen keyboards that communicate with the focused application window"
+  ],
+  "tuningNotes": "Baseline which process pairs perform window memory operations on each host type, and keep that list short and owned. Filter the signed accessibility, remote support, and automation tools by signer and full path. Raise severity only when the target process is a browser, an office application, or a security agent, since those are common injection targets. Keep an unfiltered count-only version so that new process pairs still appear somewhere. Narrowing by process name alone loses coverage of an attacker who injects into the same automation tool you allowlisted.",
+  "severity": "high"
+}

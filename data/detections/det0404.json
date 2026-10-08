@@ -1,0 +1,106 @@
+{
+  "id": "det0404",
+  "type": "detection",
+  "title": "Detect Winlogon Helper DLL Abuse via Registry and Process Artifacts on Windows",
+  "shortTitle": "Detect Winlogon Helper DLL Abuse via Registry and Process...",
+  "externalId": "DET0404",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses persistence and credential theft through the logon helper mechanism on Windows, matching the registry run keys technique for the winlogon helper dynamic link library. An adversary points the shell, user initialisation or notification value at their own library, so the logon process loads it at every sign in. That gives code execution in a highly trusted context and, for notification packages, direct access to credential material. The telemetry that exposes it is registry modification monitoring on the logon process configuration key, process creation events showing the logon process loading an unexpected module or child, and image load events for libraries outside the system directory. It fails in practice because legitimate software sometimes changes the same value, and because one alert gives no context about who made the change.",
+  "tags": [
+    "windows",
+    "persistence",
+    "mitre t1547.004",
+    "registry monitoring",
+    "credential access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Winlogon Helper DLL Abuse via Registry and Process Artifacts on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0404/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Winlogon Helper DLL Abuse via Registry and Process Artifacts on Windows - EASY",
+      "path": "exercises/det0404/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Winlogon Helper DLL Abuse via Registry and Process Artifacts on Windows - MEDIUM",
+      "path": "exercises/det0404/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Winlogon Helper DLL Abuse via Registry and Process Artifacts on Windows - HARD",
+      "path": "exercises/det0404/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Winlogon Helper DLL Abuse via Registry and Process Artifacts on Windows - EXTREMELY HARD",
+      "path": "exercises/det0404/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for changes to the Windows registry settings that decide which programs run when you sign in. Attackers can point one of those settings at their own file. The alert means the sign in process was told to load something new.",
+    "whyItMatters": "The sign in process runs with very high rights and starts before your desktop appears. Code loaded there is trusted and hidden. It can also capture the password you type, which gives the attacker your account. Because the change lives in the registry, it comes back after every reboot. Catching it early removes a powerful and lasting foothold.",
+    "howItWorks": [
+      "A monitoring agent records changes to registry keys, including which process made the change and which account it used.",
+      "The event is sent to the security monitoring platform with the full key path and the new value.",
+      "The rule selects the logon process configuration key and its shell, user initialisation and notification values.",
+      "It compares the new value with the expected default value and with an approved list.",
+      "It then looks for a logon process that loads a library from outside the system folder on the same host.",
+      "The alert pairs the registry change with the loaded file so the analyst can see the whole chain."
+    ],
+    "example": "Think of a building where the morning keyholder opens every office. If someone quietly changes the keyholder list to include a stranger, that stranger enters every single morning without breaking anything. The list itself is the evidence, and it is stored in a book you can read.",
+    "takeaways": [
+      "The logon process loads helpers named in the registry, and those names are worth monitoring.",
+      "Notification helper libraries can also capture credentials, which raises the impact.",
+      "Compare the new value with the default rather than only alerting on the change."
+    ]
+  },
+  "objectives": [
+    "Name the registry values that control helper libraries loaded by the Windows logon process.",
+    "Explain why a helper library loaded by the logon process is more dangerous than an ordinary start up entry.",
+    "Correlate a registry value change with the module load or child process that follows it.",
+    "Define the expected default values that should never change without a change record.",
+    "Describe how notification package abuse relates to credential access."
+  ],
+  "techniqueId": "t1547-004",
+  "detectsTechniques": [
+    "t1547-004"
+  ],
+  "dataSources": [
+    "Registry modification monitoring capturing the logon process configuration key, the previous and new value, and the writing process",
+    "Sysmon event 13 registry value set events for the logon process key with the image of the process performing the write",
+    "Image load events recording a dynamic link library loaded by the logon process from a path outside the system directory",
+    "Windows Security process creation events showing a child process of the logon process with an unusual parent and command line",
+    "Windows Security event 4688 process creation with command line auditing enabled for the process that wrote the registry value"
+  ],
+  "logic": "The pattern is a write to the logon process configuration key, specifically the shell, user initialisation or notification value, where the new data does not match the expected system default or an approved baseline, performed by a process that is not a signed installer or patch tooling, followed within a short time or at the next sign in by that library being loaded or a child process starting from an unusual path. The fields that must be correlated are the registry key path and value name, the old and new data, the writing process image and its parent, the account context, the loaded module path and its signature, and the parent process of any resulting execution. The benign case is a managed configuration that sets a legitimate corporate helper on managed endpoints through approved tooling; the malicious case is a value rewritten by a script host, a command interpreter, an office application, or a file written to a user writable directory and then loaded by the logon process at the next boot.",
+  "pseudoQuery": "# title: Logon Helper Registry Value Changed to Non Default Library\n# logsource:\n#   product: windows\n#   service: registry\n# detection:\n#   selection:\n#     target_object|endswith:\n#       - '\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Shell'\n#       - '\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Userinit'\n#       - '\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\Notify'\n#   filter_default:\n#     details:\n#       - 'explorer.exe'\n#       - 'C:\\Windows\\system32\\userinit.exe,'\n#   condition: selection and not filter_default\n# level: high",
+  "falsePositives": [
+    "Endpoint management agents that register a signed notification package during a managed deployment",
+    "Accessibility or kiosk software that changes the configured shell for a locked down workstation",
+    "Imaging and provisioning tools that rewrite logon values while building a new machine image",
+    "Legacy vendor software that sets a user initialisation helper as part of its documented installation"
+  ],
+  "tuningNotes": "Record the current data of these values across a representative sample of hosts and treat the intersection of values as the baseline, then alert on any change rather than on a blocklist of known bad strings. Add a filter for writes performed by your signed deployment agent inside an approved maintenance window, and require that the referenced file be signed and located outside user profile directories before you downgrade severity. Scope the rule to managed workstations and servers with a high impact rating, and keep servers with unusual legacy software on a review queue instead of suppression. The coverage you give up is a change made by an approved installer that also drops a malicious helper, so also monitor libraries loaded by the logon process from paths that user accounts can write to.",
+  "severity": "critical"
+}

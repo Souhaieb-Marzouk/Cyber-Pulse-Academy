@@ -1,0 +1,105 @@
+{
+  "id": "det0376",
+  "type": "detection",
+  "title": "Behavioral Detection Strategy for Network Service Discovery Across Platforms",
+  "shortTitle": "Behavioral Detection Strategy for Network Service Discove...",
+  "externalId": "DET0376",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects network service discovery, where an adversary probes hosts and ports to build a map of what is reachable and what is listening. Rather than alerting on a tool name, it looks at the shape of the traffic: one source contacting many destination ports on one host, or many hosts on a small set of ports, within a short window. Telemetry comes from firewall and router logs that record denied and allowed connection attempts, network flow records such as those from a flow export protocol, endpoint network connection events that show a short lived connection pattern, and cloud network logs for security group and load balancer probes. It fails most often because vulnerability scanners, monitoring agents and inventory tools scan the same estate on schedule, so an approved scanner inventory and a per source baseline are essential before the rule can be trusted.",
+  "tags": [
+    "discovery",
+    "network",
+    "flow",
+    "firewall",
+    "baseline"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection Strategy for Network Service Discovery Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0376/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection Strategy for Network Service Discovery Across Platforms - EASY",
+      "path": "exercises/det0376/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Network Service Discovery Across Platforms - MEDIUM",
+      "path": "exercises/det0376/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Network Service Discovery Across Platforms - HARD",
+      "path": "exercises/det0376/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Network Service Discovery Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0376/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Service discovery means checking which computers are switched on and which network doors are open on them. Attackers do this to choose a target. This detection counts connection attempts from one source to many destinations in a short time. It raises an alert on the pattern, not on a specific tool.",
+    "whyItMatters": "A scan is often the first sign that someone is inside your network or testing it from outside. It also tells you which of your own systems an intruder can already reach. Left unseen, the scan is followed by attempts against whatever it found. Seeing the scan gives you a short but real chance to block the source.",
+    "howItWorks": [
+      "Collect firewall and router logs for accepted and denied connection attempts.",
+      "Collect network flow records that summarise connections between addresses and ports.",
+      "Group the events by source address and by destination address over a short time window.",
+      "Count distinct destination ports per destination, and distinct destinations per source.",
+      "Compare the result with a list of approved scanners and with the normal rate for that network segment.",
+      "Alert when a source goes well above its baseline, and include the top ports it tried."
+    ],
+    "example": "Think of a person walking down a street of flats and knocking on every door to see which ones open. No door was forced, and nothing was taken, but the behaviour tells you what happens next. The doorbell log is the flow record.",
+    "takeaways": [
+      "Scanning is a pattern of many destinations in a short time, not a single event.",
+      "An approved scanner list is the difference between constant noise and useful alerts.",
+      "Internal scans matter as much as external ones, because they show an intruder already inside."
+    ]
+  },
+  "objectives": [
+    "Explain what network service discovery is and why it precedes exploitation.",
+    "Choose flow or firewall telemetry that captures both allowed and denied connection attempts.",
+    "Write a rule that detects a high count of distinct destination ports from one source.",
+    "Build an approved scanner inventory and use it to suppress expected scans.",
+    "Distinguish an internal scan by a compromised host from your own scheduled assessment work."
+  ],
+  "techniqueId": "t1046",
+  "detectsTechniques": [
+    "t1046"
+  ],
+  "dataSources": [
+    "Firewall logs recording accepted and denied inbound connection attempts with source and destination ports",
+    "Network flow records exported from routers and switches showing per session byte and packet counts",
+    "Sysmon event 3 network connection including the initiating process and the destination port on Windows hosts",
+    "Cloud network flow logs for virtual private cloud traffic with source, destination and port fields",
+    "Intrusion detection system alerts for port sweep and host sweep signatures with the source address"
+  ],
+  "logic": "The pattern is one source address touching an unusually wide set of destination ports or hosts inside a short window. Telemetry shows many firewall or flow records sharing a source address, with low byte counts per session and a rapid rate of new destinations. The fields to correlate are the source address and its asset identity, the destination addresses, the distinct port count, and the time window. What separates malicious from benign is authorship and schedule: an approved scanner from a known management subnet running in a defined window is expected, while a workstation or a database server generating a sweep, or an external address probing many ports, is not.",
+  "pseudoQuery": "# title: Horizontal or Vertical Port Sweep Detected\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     action: 'connection'\n#   filter_scanner:\n#     src_ip|in: 'approved-scanner-ranges'\n#   condition: selection and not filter_scanner | count(distinct dst_port) by src_ip > 40 within 60s\n# level: medium",
+  "falsePositives": [
+    "Approved vulnerability scanners and asset discovery appliances that sweep the whole estate on a weekly schedule",
+    "Network monitoring agents that poll management interfaces on hundreds of devices to collect health metrics",
+    "Load balancer or service mesh health checks that open short lived connections to many back end ports"
+  ],
+  "tuningNotes": "Maintain a current list of scanner and monitoring source addresses, and filter on both address and schedule so that an approved scanner running outside its window still alerts. Raise the distinct port threshold using a week of observed data for your busiest segment, and separate rules for internal and external sources because their normal rates differ by orders of magnitude. Filtering by scanner address costs you the case of an attacker operating from a compromised management host, so keep an unfiltered low severity rule for the management subnet and review it daily.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0023",
+  "type": "detection",
+  "title": "Obfuscated Binary Unpacking Detection via Behavioral Patterns",
+  "shortTitle": "Obfuscated Binary Unpacking Detection via Behavioral Patt...",
+  "externalId": "DET0023",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects software packing and unpacking behaviour, mapped to ATT&CK technique T1027.002, where an adversary compresses or encrypts a payload so that static inspection of the file on disk reveals almost nothing, then unpacks it in memory at run time. Because the file on disk is a stub, detections that rely on strings or file hashes rarely help; the detection has to watch what the process does after it starts. The observable pattern is a short sequence: a small executable starts from a temporary or user writable location, allocates memory that is both writable and executable, writes unpacked content into it, and transfers control there, often followed by a module that has no backing file on disk. Correlating process creation, memory protection and image load events on the same process is what separates this from ordinary applications. The main practical failure is that installers and updaters legitimately pack their payloads, so the rule is only usable when it is scoped to hosts and directories where self modifying code is unexpected.",
+  "tags": [
+    "mitre t1027.002",
+    "software packing",
+    "obfuscation",
+    "windows",
+    "memory behaviour",
+    "process lineage"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Obfuscated Binary Unpacking Detection via Behavioral Patterns",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0023/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Obfuscated Binary Unpacking Detection via Behavioral Patterns - EASY",
+      "path": "exercises/det0023/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Obfuscated Binary Unpacking Detection via Behavioral Patterns - MEDIUM",
+      "path": "exercises/det0023/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Obfuscated Binary Unpacking Detection via Behavioral Patterns - HARD",
+      "path": "exercises/det0023/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Obfuscated Binary Unpacking Detection via Behavioral Patterns - EXTREMELY HARD",
+      "path": "exercises/det0023/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Packing means squeezing a program into a smaller or scrambled form, like a suitcase with a lock. The program must unpack itself in memory before it can run. This detection looks for that unpacking behaviour rather than the file itself. It catches hidden code while it is waking up.",
+    "whyItMatters": "A packed file often looks like nothing at all, so file based checks miss it. The unpacking moment is when the code finally becomes active and visible in memory. That moment is a rare and useful chance to see what is really running. It does not depend on knowing the packer or its name. If you watch behaviour, you also catch packers you have never seen before.",
+    "howItWorks": [
+      "The sensor records process starts, memory allocation calls and loaded modules for each running process.",
+      "The rule watches for a process asking for memory that can be both written and executed. Normal programs rarely do this.",
+      "It checks whether that process came from a temporary or user writable folder instead of a program directory.",
+      "It then looks for a module load, or execution starting at an address, that has no matching file on disk.",
+      "These facts are grouped by process identifier, so a single process must show the whole sequence to raise an alert.",
+      "The alert shows the parent process, the file path and the memory facts. An analyst can then decide if it is a real packer."
+    ],
+    "example": "Picture a delivery crate that is sealed and unlabelled. The useful moment is not when the crate sits in the hallway. It is when someone opens it and the contents appear. Packed binary detection is the bay camera that records the crate being opened and what came out.",
+    "takeaways": [
+      "Watch behaviour after the program starts, because the file on disk is not informative.",
+      "Writable and executable memory in a normal process is a strong hint of unpacking.",
+      "Installers do this legitimately, so location and host role decide severity."
+    ]
+  },
+  "objectives": [
+    "Explain why a packed executable is hard to judge from the file on disk",
+    "Identify memory protection and module load telemetry that reveals unpacking at run time",
+    "Group events by process to build a behaviour chain rather than alerting on single events",
+    "Separate legitimate installer unpacking from malicious in memory execution",
+    "Describe how parent process and file location adjust the severity of an alert"
+  ],
+  "techniqueId": "t1027-002",
+  "detectsTechniques": [
+    "t1027-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image path, parent image and command line",
+    "Sysmon event 7 image load events showing modules without a backing file on disk",
+    "Sysmon event 10 process access events recording memory access rights requested between processes",
+    "Endpoint detection and response telemetry recording memory allocation protection changes inside a process"
+  ],
+  "logic": "The rule builds a per process chain instead of matching a single event. It starts when a process launched from a temporary, download or user writable directory allocates a region of memory with write and execute permissions, which normal compiled applications rarely request at run time. The chain continues if the process then maps or executes content that has no corresponding file on disk, or loads a module whose path does not exist in the file system, and it is stronger when the parent is an office application, a script interpreter or a download utility. Benign lookalikes are software installers and updaters, which unpack into memory but run from a program files path under a signed vendor binary, and managed runtime engines that legitimately generate code. Location, parent lineage and signing state are therefore the fields that carry the verdict, not the memory behaviour alone.",
+  "pseudoQuery": "# title: Self Modifying Process Unpacks From User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection_proc:\n#     EventID: 1\n#     Image|contains:\n#       - '\\\\Users\\\\'\n#       - '\\\\ProgramData\\\\'\n#       - '\\\\Temp\\\\'\n#   selection_memory:\n#     EventID: 10\n#     GrantedAccess|contains: '0x1F0FFF'\n#   selection_imageload:\n#     EventID: 7\n#     Signed: 'false'\n#   condition: selection_proc and selection_memory and selection_imageload\n# level: high",
+  "falsePositives": [
+    "Software installers that unpack a compressed payload into memory but always run from a signed vendor package in a program directory",
+    "Managed runtime engines and just in time compilers that generate and execute code pages during normal operation",
+    "Endpoint agents that load self extracting update content from a vendor managed staging folder",
+    "Penetration testing or security assessment tooling run by the security team under a controlled change record"
+  ],
+  "tuningNotes": "Collect two weeks of process, memory and module load data before enabling the rule so you can allow list the parent processes and file paths that legitimately unpack on each host tier. Keep the temporary and download directory condition, which is the smallest high value slice, and require an unsigned or unknown module as a second condition. Excluding all known runtimes will cut noise sharply but also removes visibility of attackers who hide inside those runtimes, so prefer filtering by parent and path combinations instead of by runtime name alone.",
+  "severity": "high"
+}

@@ -1,0 +1,105 @@
+{
+  "id": "det0396",
+  "type": "detection",
+  "title": "Detect Access to macOS Keychain for Credential Theft",
+  "shortTitle": "Detect Access to macOS Keychain for Credential Theft",
+  "externalId": "DET0396",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers credential access against the macOS keychain, the encrypted store that holds saved passwords, tokens, certificates and secure notes, matching the technique for credentials from password stores on macOS. The technique matters because a single unlocked keychain gives an intruder plaintext secrets for mail, browsers, shares and developer services without any further exploitation. Useful telemetry includes Endpoint Security framework file and process events, the unified log securityd keychain access messages, and process creation records for the built in security utility when it is used with keychain arguments. The main failure mode is volume: many signed applications read keychain items during normal startup, so a rule that alerts on every keychain access produces so many alerts that analysts stop reading them.",
+  "tags": [
+    "macos",
+    "credential access",
+    "mitre t1555.001",
+    "keychain",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Access to macOS Keychain for Credential Theft",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0396/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Access to macOS Keychain for Credential Theft - EASY",
+      "path": "exercises/det0396/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Access to macOS Keychain for Credential Theft - MEDIUM",
+      "path": "exercises/det0396/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Access to macOS Keychain for Credential Theft - HARD",
+      "path": "exercises/det0396/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Access to macOS Keychain for Credential Theft - EXTREMELY HARD",
+      "path": "exercises/det0396/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs on a Mac that read or copy saved passwords from the keychain. The keychain is the encrypted password store that comes with macOS. The alert means a program accessed protected secrets, especially a program that does not normally do so.",
+    "whyItMatters": "People save many passwords in the keychain, including mail, file shares and work applications. If an attacker reads it, they gain those accounts without guessing anything. On a Mac that is already unlocked, the attacker may not even need a password. Normal user activity also reads the keychain, so the challenge is telling friendly programs from hostile ones. This detection gives you the evidence to make that call.",
+    "howItWorks": [
+      "The Mac records keychain access in the unified log and through the Endpoint Security framework.",
+      "Your log collection agent forwards those records to the security monitoring platform and adds the host name and user.",
+      "The rule selects accesses to keychain database files and to the security command line tool used with keychain options.",
+      "It checks which program performed the access, using its file path and signing identifier.",
+      "Programs that are not signed by your approved developers, or that run from temporary folders, are marked suspicious.",
+      "The alert lists the program, the account, the host and the time so you can decide quickly."
+    ],
+    "example": "Think of a hospital sign-in sheet for the medicine cabinet. Nurses open the cabinet all day, so the sheet is busy and boring. The sheet becomes useful when someone who never works on that ward opens the cabinet at three in the morning. The keychain log works the same way, and the unusual visitor is the story.",
+    "takeaways": [
+      "The keychain holds many credentials, so reading it is a high value step for an attacker.",
+      "You must know which programs normally read the keychain before this rule becomes useful.",
+      "An unsigned or temporary folder program reading keychain data is a strong warning sign."
+    ]
+  },
+  "objectives": [
+    "Describe what the macOS keychain stores and why it is a high value target.",
+    "Name the log sources that record keychain access on macOS.",
+    "Distinguish routine signed application access from suspicious keychain reads.",
+    "Use file path and signing identifier to judge whether a keychain reader is trustworthy.",
+    "Explain how keychain dumps by command line utilities appear in telemetry."
+  ],
+  "techniqueId": "t1555-001",
+  "detectsTechniques": [
+    "t1555-001"
+  ],
+  "dataSources": [
+    "Endpoint Security framework file access events on the macOS keychain database paths in the user Library and the system Library",
+    "macOS unified log securityd keychain item access messages naming the requesting process and the item class",
+    "Process creation events for the built in security utility when invoked with keychain related arguments",
+    "Endpoint Security framework process execution events capturing parent process and code signing identifier for processes that read the keychain"
+  ],
+  "logic": "The pattern is a process that reads keychain database files, or invokes the built in security utility with keychain arguments, where the reader is either unsigned, signed by an unexpected team, or running from a temporary or download directory, and where several keychain items are touched in a short window. The fields to correlate are the file path being read, the code signing identifier and executable path of the reader, the parent process, the logged in user, and the count of distinct keychain items accessed within a few minutes. The benign case is a signed application reading its own single keychain item during launch; the malicious case is a broad read across many items or a dump of the whole keychain by a process with no legitimate reason to do so.",
+  "pseudoQuery": "# title: Anomalous macOS Keychain Read by Unsigned or Temporary Path Process\n# logsource:\n#   product: macos\n#   service: endpoint_security\n# detection:\n#   selection:\n#     event_type: 'file_access'\n#     file_path|contains:\n#       - '/Library/Keychains/login.keychain-db'\n#       - '/Library/Keychains/System.keychain'\n#   filter_signed:\n#     signer|endswith:\n#       - 'Apple'\n#       - 'Approved Developer ID'\n#     process_path|startswith: '/Applications/'\n#   condition: selection and not filter_signed\n# level: high",
+  "falsePositives": [
+    "Password manager clients that read several keychain items when a user unlocks the vault",
+    "Signed backup or migration tools that enumerate keychain metadata during a user profile transfer",
+    "Single sign on agents that refresh their stored token from the keychain on every login",
+    "Developer command line tools reading a stored certificate to sign a build artifact"
+  ],
+  "tuningNotes": "Baseline which signed applications read keychain items on a typical workstation for at least two weeks, and record the normal count of items per process so you can set a threshold above it. Key the allow list on code signing identifier plus executable path, never on process name, and filter out processes whose parent is the window server or the login window. Scope the high severity rule to workstations that hold sensitive data, and keep a lower severity rule for the rest so you still see broad reads. Narrowing this way loses detection of a legitimate signed tool that has been trojanised, so keep a separate monitor for approved binaries that start reading far more items than their baseline.",
+  "severity": "high"
+}

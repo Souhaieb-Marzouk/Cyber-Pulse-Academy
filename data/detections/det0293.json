@@ -1,0 +1,106 @@
+{
+  "id": "det0293",
+  "type": "detection",
+  "title": "Detect Hybrid Identity Authentication Process Modification",
+  "shortTitle": "Detect Hybrid Identity Authentication Process Modification",
+  "externalId": "DET0293",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects modification of the authentication process that joins a cloud identity provider to an on premises directory, which adversaries abuse to keep signing in even after passwords are reset. The target is the trust itself: federation settings, claim or policy rules, authentication agent configuration, and the synchronisation account that bridges both worlds. Detection depends on cloud audit logs that record directory and policy changes, identity server event logs for trust and agent changes, and directory change auditing for the synchronisation account in Active Directory. The strategy fails in two ways: changes made by the legitimate identity administrator look identical at the API level, and the components involved are frequently updated by approved maintenance, so the rule needs a change record comparison and a tight list of who may legitimately alter authentication configuration.",
+  "tags": [
+    "hybrid identity",
+    "authentication",
+    "persistence",
+    "directory services",
+    "cloud identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Hybrid Identity Authentication Process Modification",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0293/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Hybrid Identity Authentication Process Modification - EASY",
+      "path": "exercises/det0293/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Hybrid Identity Authentication Process Modification - MEDIUM",
+      "path": "exercises/det0293/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Hybrid Identity Authentication Process Modification - HARD",
+      "path": "exercises/det0293/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Hybrid Identity Authentication Process Modification - EXTREMELY HARD",
+      "path": "exercises/det0293/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Many companies let staff sign in to cloud services with their normal work account. A special service connects the cloud sign in to the company directory. If an attacker changes that connection, they can create their own way in. This detection watches for changes to that sign in service.",
+    "whyItMatters": "The change gives the attacker access that survives a password reset. It often looks like an ordinary administrative setting rather than a break in. Because the same console is used for regular maintenance, the change can sit unnoticed for months. A single altered trust can affect every account in the company at once.",
+    "howItWorks": [
+      "The cloud identity service records every change to directory, domain and authentication settings with the acting account.",
+      "The rule keeps the changes that touch federation, authentication policy or sign in method configuration.",
+      "On premises records show changes to the account used for directory synchronisation, and to agent services.",
+      "The rule compares the acting account with the small list of identities allowed to change authentication.",
+      "Any change without a matching approved change request is scored as suspicious and reviewed.",
+      "The response checks the current trust settings and the sign in logs for the period right after the change."
+    ],
+    "example": "Think of a building where the front desk phones head office to confirm every visitor. Now imagine someone quietly changes the phone number that the front desk dials. Every future check still happens, and every visitor still looks approved, because the calls simply go to the wrong place. Nobody notices the problem for a long time, which is why the checking process itself must be watched.",
+    "takeaways": [
+      "Authentication configuration is a high value target, so changes to it deserve immediate review.",
+      "A successful impersonation here survives password resets, so the fix must remove the trust.",
+      "Compare every change against an approved change record, because the API view looks the same."
+    ]
+  },
+  "objectives": [
+    "Describe how a hybrid identity setup connects a cloud provider to an on premises directory.",
+    "Name the settings whose modification can grant durable authentication access.",
+    "Explain why password resets do not remove access created this way.",
+    "Correlate cloud audit records with on premises directory and service changes.",
+    "Use approved change records to separate maintenance from hostile modification."
+  ],
+  "techniqueId": "t1556-007",
+  "detectsTechniques": [
+    "t1556-007"
+  ],
+  "dataSources": [
+    "Cloud identity audit logs recording changes to federation configuration, domain settings and authentication method policy",
+    "Federation server event logs showing trust configuration and claim rule changes with the acting account",
+    "Windows Security event 4688 process creation on the identity synchronisation server showing connector and agent commands",
+    "Active Directory object change auditing records for the directory synchronisation account and its group memberships",
+    "Windows Security event 4697 service installation records on the identity server for new authentication agent services"
+  ],
+  "logic": "The pattern is a change to the configuration that decides how identities are authenticated, made by an account that does not normally hold that responsibility, or outside an approved maintenance window. The fields to correlate are the operation name and target object from cloud identity audit logs, the acting account and source address, the corresponding trust or claim rule record on the federation server, and on premises directory change records for the synchronisation account and any newly installed agent service. The benign case is the identity platform team rotating a signing certificate or a connector during a change window, where the acting account is the named administrator, the change matches a ticket, and the old trust material is removed at the same time. The malicious case is a federation or policy change from a newly created or unusual administrator account, from an unfamiliar address, with no change record, and often paired with a new credential added to the trust.",
+  "pseudoQuery": "# title: Federation Trust or Authentication Policy Modified\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     operationName|contains:\n#       - 'federation'\n#       - 'authentication method'\n#       - 'signing certificate'\n#     resultType: 'Success'\n#   filter:\n#     initiatedBy.app.displayName: 'approved-identity-automation'\n#   condition: selection and not filter\n# level: critical",
+  "falsePositives": [
+    "The identity platform team rotating a token signing certificate during a scheduled maintenance window.",
+    "A documented migration project that moves authentication from one federation method to another.",
+    "A new authentication agent deployed to a replacement server, which installs a service and updates its configuration.",
+    "Disaster recovery testing that temporarily changes trust configuration and restores it afterwards."
+  ],
+  "tuningNotes": "Enumerate the small set of roles and named accounts that may change authentication configuration, and filter on those identities while keeping every other successful change at critical severity. Pull change tickets into the alert where you can, because the operation name alone will never tell you whether a task was approved. Exclude the certificate rotation window for your identity platform if it runs frequently, but keep new credential material and new agent installations unfiltered, since those are the parts an attacker needs. Filtering by acting identity loses coverage of an administrator account that has itself been compromised, so pair the rule with alerts for new administrator creation and for sign ins from that account outside its usual network.",
+  "severity": "critical"
+}

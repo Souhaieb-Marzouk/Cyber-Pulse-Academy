@@ -1,0 +1,107 @@
+{
+  "id": "det0488",
+  "type": "detection",
+  "title": "Detect abuse of Trusted Relationships (third-party and delegated admin access)",
+  "shortTitle": "Detect abuse of Trusted Relationships (third-party and de...",
+  "externalId": "DET0488",
+  "theme": "Detection Strategy",
+  "summary": "Abuse of trusted relationships turns a legitimate access path into the intrusion route: attackers compromise or impersonate a supplier, an integrator or a delegated administrator, then use the access that the organisation deliberately granted, so no exploit and no malware is needed. This strategy watches identity control plane changes that create or widen such a relationship, including guest invitations, cross account role assumption with an external identifier, new service principals, delegated administrative role assignments and multi factor authentication exemptions added for partner accounts, then correlates them with the first resource access from that partner identity. The common failure is treating partner activity as out of scope for monitoring, so the rule needs a maintained inventory of approved partners and their expected addresses.",
+  "tags": [
+    "cloud",
+    "azure",
+    "aws",
+    "identity",
+    "initial access",
+    "third party"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect abuse of Trusted Relationships (third-party and delegated admin access)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0488/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect abuse of Trusted Relationships (third-party and delegated admin access) - EASY",
+      "path": "exercises/det0488/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect abuse of Trusted Relationships (third-party and delegated admin access) - MEDIUM",
+      "path": "exercises/det0488/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect abuse of Trusted Relationships (third-party and delegated admin access) - HARD",
+      "path": "exercises/det0488/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect abuse of Trusted Relationships (third-party and delegated admin access) - EXTREMELY HARD",
+      "path": "exercises/det0488/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A trusted relationship is access you give to another company or to a support partner. Examples include a supplier account that can read your files, or a helper account with administrator rights. This plan watches for new relationships and for widened rights. It also watches what those accounts do next.",
+    "whyItMatters": "An attacker does not need to break in if a trusted partner already has a key. Access given for support work is often wider and lasts longer than anyone intends. When the partner is compromised, your systems are exposed through a door you opened. Detecting the change early lets you limit the access before it is used. Watching only your own staff sign ins will miss all of this.",
+    "howItWorks": [
+      "Cloud and directory audit logs record every change to roles, guests and service principals.",
+      "The detection compares those changes against a list of partners you already approved.",
+      "It flags a new guest invite, a new cross account role, or a role added to a partner account.",
+      "It also flags weakened controls, such as a multi factor authentication exemption added for a partner.",
+      "The identity is then watched for its first access to sensitive resources after the change.",
+      "A relationship change that was never requested, followed by real access, becomes the alert."
+    ],
+    "example": "Think of a large office block where each company has a lift key. A cleaning firm is given a master key so it can work at night. If that firm loses the key, every floor is exposed, and nobody notices because no lock was broken. The building log shows when the master key was issued and who used the lift afterwards. In the same way, a trusted identity is a key that must be tracked, not assumed safe.",
+    "takeaways": [
+      "Trusted access is a door you opened, so it needs the same monitoring as an intrusion.",
+      "Relationship changes in the identity control plane are the earliest visible signal.",
+      "Keep a written inventory of partners, or every alert looks equally strange."
+    ]
+  },
+  "objectives": [
+    "Define what counts as a trusted relationship in cloud and directory services.",
+    "Identify the audit events that create or widen such a relationship.",
+    "Correlate a relationship change with the first resource access by that identity.",
+    "Explain why delegated administrator roles carry more risk than ordinary guest access.",
+    "Describe how to maintain an approved partner inventory for triage."
+  ],
+  "techniqueId": "t1199",
+  "detectsTechniques": [
+    "t1199"
+  ],
+  "dataSources": [
+    "Entra ID or Azure AD audit logs for guest invitations, role assignments and service principal creation",
+    "AWS CloudTrail AssumeRole events with the external identifier, session name and source account",
+    "AWS CloudTrail IAM policy and trust policy change events for cross account roles",
+    "Conditional access policy change events recording an exclusion or authentication strength change",
+    "Cloud resource access logs showing the first activity performed by a newly added partner principal"
+  ],
+  "logic": "The detection watches the identity control plane for the creation or widening of a relationship with an external party, then follows that identity into the resource plane. On the control side the interesting events are a guest invitation to a domain that is not on the approved partner list, a new cross account role whose trust policy names an external account, an AssumeRole call using an external identifier that is not the one recorded for that partner, a delegated administrator role assignment, and any conditional access change that exempts a partner identity from multi factor authentication. On its own a role change is an administrative action, so the second half of the pattern is required: the same principal then reads storage, lists secrets, or modifies compute from an address outside the partner's documented range. Correlating the principal, the source account or tenant, the source address, the changed role and the resource actions that follow is what distinguishes an approved partner onboarding from an attacker walking through a trusted door.",
+  "pseudoQuery": "# title: External Partner Role Change Followed By First Resource Access\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     operationName|contains:\n#       - 'Add member to role'\n#       - 'Invite external user'\n#       - 'Add service principal'\n#   filter:\n#     initiatedBy.app.displayName|in: 'approved_partner_identities'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Approved supplier onboarding where a new guest account and role are created in a planned project",
+    "Managed service providers that rotate their support staff and therefore receive a new identity",
+    "Cloud migration programmes that create temporary cross account roles with a documented external identifier",
+    "Disaster recovery tests that assume a partner role from a secondary region for a short period"
+  ],
+  "tuningNotes": "Build the approved partner list first, including the external identifiers and source address ranges each partner uses, and filter on those rather than on the partner name alone. Alert only on relationship changes that have no matching change ticket, and require the follow on resource access before escalating, which removes onboarding noise. Scoping to production tenants keeps volume low but hides staging access that an attacker can use as a stepping stone, so monitor non production tenants with a lower severity and review them weekly.",
+  "severity": "high"
+}

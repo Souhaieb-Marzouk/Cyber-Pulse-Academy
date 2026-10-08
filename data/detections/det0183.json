@@ -1,0 +1,108 @@
+{
+  "id": "det0183",
+  "type": "detection",
+  "title": "Detection Strategy for Lateral Tool Transfer across OS platforms",
+  "shortTitle": "Detection Strategy for Lateral Tool Transfer across OS pl...",
+  "externalId": "DET0183",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers lateral tool transfer, the stage where an adversary copies binaries, scripts or utilities from one compromised host to another inside your estate. The technique matters because it turns a single foothold into a distributed toolkit, and because the copy itself is often the first loud event of an intrusion chain. Detection depends on correlating network logon and share access telemetry with process creation and file creation on the receiving host. The main failure mode is noise: legitimate administrative scripting, software deployment and monitoring agents move files over the same administrative shares and remote service paths, so a rule that ignores the source identity and the destination directory will drown the analyst in benign hits.",
+  "tags": [
+    "lateral movement",
+    "file transfer",
+    "smb",
+    "admin shares",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Lateral Tool Transfer across OS platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0183/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Lateral Tool Transfer across OS platforms - EASY",
+      "path": "exercises/det0183/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Lateral Tool Transfer across OS platforms - MEDIUM",
+      "path": "exercises/det0183/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Lateral Tool Transfer across OS platforms - HARD",
+      "path": "exercises/det0183/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Lateral Tool Transfer across OS platforms - EXTREMELY HARD",
+      "path": "exercises/det0183/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for files that are copied from one computer to another inside your own network. Attackers do this to spread their tools after they break into the first machine. The rule watches how the file moves, not what the file contains.",
+    "whyItMatters": "An attacker who stays on one computer is a small problem. An attacker who copies tools to twenty computers is a large one. The copy step is a rare event on most networks, so it is a good place to look. Catching it early limits how far the intruder can spread. It also gives your team a clear list of machines to clean.",
+    "howItWorks": [
+      "A computer writes a file to a shared folder on another computer.",
+      "Your monitoring tool records that file creation, with the file name and the full path.",
+      "At the same time, the receiving computer records a network logon from the sending machine.",
+      "The detection joins these two events when they happen within a short time window.",
+      "It then checks whether the account or the source computer is allowed to do this.",
+      "If the account is unusual, or the folder is a temporary one, the rule raises an alert."
+    ],
+    "example": "Think of a hotel where guests may use the business centre printer. Every print job leaves a log: who printed, from which room, and at what time. A guest printing one page is normal. A guest printing fifty pages, then walking to another floor and printing there, looks strange. The printer log does not tell you what was printed. It tells you the pattern, and the pattern is what makes the staff look up.",
+    "takeaways": [
+      "Copying tools between hosts is a normal administrator action and a common attacker action.",
+      "The alert is about the pattern: who copied, from where, to which folder, and when.",
+      "You must baseline your normal deployment tools or the rule will be too noisy to use."
+    ]
+  },
+  "objectives": [
+    "Explain why lateral tool transfer turns one compromised host into an estate-wide problem.",
+    "Identify the telemetry that proves a file moved from one host to another.",
+    "Correlate a network logon event with a file creation event inside a short time window.",
+    "Separate administration shares used by deployment tooling from attacker staging paths.",
+    "Scope the rule to server tiers and service accounts where copying is rare.",
+    "Describe the coverage gap created by filtering out known management hosts."
+  ],
+  "techniqueId": "t1570",
+  "detectsTechniques": [
+    "t1570"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation recording target filename and creating process",
+    "Sysmon event 1 process creation including parent image and command line",
+    "Windows Security event 5140 network share object access with source address",
+    "Windows Security event 4624 logon type 3 network logon with source workstation name",
+    "Windows System event 7045 service installation including image path"
+  ],
+  "logic": "The pattern is an inbound network session followed quickly by a file landing in an administrative or temporary share on the same host, and optionally by remote service creation pointing at that file. The fields that must be correlated are the source address and account from the network logon, the target filename and directory from file creation, and the creating process image on the destination. Malicious transfer usually writes into ADMIN$, C$ or a user-writable staging folder such as ProgramData or a temp directory, and is often driven by a script interpreter or a signed remote-control binary rather than by the approved deployment agent. Benign transfer is dominated by a small number of known management hosts and service accounts writing into installer or update directories, so identity and destination path are what separate the two cases.",
+  "pseudoQuery": "# title: Tool Copied to Remote Administrative Share Followed by Service Creation\n# logsource:\n#   product: windows\n# detection:\n#   selection_share:\n#     EventID: 5140\n#     ShareName|endswith:\n#       - 'ADMIN$'\n#       - 'C$'\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - '\\\\Windows\\\\Temp\\\\'\n#       - '\\\\ProgramData\\\\'\n#       - '\\\\Users\\\\Public\\\\'\n#   selection_service:\n#     EventID: 7045\n#     ImagePath|contains: '\\\\Windows\\\\'\n#   condition: selection_share and (selection_file or selection_service)\n# level: high",
+  "falsePositives": [
+    "Software deployment tooling that stages installers into administrative shares before running them on the target host",
+    "Backup or replication agents that write catalogue files into a hidden share on every server each night",
+    "Helpdesk staff copying diagnostic utilities onto a user workstation from a jump host during a support session",
+    "Vulnerability scanners that drop a temporary agent into ProgramData before performing a local assessment"
+  ],
+  "tuningNotes": "Start by baselining which source hosts and service accounts write into administrative shares over a two week window, then add a filter that excludes those specific accounts and management server addresses rather than excluding whole directory paths, because attacker staging directories overlap with legitimate temporary folders almost exactly. Scope the first production version to the server tier and to privileged accounts, where remote copies are rare and easy to review, and leave workstations for a later phase. You will lose visibility into attacker movement that reuses an approved management account or a compromised deployment server, so pair this rule with anomaly scoring on the volume of files copied per account and keep a separate low severity alert for copies into temporary folders that use a non-management source.",
+  "severity": "high"
+}

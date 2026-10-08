@@ -1,0 +1,107 @@
+{
+  "id": "det0467",
+  "type": "detection",
+  "title": "Detection Strategy for TLS Callback Injection via PE Memory Modification and Hollowing",
+  "shortTitle": "Detection Strategy for TLS Callback Injection via PE Memo...",
+  "externalId": "DET0467",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects portable executable injection through thread local storage callbacks, which run before the normal program entry point. An adversary can place malicious code in a thread local storage callback inside a target process so that it executes during process initialization, often before security tooling has finished loading its hooks. Detection is hard because the technique leaves few distinct events: the evidence is unusual pattern of write, protect and execute activity inside another process, an unsigned image running from a user path, and module loads whose on-disk file does not match what is mapped in memory. The practical failure mode is that memory instrumentation generates high volume across all processes, so rules must combine several artifacts in a short window instead of alerting on any single write.",
+  "tags": [
+    "mitre t1055.005",
+    "process injection",
+    "tls callback",
+    "memory instrumentation",
+    "windows",
+    "edr"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for TLS Callback Injection via PE Memory Modification and Hollowing",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0467/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for TLS Callback Injection via PE Memory Modification and Hollowing - EASY",
+      "path": "exercises/det0467/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for TLS Callback Injection via PE Memory Modification and Hollowing - MEDIUM",
+      "path": "exercises/det0467/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for TLS Callback Injection via PE Memory Modification and Hollowing - HARD",
+      "path": "exercises/det0467/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for TLS Callback Injection via PE Memory Modification and Hollowing - EXTREMELY HARD",
+      "path": "exercises/det0467/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A thread local storage callback is a small piece of code. Windows runs it before the main body of a program starts. An attacker can hide harmful code there. They place that code inside another running program. This detection looks for the memory changes and odd module behavior that this hiding creates.",
+    "whyItMatters": "Code that runs early can act before protective tools are fully active. Hidden code inside a trusted program also inherits that program's trust, which makes review harder. Because the harmful code is not a separate file, simple file scanning may miss it completely. Detection has to look at behavior instead.",
+    "howItWorks": [
+      "Endpoint agents record process creation, module loads and remote memory operations on each host.",
+      "The detection picks processes that started from a folder a normal program should not use.",
+      "It then looks for another process opening a handle to that process and writing or changing memory protection inside it.",
+      "It checks module load events for images that have no valid signature or no matching file on disk.",
+      "All three signals must appear inside a short window and in the same process tree before an alert is raised.",
+      "The analyst reviews the parent process, the account and the file path to judge whether the activity was legitimate."
+    ],
+    "example": "Imagine a parcel office where every package is checked at the front desk. One courier leaves a parcel in the loading bay the night before. By morning it is already inside the building. The checkers only look at what arrives at the desk. This technique hides code where the morning check does not look.",
+    "takeaways": [
+      "Early-running code can act before protective tooling is ready.",
+      "The strong signal is combined memory writing plus module mismatch, not any single event.",
+      "Unsigned or mismatched modules are worth reviewing even when the host looks healthy."
+    ]
+  },
+  "objectives": [
+    "Explain what a thread local storage callback does and why it runs early.",
+    "Describe the memory and module telemetry needed to detect injection behavior.",
+    "Correlate a target process with the process that opened a handle to it.",
+    "Explain why module signature and on-disk file comparison matter for detecting hollowing.",
+    "Set a realistic alert threshold that keeps memory instrumentation from flooding the queue."
+  ],
+  "techniqueId": "t1055-005",
+  "detectsTechniques": [
+    "t1055-005"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with image path and parent image",
+    "Sysmon event 8 remote thread creation showing source and target process identifiers",
+    "Sysmon event 7 image loaded including signature status and image file path",
+    "Endpoint detection and response memory protection and allocation events with the calling and target process identifiers",
+    "Microsoft-Windows-Windows Defender or antivirus operational events recording suspicious memory tampering on the host"
+  ],
+  "logic": "The pattern is one process modifying the memory of another process and then causing code to run there, especially where the target image is unsigned or loaded from a user-writable path. Correlate the target process identifier from the memory and thread events with the target process identifier from process creation, then compare the module that reports as loaded against the file on disk and its signature. In a benign case the same artifact set appears from debugging tools, antivirus self-protection or just-in-time compilers running on developer machines, and the source process is a known tool with a valid signature. In the malicious case the source process is often a document reader, a script host or an unsigned binary, the target is a system process, and the window between the write and the execution is only seconds.",
+  "pseudoQuery": "# title: Remote Memory Write Followed by Execution in Unsigned Image\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_write:\n#     EventID: 8\n#   selection_target:\n#     EventID: 1\n#     Image|contains:\n#       - '\\\\Users\\\\'\n#       - '\\\\ProgramData\\\\'\n#   filter_signed_tools:\n#     SourceImage|endswith:\n#       - '\\\\MsMpEng.exe'\n#       - '\\\\windbg.exe'\n#   condition: selection_write and selection_target and not filter_signed_tools\n# level: high",
+  "falsePositives": [
+    "Endpoint protection agents that inject their own detection libraries into running processes for monitoring",
+    "Developer and debugging tools such as script debuggers and profilers attaching to a process under test",
+    "Accessibility and assistive technology software that injects user interface helpers into other processes",
+    "Application compatibility shims and just-in-time compilers that modify memory inside a hosted process as part of normal operation"
+  ],
+  "tuningNotes": "Because memory events are numerous, first restrict the rule to targets and sources that matter: system processes as targets, and source processes that are unsigned or running from user-writable directories. Build a baseline of which signed security and accessibility products inject into processes in your estate and filter those by image path with signature verification rather than by name alone. Consider raising the alert level only when the write and the subsequent execution occur within a short interval, and keep a separate low-severity record for isolated writes so hunting is still possible. Narrowing by source path and signature costs you detection of injection performed by a signed but abused binary, so pair the rule with module mismatch monitoring for those hosts.",
+  "severity": "high"
+}

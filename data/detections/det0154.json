@@ -1,0 +1,106 @@
+{
+  "id": "det0154",
+  "type": "detection",
+  "title": "Detect Screensaver-Based Persistence via Registry and Execution Chains",
+  "shortTitle": "Detect Screensaver-Based Persistence via Registry and Exe...",
+  "externalId": "DET0154",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1546.002, screensaver based persistence, where an intruder points the screen saver setting at a program so that code runs when the session goes idle. Detection is built on registry modification events for the screen saver value, the security policy that governs whether a screen saver requires a password, process creation records whose parent is the screen saver host, and file creation events for the executable named in the setting. The pattern is strong because the screen saver value normally names a signed executable inside the system directory, so a value pointing anywhere else is unusual. The failure mode is that third party screen saver software and some management tools change the same value legitimately, so the rule needs the signer and the writing process to stay accurate.",
+  "tags": [
+    "t1546.002",
+    "persistence",
+    "windows",
+    "registry",
+    "screensaver"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Screensaver-Based Persistence via Registry and Execution Chains",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0154/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Screensaver-Based Persistence via Registry and Execution Chains - EASY",
+      "path": "exercises/det0154/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Screensaver-Based Persistence via Registry and Execution Chains - MEDIUM",
+      "path": "exercises/det0154/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Screensaver-Based Persistence via Registry and Execution Chains - HARD",
+      "path": "exercises/det0154/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Screensaver-Based Persistence via Registry and Execution Chains - EXTREMELY HARD",
+      "path": "exercises/det0154/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A screen saver is the moving picture shown when a computer is idle. Windows can be told to run any program at that moment. This detection watches the setting that names the program and the moment the program starts.",
+    "whyItMatters": "Idle time is easy to arrange. An attacker only has to wait for the user to step away. The program then starts with the user's own permissions. It starts again after every restart because the setting is stored. A small setting change becomes lasting access.",
+    "howItWorks": [
+      "The detection watches the registry value that stores the screen saver program path.",
+      "It records which process wrote the new value and when.",
+      "It checks whether the program named in the value is signed and in a normal location.",
+      "It then watches for that program starting with the screen saver host as parent.",
+      "A setting change and a matching execution from an unusual path together raise the alert."
+    ],
+    "example": "Think of an office that plays music when the room is empty at night to deter mice. A prankster rewires the timer so that instead of music, the door unlocks. Nothing looks different on the timer panel, but the action tied to the idle moment has changed. That is exactly how this technique works.",
+    "takeaways": [
+      "Idle time can trigger code, so treat the trigger as persistence.",
+      "The screen saver path should only name a signed system program.",
+      "Watch both the setting change and the later execution."
+    ]
+  },
+  "objectives": [
+    "Explain how the screen saver setting can be turned into an execution trigger",
+    "Locate the registry value that stores the screen saver executable path",
+    "Collect registry modification, process creation, and file creation telemetry",
+    "Correlate a setting change with the process that later starts on idle",
+    "Separate legitimate screen saver software from attacker configured paths",
+    "Set severity based on the persistence gained and the account involved"
+  ],
+  "techniqueId": "t1546-002",
+  "detectsTechniques": [
+    "t1546-002"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set events for the screen saver executable value under the control panel desktop key",
+    "Sysmon event 1 process creation records where the parent image is the screen saver host process",
+    "Sysmon event 11 file create events for executables written to user writable directories shortly before the setting change",
+    "Windows Security event 4688 process creation with command line auditing enabled showing the program launched on idle",
+    "Group policy and security template records showing the screen saver timeout and password protection configuration"
+  ],
+  "logic": "The detection looks for two related facts: the screen saver executable value being set to a path outside the signed system screen saver location, and that path later being started by the screen saver host process. The fields that must be correlated are the registry key and value name, the new value, the process image and signature that wrote it, the account, and the parent process of the resulting execution. A benign case is a signed third party screen saver or a management tool configuring a corporate approved screen saver during a deployment window, while the malicious case is a scripting host or an unsigned binary writing the value, or a value pointing to a user profile, temporary, or public directory with the file itself unsigned.",
+  "pseudoQuery": "# title: Screen Saver Value Points Outside System Directory\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|endswith: 'Control Panel\\\\Desktop\\\\SCRNSAVE.EXE'\n#   filter:\n#     Details|startswith: 'C:\\\\Windows\\\\System32\\\\'\n#     Image|endswith: '\\\\svchost.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Corporate branding software that installs a custom screen saver across the fleet",
+    "Third party screen saver or wallpaper applications installed by the user with administrator help",
+    "Remote management tools that reset the idle screen saver setting as part of a compliance check",
+    "Group policy updates that change the screen saver timeout and rewrite the executable value"
+  ],
+  "tuningNotes": "Inventory the screen saver values in use across the estate first, and allow list the paths and publishers that are approved, including any corporate branded screen saver. Then require the writing process to be unsigned or the value to point outside the system and program directories. Add the execution correlation so that a harmless setting change without a matching start does not alert, and scope the rule to servers and to administrator workstations where idle execution is most valuable to an intruder. The coverage you lose by allow listing approved screen savers is abuse of that exact path, so verify the approved binaries by hash and recheck them after each update.",
+  "severity": "high"
+}

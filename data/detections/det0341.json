@@ -1,0 +1,107 @@
+{
+  "id": "det0341",
+  "type": "detection",
+  "title": "Clipboard Data Access with Anomalous Context",
+  "shortTitle": "Clipboard Data Access with Anomalous Context",
+  "externalId": "DET0341",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Clipboard Data (T1115), the collection of data that a user copied to the system clipboard. The technique matters because users routinely copy passwords, recovery codes, card numbers and long tokens, so the clipboard is a short lived but high value collection point for an adversary who already runs code on the host. Detection relies on endpoint telemetry that records clipboard application programming interface calls, the process that made them, and the timing against real user activity such as a paste into a document. The main way it fails in practice is that many legitimate applications touch the clipboard constantly, so a bare clipboard read is almost never enough on its own and the alert must depend on the surrounding context.",
+  "tags": [
+    "clipboard",
+    "collection",
+    "api monitoring",
+    "endpoint",
+    "t1115"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Clipboard Data Access with Anomalous Context",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0341/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Clipboard Data Access with Anomalous Context - EASY",
+      "path": "exercises/det0341/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Clipboard Data Access with Anomalous Context - MEDIUM",
+      "path": "exercises/det0341/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Clipboard Data Access with Anomalous Context - HARD",
+      "path": "exercises/det0341/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Clipboard Data Access with Anomalous Context - EXTREMELY HARD",
+      "path": "exercises/det0341/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for programs that read the clipboard. The clipboard holds the last thing you copied. Most programs have no good reason to read it without you asking.",
+    "whyItMatters": "People copy secrets all the time, such as passwords and one time codes. A program that reads the clipboard can take those secrets without any typing. The action is quick and leaves very little evidence on the disk. Normal programs also use the clipboard, so the alert must look at who is reading and when. This makes context the most important part of the rule.",
+    "howItWorks": [
+      "The endpoint agent records when a process calls a clipboard function, such as one that opens or reads the clipboard.",
+      "Each record carries the process image, the command line, the user account and the host name.",
+      "The rule removes the programs that use the clipboard as a normal part of their job, such as password managers.",
+      "It keeps the reads made by scripting hosts, which have no ordinary reason to touch the clipboard.",
+      "It then checks nearby events, such as a paste into a document or a new login.",
+      "When the context does not match real user activity, the rule raises an alert for review."
+    ],
+    "example": "Think of a till receipt that lists every sale. The receipt itself proves nothing, because honest sales also print receipts. What matters is who used the till, at what time, and whether the drawer was open. Here, the clipboard read is the receipt and the user activity is the till operator.",
+    "takeaways": [
+      "A clipboard read alone is weak evidence, so always add context.",
+      "Scripting hosts and unusual binaries deserve the closest attention.",
+      "Keep a list of approved clipboard tools and refresh it often."
+    ]
+  },
+  "objectives": [
+    "Explain why clipboard contents are valuable to an adversary who already has code execution",
+    "Identify endpoint telemetry that records clipboard interface calls and their calling process",
+    "Establish a baseline of applications that legitimately read the clipboard on user workstations",
+    "Write a rule that combines a clipboard read with process and user context rather than alerting on the call alone",
+    "Correlate a clipboard read with nearby logon, paste and file creation events to grade the risk",
+    "Describe how tuning for noise reduces coverage of quiet clipboard scraping"
+  ],
+  "techniqueId": "t1115",
+  "detectsTechniques": [
+    "t1115"
+  ],
+  "dataSources": [
+    "Endpoint detection and response interface call telemetry for clipboard functions such as open, read and empty clipboard",
+    "Sysmon event 1 process creation showing the image and command line of the process that read the clipboard",
+    "PowerShell script block logging records where a script reads or writes clipboard contents",
+    "Endpoint file creation and document save events used to confirm a legitimate paste by the same user",
+    "Host authentication records used to show whether the user was active at the time of the clipboard read"
+  ],
+  "logic": "The pattern is a clipboard read performed by a process that has no interactive reason to read it, outside a window of real user activity. The fields that must be correlated are the process image, the parent image, the command line, the user account, the host and the timestamp of nearby user actions such as a logon or a document save. The benign case is a password manager, a remote support tool or an input method editor that reads the clipboard because the user just pressed a paste shortcut. The malicious case is a scripting host or a short lived binary in a temporary directory reading the clipboard repeatedly while the user is idle, particularly when the same process writes data out to the network soon afterwards.",
+  "pseudoQuery": "# title: Anomalous Clipboard Read By Scripting Host\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     api_call|contains:\n#       - 'OpenClipboard'\n#       - 'GetClipboardData'\n#   filter_known:\n#     Image|endswith:\n#       - '\\\\explorer.exe'\n#       - '\\\\Teams.exe'\n#   condition: selection and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Password managers that copy a generated credential to the clipboard and clear it a moment later",
+    "Remote support sessions where a technician pastes text into the session window",
+    "Input method editors and accessibility tools that read the clipboard to help the user",
+    "Browser extensions and note taking applications that offer a clipboard history feature"
+  ],
+  "tuningNotes": "Build the allowlist from a two week baseline of clipboard interface calls per application, then review it by team, because marketing and finance use the clipboard far more than engineering. Filter by process signing and by install path so that a trusted name running from a temporary directory still alerts. Raise severity only when the read is combined with a remote network connection, an archive creation or an idle user session. The cost of this narrowing is that a clipboard scraper hidden inside a signed application, or one that uses documented automation interfaces instead of the common calls, will not appear in the telemetry you are filtering.",
+  "severity": "medium"
+}

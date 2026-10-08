@@ -1,0 +1,105 @@
+{
+  "id": "det0543",
+  "type": "detection",
+  "title": "Detection Strategy for Encrypted Channel via Asymmetric Cryptography across OS Platforms",
+  "shortTitle": "Detection Strategy for Encrypted Channel via Asymmetric C...",
+  "externalId": "DET0543",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers command and control protected with asymmetric cryptography, matching technique T1573.002, where an adversary encrypts traffic so that only the implant and the operator hold the keys and no shared secret certificate is required on the server side. It matters because the channel survives inspection proxies and cannot be read from captured traffic, so defenders must reason about session metadata instead of content. The telemetry that makes it possible is transport layer security handshake metadata including certificate fields and fingerprint values, proxy connect logs, flow records with byte and timing statistics, and endpoint records linking the connection to a process. It fails in practice because most enterprise traffic is already encrypted with certificates, so the detection depends on weak certificate handling and unusual session behaviour rather than on encryption itself.",
+  "tags": [
+    "encrypted channel",
+    "tls",
+    "network traffic",
+    "t1573.002",
+    "certificate"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Encrypted Channel via Asymmetric Cryptography across OS Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0543/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Encrypted Channel via Asymmetric Cryptography across OS Platforms - EASY",
+      "path": "exercises/det0543/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Encrypted Channel via Asymmetric Cryptography across OS Platforms - MEDIUM",
+      "path": "exercises/det0543/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Encrypted Channel via Asymmetric Cryptography across OS Platforms - HARD",
+      "path": "exercises/det0543/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Encrypted Channel via Asymmetric Cryptography across OS Platforms - EXTREMELY HARD",
+      "path": "exercises/det0543/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for encrypted connections that use a key pair instead of a shared certificate. Asymmetric cryptography means one key locks the message and a different key opens it. The detection studies the handshake, which is the first exchange before data flows.",
+    "whyItMatters": "Attackers encrypt their control traffic so that nobody can read it. If the connection looks like ordinary encrypted web traffic, a simple rule will not notice it. The handshake details, the certificate and the session timing stay visible. They often look different from normal browser traffic.",
+    "howItWorks": [
+      "A network sensor records the handshake of each encrypted session and extracts the certificate fields and fingerprint.",
+      "The proxy logs the destination, the requested server name and how many bytes each direction carried.",
+      "Flow records add the duration and the packet timing for the whole session.",
+      "Endpoint connection events name the process that opened the session.",
+      "The platform looks for certificates that are self signed, short lived or duplicated across many hosts.",
+      "Sessions that also show beaconing timing or an unusual process raise the alert."
+    ],
+    "example": "Think of two people passing sealed envelopes. Anyone can see the envelopes and how often they are sent, but not the letters inside. The clue is not the text. The clue is that the envelopes are hand made, slightly different, and arrive every minute.",
+    "takeaways": [
+      "You cannot read the content, so judge the metadata instead.",
+      "Self signed and newly generated certificates are common in attacker infrastructure.",
+      "Combine certificate evidence with timing and process evidence before you alert."
+    ]
+  },
+  "objectives": [
+    "Explain how asymmetric cryptography protects command and control traffic from content inspection",
+    "Identify the handshake, certificate, flow and endpoint telemetry available for encrypted sessions",
+    "Interpret certificate characteristics such as issuer, validity period and reuse across destinations",
+    "Correlate session metadata with beaconing timing and the originating process",
+    "Write a detection rule for suspicious encrypted sessions and tune it against inspection proxies and content delivery networks"
+  ],
+  "techniqueId": "t1573-002",
+  "detectsTechniques": [
+    "t1573-002"
+  ],
+  "dataSources": [
+    "Network sensor records of transport layer security handshake metadata including certificate issuer, subject, validity dates and certificate fingerprint",
+    "Secure web gateway and proxy connect logs recording destination address, requested server name and bytes transferred in each direction",
+    "Flow records providing session duration, packet counts and inter arrival timing for encrypted connections",
+    "Endpoint network connection events mapping a remote address and port to the local process image, user and parent process"
+  ],
+  "logic": "The pattern is an encrypted session whose handshake and lifetime look unlike commercial service traffic: a self signed or very short lived certificate, the same certificate fingerprint appearing across unrelated destinations or many internal hosts, a server name that does not match the certificate subject, and steady small exchanges at fixed intervals from a process that rarely makes external connections. The fields that must be correlated are the certificate issuer and validity window, the fingerprint reuse count, the requested server name, the session duration and byte pattern, and the local process image. The benign case is a content delivery network or a software update service with a public certificate authority issuer and widely reused infrastructure; the malicious case shows a self signed certificate, a first time destination, and a process with no business reason to connect externally.",
+  "pseudoQuery": "# title: Encrypted session with self signed certificate and beacon timing\n# logsource:\n#   product: network\n#   service: tls\n# detection:\n#   selection_cert:\n#     certificate_issuer: self signed\n#     certificate_validity_days|lte: 30\n#   selection_beacon:\n#     session_interval_variance|lte: 0.2\n#   filter_known_services:\n#     server_name|endswith: [approved-cdn.example, update.vendor.example]\n#   condition: (selection_cert and selection_beacon) and not filter_known_services\n# level: medium",
+  "falsePositives": [
+    "Internal applications and development services that present self signed certificates on trusted internal subnets",
+    "Internet of things devices and printers that use self signed certificates and check in with a vendor service on a fixed schedule",
+    "Security testing tools and vulnerability scanners that generate a new certificate for every scan session",
+    "Content delivery networks and cloud services that reuse the same certificate across many addresses and host names"
+  ],
+  "tuningNotes": "Baseline the certificate issuers and server names used across your estate for a month and allow list the public certificate authorities and the internal certificate authority you operate, which removes most legitimate self signed noise. Keep the rule focused on outbound sessions from servers rather than from user devices, and require at least one additional signal such as an unusual process or repeating beacon timing before raising severity. Restricting to the self signed case means you lose visibility of an operator who buys a valid certificate, so also report first time destinations paired with high certificate fingerprint reuse as a separate lower severity indicator.",
+  "severity": "medium"
+}

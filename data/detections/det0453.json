@@ -1,0 +1,105 @@
+{
+  "id": "det0453",
+  "type": "detection",
+  "title": "Detection Strategy for SNMP (MIB Dump) on Network Devices",
+  "shortTitle": "Detection Strategy for SNMP (MIB Dump) on Network Devices",
+  "externalId": "DET0453",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects bulk SNMP management information base enumeration against network devices, where an attacker with a read community string walks the device tables to map interfaces, routes, address tables, and connected hosts. It matters because a single read permission on a switch or router can reveal the whole internal topology without any host based agent noticing. Detection depends on SNMP server logs or a flow and packet sensor that can identify GetNext and GetBulk request bursts, plus authentication records that show the community string or user used. It fails in practice because network monitoring platforms poll the same devices continuously with the same operations, so the rule must separate a steady monitoring baseline from a sudden and much wider walk.",
+  "tags": [
+    "network",
+    "collection",
+    "snmp",
+    "discovery",
+    "reconnaissance"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for SNMP (MIB Dump) on Network Devices",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0453/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for SNMP (MIB Dump) on Network Devices - EASY",
+      "path": "exercises/det0453/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for SNMP (MIB Dump) on Network Devices - MEDIUM",
+      "path": "exercises/det0453/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for SNMP (MIB Dump) on Network Devices - HARD",
+      "path": "exercises/det0453/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for SNMP (MIB Dump) on Network Devices - EXTREMELY HARD",
+      "path": "exercises/det0453/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "SNMP is a simple network management protocol, a common way to ask network devices for status information. This detection looks for someone reading far more of that information than a normal monitoring tool would. A large read can give an attacker a map of the network.",
+    "whyItMatters": "Switches and routers hold the map of your internal network. If an outsider can read it, they can plan their next move without touching a single server. Monitoring tools poll these devices all day, so these reads usually pass unnoticed.",
+    "howItWorks": [
+      "Network devices send their SNMP request logs to the central log platform.",
+      "A network sensor also records the source address and request type of each query.",
+      "The rule counts requests per source address in a short time window.",
+      "It looks for table walks, which are long series of numbered requests.",
+      "It compares the total with the normal polling baseline for that device.",
+      "A source that is not a monitoring host and reads many tables is flagged."
+    ],
+    "example": "Think of a reception desk that answers questions about the building. A cleaner asks for the room list, which is normal. A stranger asks for every room, every key holder and every delivery entrance in one long list, which is not.",
+    "takeaways": [
+      "A read only password on a network device is still valuable to an attacker.",
+      "Look for the shape of the request, not just who sent it.",
+      "Monitoring tools make this noisy, so baseline before you alert."
+    ]
+  },
+  "objectives": [
+    "Describe how SNMP requests can expose network topology",
+    "Identify logs and sensors that capture SNMP request activity",
+    "Tell a structured monitoring poll from a wide table walk",
+    "Correlate a request burst with the community string or user account used",
+    "Respond to an unexpected enumeration source by reviewing device access"
+  ],
+  "techniqueId": "t1602-001",
+  "detectsTechniques": [
+    "t1602-001"
+  ],
+  "dataSources": [
+    "SNMP server and device audit logs recording request type, source address, community string or user and object identifier",
+    "Network flow records for user datagram protocol port 161 showing request volume and duration per source",
+    "Packet capture or intrusion detection signatures for GetNext and GetBulk request patterns",
+    "Authentication logs for SNMP version 3 users showing the account used for read operations"
+  ],
+  "logic": "The detection measures how much of the device information tree a source reads, rather than whether it read anything at all. The fields to correlate are the source address, the request operation type, the object identifier prefix, the community string or version 3 user name, and the number of requests per source in a rolling window. The benign case is a monitoring platform polling a small fixed set of object identifiers on a regular cadence, from an address in the management range, with the same community string every time and an almost flat request rate. The malicious case is a source outside the monitoring range, or a monitoring address at an unusual hour, issuing long sequential GetNext or GetBulk walks across the interface, address translation, and route subtrees, often spanning several devices in a short period. The width and the destination spread of the walk are the discriminators.",
+  "pseudoQuery": "# title: Bulk SNMP object identifier walk from non monitoring source\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     destination.port: 161\n#     snmp.operation:\n#       - 'getnext'\n#       - 'getbulk'\n#   filter_monitoring:\n#     source.ip|cidr:\n#       - '10[.]20[.]0[.]0/24'\n#   condition: selection and not filter_monitoring | count() by source.ip > 200\n# level: medium",
+  "falsePositives": [
+    "Network monitoring platforms that perform a full inventory walk once per hour on purpose",
+    "Configuration backup tools that read the complete device configuration through SNMP nightly",
+    "New monitoring agents or replacement hardware discovering the environment for the first time",
+    "Vulnerability scanners that enumerate device details as part of a scheduled internal assessment"
+  ],
+  "tuningNotes": "Build a per device baseline of the normal request rate, source addresses, and object identifier prefixes before enabling alerts, and allow the known inventory walk from the monitoring platform. Alert on new source addresses reading any subtree, and on any source whose request count is several times the baseline. Scope the rule to devices that face untrusted networks or sit at a trust boundary, since those carry the most risk. Narrowing to request volume alone loses coverage of a slow patient walk, so keep a second lower threshold rule that only fires for sources that have never been seen polling that device.",
+  "severity": "medium"
+}

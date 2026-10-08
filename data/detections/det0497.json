@@ -1,0 +1,106 @@
+{
+  "id": "det0497",
+  "type": "detection",
+  "title": "Detection of Defense Impairment through Disabled or Modified Tools across OS Platforms.",
+  "shortTitle": "Detection of Defense Impairment through Disabled or Modif...",
+  "externalId": "DET0497",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects defence impairment through disabled or modified security tools, where an adversary stops, uninstalls or reconfigures the software that would otherwise record or block activity. On Windows this includes stopping endpoint protection services, changing tamper protection settings, deleting event log channels and unloading filter drivers. On Linux and macOS it includes stopping the audit daemon, unloading a kernel module that feeds monitoring, or changing permissions and ownership on agent binaries. Telemetry comes from service control events, agent health reporting, file integrity monitoring and command line records. It fails in practice because patching, upgrades and troubleshooting produce nearly identical events, so the detection needs an approved maintenance context before it can alert.",
+  "tags": [
+    "defense evasion",
+    "security tool tampering",
+    "service stop",
+    "agent health",
+    "auditd"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Defense Impairment through Disabled or Modified Tools across OS Platforms.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0497/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Defense Impairment through Disabled or Modified Tools across OS Platforms. - EASY",
+      "path": "exercises/det0497/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Defense Impairment through Disabled or Modified Tools across OS Platforms. - MEDIUM",
+      "path": "exercises/det0497/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Defense Impairment through Disabled or Modified Tools across OS Platforms. - HARD",
+      "path": "exercises/det0497/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Defense Impairment through Disabled or Modified Tools across OS Platforms. - EXTREMELY HARD",
+      "path": "exercises/det0497/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Security tools protect your computers and record what happens on them. This detection looks for someone turning those tools off or changing them. It covers computers, servers and network devices. The goal is to catch the change before the attacker does something worse.",
+    "whyItMatters": "Almost every serious intrusion begins with blinding the defenders. If the agent is stopped, the actions that follow leave no trace at all. One stopped service can hide days of work by an attacker. The change is usually easy to make for anyone who holds local administrator rights, which makes it a strong early warning signal for you.",
+    "howItWorks": [
+      "Each security agent reports its health to a central console on a fixed schedule.",
+      "The operating system also records service stops, kernel module changes and permission edits.",
+      "The rule looks for a stop, a disable or a permission change on a protected tool.",
+      "It compares the change with the maintenance calendar and the change record.",
+      "A change with no approved reason raises an alert and marks the host as high risk.",
+      "The alert lists the account, the tool, the new state and the time of the change."
+    ],
+    "example": "Imagine a night watchman who walks the corridors with a torch. A burglar cannot remove the watchman, but he can switch off the corridor lights and cut the alarm wire. The building is still standing and the doors still lock. Nobody sees the burglar, and nobody sees him leave either. This detection is the panel that reports a cut wire, even in the dark.",
+    "takeaways": [
+      "Turning off a security tool is often the first step of an intrusion.",
+      "Collect agent health data centrally, because a stopped agent cannot report itself.",
+      "Compare every change with the maintenance record to keep noise low."
+    ]
+  },
+  "objectives": [
+    "List the ways security tools can be disabled on Windows, Linux and macOS.",
+    "Identify the telemetry that still works after a tool has been stopped.",
+    "Explain why central agent health reporting matters for coverage.",
+    "Write a pseudo-rule that matches service stops on protected tools.",
+    "Set a process for confirming maintenance activity before escalation."
+  ],
+  "techniqueId": "t1685",
+  "detectsTechniques": [
+    "t1685"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation showing service control and task kill commands with their arguments",
+    "Windows system log service control manager events recording a service entering the stopped state",
+    "Endpoint agent health records sent to the management console, including last check in time and version",
+    "Linux audit daemon (auditd) records for service stops, kernel module unload and file permission changes",
+    "File integrity monitoring alerts for changed agent binaries and configuration files on servers"
+  ],
+  "logic": "The pattern is a stop, disable or modification action aimed at a process, service, kernel module or log channel that exists to record or block activity. Analysts correlate the acting account and parent process from process creation records with the resulting state change in service control, agent health or file integrity logs, and then compare the timestamp against the maintenance schedule. Benign changes come from a named engineer or a patch management system, inside an agreed window, and the tool returns to a running state quickly. Malicious changes come from a newly created or unusual account, happen outside working hours, and are followed by other defence related changes such as log clearing or firewall edits on the same host.",
+  "pseudoQuery": "# title: Protected Security Service Stopped Outside Maintenance Window\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'sc stop'\n#       - 'net stop'\n#       - 'Stop-Service'\n#   filter_maintenance:\n#     User: 'DOMAIN\\svc_patching'\n#   condition: selection and not filter_maintenance\n# level: high",
+  "falsePositives": [
+    "Help desk restarting an endpoint protection service as part of documented troubleshooting",
+    "Patch management platform that briefly stops an agent before upgrading it to a new version",
+    "Backup software that stops a database agent service in order to take a consistent copy",
+    "Administrator disabling a noisy audit policy while investigating a false alarm on one server"
+  ],
+  "tuningNotes": "Build an allow list of automation accounts and parent processes that may legitimately stop each agent, and require the change to fall inside a maintenance window defined by your ticketing system. Scope the rule to servers and to endpoints classed as high value, then run a lower severity version for general workstations. Correlate with agent health data so that a silently stopped agent still produces an alert. This removes most upgrade noise, but you lose coverage of an attacker who reuses an approved automation account that was itself compromised.",
+  "severity": "high"
+}

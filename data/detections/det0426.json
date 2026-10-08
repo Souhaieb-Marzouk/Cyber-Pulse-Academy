@@ -1,0 +1,108 @@
+{
+  "id": "det0426",
+  "type": "detection",
+  "title": "Detection of Direct Volume Access for File System Evasion",
+  "shortTitle": "Detection of Direct Volume Access for File System Evasion",
+  "externalId": "DET0426",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects software that opens a raw disk device instead of using the normal file system, a technique used to read, overwrite or destroy data while bypassing file level logging, access controls and even some encryption layers. It matters because a process that talks to a physical drive directly can read protected files, wipe a master boot record or hide data, and the file system audit trail records none of it. Detection rests on kernel device access telemetry, which may come from endpoint sensor drivers, object access auditing, or kernel level tracing, correlated with process identity and privilege. The main way it fails in practice is the platform dependency and the noise floor: disk utilities, backup agents and file system drivers all touch volumes legitimately, and without auditing enabled on the device object there is simply nothing to read.",
+  "tags": [
+    "raw disk access",
+    "t1006",
+    "defense evasion",
+    "windows",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Direct Volume Access for File System Evasion",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0426/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Direct Volume Access for File System Evasion - EASY",
+      "path": "exercises/det0426/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Direct Volume Access for File System Evasion - MEDIUM",
+      "path": "exercises/det0426/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Direct Volume Access for File System Evasion - HARD",
+      "path": "exercises/det0426/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Direct Volume Access for File System Evasion - EXTREMELY HARD",
+      "path": "exercises/det0426/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that read or write a hard disk directly instead of opening files normally. The disk device is the raw storage underneath the file system. Only certain tools should touch it, so unusual access is worth a look.",
+    "whyItMatters": "Normal file access is recorded by the operating system and can be blocked by permissions. Raw disk access skips all of that. An attacker can use it to read protected data, to corrupt the boot area or to hide files. Very few legitimate programs need this ability. That is what makes the event worth an alert.",
+    "howItWorks": [
+      "A process asks the operating system for a handle to a raw disk device.",
+      "The kernel returns the handle and the access is recorded by an endpoint sensor or audit policy.",
+      "The record includes the process image, its parent process and the requested access rights.",
+      "The rule compares the process against a list of approved disk tools and drivers.",
+      "It also checks whether the process came from a temporary folder or an unsigned file.",
+      "An unexpected process holding a raw volume handle becomes an alert for the analyst."
+    ],
+    "example": "Think of a library where every book has a sign out card. Members borrow books the normal way, and the cards show who took what. A person who unscrews the shelves and carries the whole bookcase out leaves no cards at all. The door camera still shows them, though. Raw disk access is the bookcase, and the device log is the camera.",
+    "takeaways": [
+      "Raw disk access removes the file system layer and its audit records.",
+      "Legitimate disk access comes from a small set of signed tools and drivers.",
+      "Without device level auditing enabled, this activity leaves little to detect."
+    ]
+  },
+  "objectives": [
+    "Explain how direct volume access bypasses file system permissions and file level auditing.",
+    "Identify the telemetry sources that record raw device handles and the access rights requested.",
+    "Correlate a raw device handle with the process image, parent process and signature status.",
+    "Build an allowlist of approved disk utilities, imaging tools and storage drivers.",
+    "Assess the risk of a process that reads a volume and then writes to it.",
+    "Describe the visibility that is lost when object access auditing is not enabled on the device."
+  ],
+  "techniqueId": "t1006",
+  "detectsTechniques": [
+    "t1006"
+  ],
+  "dataSources": [
+    "Endpoint sensor kernel telemetry recording device object opens with the access mask and process id",
+    "Sysmon event 1 process creation including process image, parent image, command line and signature status",
+    "Windows Security event 4663 object access audit for the physical drive device object when auditing is enabled",
+    "File creation telemetry showing a small image file written shortly before or after the device handle opens",
+    "Windows System event log records for volume shadow copy and raw write operations on the affected volume"
+  ],
+  "logic": "The pattern is a user mode process obtaining a handle to a raw volume or physical drive device, or a driver reporting raw sector writes, where the requesting process is not part of the approved storage tool set. The fields that must be correlated are the requesting process image path, its parent process and command line, its signature status and signer, the access mask on the handle, and the time correlation with unusual file creation or with the appearance of a very large image file. The malicious case is distinguished from the benign one mainly by identity and location: approved imaging and backup tools are signed, run from known program directories, and appear in the same repeating schedule every night, whereas malicious raw access typically comes from a process in a temporary or user writable folder, spawned by a script interpreter or an email client, outside any maintenance window. Raw write access combined with an unsigned binary is the strongest single indicator.",
+  "pseudoQuery": "# title: Process Opened Raw Disk Device Without Approved Tooling\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4656\n#     ObjectName|contains: '\\\\Device\\\\Harddisk'\n#     AccessMask|contains: '0x1019'\n#   filter_approved:\n#     ProcessImage|startswith:\n#       - 'C:\\\\Program Files\\\\Backup\\\\'\n#       - 'C:\\\\Windows\\\\System32\\\\'\n#   condition: selection and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Disk imaging and cloning utilities used by the service desk to capture or restore a workstation",
+    "Backup agents that read volume shadow copies or raw extents as part of a nightly full backup",
+    "Storage vendor management suites and array diagnostic tools that query drive firmware directly",
+    "Forensic and incident response tooling run by the security team from a removable drive",
+    "File system repair and partitioning tools run during a hardware change or operating system deployment"
+  ],
+  "tuningNotes": "Start by enabling the required auditing or sensor coverage on a small pilot group of servers, because without device object auditing this rule produces absolutely nothing and false confidence. Build the approved tool list from observed behaviour over two weeks, recording the signer, the install path and the typical parent process rather than only the file name, since attackers reuse familiar utility names. Scope the first production rule to the server tier and to processes running outside maintenance windows, where raw device access is rare and easy to review. You lose coverage for raw access performed by a legitimate imaging tool that has itself been abused, and for kernel drivers that perform the same work with no user mode handle, so pair this rule with driver load monitoring and with alerts on unexpected volume shadow copy deletion.",
+  "severity": "high"
+}

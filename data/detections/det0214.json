@@ -1,0 +1,105 @@
+{
+  "id": "det0214",
+  "type": "detection",
+  "title": "Detection Strategy for Embedded Payloads",
+  "shortTitle": "Detection Strategy for Embedded Payloads",
+  "externalId": "DET0214",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1027.009, Embedded Payloads, where an actor hides the real code inside a carrier file such as a document, image, or installer so the outer file survives casual inspection and simple scanning. The useful signal is not the carrier itself but the behaviour around it: a host application reading an oversized resource blob and then creating executable memory, loading a module that is not backed by a file on disk, or spawning a scripting host. It fails most often because installer and office software legitimately extract embedded resources, so the parent-child relationship and module provenance carry the detection.",
+  "tags": [
+    "defense evasion",
+    "obfuscation",
+    "payload",
+    "process behaviour",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Embedded Payloads",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0214/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Embedded Payloads - EASY",
+      "path": "exercises/det0214/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Embedded Payloads - MEDIUM",
+      "path": "exercises/det0214/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Embedded Payloads - HARD",
+      "path": "exercises/det0214/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Embedded Payloads - EXTREMELY HARD",
+      "path": "exercises/det0214/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a normal program that reads hidden data from a file, or from inside itself. That hidden data is the real attack. The outer file looks safe to a virus scanner. The rule watches what the program does after it reads the hidden part.",
+    "whyItMatters": "A file that carries hidden code can pass a simple virus scan. The scanner sees a document or a picture, not a weapon. The danger only appears when the program unpacks the hidden part. That moment is short and easy to miss. Behaviour logging gives you the best chance to catch it.",
+    "howItWorks": [
+      "Script and process logging shows which program opened the carrier file and when.",
+      "Image load records show a library or code region appearing that was never read from the disk.",
+      "The rule links the reading process to the later creation of executable memory.",
+      "It compares the parent program with a list of programs that normally extract resources, such as installers.",
+      "It also checks the file for a data section that is far too large for its file type.",
+      "An alert lists the carrier file, the reading process, and any child process that it started."
+    ],
+    "example": "Think of a hollow chocolate figure. From the outside it looks like a normal treat. Inside there is a small gift. A quick look at the shelf tells you nothing at all. You only learn the truth when somebody breaks it open.",
+    "takeaways": [
+      "Embedded payloads hide the real code inside harmless file types.",
+      "Watch the behaviour after the file is read, not only the file itself.",
+      "Parent and child process relationships separate normal installers from abuse."
+    ]
+  },
+  "objectives": [
+    "Describe how embedded payloads differ from encrypted or packed payloads.",
+    "Identify telemetry that shows a host process reading a resource and then creating executable memory.",
+    "Build a list of parent processes that legitimately extract embedded resources in your environment.",
+    "Explain why static file scanning alone is insufficient for this technique.",
+    "Combine file metadata with runtime behaviour to reduce false positives."
+  ],
+  "techniqueId": "t1027-009",
+  "detectsTechniques": [
+    "t1027-009"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, image, and full command line",
+    "Sysmon event 7 image load recording modules loaded into a process that are not present as files on disk",
+    "Sysmon event 11 file create or a file integrity agent showing the carrier file written shortly before execution",
+    "Script block logging or command line auditing showing program code assembled at run time rather than read from a script file"
+  ],
+  "logic": "The detection joins two phases of one event chain. First, a host application that normally renders documents, images, or installers opens a file whose embedded resource section is unusually large for its type. Second, that process or a child of it creates executable memory, loads a module with no backing file on disk, or spawns a suspicious child such as a scripting host. The fields to correlate are the parent image, the child image, the file path, the module path, and the time between the read and the execution. Benign installers extract resources but their children are signed setup binaries from a known vendor, so signer and path separate the two cases.",
+  "pseudoQuery": "# title: Host Application Extracting Embedded Payload and Spawning Script Host\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\winword.exe'\n#       - '\\excel.exe'\n#       - '\\msiexec.exe'\n#     Image|endswith:\n#       - '\\powershell.exe'\n#       - '\\rundll32.exe'\n#       - '\\regsvr32.exe'\n#   filter_signed:\n#     Signed: 'true'\n#     Company: 'Microsoft Corporation'\n#   condition: selection and not filter_signed\n# level: high",
+  "falsePositives": [
+    "Document management and template add-ins that launch a signed macro runner to build reports from a carrier document",
+    "Software installers that unpack embedded resource files and call a bundled configuration utility",
+    "Electronic document signing tools that open a document and start a helper process to validate a certificate chain",
+    "Endpoint agents that embed their own updater inside a resource section and extract it on first run"
+  ],
+  "tuningNotes": "Baseline the parent and child process pairs seen in each user group, and allowlist specific signed vendor binaries by full path and signer rather than by process name alone. Scope the rule first to servers and to finance or engineering workstations where document macros are rare, then extend to general users once the noise level is understood. Keep a lower-severity variant that logs extraction events without alerting, so new business software does not disappear from view. Narrowing to a small parent list loses coverage when attackers choose less common carriers such as help files or archive utilities.",
+  "severity": "high"
+}

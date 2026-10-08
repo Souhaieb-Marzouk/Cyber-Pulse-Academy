@@ -1,0 +1,106 @@
+{
+  "id": "det0157",
+  "type": "detection",
+  "title": "Detect Kerberoasting Attempts (T1558.003)",
+  "shortTitle": "Detect Kerberoasting Attempts (T1558.003)",
+  "externalId": "DET0157",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Kerberoasting, where an attacker who already holds any valid domain account asks the domain controller for service tickets for accounts that have a service principal name, then takes those tickets offline and cracks the service account password. The covered technique matters because the request itself is completely legitimate Kerberos behaviour, and the resulting password crack gives the attacker a service account that often has broad rights. Domain controller security logs make it possible because ticket granting service requests are recorded with the requesting account, the requested service name and the encryption type of the issued ticket. The main failure mode is volume rather than shape: services that legitimately use RC4 encryption, vulnerability scanners and monitoring accounts generate the same events, so the rule must be built on baselines and grouping instead of a single event.",
+  "tags": [
+    "windows",
+    "kerberos",
+    "credential access",
+    "domain controller",
+    "active directory"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Kerberoasting Attempts (T1558.003)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0157/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Kerberoasting Attempts (T1558.003) - EASY",
+      "path": "exercises/det0157/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Kerberoasting Attempts (T1558.003) - MEDIUM",
+      "path": "exercises/det0157/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Kerberoasting Attempts (T1558.003) - HARD",
+      "path": "exercises/det0157/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Kerberoasting Attempts (T1558.003) - EXTREMELY HARD",
+      "path": "exercises/det0157/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for a special kind of password theft on a Windows network. An attacker asks the domain controller for a service ticket, which is a permission slip for a service account. The ticket is encrypted with that account's password, so the attacker can guess the password offline.",
+    "whyItMatters": "The attacker needs only one normal user account to start, and asking for the ticket is not blocked anywhere by default. If the service account password is weak, the attacker cracks it and inherits everything that account can reach. Service accounts are often old, over privileged and exempt from password rotation, which makes them valuable. The request leaves a clear record, but only if somebody reads it.",
+    "howItWorks": [
+      "Every time a user or service needs a service ticket, the domain controller records an event.",
+      "The event names the account that asked, the service requested and the encryption type used.",
+      "Old, weak encryption types stand out, because modern systems usually negotiate stronger ones.",
+      "The detection groups these requests by the requesting account or computer over a short window.",
+      "Many different service names from one source in a few minutes is the pattern of interest.",
+      "The alert lets an analyst confirm whether that source normally authenticates that way."
+    ],
+    "example": "Picture a hotel front desk that hands out key cards for any room when asked politely. A thief does not enter the rooms, but takes twenty key cards home and copies each one at leisure. The front desk log shows the requests, and the only strange thing is that one guest asked for twenty different rooms.",
+    "takeaways": [
+      "The ticket request is legal, so the volume and grouping create the signal.",
+      "Weak encryption types on service tickets are a strong hint that cracking is the goal.",
+      "Service account passwords should be long and rotated, because detection alone is not enough."
+    ]
+  },
+  "objectives": [
+    "Describe how a service ticket can be cracked offline to recover a service account password.",
+    "Read a Kerberos service ticket request event and identify the requesting and requested accounts.",
+    "Explain what the ticket encryption type field reveals about the risk of the request.",
+    "Build a grouping query that counts distinct service names per requester in a short window.",
+    "Baseline which accounts and hosts legitimately use weak encryption types in your environment."
+  ],
+  "techniqueId": "t1558-003",
+  "detectsTechniques": [
+    "t1558-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4769 on domain controllers recording Kerberos service ticket requests with requesting account, service name and ticket encryption type",
+    "Windows Security event 4624 logon events used to tie a spike in ticket requests back to a logon source workstation",
+    "Active Directory object metadata listing accounts that have a service principal name and the password age of those accounts",
+    "Network flow or endpoint process telemetry showing the request source host and the tool that made the requests"
+  ],
+  "logic": "The pattern is a small number of requesters asking for service tickets for an unusually wide set of services in a short period, especially when the issued tickets use a weak encryption type that is rare in the environment. The telemetry is the domain controller service ticket request event, and the fields that must be correlated are the requesting account or client address, the service name that was requested, the ticket encryption type, the ticket options and the event time. Benign behaviour is a client asking for the one or two services it uses, or a service account asking for its own ticket with the encryption type the application supports. Malicious behaviour is one workstation or one user asking for many distinct service names it has never touched before, often including services belonging to unrelated systems, and often with the weakest available ticket encryption, which is chosen deliberately because it cracks faster. Correlation with the logon event showing where that requester signed in is what turns a routine Kerberos event into an actionable alert.",
+  "pseudoQuery": "# title: Kerberoasting pattern of many service ticket requests with weak encryption\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4769\n#     TicketEncryptionType: '0x17'\n#     Status: '0x0'\n#   filter_computer_accounts:\n#     ServiceName|endswith: '$'\n#   condition: selection and not filter_computer_accounts | count() by TargetUserName distinct ServiceName > 10\n# level: high",
+  "falsePositives": [
+    "Vulnerability scanners and configuration assessment tools that enumerate service tickets across the domain on a schedule",
+    "Backup or monitoring platforms that use legacy Kerberos encryption because an old application service still requires it",
+    "A file server cluster or application that legitimately requests tickets for many service names during a failover",
+    "Password auditing tools run by the identity team inside an approved assessment window",
+    "An interactive administrator who opens several remote management consoles in a few minutes"
+  ],
+  "tuningNotes": "First inventory which service accounts actually require weak Kerberos encryption and record them as an exclusion list by service name, because those are the noisiest recurring events. Then set the distinct service name threshold from a two week baseline of your own requesters, scoping the rule to domain controllers that hold the primary domain controller role, where replication keeps ticket data most complete. Downgrade or suppress the rule for approved scanner hosts and for the identity team's assessment window. The coverage you give up is a slow attacker who requests only two or three tickets per day to stay below the threshold, so also alert on first-seen requester and service name pairs and review any ticket request from a workstation that has no history of Kerberos service use.",
+  "severity": "high"
+}

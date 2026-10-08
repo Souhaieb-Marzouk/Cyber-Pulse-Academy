@@ -1,0 +1,106 @@
+{
+  "id": "det0203",
+  "type": "detection",
+  "title": "Detection Strategy for Ptrace-Based Process Injection on Linux",
+  "shortTitle": "Detection Strategy for Ptrace-Based Process Injection on ...",
+  "externalId": "DET0203",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects process injection on Linux through the ptrace system call, covering T1055.008 Ptrace System Calls. The technique matters because ptrace lets one process read and write another process's memory, so credentials, tokens, and in memory secrets can be taken without touching disk, and the activity is nearly invisible to file based monitoring. Detection rests on kernel audit records for ptrace and related memory write calls, joined with the parent and child relationship of the two processes involved. The main practical failure is that debuggers, profilers, crash handlers, and configuration management agents use the same interface legitimately, so the rule has to weigh which process traced which, from where, and on which host class instead of alerting on the call alone.",
+  "tags": [
+    "mitre t1055.008",
+    "process injection",
+    "linux",
+    "auditd",
+    "memory"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Ptrace-Based Process Injection on Linux",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0203/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Ptrace-Based Process Injection on Linux - EASY",
+      "path": "exercises/det0203/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Ptrace-Based Process Injection on Linux - MEDIUM",
+      "path": "exercises/det0203/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Ptrace-Based Process Injection on Linux - HARD",
+      "path": "exercises/det0203/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Ptrace-Based Process Injection on Linux - EXTREMELY HARD",
+      "path": "exercises/det0203/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches a Linux system call named ptrace. A system call is a request that a program makes to the operating system kernel. ptrace lets one program control and inspect another program's memory. It exists for debuggers and similar tools. Attackers use it to read secrets out of a running program.",
+    "whyItMatters": "An attacker can steal keys and passwords from a running program with ptrace. Nothing is written to disk, so file checks see nothing at all. The call is normal on a developer machine and rare on a production server. That difference is very useful to you. If you collect these calls, you can spot a process that controls another one for no good reason.",
+    "howItWorks": [
+      "The Linux audit system records system calls when you enable a rule for them.",
+      "The detection selects the records for tracing and memory write calls.",
+      "Each record names the calling process, the target process, and the user.",
+      "The rule checks whether the two processes share a parent or a service family.",
+      "A tracing event between unrelated processes on a production server raises a flag.",
+      "Developer hosts and approved debugger binaries are filtered by host group and path."
+    ],
+    "example": "Picture a hotel with a master key system. Only the duty manager may open a guest room, and the door log records every open. A cleaner who opens a room after checkout is completely normal. A cleaner who opens three occupied rooms at midnight is a problem. The ptrace call is that master key. It lets one program open the memory of another. The log tells you who opened what, and the pattern tells you whether it made sense.",
+    "takeaways": [
+      "Ptrace can steal secrets from memory without touching the disk.",
+      "Audit rules must be enabled before this detection can work.",
+      "Developer and profiler hosts need separate handling from servers."
+    ]
+  },
+  "objectives": [
+    "Explain what the ptrace system call does and why attackers use it.",
+    "Enable and read Linux audit records for tracing and memory write calls.",
+    "Correlate the tracing process, the target process, and the acting user.",
+    "Separate legitimate debugging from injection by host role and process lineage.",
+    "Describe the coverage gap that remains for memory only activity."
+  ],
+  "techniqueId": "t1055-008",
+  "detectsTechniques": [
+    "t1055-008"
+  ],
+  "dataSources": [
+    "Linux auditd syscall records for ptrace and process_vm_writev with the acting process identifier",
+    "Linux auditd execve records giving the command line of the process that starts tracing",
+    "Kernel or endpoint sensor data naming the target process and its owning account",
+    "Host inventory data used to classify developer workstations, build servers, and production servers"
+  ],
+  "logic": "The pattern is one process attaching to another process it has no operational relationship with, on a host where tracing is not part of the expected workload. The fields that must be correlated are the syscall name and request type, the caller process identifier and its executable path, the target process identifier and its owner, and the user account that made the call. The malicious case differs from the benign one in relationship and setting: a debugger attaching to a program the same user just started, on a developer host, is expected, while a web server worker, a document converter, or a shell in a container attaching to the authentication or credential process on a production server is not. Repeated attach and detach cycles against several targets in a short window is the strongest indicator of deliberate memory harvesting.",
+  "pseudoQuery": "# title: Ptrace Attachment by Unrelated Process\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: SYSCALL\n#     syscall: ptrace\n#     request: PTRACE_ATTACH\n#   filter_debug:\n#     exe|endswith:\n#       - '/gdb'\n#       - '/strace'\n#       - '/perf'\n#   condition: selection and not filter_debug\n# level: high",
+  "falsePositives": [
+    "Crash reporting handlers that attach to a process to collect a core file",
+    "Application performance monitoring agents that sample a running service",
+    "Configuration management runs that use strace to check how a service starts",
+    "Container runtimes that attach to a process for health inspection",
+    "Backup or migration tools that read another process state during a checkpoint"
+  ],
+  "tuningNotes": "Allow the debugger and profiler binaries that your platform team has approved, then exclude developer workstations and build servers from the strict rule entirely, because tracing there is normal. On production servers keep the rule strict and add a condition that the caller must not be the parent of the target, since service managers and shells legitimately trace their own children. Excluding developer hosts costs you detection of a compromise on those hosts, so run a lower severity variant there that only alerts when tracing follows an outbound network connection.",
+  "severity": "high"
+}

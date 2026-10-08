@@ -1,0 +1,106 @@
+{
+  "id": "det0403",
+  "type": "detection",
+  "title": "Detection Strategy for Traffic Duplication via Mirroring in IaaS and Network Devices",
+  "shortTitle": "Detection Strategy for Traffic Duplication via Mirroring ...",
+  "externalId": "DET0403",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers traffic duplication, matching the sub technique where an adversary configures port mirroring, a switched port analyser session, a virtual switch mirror or a cloud traffic mirror so that a copy of traffic is delivered to a host they control. It matters because the duplication is a configuration change on trusted infrastructure, so the copied data then leaves through an approved device path and looks like normal traffic from that device. The telemetry that exposes it is network device configuration change logs tied to an authenticated administrator session, cloud control plane audit logs for mirror session creation, hypervisor or virtual switch configuration events, and flow records that show one internal host suddenly receiving copies of traffic it never requested. It fails in practice because monitoring teams create mirror sessions for legitimate troubleshooting, so a change record is needed before treating one as hostile.",
+  "tags": [
+    "network devices",
+    "exfiltration",
+    "mitre t1020.001",
+    "configuration change",
+    "cloud"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Traffic Duplication via Mirroring in IaaS and Network Devices",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0403/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Traffic Duplication via Mirroring in IaaS and Network Devices - EASY",
+      "path": "exercises/det0403/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Traffic Duplication via Mirroring in IaaS and Network Devices - MEDIUM",
+      "path": "exercises/det0403/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Traffic Duplication via Mirroring in IaaS and Network Devices - HARD",
+      "path": "exercises/det0403/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Traffic Duplication via Mirroring in IaaS and Network Devices - EXTREMELY HARD",
+      "path": "exercises/det0403/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes that make a network device send a copy of traffic to another computer. These copies are called a mirror or a span session. The alert means someone started duplicating traffic, and you must check whether the network team asked for it.",
+    "whyItMatters": "Copying traffic is silent. The original messages still arrive, so users see no change. If the copy goes to an attacker's host, they can read everything on that link, including passwords in older protocols. The change happens on a switch or a virtual network, not on the target computer. Only the device configuration log records who did it, which is why this detection focuses there.",
+    "howItWorks": [
+      "Network devices and cloud platforms record every configuration change with the administrator account and the source address.",
+      "Those change records are forwarded to the security monitoring platform, often through a log relay.",
+      "The rule selects configuration events that create or modify a mirror, span or traffic duplication session.",
+      "It notes the monitoring destination, the source interface or virtual network, and the administrator identity.",
+      "It compares the change with approved change tickets and with the normal behaviour of that administrator.",
+      "Any session that sends copies to a host without a monitoring role becomes an alert for the network team."
+    ],
+    "example": "Think of a mail room that starts sending a second copy of every letter to a private address. The original letters still reach the correct homes, so nobody complains. The photocopier log is the only place that shows the extra copy. This detection reads that log.",
+    "takeaways": [
+      "Traffic duplication is a change to infrastructure, so audit the configuration, not just the data.",
+      "A mirror session needs an owner, a purpose and an end date before it is safe.",
+      "Copies sent to a destination without a monitoring role are the strongest warning sign."
+    ]
+  },
+  "objectives": [
+    "Explain how port mirroring and cloud traffic mirroring duplicate network traffic.",
+    "Identify the audit sources that record mirror or span session creation and who performed it.",
+    "Judge a mirror session using the destination host role, the purpose and the change record.",
+    "Describe how duplicated traffic can hide an exfiltration channel inside approved device paths.",
+    "Build an alert that pairs a configuration change with the affected network segment."
+  ],
+  "techniqueId": "t1020-001",
+  "detectsTechniques": [
+    "t1020-001"
+  ],
+  "dataSources": [
+    "Network device configuration change logs recording mirror or span session creation together with the authenticated administrator account and source address",
+    "Cloud control plane audit logs for traffic mirror session and packet capture configuration creation, including target network interface and owner identity",
+    "Hypervisor or virtual switch audit events recording port mirroring or promiscuous mode changes on a virtual network",
+    "Network flow records showing a single internal host receiving inbound copies of unicast traffic addressed to other hosts",
+    "Command accounting logs from the network device authentication service capturing the exact configuration commands entered by an administrator"
+  ],
+  "logic": "The pattern is a configuration change that creates or enables traffic duplication, whether a mirrored port, a span session, a virtual switch mirror or a cloud traffic mirror, followed by flow evidence that one host now receives copies of traffic destined for other hosts. The fields that must be correlated are the administrator identity and source address of the change, the device or cloud account, the source interface or subnet being copied, the monitoring destination address and its asset role, and the volume of unexpected inbound flow at that destination. The benign case is a network or monitoring team enabling a session to a known capture host with a ticket and a defined end time; the malicious case is a session created outside change windows, by an account that does not own network gear, pointing at a server, workstation or cloud instance with no monitoring role, especially when the copied segment carries authentication or database traffic.",
+  "pseudoQuery": "# title: Traffic Mirror or Span Session Created to Non Monitoring Destination\n# logsource:\n#   product: network\n#   service: config_change\n# detection:\n#   selection:\n#     command|contains:\n#       - 'mirror session'\n#       - 'monitor session'\n#       - 'port mirroring'\n#       - 'traffic-mirror'\n#   filter_netops:\n#     admin_group: 'network-operations'\n#     destination_role: 'capture-sensor'\n#   condition: selection and not filter_netops\n# level: high",
+  "falsePositives": [
+    "Network engineers capturing packets on a span session to troubleshoot a performance complaint with a change ticket",
+    "Cloud security tools that create traffic mirror sessions to a dedicated inspection appliance as designed",
+    "Hypervisor administrators enabling port mirroring on a lab network for a training exercise",
+    "Load balancer or application delivery health checks that briefly duplicate traffic toward a probe host"
+  ],
+  "tuningNotes": "Register every approved capture destination as a monitoring asset so the rule can filter on asset role instead of on address lists, then allow sessions whose administrator belongs to the network operations group and whose change ticket is open. Baseline how often mirror sessions are created and by whom, because a spike from one account is more interesting than the session itself. Scope the rule to production network segments and cloud accounts that hold sensitive workloads, and keep sandbox and lab networks on a low severity rule. The coverage you lose is a mirror created with stolen network administrator credentials inside the approved group, so also alert on mirror sessions whose destination is a newly created host or whose duration exceeds the ticket window.",
+  "severity": "high"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0444",
+  "type": "detection",
+  "title": "Detection of Command and Control Over Application Layer Protocols",
+  "shortTitle": "Detection of Command and Control Over Application Layer P...",
+  "externalId": "DET0444",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects command and control that hides inside ordinary application layer protocols such as Hypertext Transfer Protocol, Domain Name System and mail protocols. Because the traffic uses the same ports and the same servers as normal business activity, the detection cannot rely on a bad destination alone; it must lean on proxy request records with the full request line, on flow records that capture the process that opened the connection, and on transport fingerprints that identify a client library rather than a browser. The main failure is scale: a busy enterprise produces millions of web requests a day, so any rule broad enough to catch beaconing also catches a large share of real business traffic unless it is grouped by host, uri pattern and timing and then filtered against a maintained baseline.",
+  "tags": [
+    "command and control",
+    "application layer",
+    "network traffic",
+    "proxy logs",
+    "beaconing",
+    "t1071"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Command and Control Over Application Layer Protocols",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0444/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Command and Control Over Application Layer Protocols - EASY",
+      "path": "exercises/det0444/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Command and Control Over Application Layer Protocols - MEDIUM",
+      "path": "exercises/det0444/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Command and Control Over Application Layer Protocols - HARD",
+      "path": "exercises/det0444/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Command and Control Over Application Layer Protocols - EXTREMELY HARD",
+      "path": "exercises/det0444/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for malicious traffic that hides inside normal internet traffic. Attackers send commands over web, name lookup or mail traffic. That traffic is allowed through most firewalls. The detection looks for unusual patterns inside it instead of blocking the protocol.",
+    "whyItMatters": "You cannot block web traffic, because the business needs it. So the attacker has a free path out. The only clue is often the shape of the traffic. Regular timing and unusual client software are strong clues. Finding them early shortens the time an intruder stays in your network.",
+    "howItWorks": [
+      "A proxy or firewall records each request, the destination and the client address.",
+      "A sensor records which local program opened each network connection.",
+      "The rule groups requests by host and by destination over a time window.",
+      "It looks for steady intervals, rare client software or long encoded uri values.",
+      "Requests sent by a program that is not a browser raise the alert further."
+    ],
+    "example": "Think of a night watchman who listens for footsteps. Crowds walk past all night, so footsteps alone mean nothing. One person walking past the same window every ten minutes is the pattern. The timing, not the sound, is the clue.",
+    "takeaways": [
+      "Blocking protocols is not possible, so watch the pattern.",
+      "Connect the request to the program that made it.",
+      "Steady timing from one host is a classic beacon signal."
+    ]
+  },
+  "objectives": [
+    "Explain how command and control can blend into allowed protocols.",
+    "Read proxy and flow records and identify the client host and the destination.",
+    "Describe how beacon timing appears in grouped request data.",
+    "Use transport fingerprints to tell a script client from a browser.",
+    "Correlate a network connection with the process that opened it.",
+    "Set a baseline for normal web and name lookup behaviour per host group."
+  ],
+  "techniqueId": "t1071",
+  "detectsTechniques": [
+    "t1071"
+  ],
+  "dataSources": [
+    "Web proxy request records with client address, destination host, uri, user agent and response size",
+    "Sysmon event 3 network connection with the image of the process that opened the connection and the destination address",
+    "Domain Name System query logs with the requesting client address, query name and query type",
+    "Transport Layer Security client hello metadata including the client fingerprint and server name",
+    "Netflow or firewall connection records with byte counts, duration and destination port"
+  ],
+  "logic": "The pattern is repeated connections from one internal host to the same external destination at a near constant interval with small and similar payload sizes, especially when the process that opened the connection is not a browser and the destination has no business owner. The fields to correlate are the internal address, the destination host or address, the uri or query name shape, the user agent or transport fingerprint, the byte counts in both directions and the process image. A benign case is an update agent that checks a vendor host on a schedule and is listed as an approved destination with a known client fingerprint, while the malicious case shows a script interpreter or an unexpected process, a rare fingerprint, a random looking uri path and a jittered interval that still clusters tightly.",
+  "pseudoQuery": "# title: Repeated Application Protocol Beacon From Non Browser Process\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event: http_request\n#     user_agent|contains: ['python', 'curl', 'powershell', 'go-http-client']\n#     uri|re: '^/[A-Za-z0-9]{16,}$'\n#   filter:\n#     dest_host|endswith: ['.windowsupdate.com', '.vendorpatch.net']\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Monitoring agents and inventory tools that poll a vendor endpoint with a scripted user agent.",
+    "Internal automation that calls a representational state transfer interface every minute from a server.",
+    "Package managers and container registries that fetch metadata on a fixed schedule.",
+    "Certificate revocation and time synchronisation clients that repeat small requests."
+  ],
+  "tuningNotes": "Start by grouping traffic into host groups, for example servers, developer desktops and standard office desktops, and build a separate baseline for each group. Allow list destination hosts that have a named business owner and a documented polling interval, and keep the list short enough to review each month. Add the process image from the network connection event as a required field so that scripted clients stand out from browser traffic. Requiring both a process match and a timing pattern reduces noise sharply, but you give up visibility of traffic from a host that does not record process to connection mapping, so keep a lower severity rule based on destination rarity alone.",
+  "severity": "high"
+}

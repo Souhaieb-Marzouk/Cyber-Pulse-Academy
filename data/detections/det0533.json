@@ -1,0 +1,107 @@
+{
+  "id": "det0533",
+  "type": "detection",
+  "title": "Detection Strategy for Poisoned Pipeline Execution via SaaS CI/CD Workflows",
+  "shortTitle": "Detection Strategy for Poisoned Pipeline Execution via Sa...",
+  "externalId": "DET0533",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets poisoned pipeline execution, where an attacker changes a build or deployment definition so that untrusted input runs with the pipeline's rights and secrets. The change is often a small edit to a workflow file on the default branch, or a trigger that runs on a pull request from a fork, and the result is code execution inside the build environment with access to deployment credentials. Version control audit logs for pipeline definition changes, build run metadata showing the trigger type and the actor, and cloud identity records for tokens issued to the runner supply the evidence. The rule fails because developers edit pipelines every day, so change context and approval status must be correlated rather than the edit alone.",
+  "tags": [
+    "execution",
+    "cicd",
+    "cloud",
+    "supply chain",
+    "saas"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Poisoned Pipeline Execution via SaaS CI/CD Workflows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0533/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Poisoned Pipeline Execution via SaaS CI/CD Workflows - EASY",
+      "path": "exercises/det0533/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Poisoned Pipeline Execution via SaaS CI/CD Workflows - MEDIUM",
+      "path": "exercises/det0533/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Poisoned Pipeline Execution via SaaS CI/CD Workflows - HARD",
+      "path": "exercises/det0533/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Poisoned Pipeline Execution via SaaS CI/CD Workflows - EXTREMELY HARD",
+      "path": "exercises/det0533/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A build pipeline is the automatic system that turns code into a released product. This detection looks for changes that make the pipeline run code from an untrusted source. Attackers do this to reach the secrets the pipeline uses, such as deployment keys. The alert fires when a pipeline definition changes without review, or when a run is triggered by outside code.",
+    "whyItMatters": "The build system often holds the highest value secrets in a company. It can sign and publish software that customers trust. If an attacker runs code inside a pipeline, they can change the product itself, not just one server. The change needed is often a few lines in a text file, so it can look like normal work. Watching the definition, the trigger and the secrets together is how you spot the difference.",
+    "howItWorks": [
+      "The version control audit log records each commit that changes a pipeline definition file, with the author and the branch.",
+      "The build platform records each run with its trigger type, source branch, actor and target environment.",
+      "The rule joins those records and looks for a definition change that reached the default branch without the normal review.",
+      "It adds a second condition for runs triggered by a pull request from a fork or by an untrusted contributor.",
+      "Cloud identity records show which short lived tokens the runner received, and which secrets it could read.",
+      "The alert names the changed file, the author, the run and the secrets at risk. The responder can then rotate those secrets first."
+    ],
+    "example": "Think of a factory that makes medicine. The recipe book is kept in a locked office, and the machines trust the recipe completely. Someone edits one line so the machine adds the wrong ingredient. The machine follows the book exactly as written. The detection is not about the medicine that comes out. It is about who wrote in the recipe book, and when.",
+    "takeaways": [
+      "A build pipeline usually holds the secrets that protect production, so it is a high value target.",
+      "The signal is a pipeline change without review, or a run triggered by untrusted code.",
+      "Rotate the secrets a compromised run could read before you investigate anything else."
+    ]
+  },
+  "objectives": [
+    "Explain why a build pipeline is a high value target for attackers",
+    "Identify the audit fields for commits that change pipeline definition files, including author, branch and review state",
+    "Describe which trigger types let code from a fork or an outside contributor run inside the pipeline",
+    "Correlate a definition change with the runs and tokens it produced",
+    "Explain why secret rotation comes before deeper investigation after a suspected pipeline compromise",
+    "Choose filters that allow routine pipeline work without hiding unreviewed production changes"
+  ],
+  "techniqueId": "t1677",
+  "detectsTechniques": [
+    "t1677"
+  ],
+  "dataSources": [
+    "Version control audit log entries for commits that modify pipeline definition files, with author, branch and review status",
+    "Build platform run metadata with trigger type, source branch, actor and target environment",
+    "Cloud identity provider records of short lived tokens issued to build runners, including the requesting workflow",
+    "Pipeline secret store access records showing which run read which secret",
+    "Package registry publish events showing artefacts pushed by a pipeline runner account"
+  ],
+  "logic": "The pattern is a pipeline definition change that removes a safety control, or a run that executes untrusted code with access to pipeline secrets. Correlate the commit audit record, the run metadata and the secret access records by repository, branch, actor and run identifier: a change to a workflow file on the default branch without an approved review, or a run triggered by a pull request from a fork that still mounts production secrets. The benign case is a platform team refactoring pipelines during a change window, or a bot regenerating configuration from a template. The malicious case adds a step that reads secrets, changes an artefact before publishing, or alters a deployment job that targets production.",
+  "pseudoQuery": "# title: Pipeline Definition Changed Outside Review On Default Branch\n# logsource:\n#   product: azure\ndetection:\n  selection_change:\n    OperationName: 'GitPush'\n    ObjectId|contains: 'pipeline'\n    Branch: 'main'\n  filter_review:\n    ReviewApproved: 'true'\n  selection_run:\n    OperationName: 'RunStarted'\n    TriggerType: 'pull request from fork'\n  condition: (selection_change and not filter_review) or selection_run\nlevel: critical",
+  "falsePositives": [
+    "Platform teams performing an approved pipeline refactor during a change window",
+    "Security or compliance engineers adding a scanning step to every workflow file in one batch",
+    "Automation that updates a pinned action or container version across many repositories",
+    "Bot accounts that regenerate pipeline configuration from a central template repository"
+  ],
+  "tuningNotes": "Baseline which accounts and bots commit to pipeline files, and allow the template service and release bot by identity. Keep the alert for changes to deployment jobs that hold production secrets rather than every workflow edit, and require that the change reaches the default branch without review. Add the trigger type condition so that runs on a fork pull request stand out. Narrowing to production secrets loses visibility of a change that only affects a test pipeline but is the first step of a wider attack, so review allowed changes weekly instead of filtering them out entirely.",
+  "severity": "critical"
+}

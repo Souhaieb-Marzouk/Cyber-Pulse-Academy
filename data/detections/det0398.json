@@ -1,0 +1,106 @@
+{
+  "id": "det0398",
+  "type": "detection",
+  "title": "Detect Office Startup-Based Persistence via Macros, Forms, and Registry Hooks",
+  "shortTitle": "Detect Office Startup-Based Persistence via Macros, Forms...",
+  "externalId": "DET0398",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers persistence that hides inside Microsoft Office itself, where an attacker plants an add in, changes a default template path, writes a mail form or Outlook rule that runs code, or redirects a registry hook so the payload loads whenever the user opens a document or starts the mail client. It matters because the mechanism is the trusted productivity suite: nothing about the visible document changes, the code runs in the user context already granted, and the persistence survives reboots because Office reloads it every session. The telemetry that makes it visible is registry modification monitoring for the Office add in and load behaviour keys, file creation events in the user and machine Office start up folders, newly written template files such as the normal template, and process creation showing the Office binary loading an unexpected module. In practice it fails because administrators deploy legitimate add ins and templates constantly, so the rule needs an allow list of approved publisher paths before it can alert.",
+  "tags": [
+    "windows",
+    "persistence",
+    "mitre t1137",
+    "office",
+    "registry monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Office Startup-Based Persistence via Macros, Forms, and Registry Hooks",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0398/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Office Startup-Based Persistence via Macros, Forms, and Registry Hooks - EASY",
+      "path": "exercises/det0398/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Office Startup-Based Persistence via Macros, Forms, and Registry Hooks - MEDIUM",
+      "path": "exercises/det0398/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Office Startup-Based Persistence via Macros, Forms, and Registry Hooks - HARD",
+      "path": "exercises/det0398/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Office Startup-Based Persistence via Macros, Forms, and Registry Hooks - EXTREMELY HARD",
+      "path": "exercises/det0398/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for hidden changes that make Microsoft Office run extra code by itself. The code can hide in an add in, a template, or a registry setting for the Outlook mail client. The alert means Office was given a new instruction to load something it did not load before.",
+    "whyItMatters": "Office starts every day on almost every desk. If an attacker can make it load their code, that code returns after every reboot. It needs no scheduled task, so it is quieter than the usual start up trick. Users will not notice a change they cannot see. Detecting the change early stops the attacker from keeping a permanent foothold.",
+    "howItWorks": [
+      "The monitoring agent records registry changes and file creations on each Windows computer.",
+      "It sends those events to the security monitoring platform with the account, the host and the full path.",
+      "The rule selects the Office add in registry keys and the start up template folders.",
+      "It also flags any Office process that loads a module from a user writable folder.",
+      "The alert shows the changed key or file, the account that made the change and the time.",
+      "An analyst then checks the change against the approved request."
+    ],
+    "example": "Think of a delivery van that arrives at the same loading bay every morning. The driver has a valid badge, so nobody questions the van. If someone quietly adds a new stop to the driver roster, the van will keep making that stop forever. The roster change is the thing worth watching, not the van.",
+    "takeaways": [
+      "Office persistence is popular because it reloads automatically in a trusted program.",
+      "Registry keys and template files are the places to watch, not just documents.",
+      "You cannot alert on every Office change, so an approved add in list is required."
+    ]
+  },
+  "objectives": [
+    "List the Office persistence locations this strategy covers, including add ins, templates, Outlook rules and registry hooks.",
+    "Name the telemetry sources that show registry and file changes in Office locations.",
+    "Explain why Office based persistence survives reboots without a scheduled task.",
+    "Build an allow list of approved add ins by publisher and file path.",
+    "Describe how to validate an alert against change management records."
+  ],
+  "techniqueId": "t1137",
+  "detectsTechniques": [
+    "t1137"
+  ],
+  "dataSources": [
+    "Registry modification monitoring for the Microsoft Office add in manager and load behaviour keys under the current user and local machine hives",
+    "Windows file creation events for files written to the Office start up and add in folders in the user profile and the program files tree",
+    "Process creation events showing the Office application binary loading a module from a user writable directory",
+    "Windows Security process creation events for the mail client started with automation switches that bypass the normal startup path",
+    "Windows Security registry auditing events for writes to the mail client profile and form configuration keys"
+  ],
+  "logic": "The pattern is a write to an Office add in, template or load behaviour registry location, or the creation of a new template or add in file in a start up folder, performed by an account or process that is not your software deployment tooling, followed by an Office process that loads a module from a user writable path. The fields that must be correlated are the registry key or file path, the process and account that performed the write, the digital signature or publisher of any new add in file, and the parent process of the resulting Office start. The benign case is a signed enterprise add in installed from a managed share by your deployment tool; the malicious case is an unsigned module placed in a user profile folder, a template replaced outside a patching window, or a mail client rule or form written by a script host rather than by the mail client itself.",
+  "pseudoQuery": "# title: Office Persistence via Add-in, Template or Registry Hook Change\n# logsource:\n#   product: windows\n#   service: registry\n# detection:\n#   selection_reg:\n#     target_object|contains:\n#       - 'Office\\Outlook\\Addins'\n#       - 'Office\\16.0\\Common\\Security'\n#   selection_file:\n#     event_type: 'file_create'\n#     file_path|contains:\n#       - 'Microsoft\\Templates\\'\n#       - 'Microsoft\\Word\\STARTUP\\'\n#   filter_deploy:\n#     process_path|startswith: 'C:\\Program Files\\DeployAgent\\'\n#   condition: (selection_reg or selection_file) and not filter_deploy\n# level: medium",
+  "falsePositives": [
+    "Enterprise add in deployment that writes a signed add in file and its registry entry from a management share",
+    "Users who install a legitimate Office extension from the vendor store and create a new start up template",
+    "Template management software that refreshes the corporate normal template during a patching window",
+    "Mail client configuration scripts run by the help desk when onboarding a new employee profile"
+  ],
+  "tuningNotes": "Collect the Office related registry and template writes for at least three weeks before alerting, then allow list by file publisher and by the deploying process path, because a legitimate add in and a malicious one write to the same key. Filter writes whose parent process is your software deployment agent or the Office application itself during a signed update. Scope the rule to workstations that are not developer or build machines, and raise severity only when the new module is unsigned or sits in a download folder. Narrowing this way loses detection of a signed add in that has been replaced with a trojanised copy, so add a separate check that hashes approved add in files and alerts on a hash change.",
+  "severity": "high"
+}

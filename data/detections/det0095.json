@@ -1,0 +1,107 @@
+{
+  "id": "det0095",
+  "type": "detection",
+  "title": "Detect Persistence via Malicious Outlook Rules",
+  "shortTitle": "Detect Persistence via Malicious Outlook Rules",
+  "externalId": "DET0095",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects mailbox rules that redirect, forward, hide or delete incoming mail, which attackers create after compromising an account so that replies and security alerts never reach the real owner. The technique matters because a forwarding rule turns a single stolen password into a long term, low noise channel for stealing messages and reset links. Detection works best from the mail service audit records that name the rule operation and its parameters, and it is strengthened by client side process and registry telemetry. The frequent failure is that users create rules every day for ordinary reasons, so the rule must weigh the destination, the folder and the client that made the change. This is independent study content and not an authoritative standard.",
+  "tags": [
+    "persistence",
+    "email rules",
+    "microsoft 365",
+    "exfiltration",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Persistence via Malicious Outlook Rules",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0095/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Persistence via Malicious Outlook Rules - EASY",
+      "path": "exercises/det0095/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Persistence via Malicious Outlook Rules - MEDIUM",
+      "path": "exercises/det0095/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Persistence via Malicious Outlook Rules - HARD",
+      "path": "exercises/det0095/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Persistence via Malicious Outlook Rules - EXTREMELY HARD",
+      "path": "exercises/det0095/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new mail rules that quietly move, forward, hide or delete email. An attacker who gets into an account can add such a rule while the owner is away. The rule then sends copies of messages somewhere else or pushes warnings out of sight. The detection watches the mail service records that describe rule changes.",
+    "whyItMatters": "Email holds password resets, contracts, invoices and security warnings. A forwarding rule can copy all of it without the owner noticing anything unusual. Rules also let an attacker hide the alerts that would reveal the break in. Because no malware runs on the computer, endpoint tools may see nothing at all. Watching the mailbox itself is the only way to find this.",
+    "howItWorks": [
+      "The mail service writes an audit record each time a rule is created or changed, naming the mailbox and the operation.",
+      "The record includes the rule parameters, such as the target folder and any forwarding address.",
+      "The rule looks for forwards to addresses outside the organisation and for rules that delete or hide messages.",
+      "It also checks the client used, because a script or a mail protocol tool is unusual for this job.",
+      "The detection joins the rule change to the sign in records for the same account, looking for a new location or device.",
+      "If a forwarding rule and a suspicious sign in appear together, the alert is escalated immediately."
+    ],
+    "example": "Think of a household where all letters arrive in one basket by the front door. A visitor quietly adds a note telling the postal worker to leave the bank letters in a bag outside the back gate. The family keeps receiving most mail and notices nothing. Mailbox rules are that note: the mail still arrives, but the important part takes a different path, and the household diary of new instructions is where you find it.",
+    "takeaways": [
+      "A forwarding or hiding rule is quiet persistence that needs no software on the device.",
+      "Mail service audit records show the rule, the destination and the client that created it.",
+      "Always check sign in records for the same account when a new external forward appears."
+    ]
+  },
+  "objectives": [
+    "Explain how mailbox rules are used to steal mail and to hide security alerts.",
+    "Read a mail audit record and identify the rule action, destination and client.",
+    "Write a rule that flags external forwarding and move to deleted or archive folders.",
+    "Correlate a rule change with sign in records for the affected account.",
+    "Describe the safe response steps for a confirmed malicious forwarding rule."
+  ],
+  "techniqueId": "t1137-005",
+  "detectsTechniques": [
+    "t1137-005"
+  ],
+  "dataSources": [
+    "Microsoft 365 unified audit log records for new inbox rule and set inbox rule operations",
+    "Mail service audit entries that include the rule parameters, target folder and forwarding address",
+    "Sign in logs for the mailbox account showing device, location and authentication result",
+    "Sysmon event 1 process creation for scripting hosts and mail automation utilities that manage rules",
+    "Outlook profile registry values that store rule identifiers and rule state on the endpoint"
+  ],
+  "logic": "The pattern is a mailbox rule whose action moves mail outside the organisation or hides it locally, especially when combined with a suspicious authentication for the same account. The fields to correlate are the rule operation type, the rule name, the target folder, the forwarding address and its domain, the client or user agent that performed the change, the source address, and the sign in result for that account in the preceding hours. Benign rules are created by the mailbox owner from a normal client, move messages between folders inside the same mailbox, and match patterns the organisation expects such as sorting by sender. Malicious rules frequently forward to an external domain, delete or move messages to an obscure folder, apply to all messages, are created from a command line mail utility or an unusual client, and appear in the same session as a sign in from a new location. Destination and rule scope are the strongest discriminators, with the authentication context as confirmation.",
+  "pseudoQuery": "# title: Inbox Rule Forwarding Mail Outside the Organisation\n# logsource:\n#   product: microsoft365\n# detection:\n#   selection_rule:\n#     Operation:\n#       - 'New-InboxRule'\n#       - 'Set-InboxRule'\n#     Parameters|contains:\n#       - 'ForwardTo'\n#       - 'RedirectTo'\n#       - 'DeleteMessage'\n#   filter_internal:\n#     Parameters|contains: '@internal.example'\n#   condition: selection_rule and not filter_internal\n# level: critical",
+  "falsePositives": [
+    "Employees who forward mail to a personal address while travelling and later remove the rule",
+    "Shared mailbox owners who redirect a distribution list to a team queue during a handover",
+    "Automation accounts that maintain routing rules as part of a documented business process",
+    "Help desk staff who add a rule for a user during an approved migration project",
+    "Long standing rules created years ago that only become visible after audit logging is expanded"
+  ],
+  "tuningNotes": "Start with a discovery pass over existing rules so historic forwards do not flood the queue, then alert only on newly created or changed rules. Maintain an allowlist of internal forwarding domains and of the automation accounts that legitimately manage rules, and match on the destination domain rather than the whole parameter string. Scope the critical severity to finance, executive and administrator mailboxes, and let other mailboxes alert at medium with the sign in correlation attached. You lose detection of a rule that forwards internally to a compromised mailbox on the same tenant, so also monitor for mailbox delegation and folder permission changes.",
+  "severity": "critical"
+}

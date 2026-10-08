@@ -1,0 +1,108 @@
+{
+  "id": "det0423",
+  "type": "detection",
+  "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Snapshot",
+  "shortTitle": "Detection Strategy for Modify Cloud Compute Infrastructur...",
+  "externalId": "DET0423",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers the creation of snapshots of cloud compute volumes, the technique an adversary uses to copy a live disk image before reading, encrypting or destroying it. It matters because the snapshot API is a clean, authenticated, well logged way to exfiltrate an entire volume without ever touching the guest operating system, so host based controls never see the theft. Detection depends on cloud audit telemetry for volume and snapshot operations, identity context for the caller, and entitlement data that shows which roles normally hold snapshot permissions. The main way it fails in practice is volume: backup products and snapshot schedules call the same API thousands of times a day, so a rule that does not baseline approved principals, schedules and volume tags is unusable within hours.",
+  "tags": [
+    "cloud snapshot",
+    "t1578-001",
+    "data staging",
+    "cloudtrail",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Modify Cloud Compute Infrastructure: Create Snapshot",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0423/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Snapshot - EASY",
+      "path": "exercises/det0423/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Snapshot - MEDIUM",
+      "path": "exercises/det0423/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Snapshot - HARD",
+      "path": "exercises/det0423/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Create Snapshot - EXTREMELY HARD",
+      "path": "exercises/det0423/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for new copies of cloud disks, called snapshots. In the cloud you can copy a whole server disk with one command. The rule reports when that copy is made by an unusual account or at an unusual time.",
+    "whyItMatters": "An attacker who copies a disk gets every file on it, including secrets and databases. The copy happens outside the server, so the server itself shows nothing strange. Snapshots are also taken before data is destroyed, so the event can be an early warning. Most companies do take snapshots, so the alert must point at the strange ones only.",
+    "howItWorks": [
+      "A user or a service account asks the cloud provider to create a snapshot of a disk.",
+      "The provider writes an audit record with the account name, the disk identifier and the time.",
+      "Your detection platform collects those audit records into the security information and event management system.",
+      "The rule removes records that match approved backup accounts and approved snapshot schedules.",
+      "It then scores what remains by disk type, region and the number of snapshots per account.",
+      "A short burst of snapshots of production disks from one identity becomes an alert for review."
+    ],
+    "example": "Think of a records office with a photocopier. Staff copy files all day, and nobody watches each sheet. The office does log who used the copier and which cabinet they opened. If a new contractor copies one hundred patient files at midnight, the log is enough to start a conversation. The log does not show the file contents. It shows that the copying was odd, and odd is the signal.",
+    "takeaways": [
+      "A snapshot copies a whole disk without touching the running server.",
+      "The alert is about the caller, the schedule and the number of copies.",
+      "You must baseline your backup accounts or the rule will be far too noisy."
+    ]
+  },
+  "objectives": [
+    "Explain how snapshot creation can copy an entire disk without touching the guest operating system.",
+    "Identify the cloud audit fields that prove which principal created a snapshot and from which volume.",
+    "Baseline approved backup principals, snapshot schedules and protected volume tags.",
+    "Tell a planned snapshot schedule apart from a burst taken by a single unexpected identity.",
+    "Scope the rule to production and data bearing volumes where copies are rare.",
+    "Describe the coverage gap created when approved backup accounts are excluded from the rule."
+  ],
+  "techniqueId": "t1578-001",
+  "detectsTechniques": [
+    "t1578-001"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for CreateSnapshot including the caller identity and source volume",
+    "AWS CloudTrail management events for ModifySnapshotAttribute recording share and permission changes",
+    "Cloud identity inventory mapping principals to approved backup and snapshot roles",
+    "Cloud asset inventory tagging volumes as production, database or non production",
+    "AWS CloudTrail events for DeleteVolume and DeregisterImage that follow a snapshot burst"
+  ],
+  "logic": "The pattern is a successful snapshot creation call whose caller identity is not an approved backup principal, or whose target volume is a production or database volume outside a known schedule window, especially when one identity creates several snapshots across regions in a short period. The fields that must be correlated are the caller account and assumed role from the audit record, the source volume identifier, the region, and the asset tag or classification of that volume. The malicious case is distinguished from the benign one by three things together: an identity that does not normally hold snapshot permissions, timing that does not match an approved schedule, and volume scope that reaches beyond the tier the identity is entitled to. A snapshot followed by a share change or by volume deletion raises confidence sharply, because that combination matches staging for exfiltration or for destruction.",
+  "pseudoQuery": "# title: Cloud Volume Snapshot Created by Unexpected Principal\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName: CreateSnapshot\n#     errorCode: absent\n#   filter_baseline:\n#     userIdentity.sessionContext.sessionIssuer.userName|contains: 'backup'\n#     requestParameters.volumeId|endswith: '-approved'\n#   condition: selection and not filter_baseline\n# level: high",
+  "falsePositives": [
+    "Scheduled backup jobs that run under a service account whose name does not contain a backup keyword",
+    "Engineers taking a manual snapshot before a risky maintenance change on a production database",
+    "Disaster recovery tests that copy volumes into a second region on a quarterly basis",
+    "Marketplace or migration tooling that snapshots a volume before converting or resizing it",
+    "A newly onboarded application team whose service account has not yet been added to the baseline list"
+  ],
+  "tuningNotes": "Build the baseline first by exporting ninety days of snapshot activity and grouping it by caller identity, assumed role, hour of day and volume tag, then filter only those identity and schedule pairs that are already stable and reviewed rather than filtering on the snapshot action itself. Scope the production version to volumes tagged as production or database, where the expected snapshot count per day is small and each hit is quick to review, and keep a separate low severity rule for development accounts that still records activity for hunting. Correlate with volume deletion and snapshot attribute changes so a filtered backup account that suddenly deletes volumes still surfaces. You lose visibility into an attacker who compromises an approved backup role, or who takes the snapshot through a role that automation legitimately assumes, so add anomaly scoring on the count and region spread per identity to cover that gap.",
+  "severity": "high"
+}

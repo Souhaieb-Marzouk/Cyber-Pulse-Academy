@@ -1,0 +1,107 @@
+{
+  "id": "det0089",
+  "type": "detection",
+  "title": "Behavioral Detection of Keylogging Activity Across Platforms",
+  "shortTitle": "Behavioral Detection of Keylogging Activity Across Platforms",
+  "externalId": "DET0089",
+  "theme": "Detection Strategy",
+  "summary": "This strategy hunts for software that records what a user types, known as a keylogger, using behaviour rather than file names. Keylogging hands an attacker credentials, message content and command history, and it often runs quietly for weeks, so early detection limits the value of everything stolen afterwards. The telemetry that makes it visible is registry changes for keyboard filter drivers, driver and library load events, and operating system audit records showing raw input device reads on Linux hosts. The main failure in practice is that accessibility, remote support and gaming software legitimately intercept keystrokes, so the rule must lean on who installed the component and where it came from. Treat this as educational guidance only.",
+  "tags": [
+    "credential access",
+    "keylogging",
+    "input capture",
+    "windows",
+    "linux"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Keylogging Activity Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0089/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Keylogging Activity Across Platforms - EASY",
+      "path": "exercises/det0089/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Keylogging Activity Across Platforms - MEDIUM",
+      "path": "exercises/det0089/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Keylogging Activity Across Platforms - HARD",
+      "path": "exercises/det0089/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Keylogging Activity Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0089/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that capture what you type on a keyboard. Such a program can collect passwords, chat messages and commands. Instead of searching for known bad file names, the detection watches how the program behaves and what it installs. It works on Windows and on Linux hosts.",
+    "whyItMatters": "Typing is how you prove who you are on most systems. If an attacker can read your keys, they can replay your logins without breaking any encryption. A keylogger also captures work that never touches a server, such as private messages. Because it is small and quiet, it can stay in place for a long time. Catching it early protects every account the user touches.",
+    "howItWorks": [
+      "The endpoint agent records new kernel components and the libraries that applications load.",
+      "The rule watches for keyboard filter drivers, which sit between the keyboard and the system and can copy every keystroke.",
+      "It records registry changes that install a new filter driver, because that is a lasting change.",
+      "On Linux hosts, the audit service records reads of the raw input device files in the device directory.",
+      "The rule links an input capture component to the process that installed it and to the file that was written.",
+      "Signals that arrive together on a workstation used by an administrator or finance user score highest."
+    ],
+    "example": "Think of a hotel safe. The safe itself is normal, and every room has one. If a technician fits a second lock behind the wall that copies every keypad press to a notebook, the safe still works and guests notice nothing. The guest never sees the hidden lock, but a routine inspection of the wall would find it. Keyboard filters on a computer are like that hidden lock, and your inspection is the driver and registry record.",
+    "takeaways": [
+      "Keyloggers steal credentials at the moment they are typed, before any encryption.",
+      "Watch the installation of keyboard filters and input device access, not file names.",
+      "Accessibility and remote support tools do the same thing, so verify the owner and the source."
+    ]
+  },
+  "objectives": [
+    "Describe how a keylogger captures input before it reaches the application.",
+    "Identify the driver load, registry and audit telemetry that reveals input capture.",
+    "Explain the difference between a keyboard filter driver and a keyboard layout.",
+    "Baseline approved accessibility and remote support tools in your estate.",
+    "Prioritise keylogger alerts by the role of the account using the affected host."
+  ],
+  "techniqueId": "t1056-001",
+  "detectsTechniques": [
+    "t1056-001"
+  ],
+  "dataSources": [
+    "Sysmon event 6 driver load including the loaded driver path and signature status",
+    "Sysmon event 7 image load showing keyboard hook libraries loaded into an unexpected host process",
+    "Sysmon event 13 registry value set on keyboard class upper filters and related driver service keys",
+    "Windows Security event 4688 process creation with command line auditing for driver installation utilities",
+    "Linux auditd file watch rules on raw input device files such as the device input directory"
+  ],
+  "logic": "The pattern is a new component that sits in the keyboard input path, plus proof that whatever installed it is not an approved accessibility or remote support product. The correlated fields are the loaded driver or library path and its signature, the registry key that registers the filter, the image and parent of the process that performed the install, and on Linux the audit record for a read syscall against a raw input device. Benign keyboard filters belong to documented products, are signed by the vendor, are installed by managed software deployment, and appear across many hosts with the same path. Malicious ones are a single unsiged filter or library from a temporary or user profile path, installed by a script interpreter or an office application, on a small number of hosts. The registry filter order change and the process that made it are what turn a generic driver load into a defensible alert.",
+  "pseudoQuery": "# title: Keyboard Filter Driver or Raw Input Capture\n# logsource:\n#   product: windows\n# detection:\n#   sel_drv:\n#     EventID: 6\n#     ImageLoaded|contains: 'keyboard'\n#   sel_reg:\n#     EventID: 13\n#     TargetObject|contains: ['Keyboard Class', 'UpperFilters']\n#   sel_inst:\n#     EventID: 1\n#     Image|endswith: ['\\\\pnputil.exe', '\\\\sc.exe', '\\\\powershell.exe']\n#   filter:\n#     ImageLoaded|contains: ['Program Files\\\\AccessibilitySuite', 'Program Files\\\\RemoteSupport']\n#   condition: (sel_drv or sel_reg) and sel_inst and not filter\n# level: high",
+  "falsePositives": [
+    "Approved accessibility software that installs a keyboard filter to offer sticky keys or on screen typing",
+    "Remote support tools that capture keyboard input while an agent is connected to a user session",
+    "Hardware vendors that install a signed keyboard filter as part of a dock or function key driver package",
+    "Password manager browser extensions that monitor keystrokes to offer autofill inside their own fields",
+    "Linux hosts where an administration script reads input devices for a documented testing harness"
+  ],
+  "tuningNotes": "Build a signed driver allowlist from your own fleet first, keyed on file hash and signer, and keep the filter on the registry filter order change rather than on every driver load so the alert volume stays workable. Scope the strictest version to hosts used by administrators, executives and finance staff, plus all servers, and let ordinary workstations run in the low severity version. Add a filter for vendor installers that run inside a documented deployment window. The coverage you lose is a keylogger that arrives as a user mode library without touching a driver or the keyboard filter list, so complement this rule with periodic review of unsigned libraries loaded into browser and messaging processes.",
+  "severity": "high"
+}

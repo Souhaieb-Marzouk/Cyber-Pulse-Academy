@@ -1,0 +1,108 @@
+{
+  "id": "det0083",
+  "type": "detection",
+  "title": "Container CLI and API Abuse via Docker/Kubernetes (T1059.013)",
+  "shortTitle": "Container CLI and API Abuse via Docker/Kubernetes (T1059....",
+  "externalId": "DET0083",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the container control plane as an execution path, where an operator uses the container command line tools or the cluster interface to run code inside a running workload, create a privileged workload, or reach the runtime socket that manages them. It matters because container hosts concentrate trust: a single privileged workload or an exposed runtime socket can hand over the node and, through the node, the credentials of every workload that runs on it. The telemetry that makes it visible is process execution on container hosts around the command line tools, runtime daemon or socket activity, and the cluster audit log that records every control plane request with the identity, user agent, source address and target object. The pattern worth alerting on is interactive style use of these interfaces from an unexpected source: a shell attaching to a running container, a workload created with host level privileges, or control plane calls from an address and identity that normally only runs pipelines. It fails in practice because the same tools are the whole point of a platform team job, so the rule must be anchored to identity, source and privilege level rather than to the tool name.",
+  "tags": [
+    "containers",
+    "kubernetes",
+    "execution",
+    "docker",
+    "audit log",
+    "linux"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Container CLI and API Abuse via Docker/Kubernetes (T1059.013)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0083/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Container CLI and API Abuse via Docker/Kubernetes (T1059.013) - EASY",
+      "path": "exercises/det0083/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Container CLI and API Abuse via Docker/Kubernetes (T1059.013) - MEDIUM",
+      "path": "exercises/det0083/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Container CLI and API Abuse via Docker/Kubernetes (T1059.013) - HARD",
+      "path": "exercises/det0083/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Container CLI and API Abuse via Docker/Kubernetes (T1059.013) - EXTREMELY HARD",
+      "path": "exercises/det0083/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Containers are light packages that hold an application and its libraries. Commands such as docker and kubectl are used to manage them. This detection looks for those commands being used to run code inside a container. It also watches the cluster service that sits behind the commands.",
+    "whyItMatters": "A container that runs with high rights can often reach the machine underneath it. From there an attacker can read the secrets of other containers. Platform teams use these tools constantly, so the tools alone prove nothing. The useful question is who ran the command, from where, and with how much power.",
+    "howItWorks": [
+      "Host sensors record command line tools being started. They include the arguments.",
+      "They also record whether the process used the container runtime socket directly.",
+      "The cluster control service writes a record for each request. It names the caller.",
+      "The detection notes requests that attach to a running container or create a privileged workload.",
+      "It compares the source address and identity against the pattern normal pipelines use.",
+      "Known build agents and platform maintenance accounts are placed in a quiet lane."
+    ],
+    "example": "Think of a shared warehouse where every forklift driver may move pallets. One driver starts lifting sealed crates in the manager section. The same driver stacks them near the loading door. Driving a forklift is completely normal there. The alarm belongs to the crates and the door, not to the forklift.",
+    "takeaways": [
+      "Container hosts hold powerful secrets, so control of them is a big prize.",
+      "Watch who uses the cluster interface and from where, not just which tool was used.",
+      "A workload created with host level rights deserves immediate attention."
+    ]
+  },
+  "objectives": [
+    "Explain why the container control plane is a high value execution path.",
+    "Identify the process, runtime socket and audit log telemetry available on container hosts and clusters.",
+    "Detect interactive attachment to running containers and workloads created with elevated privileges.",
+    "Correlate control plane requests with the identity, user agent and source address of the caller.",
+    "Describe the response options for a compromised workload, including isolation and credential rotation."
+  ],
+  "techniqueId": "t1059-013",
+  "detectsTechniques": [
+    "t1059-013"
+  ],
+  "dataSources": [
+    "Kubernetes API server audit log records with the requesting user, user agent, source address, verb, resource and namespace",
+    "Linux auditd execve records for container command line tools including the full argument list and parent process",
+    "Container runtime daemon logs recording workload creation, attachment and execution inside a container",
+    "Linux audit records for access to the container runtime socket file by non platform processes",
+    "Workload definitions and admission controller decisions showing privileged mode, host mounts and host namespace use"
+  ],
+  "logic": "Alert when control plane or runtime interfaces are used interactively or at a privilege level that the calling identity and source do not normally need. The fields to correlate are the caller identity, the user agent, the source address or workload, the verb, the target resource and namespace, and the privilege attributes of any workload created. Benign use comes from build agents, deployment pipelines and platform maintenance accounts, from inside the cluster or from a small set of management hosts, with a narrow verb and resource set and a stable user agent. The hostile case typically shows a long tail of list and get requests that map the cluster, followed by an attach or exec into an existing workload, or the creation of a workload that mounts the host filesystem, uses the host network or runs privileged, and often the reading of secret objects the identity has never touched. Access to the runtime socket from a process that is not the runtime itself is a strong standalone signal because very little legitimate software does it.",
+  "pseudoQuery": "# title: Interactive Container Exec Or Privileged Workload Creation\n# logsource:\n#   product: linux\n# detection:\n#   runtime_exec:\n#     exe|endswith:\n#       - '/docker'\n#       - '/kubectl'\n#     a1|contains:\n#       - 'exec'\n#       - 'attach'\n#       - '--privileged'\n#   socket_access:\n#     type: FILE\n#     name|contains: '/var/run/docker.sock'\n#   filter_platform:\n#     auid|contains: 'pipeline-agent'\n#   condition: (runtime_exec or socket_access) and not filter_platform\n# level: medium",
+  "falsePositives": [
+    "Platform engineers debugging a failing workload by opening a shell inside a running container",
+    "Build and deployment pipelines that create short lived jobs and attach to them to collect logs",
+    "Monitoring and security agents that inspect containers through the runtime interface on every node",
+    "Application release steps that run migration commands inside an application container",
+    "Training, lab or test clusters where developers are expected to create privileged workloads on purpose"
+  ],
+  "tuningNotes": "Start by recording which identities, user agents and source networks are allowed to attach to running workloads, then alert on everything outside that set; the tool name alone is useless because platform teams use these tools continuously. Treat the creation of a workload with host namespaces, host path mounts or privileged mode as a separate rule with a low threshold, since legitimate use of those settings is rare and should be justified per cluster. Exclude the runtime socket path for the runtime and monitoring agents only, by process path and not by rule, and lift access from anywhere else to high severity. Keep a watch on the pipeline identities themselves, because a stolen pipeline token looks perfectly normal at the API layer. The coverage you lose by allow listing platform identities is abuse of those identities, so pair the rule with review of which service accounts hold cluster wide permissions and with alerts on new or changed role bindings.",
+  "severity": "medium"
+}

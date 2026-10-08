@@ -59,14 +59,21 @@ from build_catalog import (  # noqa: E402  (path set above on purpose)
 # honest too.
 SIZE_CAP_BYTES = 250 * 1024
 
-# data/catalog.json is generated from all 246 topics and is therefore exempt
-# from the per-file cap. It is exempt for a measured reason, not a convenient
-# one: it is one file, it is served gzipped at roughly a quarter of its raw
-# size, it is cached after the first visit, and the service worker precaches it.
-# Its own ceiling and a gzip report are printed on every run so the cost stays
-# visible instead of becoming a surprise.
-MANIFEST_CAP_BYTES = 2 * 1024 * 1024
-MANIFEST_EXEMPT = {"data/catalog.json"}
+# data/catalog.json is the published index that every visitor's browser
+# downloads, so it is exempt from the per-file cap but held to its own ceiling.
+#
+# It is a lean projection on purpose: the article text, the plain-language block
+# and the reference lists live in data/<type>/<id>.json, and the page generator
+# reads those. The lean projection is what keeps it at megabytes rather than
+# tens of megabytes now that the catalogue holds two thousand topics.
+#
+# sitemap.xml is on the same list for a different reason: the sitemap protocol
+# allows 50,000 URLs and 50 MB per file, and one URL per topic is the correct
+# shape for a site this size. Splitting it would be worse, not better.
+#
+# Both are measured and reported on every run so the cost stays visible.
+MANIFEST_CAP_BYTES = 5 * 1024 * 1024
+MANIFEST_EXEMPT = {"data/catalog.json", "sitemap.xml"}
 
 # Hosts that shipped site files are allowed to reference. Anything else is a new
 # third-party dependency and must be a deliberate decision, so CI fails on it.
@@ -85,9 +92,23 @@ ALLOWED_HOSTS = {
     "github.com", "www.paypal.com", "www.sandbox.paypal.com", "developer.paypal.com",
     # deliberately listed sharing endpoints used by share.js
     "twitter.com", "www.linkedin.com", "www.reddit.com", "nmap.org",
+    # certification and standards bodies cited as the reference on a topic page
+    "aws.amazon.com", "training.fortinet.com", "training.linuxfoundation.org",
+    "www.cisecurity.org", "www.elastic.co", "cloudsecurityalliance.org",
+    "portswigger.net", "certifications.tcm-sec.com", "ine.com", "iapp.org",
+    "ico.org.uk", "www.splunk.com", "www.redhat.com",
+    "www.paloaltonetworks.com", "www.m3aawg.org",
+    "zeropointsecurity.co.uk", "www.zeropointsecurity.co.uk",
+    "www.giac.org", "www.offsec.com",
     # Others
-    "idp.nordwind.example", "203"
+    "idp.nordwind.example"
 }
+
+# Names that can never resolve to a real third party, so they cannot be a
+# dependency the site loads. RFC 2606 and RFC 6761 reserve these on purpose, and
+# a detection rule legitimately uses them as examples. A bare single-label name
+# such as "intranet" is in the same class: it is not a public hostname.
+RESERVED_SUFFIXES = (".invalid", ".test", ".example", ".localhost", ".local", ".internal")
 
 # XML namespace identifiers are not fetchable links and must not be treated as
 # third-party dependencies. schema $id values are the same kind of thing: they
@@ -127,7 +148,12 @@ LIVE_URL_IN_EXERCISE = re.compile(r"https?://(?!attack\.mitre\.org|www\.w3\.org|
 
 IP_ALLOWLIST_CONTEXT = re.compile(
     r"(version|ver\.|IPv4|IPv6|address family|RFC\s?(?:5737|2606|1918)|"
-    r"example|reserved|documentation|subnet mask|0\.0\.0\.0|255\.255\.255)",
+    r"example|reserved|documentation|subnet mask|0\.0\.0\.0|255\.255\.255|"
+    # The cloud instance metadata service address. It is a protocol constant
+    # defined by AWS, Azure and GCP alike, not an indicator: it is link-local,
+    # it is not routable, and naming it is how a detection rule states what it
+    # looks for. Defanging it would make the rule wrong.
+    r"169\.254\.169\.254|metadata service|IMDS)",
     re.I,
 )
 
@@ -293,6 +319,10 @@ def check_external_urls(report: Report):
             # the source, so a match on the site's own host is not third party.
             if host.endswith(".github.io") or host in ("localhost",):
                 continue
+            # Reserved example names and single-label names cannot resolve, so
+            # they are never a dependency. Detection rules use them on purpose.
+            if "." not in host or host.endswith(RESERVED_SUFFIXES):
+                continue
             offenders.setdefault(host, set()).add(rel)
 
     if offenders:
@@ -393,6 +423,35 @@ def check_internal_links(report: Report):
         report.ok(f"all {checked} internal links across every HTML page resolve")
 
 
+def check_difficulty_tiers(report: Report, topics: list[dict]):
+    """Every non-certification topic must reserve exactly the four tiers.
+
+    A certification is a syllabus rather than a difficulty ladder: its exercises
+    live inside chapters, so the rule deliberately does not apply to it.
+    """
+    tiers = {"easy", "medium", "hard", "extremely-hard"}
+    bad = []
+    checked = 0
+    for topic in topics:
+        if topic.get("type") == "certification":
+            continue
+        checked += 1
+        exercises = topic.get("exercises") or []
+        found = [e.get("difficulty") for e in exercises]
+        if len(exercises) != 4 or set(found) != tiers:
+            bad.append((topic.get("id", "?"), len(exercises), found))
+
+    if bad:
+        for topic_id, count, found in bad[:12]:
+            report.fail(
+                f"tiers: {topic_id} has {count} exercise(s) with difficulties {found}; "
+                f"every non-certification topic must hold exactly the four tiers "
+                f"easy, medium, hard and extremely-hard"
+            )
+    else:
+        report.ok(f"all {checked} non-certification topics reserve the four difficulty tiers")
+
+
 def check_catalog_fresh(report: Report, topics: list[dict]):
     if not CATALOG_PATH.exists():
         report.fail("catalog: data/catalog.json is missing. Run python scripts/build_catalog.py")
@@ -412,6 +471,63 @@ def check_catalog_fresh(report: Report, topics: list[dict]):
                 f"catalog: reserved field '{key}' is absent. The renderer ignores it, "
                 f"but it is reserved for a future module and should stay present."
             )
+
+
+def check_og_images(report: Report, topics: list[dict]):
+    """Every og:image must point at a file that is actually in the repository.
+
+    The social platforms require a raster format for og:image, so the PNG is what
+    a shared link previews with, and a missing one fails silently: nothing on the
+    page itself looks wrong.
+
+    Pillow is an optional extra in this project and is deliberately absent from
+    CI, so this check distinguishes the two cases rather than treating them the
+    same. If neither the PNG nor an SVG of the same name exists, the page points
+    at nothing at all and that is a failure. If only the PNG is missing, the SVG
+    is a real image and the site still works, so it is reported as a warning with
+    the exact command to fix it.
+    """
+    topics_dir = ROOT / "topics"
+    og_dir = ROOT / "assets" / "img" / "og"
+    if not og_dir.exists():
+        report.fail("og: assets/img/og/ does not exist. Run python scripts/generate_og.py --png")
+        return
+
+    checked = 0
+    broken = []
+    preview_only = []
+    for topic in topics:
+        page = topics_dir / f"{topic['id']}.html"
+        if not page.exists():
+            continue
+        text = page.read_text(encoding="utf-8")
+        match = re.search(r'<meta property="og:image" content="([^"]+)"', text)
+        if not match:
+            broken.append(f"{topic['id']}: no og:image tag")
+            continue
+        checked += 1
+        name = match.group(1).rsplit("/", 1)[-1]
+        if (og_dir / name).exists():
+            continue
+        if (og_dir / f"{topic['id']}.svg").exists():
+            preview_only.append(topic["id"])
+        else:
+            broken.append(f"{topic['id']}: {name} is referenced but not in assets/img/og/")
+
+    for problem in broken[:10]:
+        report.fail(f"og: {problem}")
+    if len(broken) > 10:
+        report.fail(f"og: and {len(broken) - 10} more. Run python scripts/generate_og.py --png")
+
+    if preview_only:
+        report.warn(
+            f"og: {len(preview_only)} topic page(s) have an SVG card but no PNG, so their link "
+            f"previews will not render on Facebook, LinkedIn or X. Install Pillow and run "
+            f"python scripts/generate_og.py --png. First few: {', '.join(preview_only[:5])}"
+        )
+
+    if not broken and not preview_only:
+        report.ok(f"all {checked} topic pages point at an OG image that exists")
 
 
 def check_topic_pages(report: Report, topics: list[dict]):
@@ -564,8 +680,10 @@ def check_no_placeholders(report: Report):
     if scaffolded:
         for rel in scaffolded:
             report.fail(
-                f"scaffold: {rel} still contains the [SCAFFOLD] marker. Replace the summary "
-                f"with real prose before committing; see scripts/new_topic.py."
+                f"scaffold: {rel} still contains [SCAFFOLD] markers. Replace every one "
+                f"before committing: the five parts of the 'beginner' block "
+                f"(definition, whyItMatters, howItWorks, example, takeaways), the 'summary' "
+                f"paragraph, and any chapter objectives."
             )
     else:
         report.ok("no topic is still an unfinished scaffold")
@@ -591,6 +709,8 @@ def main():
     if not args.no_link_check:
         check_internal_links(report)
     check_catalog_fresh(report, topics)
+    check_difficulty_tiers(report, topics)
+    check_og_images(report, topics)
     check_topic_pages(report, topics)
     check_build_tokens(report)
     check_no_placeholders(report)

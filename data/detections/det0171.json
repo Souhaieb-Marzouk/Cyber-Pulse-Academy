@@ -1,0 +1,106 @@
+{
+  "id": "det0171",
+  "type": "detection",
+  "title": "Detection Strategy for Forged Web Cookies",
+  "shortTitle": "Detection Strategy for Forged Web Cookies",
+  "externalId": "DET0171",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects forged web cookies, the technique where an adversary mints a session or authentication token by signing it with a stolen or attacker controlled certificate key, bypassing password and multi-factor authentication entirely. It matters because the resulting session looks like a normal login to most controls: there is no failed password, no prompt and no malware on the endpoint. The telemetry that makes it discoverable is the identity provider sign-in and audit log, which records token issuance, the signing key or certificate thumbprint used, session identifiers and single sign-on events, plus federation configuration changes. The main practical failure is that a correctly forged token is cryptographically valid, so detection must lean on anomalies in signing material, token lifetime, or a session that exists with no matching authentication event.",
+  "tags": [
+    "identity",
+    "token forgery",
+    "session hijacking",
+    "saml",
+    "single sign-on",
+    "cloud"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Forged Web Cookies",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0171/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Forged Web Cookies - EASY",
+      "path": "exercises/det0171/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Forged Web Cookies - MEDIUM",
+      "path": "exercises/det0171/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Forged Web Cookies - HARD",
+      "path": "exercises/det0171/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Forged Web Cookies - EXTREMELY HARD",
+      "path": "exercises/det0171/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A web cookie is a small note your browser keeps after you log in. It proves to a website that you already signed in. Forging a cookie means making a fake note that the website accepts. This detection looks for sessions created without a real login.",
+    "whyItMatters": "A forged cookie lets an attacker skip the password and the second check on your phone. Nothing looks broken, and no malware runs on the computer. This is how some of the largest cloud intrusions continued after a password change. Detecting it protects accounts that normal login alarms would never flag.",
+    "howItWorks": [
+      "When you log in, your identity provider gives your browser a signed token. A signed token carries a digital signature so the site can check it is real.",
+      "The signature is made with a private key, and only the provider is supposed to hold that key.",
+      "Sign-in records show which account signed in, when, from where, with which authentication method and which signing key was used.",
+      "The detection looks for a session or token that has no matching sign-in event, or that was signed with a key that is not the current, expected one.",
+      "It also watches for new certificate or federation settings added to the provider, because those can let an attacker sign tokens the site will trust.",
+      "Alerts are grouped by account and by the signing material used, so an analyst can confirm the token and revoke the session."
+    ],
+    "example": "Think of a members only club. The doorman checks the stamp on your hand. A forger can copy the stamp design and mark any hand. The doorman sees a perfect stamp, so he waves the person in. The only clue is that the guest book shows no entry for that person, and the stamp ink does not match the club's own pad.",
+    "takeaways": [
+      "Forged cookies bypass passwords and second factors, so login alarms will not catch them.",
+      "Compare sessions against real sign-in events, and watch the signing keys your provider trusts.",
+      "New or changed federation and certificate settings deserve immediate attention."
+    ]
+  },
+  "objectives": [
+    "Explain how signed authentication tokens and session cookies are validated by a web application",
+    "Identify the sign-in and audit fields that reveal token issuance, signing material and session identifiers",
+    "Detect sessions that exist without a corresponding authentication event in the identity provider",
+    "Recognise federation trust or signing certificate changes as high priority signals",
+    "Plan a response that revokes sessions and rotates signing material safely"
+  ],
+  "techniqueId": "t1606-001",
+  "detectsTechniques": [
+    "t1606-001"
+  ],
+  "dataSources": [
+    "Identity provider sign-in logs recording token issuance, authentication method, session identifier and signing certificate thumbprint",
+    "Identity provider audit logs for federation trust, certificate and signing key configuration changes",
+    "Web application or gateway access logs showing authenticated sessions with session cookie identifiers",
+    "Security assertion markup language single sign-on events recording the issuer, assertion identifiers and validity window"
+  ],
+  "logic": "The core pattern is a valid session that cannot be explained by a real authentication event. Detection correlates identity provider sign-in records with application session activity on three fields: the account, the session or assertion identifier, and the time the session first appears. The fields that distinguish malicious from benign are the signing certificate thumbprint or issuer, the token validity window, and the presence or absence of a matching sign-in event, because a forged token is often signed by an unexpected key, lives far longer than the standard session, or simply has no issuing event behind it. Benign traffic always shows a sign-in with a known method from an expected network, followed immediately by sessions signed by the current provider certificate; suspicious traffic shows sessions issued across many accounts by one key, sessions that start after a trust configuration change, or tokens with lifetimes that do not match policy.",
+  "pseudoQuery": "# title: Session Issued Without Matching Interactive Sign-In\n# logsource:\n#   product: azure\n#   service: signinlogs\n# detection:\n#   selection:\n#     status: success\n#     tokenIssuerType: AzureAD\n#   filter:\n#     authenticationMethod|in:\n#       - Password\n#       - PreviouslySatisfiedConditionalAccess\n#       - MultiFactorAuthentication\n#       - WindowsHelloForBusiness\n#       - FederatedSingleSignOn\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Automated service accounts and daemons that obtain tokens through a client credential flow with no interactive prompt",
+    "Single sign-on sessions refreshed silently by a desktop client long after the original interactive login",
+    "Trusted line of business applications that validate sessions against a local cache before the identity provider record arrives",
+    "A corporate federation migration in which a new signing certificate is rolled out and both old and new keys are valid briefly"
+  ],
+  "tuningNotes": "Begin by inventorying every legitimate non interactive flow in use, including service principals, device code and refresh token flows, and encode them as explicit filters on client application and authentication method rather than as blanket suppressions. Scope the primary rule to privileged roles and to the applications that grant access to production data, where a forge is most damaging, and keep a fleet wide version at a lower severity for hunting. Also baseline the current signing certificates and their expiry so that planned rotations are expected and unannounced trust changes stand out. Filtering out all silent refresh traffic reduces noise substantially but would hide exactly the long lived forged sessions this rule exists to find, so keep those events in a separate monitored queue.",
+  "severity": "high"
+}

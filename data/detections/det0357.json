@@ -1,0 +1,107 @@
+{
+  "id": "det0357",
+  "type": "detection",
+  "title": "Behavioral Detection of Internet Connection Discovery",
+  "shortTitle": "Behavioral Detection of Internet Connection Discovery",
+  "externalId": "DET0357",
+  "theme": "Detection Strategy",
+  "summary": "This strategy catches internet connection discovery, the T1016.001 sub-technique where an intruder checks whether a host has working outbound internet access before downloading tools or reaching command and control. Discovery commands such as ping, traceroute, nslookup and route lookups appear on endpoints all the time, so the value comes from context: which process asked, whether the request came from an interactive session, whether the destination is a well-known address, and whether the same host then ran download or remote access tooling. The required telemetry is process creation with parent and command line, name resolution records and egress proxy or firewall logs that show the resolution attempt being blocked or allowed. It fails when a rule keys only on file names, because a single signed administrative script that wraps ping produces a flood of alerts with no investigation value.",
+  "tags": [
+    "windows",
+    "linux",
+    "discovery",
+    "network",
+    "process creation",
+    "egress"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Internet Connection Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0357/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Internet Connection Discovery - EASY",
+      "path": "exercises/det0357/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Internet Connection Discovery - MEDIUM",
+      "path": "exercises/det0357/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Internet Connection Discovery - HARD",
+      "path": "exercises/det0357/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Internet Connection Discovery - EXTREMELY HARD",
+      "path": "exercises/det0357/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection finds a computer being checked for internet access. The intruder wants to know if the machine can reach the outside world. If it can, the intruder can download tools or send stolen data out.",
+    "whyItMatters": "A computer with no internet access limits what an intruder can do next. The check itself is small and quiet. It is often the first sign that somebody is exploring a machine they should not be on. Catching it early gives you time before a download happens.",
+    "howItWorks": [
+      "An agent records every new process, including the parent process and the full command line.",
+      "The rule looks for network test tools such as ping, traceroute, nslookup and route lookups.",
+      "It then checks who started the tool, because a user typing a command is different from a service.",
+      "Name resolution records and firewall logs show whether the test reached a public address.",
+      "If the same host soon downloads a file or starts a remote tool, the alert is raised with higher confidence."
+    ],
+    "example": "Think of a stagehand who taps the microphone before the show. The tap is harmless on its own. What matters is that the tap comes from someone who should not be backstage, and that they then start moving equipment.",
+    "takeaways": [
+      "Network checks are normal, so the parent process and the session context decide the meaning.",
+      "A check followed by a download is far more interesting than either event alone.",
+      "Blocked outbound traffic still produces useful records, so collect them."
+    ]
+  },
+  "objectives": [
+    "Describe why an intruder checks for internet access before downloading tools",
+    "List the discovery commands and system calls that indicate connectivity testing",
+    "Use parent process and session context to separate user troubleshooting from attacker reconnaissance",
+    "Correlate name resolution and firewall denial records with process creation telemetry",
+    "Explain how proxy allow lists change what an internet check can reveal",
+    "Write detection logic that survives the use of renamed or built-in tooling"
+  ],
+  "techniqueId": "t1016-001",
+  "detectsTechniques": [
+    "t1016-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 or Windows Security event 4688 process creation including parent image, user and full command line",
+    "Sysmon event 22 DNS query records showing query name and querying process",
+    "Linux auditd execve records or shell history collection for ping, traceroute and resolver utilities",
+    "Firewall or egress proxy logs showing denied and allowed outbound connection attempts with destination address",
+    "Windows Security event 4624 logon records used to confirm whether the session was interactive or remote"
+  ],
+  "logic": "The detection looks for connectivity test tooling started by a process that has no reason to test connectivity, followed closely by an outbound resolution or download attempt. Analysts correlate the process creation record (image, parent image, user, session) with the DNS and firewall records from the same host and process identifier. The benign case is a helpdesk technician or a monitoring agent running ping from a known management process during a documented incident, or an installer checking for updates from a signed vendor path. The malicious case is a scripting host, an office application or a web server process spawning a shell that resolves a public address or contacts an external endpoint, especially where the parent process has never done so before on that host.",
+  "pseudoQuery": "# title: Internet connectivity check by unexpected parent process\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_tool:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\ping.exe'\n#       - '\\\\tracert.exe'\n#       - '\\\\nslookup.exe'\n#   selection_parent:\n#     ParentImage|endswith:\n#       - '\\\\wscript.exe'\n#       - '\\\\powershell.exe'\n#       - '\\\\w3wp.exe'\n#   filter_mgmt:\n#     ParentImage|endswith: '\\\\monitoringagent.exe'\n#   condition: selection_tool and selection_parent and not filter_mgmt\n# level: low",
+  "falsePositives": [
+    "Helpdesk and network teams running ping or traceroute by hand during a connectivity incident",
+    "Monitoring agents that poll a public endpoint to confirm internet availability and report outages",
+    "Application installers and licence checks that resolve a vendor address before installing",
+    "Administrative login scripts that map drives and verify remote hosts during user sign-in"
+  ],
+  "tuningNotes": "Build a baseline of which parent processes normally launch connectivity tools on each asset class, and filter the known ones by full image path rather than by file name. Restrict the rule to interactive server sessions and to hosts that place outbound calls through a proxy, so that the proxy log gives you the destination as extra proof. Keep a second, quieter rule that only fires when the connection test is followed by a file download or a remote access tool start, which is much more precise. Narrowing this way loses visibility of a careful intruder who only pings once and leaves; cover that risk with periodic egress review rather than with a noisy real-time rule.",
+  "severity": "low"
+}

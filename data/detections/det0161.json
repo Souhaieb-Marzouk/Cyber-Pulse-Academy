@@ -1,0 +1,106 @@
+{
+  "id": "det0161",
+  "type": "detection",
+  "title": "Password Policy Discovery – cross-platform behavior-chain analytics",
+  "shortTitle": "Password Policy Discovery – cross-platform behavior-chain...",
+  "externalId": "DET0161",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects password policy discovery, the reconnaissance step where an attacker learns the minimum length, lockout threshold, complexity rules and rotation age that govern accounts in the environment. The covered technique matters because those numbers tell the attacker whether a fast offline crack is worthwhile and how many password guesses can be made before an account locks, which decides the shape of the next phase. Cross platform telemetry makes it possible because the discovery appears as process execution and command lines on Windows and Linux and as a directory service or cloud policy read on managed platforms. The main failure mode is that auditing tools, identity governance products and administrators query the same policy routinely, so the rule must chain the query with what the same session does next instead of alerting on the query alone.",
+  "tags": [
+    "discovery",
+    "password policy",
+    "windows",
+    "linux",
+    "behaviour chain"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Password Policy Discovery – cross-platform behavior-chain analytics",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0161/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Password Policy Discovery – cross-platform behavior-chain analytics - EASY",
+      "path": "exercises/det0161/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Password Policy Discovery – cross-platform behavior-chain analytics - MEDIUM",
+      "path": "exercises/det0161/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Password Policy Discovery – cross-platform behavior-chain analytics - HARD",
+      "path": "exercises/det0161/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Password Policy Discovery – cross-platform behavior-chain analytics - EXTREMELY HARD",
+      "path": "exercises/det0161/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for somebody asking how your password rules work. The attacker wants to know the minimum length, lockout limit and expiry age. Those numbers decide how easy the next password attack will be.",
+    "whyItMatters": "Password policy is a map of the defences. A short minimum length and a high lockout limit mean weak passwords can be guessed quickly. Knowing the exact threshold also tells an attacker how many attempts fit before an account locks. This step comes early, so catching it gives you time to react.",
+    "howItWorks": [
+      "An operator runs a command or tool that reads the password policy from the directory.",
+      "The operating system records the process and the full command line that was used.",
+      "On Linux, the audit log records the program and the configuration files it opened.",
+      "The detection keeps policy read commands and then looks at the same session or host.",
+      "If that session follows up with account enumeration or a burst of logon attempts, it alerts.",
+      "Analysts then check whether a change ticket covers the activity."
+    ],
+    "example": "Imagine a burglar who first reads the building notice board. It states the alarm code length, how many tries before the alarm sounds, and when the guard changes shift. The burglar has not broken in yet, but the plan is now clear.",
+    "takeaways": [
+      "Policy discovery alone is weak evidence, so chain it with the next action in the same session.",
+      "Cover Windows command lines, Linux audit records and cloud policy read events together.",
+      "Baseline the identity and audit tools that legitimately read policy every day."
+    ]
+  },
+  "objectives": [
+    "List the policy values an attacker wants and explain what each one enables.",
+    "Recognise password policy read commands on Windows and Linux and the cloud equivalent.",
+    "Build a behaviour chain rule that links policy discovery to later enumeration or logon attempts.",
+    "Separate routine governance and audit activity from untrusted discovery using actor baselines.",
+    "Map the discovery step to the account and asset it points at so triage can be prioritised."
+  ],
+  "techniqueId": "t1201",
+  "detectsTechniques": [
+    "t1201"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing showing directory policy query commands and their parents",
+    "Sysmon event 1 process creation including parent image, integrity level and full command line for policy query tools",
+    "Linux auditd process execution records showing account policy query tools and reads of the password configuration files",
+    "Cloud identity provider audit logs for GetAccountPasswordPolicy or GetLoginProfile style policy read operations by an actor"
+  ],
+  "logic": "The pattern is a policy read that does not come from a known governance, audit or administrative workflow, and that is followed within a short window by account enumeration, group listing or a cluster of failed logons from the same host or session. The telemetry is process creation with command lines on Windows, auditd execution and file read records on Linux, and cloud identity audit events for policy read calls, and the fields that must be correlated are the querying account, the parent process, the command line or application programming interface name, the host, the session or logon identifier and the time of the next related action. Benign behaviour is a single policy query by an identity administrator, a compliance scanner on a schedule, or a help desk tool that reads policy to explain a lockout to a user, with no follow up activity from the same session. Malicious behaviour is a policy query from an unprivileged account, launched by a script interpreter or an office application, on a host that has no history of that command, followed by enumeration of accounts or a distributed logon attempt. The chain is essential because the query on its own is far too common to alert on at scale and the follow up action is what gives it meaning.",
+  "pseudoQuery": "# title: Password policy discovery followed by account enumeration\n# logsource:\n#   product: windows\n# detection:\n#   selection_policy:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'net accounts'\n#       - 'Get-ADDefaultDomainPasswordPolicy'\n#   selection_enum:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'net user /domain'\n#       - 'net group \"domain admins\"'\n#   filter_governance:\n#     ParentImage|endswith: '\\IdentityGovernanceAgent.exe'\n#   condition: selection_policy and selection_enum and not filter_governance\n# level: medium",
+  "falsePositives": [
+    "Identity governance and access review platforms that read password policy on a daily schedule from a service account",
+    "Help desk scripts that display the current lockout threshold while assisting a user who is locked out",
+    "Security assessment or compliance scanning agents run by the internal audit team inside an approved window",
+    "Penetration test tooling executed by a contracted tester from a jump host during an agreed engagement",
+    "New administrators reading the domain policy while they learn the environment after joining the team"
+  ],
+  "tuningNotes": "Collect the parent images and service accounts that legitimately read policy and exclude them by name, then require the enumeration stage before alerting so single queries do not page anyone. Scope the rule to workstation and server groups that hold no administrative tooling, and add the assessment window as a scheduled exclusion rather than a permanent one. Baseline the normal hosts and accounts for these commands first, because the same PowerShell cmdlet appears in administrative and attack activity. The coverage you lose by requiring both stages is an attacker who reads policy and then waits days before enumerating, so build a slower correlation over a longer period at low severity and review it weekly, and keep an alert for policy reads from hosts that never perform administration.",
+  "severity": "medium"
+}

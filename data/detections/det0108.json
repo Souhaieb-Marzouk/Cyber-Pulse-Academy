@@ -1,0 +1,107 @@
+{
+  "id": "det0108",
+  "type": "detection",
+  "title": "Detection Strategy for Data Encoding in C2 Channels",
+  "shortTitle": "Detection Strategy for Data Encoding in C2 Channels",
+  "externalId": "DET0108",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1132 Data Encoding, where an adversary transforms command and control traffic, for example into a custom alphabet or a common text encoding, so that the payload does not resemble readable commands and does not match simple keyword signatures. It matters because encoding sits underneath almost every remote access capability, and detecting the transfer itself works even when the implant family is unknown to your tools. The telemetry that makes detection possible is proxy and web server request logs with full URLs and user agent strings, passive or recorded DNS query logs for long random looking subdomains, network flow metadata such as bytes in and out per session over time, and TLS handshake metadata such as the server name indication. It fails in practice because legitimate applications also send encoded data, particularly authentication tokens, telemetry uploads and content management interfaces, so entropy and length alone produce many false alerts and must be combined with destination reputation, session regularity and the process making the request.",
+  "tags": [
+    "command-and-control",
+    "network",
+    "encoding",
+    "dns",
+    "beaconing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Data Encoding in C2 Channels",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0108/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Data Encoding in C2 Channels - EASY",
+      "path": "exercises/det0108/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Data Encoding in C2 Channels - MEDIUM",
+      "path": "exercises/det0108/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Data Encoding in C2 Channels - HARD",
+      "path": "exercises/det0108/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Data Encoding in C2 Channels - EXTREMELY HARD",
+      "path": "exercises/det0108/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for command and control traffic that has been disguised by encoding. Encoding rewrites data into a different form, such as a long string of letters and numbers. The rule looks for traffic shaped like encoded data when it leaves your network.",
+    "whyItMatters": "Encoded traffic does not contain the words your sensors look for, so simple matching fails. Attackers use it to hide instructions and stolen data in plain web requests. It also makes the implant harder to identify, because the same channel can carry many different tools. Spotting the shape of the traffic helps even when you do not know the tool.",
+    "howItWorks": [
+      "The proxy records every web request with the full address, the size and the software name reported by the browser.",
+      "Domain records capture each looked up name, including long subdomain labels used to carry data.",
+      "Network flow records show how many bytes went out and came back. They also show how regular the timing was.",
+      "These records are sent to the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule measures how random looking the address is and how repetitive the sessions are for one workstation.",
+      "When long encoded values, fixed timing and an unusual destination appear together, the rule raises an alert."
+    ],
+    "example": "Imagine a courier who must pass a checkpoint that reads parcel labels. Instead of writing 'spare parts', the courier writes a string of codes that only the receiver can decode. The label looks like nonsense to the guard. This detection is the guard who does not read the label. The guard notices the same van crossing every ten minutes with a parcel of the same unusual size.",
+    "takeaways": [
+      "Encoding hides the meaning of traffic while leaving its shape and rhythm visible.",
+      "Long random values in addresses and DNS labels are the main signals on the wire.",
+      "Regular timing from one host to one destination is often stronger than the encoding itself."
+    ]
+  },
+  "objectives": [
+    "Explain what encoding does to command and control traffic and why keyword matching fails",
+    "Name the network and host telemetry that exposes encoded transfers",
+    "Describe how to measure randomness and length in request paths and DNS labels",
+    "Identify the fields that link a suspicious request to the process that made it",
+    "Explain why session regularity and size consistency indicate automation rather than a person",
+    "Balance detection thresholds so that legitimate encoded application traffic is not flooded"
+  ],
+  "techniqueId": "t1132",
+  "detectsTechniques": [
+    "t1132"
+  ],
+  "dataSources": [
+    "Web proxy request logs with full URL path, query string, user agent, request and response body sizes",
+    "DNS query logs from internal resolvers showing full query names, record types and client addresses",
+    "Network flow records providing per session byte counts, duration and connection interval",
+    "TLS handshake metadata including server name indication and certificate issuer for outbound sessions",
+    "Sysmon event 3 network connection records linking a process image to a destination address and port"
+  ],
+  "logic": "The pattern is repeated outbound sessions from one internal host to one external destination, at near fixed intervals and with similar byte counts, where the request paths, query values or DNS labels contain long high entropy strings that are not explained by a known application. The fields that must be correlated are the client host and account, the destination host or address, the process that initiated the connection, the length and character distribution of the path or label components, and the interval and volume statistics over time. The benign case is a signed business application or a software update service that uploads telemetry on a schedule with an established destination and a matching user agent, so an unknown process, a destination with no business record, or interval regularity combined with high entropy in the address is what marks the malicious case.",
+  "pseudoQuery": "# title: Periodic High Entropy Outbound Requests To Single External Host\n# logsource:\n#   product: network\n# detection:\n#   selection_encoded:\n#     UrlPath|re: '^/[A-Za-z0-9+/=_-]{60,}$'\n#   selection_dns:\n#     QueryName|re: '^[a-z0-9]{40,}\\.'\n#   filter_known:\n#     DestinationHostname|endswith: ['.windowsupdate.com', '.office365.com']\n#   condition: (selection_encoded or selection_dns) and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Single sign on redirects and application programming interface calls that carry long encoded tokens in the URL path",
+    "Content management systems that encode media identifiers in query strings and reload them on a timer",
+    "Monitoring agents that upload encoded metric batches to a cloud service every minute",
+    "Anti abuse and captcha endpoints that embed long random strings in the address of each request"
+  ],
+  "tuningNotes": "Start by collecting a week of proxy and DNS data and ranking destinations by entropy plus interval regularity, then filter the top legitimate services by domain and by initiating process. Set the minimum encoded length just above what your business applications typically use, and add a filter for known update and telemetry endpoints. Scope the alert to servers and to hosts that should not be making regular external requests, where the behaviour stands out. Filtering busy cloud providers means an implant hiding inside an approved provider will be missed, so keep a parallel rule that alerts on the first time any internal host contacts any provider domain.",
+  "severity": "medium"
+}

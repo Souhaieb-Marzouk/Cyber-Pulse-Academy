@@ -1,0 +1,106 @@
+{
+  "id": "det0131",
+  "type": "detection",
+  "title": "Behavioral Detection Strategy for Exfiltration Over Alternative Protocol",
+  "shortTitle": "Behavioral Detection Strategy for Exfiltration Over Alter...",
+  "externalId": "DET0131",
+  "theme": "Detection Strategy",
+  "summary": "Exfiltration over alternative protocol (T1048) covers moving stolen data out of a network using a protocol or port that the environment does not normally use for bulk transfer, for example file transfer, mail protocols, or name resolution channels. This detection strategy works from volume, direction, and destination rather than from payload content: it compares outbound byte counts per host and per destination against that asset's own baseline, then checks whether the protocol, port, and remote endpoint are new for the host. The telemetry that makes this possible is network flow records with byte counters, proxy and gateway logs carrying request sizes, endpoint network connection events tied to a process, and server side query logs. It fails in practice because encryption hides the payload, because legitimate large uploads to cloud storage look identical to theft, and because a slow transfer spread over many hours stays under any fixed threshold, which is why per host baselines matter more than global numbers.",
+  "tags": [
+    "exfiltration",
+    "t1048",
+    "network flow",
+    "egress monitoring",
+    "baseline",
+    "data theft"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection Strategy for Exfiltration Over Alternative Protocol",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0131/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection Strategy for Exfiltration Over Alternative Protocol - EASY",
+      "path": "exercises/det0131/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Exfiltration Over Alternative Protocol - MEDIUM",
+      "path": "exercises/det0131/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Exfiltration Over Alternative Protocol - HARD",
+      "path": "exercises/det0131/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Exfiltration Over Alternative Protocol - EXTREMELY HARD",
+      "path": "exercises/det0131/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Exfiltration means stealing data by copying it out of your network. An alternative protocol is a way of sending data that your company does not normally use for big transfers. Attackers pick it to slip past tools that only watch the usual web traffic. This detection looks for large or unusual outbound transfers.",
+    "whyItMatters": "Attackers want to copy your data and keep a copy for themselves. If they use a common channel, monitoring tools may ignore it. Many teams only watch web traffic, so every other port becomes a quiet road out. One large upload can carry thousands of documents. This detection helps you spot the copy before the data is gone for good.",
+    "howItWorks": [
+      "Network devices record each connection with its source, destination, port, and byte counts.",
+      "The rule builds a normal picture of how much each host uploads and to where.",
+      "It flags hosts that send far more data than usual inside one session.",
+      "It also flags protocols and ports that this host has never used before.",
+      "Endpoint records tie the connection back to the process that opened it.",
+      "An analyst then checks whether a normal business task explains the transfer."
+    ],
+    "example": "Picture a warehouse with one busy loading dock. Guards watch every lorry that leaves from that dock. A thief learns this and starts carrying boxes out through a small side door meant for letters. No guard stands there, because only parcels use that door. The side door is the alternative protocol. This detection ignores which door is used and counts how much leaves the building. A letter door that suddenly sends out fifty boxes in one hour deserves a look.",
+    "takeaways": [
+      "Watch the volume and the destination, not only the protocol name.",
+      "Set thresholds for each host, because normal upload sizes differ widely.",
+      "Encryption hides content, so behaviour and volume have to carry the detection."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers choose protocols that monitoring teams rarely inspect.",
+    "Describe how flow records and byte counters support volume based detection.",
+    "Build per host upload baselines instead of relying on one global threshold.",
+    "Correlate network volume with endpoint process records to name the tool in use.",
+    "Decide when an unusual outbound transfer justifies isolating a host from the network."
+  ],
+  "techniqueId": "t1048",
+  "detectsTechniques": [
+    "t1048"
+  ],
+  "dataSources": [
+    "Network flow records including source host, destination address, destination port, and outbound byte counts",
+    "Proxy and secure web gateway logs recording request size, upload methods, and destination hostnames",
+    "Sysmon event 3 network connection records with destination address, destination port, and the process image that opened the connection",
+    "DNS server query logs showing record types and unusually large response sizes"
+  ],
+  "logic": "Exfiltration over an alternative protocol is detected by comparing outbound transfer behaviour with what each asset normally does, rather than by inspecting payload content. The rule aggregates bytes sent per source host, per destination, and per port over a rolling window, then raises the score when a host exceeds its own historical maximum by a wide margin, when a protocol or destination port appears that this host has never used, or when one external destination receives data from many internal hosts in a short period. The fields that must be correlated are the source address, the authenticated user or originating process, the destination address and port, the byte count, and the session duration. The benign case is a scheduled backup, a cloud storage sync client, or a software distribution service, and those are stable in destination, timing, and volume. Malicious transfer tends to be a new destination with a large one way upload and very little traffic coming back, and that asymmetry is what separates it from an ordinary file download.",
+  "pseudoQuery": "# title: Large outbound transfer to an uncommon destination port\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     Direction: 'outbound'\n#     BytesOut: '> 50000000'\n#   filter_common:\n#     DestinationPort:\n#       - 443\n#       - 80\n#   condition: selection and not filter_common\n# level: high",
+  "falsePositives": [
+    "Nightly backup jobs that upload full database dumps to an offsite storage provider over a non standard port",
+    "Software distribution servers pushing large installer packages to branch offices on a custom port",
+    "Research or engineering teams uploading large datasets to a partner file transfer service",
+    "Security tooling that ships forensic artefacts to a central collector during an active investigation"
+  ],
+  "tuningNotes": "Baseline outbound volume per host and per destination for at least two weeks, then express the threshold as a multiple of each asset's normal peak instead of one global number. Add filters for known backup windows, storage endpoints, and distribution servers, scoped by destination address and time of day, and restrict the rule first to hosts that hold regulated or sensitive data while you measure alert volume. Keep a lower severity version of the rule for everything else. Narrowing this way loses coverage for slow, low volume transfers and for an attacker who reuses an approved backup destination, so complement it with per destination novelty checks and with detection on unusual authentication to the storage service.",
+  "severity": "high"
+}

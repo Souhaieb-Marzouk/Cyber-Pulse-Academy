@@ -1,0 +1,108 @@
+{
+  "id": "det0433",
+  "type": "detection",
+  "title": "Detecting Code Injection via mavinject.exe (App-V Injector)",
+  "shortTitle": "Detecting Code Injection via mavinject.exe (App-V Injector)",
+  "externalId": "DET0433",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the Microsoft Application Virtualization injector, a signed system utility that loads a library into an already running process, when it is invoked to inject code into a process it has no legitimate reason to touch. It matters because the utility is a trusted Microsoft binary, so application control and signature checks raise no objection, and because injection into a trusted process hides the payload inside a process that already has network and file access. Detection depends on process creation telemetry with the full command line, on the parent child relationships that show who launched the utility, and on the library path it was told to load. The main way it fails in practice is that the utility is genuinely present on managed desktops, so the rule must key on the parent process, the target process identifier and the library location rather than on the binary name.",
+  "tags": [
+    "code injection",
+    "t1218-013",
+    "signed binary abuse",
+    "windows",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Code Injection via mavinject.exe (App-V Injector)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0433/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Code Injection via mavinject.exe (App-V Injector) - EASY",
+      "path": "exercises/det0433/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Code Injection via mavinject.exe (App-V Injector) - MEDIUM",
+      "path": "exercises/det0433/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Code Injection via mavinject.exe (App-V Injector) - HARD",
+      "path": "exercises/det0433/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Code Injection via mavinject.exe (App-V Injector) - EXTREMELY HARD",
+      "path": "exercises/det0433/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a Windows tool that inserts extra code into a program that is already running. The tool is a real Microsoft program used by a software packaging feature. The rule reports when the tool is started by an unusual program or points at a strange library file.",
+    "whyItMatters": "Attackers like to hide their code inside trusted programs. The trusted program already has permissions and network access, so the hidden code inherits them. The injection tool is signed by Microsoft, so security controls do not stop it. Only the way it is used looks wrong. That usage is what this rule inspects.",
+    "howItWorks": [
+      "A process starts the injection utility and passes it a target process number and a library path.",
+      "Endpoint monitoring records the new process, its parent and the complete command line.",
+      "The rule looks for a library path outside the approved application packaging folders.",
+      "It checks whether the parent process is an office program, a script host or a mail client.",
+      "It compares the target process against the processes that the tool normally needs to reach.",
+      "If the parent or the target is unexpected, the alert shows the full injection chain."
+    ],
+    "example": "Think of a hospital with a master key held by the maintenance team. The key is official and the team may enter most rooms. A cleaner borrowing that key at midnight is the problem. The key itself is legitimate and no lock is broken. What matters is who took it, which door they opened and when they did it.",
+    "takeaways": [
+      "Signed tools are attractive to attackers because controls trust them.",
+      "The parent process and the library path are the fields that reveal abuse.",
+      "The injected code runs with all the permissions of the host process."
+    ]
+  },
+  "objectives": [
+    "Explain why injecting a library into a running process helps an adversary evade detection.",
+    "Identify the command line elements that select the injection mode, the target process and the library.",
+    "Correlate the injection utility with its parent process and with the target process identifier.",
+    "Recognise the library paths that indicate a packaged application rather than a payload.",
+    "Distinguish genuine application virtualisation use from injection driven by a script or document.",
+    "Describe the follow on activity that confirms a successful injection."
+  ],
+  "techniqueId": "t1218-013",
+  "detectsTechniques": [
+    "t1218-013"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation recording the injector image, parent image, command line and user account",
+    "Sysmon event 7 image load events showing a library loaded into a process that did not start with it",
+    "Windows Security event 4688 process creation with command line auditing enabled on the host",
+    "Endpoint library load telemetry for office applications, browsers and messaging clients",
+    "Network and file telemetry from the target process in the minutes after the injection occurs"
+  ],
+  "logic": "The pattern is the App-V injector binary starting with the injection argument and a library path, where either the parent process is not the application virtualisation client or an installer, or the library path resolves outside the approved package and program directories. The fields that must be correlated are the injector image path, its command line, the parent process image and command line, the numeric target process identifier, the library path, and the image load event that shows the library entering the target process. The benign case in a managed environment is limited to the virtualisation client and to package publishing operations, which run under a system or management account with a library path inside the package store, and the target is the packaged application itself. The malicious case typically has a document reader, a spreadsheet application, a script interpreter or a mail client as the parent, an unsigned library in a user writable folder, and a target that is a browser or a security agent, which is why parent lineage and library location are the decisive fields.",
+  "pseudoQuery": "# title: Application Virtualization Injector Spawned by Office or Script Host\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: '\\\\mavinject.exe'\n#     CommandLine|contains: '/INJECTRUNNING'\n#   filter_appv:\n#     ParentImage|endswith:\n#       - '\\\\appvclient.exe'\n#       - '\\\\appvpublishingserver.exe'\n#     CommandLine|contains: '\\\\Program Files\\\\Microsoft Application Virtualization Client\\\\'\n#   condition: selection and not filter_appv\n# level: critical",
+  "falsePositives": [
+    "Application virtualisation publishing operations that inject a package library into a virtualised application under a management account",
+    "Software packaging and testing teams validating a new virtual application before it is released to users",
+    "Application compatibility shims deployed by an enterprise desktop team that rely on the injector for a legacy program",
+    "Remote support sessions where a technician republishes a virtual package after a repair",
+    "Endpoint management tools that orchestrate application virtualisation and record the injector as a child process"
+  ],
+  "tuningNotes": "Build the allowlist from the parent process paths, the user accounts and the library directories that your virtualisation deployment actually uses, rather than excluding the injector binary, because the smallest useful filter is the combination of a management account and a library inside the package store. Alert at high severity on any instance whose parent is an office application, a script host or a mail client, since that combination has no legitimate explanation in most estates, and keep the remaining cases at medium so you still see unusual management activity. Scope the rule to workstations that do not use application virtualisation at all, which converts the rule into a near zero noise control for those hosts. You lose coverage for injection performed by other signed utilities or through direct system calls by a malicious binary, so pair this rule with image load telemetry that flags a library loaded into a process from a user writable directory and with alerts on office applications spawning any child process.",
+  "severity": "critical"
+}

@@ -1,0 +1,105 @@
+{
+  "id": "det0367",
+  "type": "detection",
+  "title": "Detect Network Logon Script Abuse via Multi-Event Correlation on Windows",
+  "shortTitle": "Detect Network Logon Script Abuse via Multi-Event Correla...",
+  "externalId": "DET0367",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of network logon scripts, which an adversary registers so that Windows runs attacker-controlled code in the context of every user who logs on. The technique usually leaves three traces that must be correlated: a write to the UserInitMprLogonScript registry value or to a script path referenced by Group Policy, a modified script file on a share that many hosts can read, and then a burst of script host child processes started shortly after interactive logons. Singly, none of these looks unusual, because logon scripts are a normal part of domain life. The detection fails in practice when the environment has no baseline of which script paths are legitimate, when script block logging is disabled, or when the monitoring window is shorter than the gap between the registry write and the next logon.",
+  "tags": [
+    "windows",
+    "persistence",
+    "logon script",
+    "registry",
+    "correlation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Network Logon Script Abuse via Multi-Event Correlation on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0367/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Network Logon Script Abuse via Multi-Event Correlation on Windows - EASY",
+      "path": "exercises/det0367/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Network Logon Script Abuse via Multi-Event Correlation on Windows - MEDIUM",
+      "path": "exercises/det0367/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Network Logon Script Abuse via Multi-Event Correlation on Windows - HARD",
+      "path": "exercises/det0367/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Network Logon Script Abuse via Multi-Event Correlation on Windows - EXTREMELY HARD",
+      "path": "exercises/det0367/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A logon script is a small program that Windows runs for a user each time that user signs in. This detection looks for someone changing which script runs, or changing the script file itself, so that their own code runs on other people's computers. It catches the change and the later execution together.",
+    "whyItMatters": "Logon scripts run automatically, so nobody has to click anything. They also run with the rights of the user who signs in, which may be an administrator. A single change can therefore reach many computers at once. This is why the change itself is worth an alert. Normal help desk work rarely edits these settings.",
+    "howItWorks": [
+      "Collect registry monitoring events that record changes to the user logon script setting under the Windows environment keys.",
+      "Collect file change events for the shared folders that hold the logon scripts.",
+      "Collect process creation events, including the parent process name and the full command line.",
+      "Correlate the three sources by host and by user, and keep only events that fall inside one short window.",
+      "Flag the case where a script process such as a command shell or a script host is started by a logon process on several hosts in a short time.",
+      "Raise an alert that shows the changed path, the account that made the change, and the hosts that then ran the script."
+    ],
+    "example": "Think of a night watchman in an office building. Each evening he reads the duty list that is pinned by the door. If someone quietly swaps that list for a new one, the watchman will still follow it, because he trusts the door. This detection watches the pinboard, not the watchman.",
+    "takeaways": [
+      "A logon script change is a persistence method that survives reboots and password changes.",
+      "The registry or policy change matters most, because execution follows only at the next sign in.",
+      "Correlating the change with later process starts turns a weak signal into a strong one."
+    ]
+  },
+  "objectives": [
+    "Explain what a network logon script is and how it differs from a normal user program.",
+    "Identify the registry setting and the shared script paths that this technique abuses.",
+    "Correlate a configuration change with the process activity that follows it on other hosts.",
+    "Recognise benign script management by administrators and separate it from abuse.",
+    "Describe which telemetry gaps would hide this technique in your own environment."
+  ],
+  "techniqueId": "t1037-003",
+  "detectsTechniques": [
+    "t1037-003"
+  ],
+  "dataSources": [
+    "Windows registry monitoring for changes to the UserInitMprLogonScript value under the user environment keys",
+    "Sysmon event 11 file create and event 2 file creation time change on the shared script folders listed in Group Policy",
+    "Windows Security event 4688 process creation with command line auditing enabled, including parent process name",
+    "Sysmon event 1 process creation showing logon processes such as userinit or explorer as the parent",
+    "Active Directory domain controller security event 5136 directory service object modification for Group Policy containers"
+  ],
+  "logic": "The pattern is a configuration change followed closely by execution. First, telemetry shows the logon script setting or a script file on a shared path being written by an account that normally does not manage it. Second, within a short window, process creation events show a script host or command shell starting with a logon process as its parent on one or more hosts, and the command line points at the changed path. What separates malicious from benign is the combination of an unexpected writer, a path outside the approved script share, and immediate repeated execution across several hosts after the edit.",
+  "pseudoQuery": "# title: Logon Script Setting Changed Then Executed at Logon\n# logsource:\n#   product: windows\n# detection:\n#   selection_change:\n#     EventType: 'RegistryValueSet'\n#     TargetObject|endswith: '\\Environment\\UserInitMprLogonScript'\n#   selection_exec:\n#     EventID: 4688\n#     ParentImage|endswith:\n#       - '\\userinit.exe'\n#       - '\\explorer.exe'\n#     CommandLine|contains: '\\\\netlogon\\\\'\n#   filter_approved:\n#     TargetObject|startswith: 'C:\\\\ProgramData\\\\Scripts\\\\'\n#   condition: selection_change and selection_exec and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Domain administrators pushing a new approved logon script through Group Policy during a scheduled maintenance window",
+    "Software deployment tooling that rewrites a shared login script to map a new network printer or drive letter",
+    "Virtual desktop images that regenerate their logon scripts on every provisioning cycle"
+  ],
+  "tuningNotes": "Build a baseline list of approved logon script paths and of the accounts that are allowed to edit them, then filter on both, so routine Group Policy maintenance stops alerting. Scope the registry half of the rule to servers and to administrative workstations first, because those are where a logon script change has the largest blast radius. Keep the execution half broad for a short time while you learn which script hosts your environment really uses. Narrowing to approved paths costs you visibility of an adversary who writes a script into an approved share but gives it a new name, so pair the rule with file integrity monitoring on that share.",
+  "severity": "high"
+}

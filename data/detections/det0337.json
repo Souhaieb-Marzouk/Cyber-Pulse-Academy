@@ -1,0 +1,107 @@
+{
+  "id": "det0337",
+  "type": "detection",
+  "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Revert Cloud Instance",
+  "shortTitle": "Detection Strategy for Modify Cloud Compute Infrastructur...",
+  "externalId": "DET0337",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the reversion of cloud compute instances (T1578.004), where an adversary restores a virtual machine or container host to an earlier snapshot or image so that their changes become the new baseline, or so evidence and defensive tooling installed after that point disappear. The behaviour is control plane only: restore, rollback and snapshot based launch operations, paired with the identity that requested them and the change context. Detection needs cloud audit logs with caller identity, source address and request parameters for the image or snapshot used, plus configuration management records that show the expected state. It fails when snapshot use is routine, when the caller identity is a shared automation role, and when the reverted state is legitimate but undocumented, so change context is the deciding field.",
+  "tags": [
+    "mitre t1578.004",
+    "cloud",
+    "instance snapshot",
+    "defense evasion",
+    "audit logs"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Modify Cloud Compute Infrastructure: Revert Cloud Instance",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0337/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Revert Cloud Instance - EASY",
+      "path": "exercises/det0337/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Revert Cloud Instance - MEDIUM",
+      "path": "exercises/det0337/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Revert Cloud Instance - HARD",
+      "path": "exercises/det0337/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Modify Cloud Compute Infrastructure: Revert Cloud Instance - EXTREMELY HARD",
+      "path": "exercises/det0337/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches cloud servers being rolled back to an earlier saved state. A rollback means the server returns to how it looked days or weeks ago. Attackers do this to remove their tracks or to bring back a version that suits them.",
+    "whyItMatters": "A rollback can undo your patches and your security agents in one action. Investigators may lose the evidence they need, because the machine no longer holds it. Because a restore is a normal cloud feature, the action rarely looks wrong by itself. Tying it to who asked and why is what makes it visible.",
+    "howItWorks": [
+      "Your cloud provider records every management action, including who made it and from where.",
+      "The detection filters those records for restore, rollback and snapshot based launch actions.",
+      "It checks the identity of the caller against the roles that normally manage that account.",
+      "It records which snapshot or image was used, and how old that saved state is.",
+      "It compares the request with your list of approved changes for that day.",
+      "A restore with no approved change, from an unusual identity, becomes an alert with the affected instances."
+    ],
+    "example": "Imagine a shop that keeps a photograph of every shelf at closing time. A manager may restore a shelf to yesterday's photograph after a spill, and that is normal. But suppose someone restores the safe room to a photograph from last month. That moment sits just before an audit. The owner will ask who gave that order.",
+    "takeaways": [
+      "A restore is a legitimate feature, so context decides if it is an incident.",
+      "Rollbacks can remove both attacker traces and your own security controls.",
+      "Always record which saved state was used, because its age tells you a lot."
+    ]
+  },
+  "objectives": [
+    "Explain why reverting an instance is useful to an attacker",
+    "Identify cloud audit log fields that describe a restore or rollback request",
+    "Correlate a restore request with change records and the caller identity",
+    "Judge the risk of a rollback by the age of the snapshot or image used",
+    "Describe how a rollback can silently remove security controls"
+  ],
+  "techniqueId": "t1578-004",
+  "detectsTechniques": [
+    "t1578-004"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for instance stop, start and image or snapshot based launch operations with caller identity",
+    "Azure activity log entries for virtual machine restore and redeploy operations with the initiating principal",
+    "GCP audit logs for instance creation from an image or snapshot with the authenticated user and source address",
+    "Cloud configuration management or infrastructure as code records listing the expected image version per instance",
+    "Change management ticketing records for approved maintenance and recovery actions"
+  ],
+  "logic": "The pattern is an instance being returned to an earlier state through a restore, rollback or snapshot based launch, requested by an identity that does not normally perform recovery work, at a time with no matching change record. The fields to correlate are the caller identity and its assumed role, the source address, the target instance identifiers, the snapshot or image identifier used, and the age of that saved state. The benign case is a planned recovery or test performed by the platform team inside a maintenance window using a recent snapshot, with a ticket reference and a consistent source network. The malicious case is an unusual identity or access key, a snapshot that is weeks old, several instances reverted in one request, and a short gap before defence or logging agents are reconfigured on those hosts.",
+  "pseudoQuery": "# title: Cloud Instance Reverted to Aged Snapshot Outside Change Window\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName: ['RevertInstances', 'StopInstances', 'RunInstances', 'CreateSnapshot']\n#     requestParameters.snapshotAgeDays: > 30\n#   filter_platform_team:\n#     userIdentity.arn|contains: 'role/platform-recovery'\n#     sourceIPAddress: '10[.]50[.]0[.]0/16'\n#   condition: selection and not filter_platform_team\n# level: medium",
+  "falsePositives": [
+    "Disaster recovery tests that intentionally restore production instances from an older snapshot in an isolated account",
+    "Platform engineers reverting a failed upgrade to the previous known-good state during a change window",
+    "Development teams rebuilding test environments from a stored base image on a regular schedule",
+    "Cost optimisation tooling that stops and recreates instances from a standard image to reclaim capacity",
+    "Autoscaling or self-healing automation that replaces an unhealthy instance using the last approved image"
+  ],
+  "tuningNotes": "Begin by allow listing the automation roles and recovery accounts that legitimately perform restores, and by requiring a change ticket reference or a matching maintenance window before suppressing an event. Keep separate, higher-severity handling for restores that target production accounts, several instances at once, or snapshots older than the current patch cycle. Baselines should include the expected image version per workload so that any revert to an older version stands out immediately. The coverage you lose by trusting the automation role is abuse through that role's credentials, which needs companion monitoring of role assumption events and of configuration changes to the recovery pipeline itself.",
+  "severity": "medium"
+}

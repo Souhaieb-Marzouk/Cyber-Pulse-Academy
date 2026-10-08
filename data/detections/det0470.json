@@ -1,0 +1,107 @@
+{
+  "id": "det0470",
+  "type": "detection",
+  "title": "Detecting Protocol or Service Impersonation via Anomalous TLS, HTTP Header, and Port Mismatch Correlation",
+  "shortTitle": "Detecting Protocol or Service Impersonation via Anomalous...",
+  "externalId": "DET0470",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects services and protocols that pretend to be something they are not, which maps to the protocol or service impersonation technique used to bypass controls and carry command and control traffic. The detection correlates transport metadata with application metadata: the port in use, the protocol negotiated on that port, the certificate presented during the Transport Layer Security (TLS) handshake, the server name the client requested, and the Hypertext Transfer Protocol (HTTP) header shape. A mismatch between any of those layers, such as TLS on a port that should carry a database protocol or an HTTP response on a mail port, is the core signal. In practice this generates noise on networks where administrators run services on unofficial ports, so baselines of expected protocol and port pairs per subnet are essential.",
+  "tags": [
+    "mitre t1001.003",
+    "protocol impersonation",
+    "command and control",
+    "tls",
+    "network metadata",
+    "evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Protocol or Service Impersonation via Anomalous TLS, HTTP Header, and Port Mismatch Correlation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0470/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Protocol or Service Impersonation via Anomalous TLS, HTTP Header, and Port Mismatch Correlation - EASY",
+      "path": "exercises/det0470/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Protocol or Service Impersonation via Anomalous TLS, HTTP Header, and Port Mismatch Correlation - MEDIUM",
+      "path": "exercises/det0470/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Protocol or Service Impersonation via Anomalous TLS, HTTP Header, and Port Mismatch Correlation - HARD",
+      "path": "exercises/det0470/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Protocol or Service Impersonation via Anomalous TLS, HTTP Header, and Port Mismatch Correlation - EXTREMELY HARD",
+      "path": "exercises/det0470/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Protocol impersonation means a service answers on a port that normally belongs to a different service. It may also present a certificate or headers that do not match the name it claims. This detection compares what a connection looks like with what it claims to be.",
+    "whyItMatters": "Many control rules trust the port number alone, so traffic on a permitted port may pass without question. An attacker can use that gap to move data past filters. Checking several layers together makes the disguise harder to keep. It also helps you find misconfigured services that weaken your rules.",
+    "howItWorks": [
+      "Network sensors record connection metadata, including addresses, ports and the protocol seen on the wire.",
+      "Where traffic is encrypted, the sensor captures the handshake details, such as the certificate and the requested server name.",
+      "The detection keeps a baseline of which protocol and port pairs appear normally on each network segment.",
+      "It flags connections where the port, the protocol, the certificate name and the requested name disagree.",
+      "It adds the asset owner and the service inventory to show whether a real service should be there.",
+      "An analyst contacts the asset owner before blocking, because a licensing server may simply use an unusual port."
+    ],
+    "example": "Imagine a hospital reception desk where staff wear name badges. A visitor borrows a badge and sits at the desk, answering questions. The badge looks right, but the name on it belongs to someone in another department. This detection checks the badge against the department list.",
+    "takeaways": [
+      "A port number is a claim, not proof of what the traffic really is.",
+      "Correlating certificate name, requested name and port catches disguises that a port rule misses.",
+      "You need a protocol and port baseline first, or every unusual service will alert."
+    ]
+  },
+  "objectives": [
+    "Explain how a service can impersonate a protocol and why port-based filtering is weak.",
+    "List the transport and application metadata fields that expose a mismatch.",
+    "Build a baseline of expected protocol and port pairs for main network segments.",
+    "Interpret certificate subject, issuer and requested server name during triage.",
+    "Describe how to validate a suspected impersonating service with the asset owner."
+  ],
+  "techniqueId": "t1001-003",
+  "detectsTechniques": [
+    "t1001-003"
+  ],
+  "dataSources": [
+    "Zeek connection and TLS logs recording server name indication, certificate subject, issuer and negotiated version",
+    "HTTP proxy or reverse proxy access logs with host header, user agent and target port",
+    "NetFlow or IPFIX flow records with source and destination port, byte counts and flow duration",
+    "Firewall and intrusion detection system session logs that identify the application protocol seen on non-standard ports",
+    "Configuration management database service inventory listing approved listeners and their ports per host"
+  ],
+  "logic": "The pattern is a session whose application layer does not match the port it uses, or whose presented identity does not match the identity the client asked for. Correlate the destination port and the observed protocol from the network metadata with the certificate common name, the certificate issuer and the server name indication from the encrypted session record, then compare the destination address against the service inventory. In the benign case the service is known from the inventory, the certificate matches the requested name, and the unusual port was documented by the application owner. In the malicious case the port belongs to an allowed service, the certificate is self-signed or its common name is unrelated to the address, the requested name is a rare or random looking domain, and the flow is long lived with regular small uploads.",
+  "pseudoQuery": "# title: Protocol and Port Mismatch with Certificate Name Discrepancy\n# logsource:\n#   product: network\n#   service: tls\n# detection:\n#   selection_tls_on_odd_port:\n#     protocol: 'tls'\n#     dst_port:\n#       - 25\n#       - 445\n#       - 1433\n#   selection_name_mismatch:\n#     certificate_cn|contains: 'localhost'\n#   filter_known_services:\n#     dst_ip|startswith: '10[.]40[.]0[.]'\n#   condition: (selection_tls_on_odd_port or selection_name_mismatch) and not filter_known_services\n# level: medium",
+  "falsePositives": [
+    "Internal applications that deliberately run a web interface on a high or unusual port with a self-signed certificate",
+    "Development and staging environments where a service is moved to a spare port during testing",
+    "Load balancers and service meshes that terminate encrypted connections with a certificate for an internal service name",
+    "Monitoring probes and health checks that speak a simple protocol on a port belonging to another service"
+  ],
+  "tuningNotes": "Invest the effort in a protocol and port baseline per segment before enabling this rule, because without it the alert volume is unmanageable. Add filters for documented self-signed internal services and for the certificate issuers your own public key infrastructure uses, then verify the destination address against the service inventory rather than trusting a hostname. Raise severity only when the flow is long lived, the certificate is self-signed and the destination is a workstation or a host with no approved listener, and keep a lower-severity copy for everything else. The coverage you lose by filtering known internal infrastructure is detection of impersonation that reuses an approved address, so pair the rule with periodic listener review on those assets.",
+  "severity": "medium"
+}

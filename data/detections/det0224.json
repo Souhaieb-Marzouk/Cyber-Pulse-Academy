@@ -1,0 +1,105 @@
+{
+  "id": "det0224",
+  "type": "detection",
+  "title": "Detect Abuse of Component Object Model (T1559.001)",
+  "shortTitle": "Detect Abuse of Component Object Model (T1559.001)",
+  "externalId": "DET0224",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1559.001, Component Object Model, where an actor uses local or remote COM activation to make a trusted Windows service or application run their logic, frequently without creating a user visible process of their own. Detection relies on process creation and module load telemetry for unusual client and server pairs, object identifier resolution, and network evidence when activation is remote. It is noisy because business software depends on COM constantly, so value comes from watching a short list of high risk objects and the parents that request them.",
+  "tags": [
+    "windows",
+    "execution",
+    "component object model",
+    "living off the land",
+    "process behaviour"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Abuse of Component Object Model (T1559.001)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0224/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Abuse of Component Object Model (T1559.001) - EASY",
+      "path": "exercises/det0224/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Abuse of Component Object Model (T1559.001) - MEDIUM",
+      "path": "exercises/det0224/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Abuse of Component Object Model (T1559.001) - HARD",
+      "path": "exercises/det0224/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Abuse of Component Object Model (T1559.001) - EXTREMELY HARD",
+      "path": "exercises/det0224/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at a Windows feature that lets programs ask other programs to do work for them. The feature is called the Component Object Model, or COM. Attackers can use it to make a trusted program run their instructions. The rule watches which object is used and which program asks for it.",
+    "whyItMatters": "The work happens inside a program that the system already trusts. Often no new file and no new process appear at all. Standard process monitoring may see nothing unusual. Attackers also use the same feature to reach other machines. Knowing which objects are used, and by whom, is the only practical signal.",
+    "howItWorks": [
+      "Process and module logs record which program loaded which COM server.",
+      "The rule keeps a short list of object identifiers that are rarely used in your environment.",
+      "It checks the parent process of the interaction, such as a scripting host or an office application.",
+      "It looks for a server process that starts and exits very quickly after the request.",
+      "It adds network evidence when the request arrived from another host.",
+      "A rare object used by an unexpected parent process raises the alert."
+    ],
+    "example": "Think of an office where you can send a form to a colleague. You ask them to fill it in for you. The colleague is trusted and does the work. Nothing strange appears in the room. But the form log still shows who asked whom, and for what.",
+    "takeaways": [
+      "COM lets one program run work inside another trusted program.",
+      "It can leave no new process, so watch object use and parent processes.",
+      "A short list of high risk object identifiers keeps the rule useful."
+    ]
+  },
+  "objectives": [
+    "Explain what the Component Object Model is and why it can run code without a new process.",
+    "Identify telemetry that records COM server activation and the requesting process.",
+    "Select a small set of high risk object identifiers to monitor.",
+    "Explain how remote activation appears differently from local activation in the logs.",
+    "Combine parent process context and object rarity to reduce false positives."
+  ],
+  "techniqueId": "t1559-001",
+  "detectsTechniques": [
+    "t1559-001"
+  ],
+  "dataSources": [
+    "Sysmon event 7 image load or event 1 process creation showing a COM server executable started by a client process",
+    "Windows Security event 4688 process creation with parent process and command line for scripting hosts that activate objects",
+    "Endpoint monitoring of COM activation with the object identifier, the client process, and the server process",
+    "Operating system records for distributed COM or remote activation, plus network logs showing the remote caller address"
+  ],
+  "logic": "The pattern is activation of a COM object that is rare in your environment, requested by a parent process with no business reason to use it, followed by a server process that starts, performs a short action, and exits. The fields to correlate are the object identifier or friendly name, the client image, the server image, the process start and stop times, and any network connection made by the server. Benign activity repeats the same object and client pair many times a day and involves signed vendor binaries; suspicious activity pairs an office application or a script interpreter with an object that normally belongs to the operating system, and the server process lifetime is seconds rather than minutes.",
+  "pseudoQuery": "# title: Rare COM Object Activated by Scripting or Office Parent\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\powershell.exe'\n#       - '\\wscript.exe'\n#       - '\\winword.exe'\n#     Image|endswith:\n#       - '\\dllhost.exe'\n#       - '\\rundll32.exe'\n#   filter_known:\n#     CommandLine|contains:\n#       - 'Shell.Application'\n#       - 'WScript.Shell'\n#   condition: selection and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Business applications that use COM automation to generate documents or spreadsheets from a template",
+    "Endpoint management and software inventory agents that query system information through COM interfaces",
+    "Office or browser plug-ins that activate a helper object to handle printing, scanning, or file conversion",
+    "Backup and migration tools that use COM to read mailboxes or document stores during scheduled jobs"
+  ],
+  "tuningNotes": "Baseline which object identifiers are used on each host type over two weeks, then keep a short list of the ones that are genuinely rare and high risk. Allowlist the client and server pairs you see constantly, by signer and full path. Scope the first deployment to servers and to administrator accounts, where legitimate COM automation is predictable. Add remote activation as a separate higher severity rule, because a remote request carries more risk than a local one. Narrowing to a small object list loses coverage of objects that attackers rotate, so review the list monthly against new endpoint telemetry.",
+  "severity": "medium"
+}

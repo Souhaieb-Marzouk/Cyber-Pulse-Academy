@@ -1,0 +1,107 @@
+{
+  "id": "det0039",
+  "type": "detection",
+  "title": "Detection Strategy for Dynamic Resolution across OS Platforms",
+  "shortTitle": "Detection Strategy for Dynamic Resolution across OS Platf...",
+  "externalId": "DET0039",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the use of dynamic resolution to keep command and control reachable, the technique family tracked as T1568. Instead of hard coded addresses, the attacker rotates domain names through an algorithm, changes where a name points at short intervals, or smuggles data inside name lookups, so block lists age out within hours and takedown has little effect. The telemetry that makes it visible is name resolution logging with query name, type, response code, and the requesting process, joined to network flow data for the addresses that were returned. It fails in practice because high entropy names and repeated lookups are also produced by content delivery networks, telemetry agents, and advertising code, so volume alone is useless and the rule must combine naming statistics, failure rates, and the process making the query.",
+  "tags": [
+    "command and control",
+    "t1568",
+    "dns",
+    "network",
+    "beaconing",
+    "domain generation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Dynamic Resolution across OS Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0039/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Dynamic Resolution across OS Platforms - EASY",
+      "path": "exercises/det0039/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution across OS Platforms - MEDIUM",
+      "path": "exercises/det0039/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution across OS Platforms - HARD",
+      "path": "exercises/det0039/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution across OS Platforms - EXTREMELY HARD",
+      "path": "exercises/det0039/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Domain name system records turn a name into an address. This detection looks for hosts that ask for many strange names. It also watches one name that changes address again and again. That pattern often means the attacker is using a changing address to stay reachable.",
+    "whyItMatters": "If you block one address, a changing setup simply moves. This technique keeps the attacker reachable with almost no effort. It also hides data inside name lookups, so normal traffic can carry stolen information out.",
+    "howItWorks": [
+      "Your recursive resolver logs each lookup, the name, the type, and the result code.",
+      "The rule counts lookups per host and looks for many failed lookups for one base name.",
+      "It also measures how random the names look, since generated names rarely repeat.",
+      "It joins the answer with flow records to see whether the host then connects to the returned address.",
+      "It removes known software vendors, update services, and web advertising domains.",
+      "A failed then successful pattern from a script host is the strongest alert."
+    ],
+    "example": "Think of a courier who gets a new pickup address each morning. Nine times out of ten the address is wrong. One wrong address is a mistake. Ninety wrong addresses in a minute means the list is being generated, not read.",
+    "takeaways": [
+      "Failed lookups in bulk are more telling than successful ones.",
+      "Name randomness plus a script host as the requester is a strong pair.",
+      "Some tunnelling hides inside one name, so watch query length and type too."
+    ]
+  },
+  "objectives": [
+    "Describe how an algorithm can generate domain names for command and control.",
+    "Explain fast flux and why it defeats address based blocking.",
+    "Measure name entropy and lookup failure rates from resolver logs.",
+    "Correlate a resolved address with the process that then connects to it.",
+    "Build a filter list for update services and advertising domains.",
+    "Recognise name based tunnelling through query length and record type."
+  ],
+  "techniqueId": "t1568",
+  "detectsTechniques": [
+    "t1568"
+  ],
+  "dataSources": [
+    "Recursive DNS resolver query logs recording query name, record type, response code, and requesting client address",
+    "Sysmon event 22 DNS query events on endpoints including the query name and the image that requested it",
+    "Network flow or firewall records for outbound connections to addresses returned shortly before by name resolution",
+    "Domain reputation or threat intelligence lookups used to enrich newly observed names and addresses"
+  ],
+  "logic": "The pattern is a host producing a high rate of distinct or failed name lookups for names that share a structure, or one name resolving to many different addresses in a short window, followed by an outbound connection to an address that was just returned. The fields that must be correlated are the query name, the requesting client address, the requesting process image, the response code, the answer address, and the timing between the lookup and the network connection. The malicious case shows a script host or an unusual executable making the queries, a large share of failed lookups for names under one parent domain, very long or high entropy labels, unusual record types, and consistent query intervals. The benign case is a software update service, a telemetry agent, or a content delivery network that produces high lookup volume but with stable names, valid answers on the first attempt, and a signed process as the requester. Because shared resolvers mix many clients, the rule should group by client address and by requesting process before it applies any threshold.",
+  "pseudoQuery": "# title: High Volume Failed Name Lookups by Script Host\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     query_type: 'A'\n#     response_code: 'NXDOMAIN'\n#   filter:\n#     domain|endswith:\n#       - '.windowsupdate.com'\n#       - '.telemetry.example.com'\n#     image|endswith:\n#       - '\\svchost.exe'\n#       - '\\MsMpEng.exe'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Content delivery networks and advertising libraries that generate many short lived subdomains for tracking within a page load",
+    "Endpoint telemetry and management agents that resolve regional service names on a fixed schedule across the estate",
+    "Web browsers performing search suggestions and prefetch lookups that produce bursts of names for one user action",
+    "Security scanners and vulnerability assessment tools that resolve large lists of names during an authorised test"
+  ],
+  "tuningNotes": "Group the rule by client address and by requesting process, then threshold on the ratio of failed to total lookups rather than on raw volume, because shared resolvers make raw counts meaningless. Add filters for the update and telemetry domains you have confirmed, keyed on the exact suffix, and scope enforcement to host roles such as servers and to processes that should not resolve external names. Baseline entropy and query length distributions from your own traffic, and treat changes to those baselines as tuning events. The coverage you lose when you threshold aggressively is a slow algorithm that generates only a few names per day, which is why the DNS tunnelling check on query length and record type should stay enabled separately.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0021",
+  "type": "detection",
+  "title": "Behavioral Detection for Service Stop across Platforms",
+  "shortTitle": "Behavioral Detection for Service Stop across Platforms",
+  "externalId": "DET0021",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects service stopping, mapped to ATT&CK technique T1489 Service Stop, an impact behaviour where an adversary disables the services that protect, log or back up a host before carrying out destruction or ransomware encryption. The behaviour is easy to perform with built in tools, so the detection has to be behavioural rather than tool based: it looks at who is stopping what, how, and in what order. Useful telemetry is process creation showing service control utilities invoked with stop or delete arguments, service state change events recording the service control manager acting on a named service, and administrative log entries where a service account or an unexpected interactive account triggers the change. The high confidence pattern is a burst of stops against security, logging and backup services within a few minutes, particularly via remote execution, remote procedure call or a scripting host. The failure mode is blunt: patch cycles, agent upgrades and licence migrations all legitimately stop services, so the rule must scope which services matter and which accounts are allowed to touch them.",
+  "tags": [
+    "mitre t1489",
+    "service stop",
+    "impact",
+    "windows",
+    "linux",
+    "ransomware precursor"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection for Service Stop across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0021/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection for Service Stop across Platforms - EASY",
+      "path": "exercises/det0021/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection for Service Stop across Platforms - MEDIUM",
+      "path": "exercises/det0021/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection for Service Stop across Platforms - HARD",
+      "path": "exercises/det0021/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection for Service Stop across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0021/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A service is a program that runs in the background, such as a backup job or a security agent. Stopping a service turns it off. This detection looks for services being stopped in an unusual way. It catches attackers switching off the tools that would record or block them.",
+    "whyItMatters": "Many protections and records depend on services that keep running. If an attacker stops them first, the later damage leaves fewer traces. Backups may not run and alerts may not be sent. This is often the last quiet step before something loud happens. Seeing it early can let you respond before files are lost.",
+    "howItWorks": [
+      "The sensor records each new process with its command line, and records events from the component that controls services.",
+      "The rule matches the service control tools and the stop or delete arguments used with them.",
+      "It keeps a list of the service names that matter most, such as endpoint protection, event logging and backup agents.",
+      "Each stop is scored by the account that requested it and by the parent process that launched the request.",
+      "If several important services stop on the same host inside a few minutes, the events are grouped into one alert.",
+      "Remote stops are marked because a stop arriving from another machine is far less likely to be routine maintenance."
+    ],
+    "example": "Imagine a warehouse where the night guard switches off the alarm to clean the sensor. That is fine once, with a note. It is not fine when someone switches off the alarm, the cameras and the door log within five minutes. Service stop detection is the log that shows all three switches going off together.",
+    "takeaways": [
+      "Count how many important services stop, and how fast, rather than alerting on one stop.",
+      "Record the account and the requesting machine, since remote stops are unusual.",
+      "Agree with your teams which service stops are routine before you turn the rule on."
+    ]
+  },
+  "objectives": [
+    "Describe why attackers stop protective services before destructive actions",
+    "Identify process and service control telemetry that records a service being stopped or deleted",
+    "Score service stop events by account, parent process and whether the request was remote",
+    "Build a prioritised list of services whose unexpected stop deserves an alert",
+    "Tune the rule so patching and agent upgrades do not create constant noise"
+  ],
+  "techniqueId": "t1489",
+  "detectsTechniques": [
+    "t1489"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled, showing service control utility usage",
+    "Windows system log service control manager events recording a service entering the stopped state",
+    "Sysmon event 1 process creation including parent image and command line for scripting hosts invoking service control",
+    "Linux systemd journal entries recording unit stop or disable actions and the requesting session"
+  ],
+  "logic": "The pattern is a cluster of stops against protective services from an unexpected source. Each event must be correlated with the target service name, the account that requested the change, the parent process of the request, and in Windows environments the remote caller information from the service control manager. The benign case is one or two services stopped by an automated maintenance account, during a change window, in the same order every time, usually with an installer or update process as the parent. The malicious case is multiple security, logging or backup services stopped or deleted within minutes, requested by an interactive account that does not normally manage that host, or arriving through remote procedure call or a remote execution framework, often followed by service binary deletion or file encryption activity on the same host. Breadth and ordering are what make this pattern reliable.",
+  "pseudoQuery": "# title: Multiple Protective Services Stopped in Short Window\n# logsource:\n#   product: windows\n# detection:\n#   selection_stop:\n#     EventID: 4688\n#     CommandLine|contains|all:\n#       - 'stop'\n#     CommandLine|contains:\n#       - 'windefend'\n#       - 'eventlog'\n#       - 'wbengine'\n#       - 'sense'\n#   filter_maintenance:\n#     User|endswith: '$'\n#     ParentImage|contains: '\\\\Program Files\\\\Update'\n#   timeframe: 10m\n#   condition: selection_stop | count() by Computer > 2 and not filter_maintenance\n# level: high",
+  "falsePositives": [
+    "Patch management systems that stop the update and backup services before applying operating system updates",
+    "Endpoint agent upgrades that stop the old security service and start the new version seconds later",
+    "Backup maintenance that stops the backup engine to repair a corrupt catalogue outside the normal backup window",
+    "Administrators troubleshooting a failing service by stopping and restarting it several times in a row"
+  ],
+  "tuningNotes": "Start with a short list of services that have no routine reason to stop on a server, and add services only after you confirm the maintenance process for each one. Allow list the maintenance accounts and the parent installers per host tier, then group events by host over a ten minute window and require at least three distinct services before alerting, which removes almost all single service maintenance noise. Be aware that raising the count threshold lets an attacker disable one critical service quietly, so keep a separate low severity rule for stops of your primary endpoint protection service regardless of count.",
+  "severity": "high"
+}

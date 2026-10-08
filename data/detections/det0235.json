@@ -1,0 +1,108 @@
+{
+  "id": "det0235",
+  "type": "detection",
+  "title": "Detecting Steganographic Command and Control via File + Network Correlation",
+  "shortTitle": "Detecting Steganographic Command and Control via File + N...",
+  "externalId": "DET0235",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects command and control hidden inside ordinary looking files, tracked as ATT&CK T1001.002, by correlating file activity on the endpoint with outbound network sessions from the same process. It matters because steganographic channels hide instructions in image, audio, or document carriers so that content inspection and signature based controls see only a harmless file, and the only reliable evidence is the relationship between a media file being created and a process immediately talking to an external host. The telemetry that makes it detectable is file creation with size and entropy characteristics, endpoint network connection events with the owning process, proxy logs recording content type and request body size, and DNS or TLS metadata for the destination. The main failure mode is that many legitimate applications store images locally and upload them, so the rule must be anchored on the combination of an unexpected carrier file, an unexplained process, and a destination with no business relationship, and it should be treated as a triage aid rather than a standalone verdict.",
+  "tags": [
+    "network",
+    "command and control",
+    "steganography",
+    "file analysis",
+    "correlation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Steganographic Command and Control via File + Network Correlation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0235/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Steganographic Command and Control via File + Network Correlation - EASY",
+      "path": "exercises/det0235/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Steganographic Command and Control via File + Network Correlation - MEDIUM",
+      "path": "exercises/det0235/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Steganographic Command and Control via File + Network Correlation - HARD",
+      "path": "exercises/det0235/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Steganographic Command and Control via File + Network Correlation - EXTREMELY HARD",
+      "path": "exercises/det0235/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for hidden messages inside ordinary files such as pictures. The technique is called steganography, which means hiding data inside another file so the change is hard to notice. An attacker can send orders inside a picture and receive answers the same way. This detection links the picture file, the program that handled it, and the internet connection that followed.",
+    "whyItMatters": "A picture is allowed almost everywhere, so a hidden message can pass filters. Content checks look for known bad patterns and see only image data. This channel is slow, so it is normally used for quiet instructions rather than large transfers. Linking the file to the connection is what makes the hidden channel visible.",
+    "howItWorks": [
+      "The endpoint agent records every new file, including its type, size, and folder.",
+      "It also records each internet connection and which program opened it.",
+      "The rule looks for a media file created in an odd folder, such as a temporary path.",
+      "It checks whether the same program then connected to an external address.",
+      "The proxy adds the content type and body size of the request that carried the file.",
+      "An alert fires when a new carrier file and an unexplained upload appear together."
+    ],
+    "example": "Think of a school note passed inside a sandwich wrapper. The wrapper is allowed in the lunch hall and nobody objects to it. Only by watching who made the sandwich and who carried it out do you see the message move.",
+    "takeaways": [
+      "Steganography hides orders inside files that are normally allowed to travel.",
+      "The link between a new carrier file and an outbound session is the real signal.",
+      "Treat a match as a lead for deeper analysis, not as proof on its own."
+    ]
+  },
+  "objectives": [
+    "Explain what steganography is and why media files are useful carriers for hidden data",
+    "Collect file creation telemetry with size, path and type for carrier file candidates",
+    "Correlate file writes with network connections from the same process and user session",
+    "Use proxy content type, response size and destination reputation as supporting evidence",
+    "Establish baselines for normal media handling and upload applications",
+    "Describe the limitations of automated steganalysis and when to request manual analysis"
+  ],
+  "techniqueId": "t1001-002",
+  "detectsTechniques": [
+    "t1001-002"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create for image, audio and document files including full path and size",
+    "Sysmon event 3 network connection with the initiating process, destination host and port",
+    "Web proxy or gateway logs with request content type, body size and response status",
+    "Sysmon event 1 process creation recording the parent image of the process that writes files and connects out",
+    "DNS query logs showing the client, queried name and record type for the destination host"
+  ],
+  "logic": "The detection links a newly written media or document file to a network session that leaves the host shortly afterwards, and raises confidence when the writing process is not a known media application, the file landed outside normal picture or download folders, the size profile does not match the carrier format, or the upload destination has no history in the environment. The fields that must be correlated are the file path, extension and size, the process image and its parent, the destination address or hostname, the request content type and body size, and the timing gap between the write and the connection. Benign cases show a signed application such as a browser, a conferencing client, or a photo tool, handling files in its expected directory with a destination that already appears in approved service records, whereas hidden channel activity shows a script interpreter or an unusual binary touching a media file in a temporary directory, a connection to an address with no prior history, an upload body size that is almost identical across many sessions, and repeated small exchanges at regular intervals.",
+  "pseudoQuery": "# title: Media File Written and Uploaded by a Script Host\n# logsource:\n#   product: windows\n# detection:\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.png'\n#       - '.jpg'\n#       - '.bmp'\n#       - '.wav'\n#   selection_conn:\n#     EventID: 3\n#     Initiated: 'true'\n#   selection_proc:\n#     Image|endswith:\n#       - '\\powershell.exe'\n#       - '\\wscript.exe'\n#       - '\\python.exe'\n#   filter_cdn:\n#     DestinationHostname|endswith: '.cloudfront.net'\n#   condition: selection_file and selection_conn and selection_proc and not filter_cdn\n# level: high",
+  "falsePositives": [
+    "Screenshot and image annotation tools that save a picture and immediately upload it to a ticketing or chat platform",
+    "Document scanners and multifunction printers that write image files to a shared folder that a sync agent then uploads",
+    "Monitoring agents that render a graph to an image file and post it to a dashboard endpoint on a fixed schedule",
+    "Chat and collaboration clients that cache received images and forward them to a second service on the same host",
+    "Automated test suites that generate sample images and push them to a cloud test reporting service"
+  ],
+  "tuningNotes": "Baseline which processes normally write media files and which destinations normally receive uploads, and allowlist by process and parent pair rather than by file extension, because extension alone is meaningless. Require the write and the connection to come from the same process or the same user session within a short window, which removes the large number of unrelated media events on a busy workstation. Add the destination's first seen date and its business owner as alert enrichment, so an analyst can judge quickly, and exclude well known content delivery networks only after confirming your organisation uses them for legitimate uploads. The coverage you lose by requiring a same process correlation is a channel where one process decodes a file that another process fetched, so retain a lower severity rule on new executable or script processes touching media files in temporary directories.",
+  "severity": "medium"
+}

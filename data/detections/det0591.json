@@ -1,0 +1,108 @@
+{
+  "id": "det0591",
+  "type": "detection",
+  "title": "Cross-Platform Behavioral Detection of File Timestomping via Metadata Tampering",
+  "shortTitle": "Cross-Platform Behavioral Detection of File Timestomping ...",
+  "externalId": "DET0591",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers file timestomping, tracked as ATT&CK technique T1070.006, where an adversary rewrites a file's recorded access, modification or creation times so that forensic timelines and content discovery tools miss the file. It pairs two independent telemetry streams: process execution that names native timestamp rewriting utilities and their arguments, and file system metadata change records from endpoint agents or file integrity monitoring. The pattern only becomes meaningful when those two streams are correlated against a trusted baseline, because legitimate tools such as archivers, package managers, build systems and backup clients rewrite timestamps constantly. In practice the strategy fails for three reasons: file metadata events are expensive so most teams disable them, the rewritten timestamps are rarely compared to any authoritative source, and process names are trivially spoofed or wrapped in scripts. Analysts should therefore treat the endpoint process context and the baseline divergence as the two halves of one signal, not as separate alerts.",
+  "tags": [
+    "t1070.006",
+    "timestomping",
+    "defense evasion",
+    "file integrity",
+    "windows",
+    "linux"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cross-Platform Behavioral Detection of File Timestomping via Metadata Tampering",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0591/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cross-Platform Behavioral Detection of File Timestomping via Metadata Tampering - EASY",
+      "path": "exercises/det0591/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of File Timestomping via Metadata Tampering - MEDIUM",
+      "path": "exercises/det0591/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of File Timestomping via Metadata Tampering - HARD",
+      "path": "exercises/det0591/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of File Timestomping via Metadata Tampering - EXTREMELY HARD",
+      "path": "exercises/det0591/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Files carry hidden labels called timestamps. The labels record when a file was created, last changed and last opened. Timestomping means an attacker changes these labels so a file looks old. This detection looks for software that rewrites file times. It also looks for files whose times no longer match the system.",
+    "whyItMatters": "Investigators build a story from time. They ask what happened first, what happened next and what was planted. If an attacker can rewrite file times, that story becomes unreliable. A malicious file can hide inside a folder of old files and look untouched for years. You would then miss it during a review, and you could also blame the wrong account for a change.",
+    "howItWorks": [
+      "Endpoint agents record file metadata changes on important folders, such as temporary and system directories.",
+      "Process creation records show which program ran, who ran it and with which command line.",
+      "The rule looks for known timestamp rewriting tools, such as touch, and for suspicious scripts or PowerShell commands that set file times.",
+      "It then joins the process record to file metadata events written in the same short window on the same host.",
+      "A trusted baseline, such as a backup index or a deployment record, is compared with the reported file times.",
+      "When a file time is older than the baseline and the process context is odd, the alert fires for a human to review."
+    ],
+    "example": "Picture a hotel guest book at the front desk. Staff write down the exact time each guest arrives and leaves. A dishonest employee does not destroy the book. Instead they erase one line and write a much earlier time. The guest then seems to have arrived days ago and looks ordinary. A careful manager would not trust the book alone. They would compare it with the door camera and the key card log. This detection does the same thing. The file timestamp is the guest book, and the process log is the camera.",
+    "takeaways": [
+      "Timestamps are evidence, not truth. Attackers can change them, so you must compare them with another source.",
+      "One changed time proves nothing. The signal is a changed time plus an unusual process on the same host.",
+      "Keep a trusted baseline, such as backups or build records, or you cannot prove that a timestamp is wrong."
+    ]
+  },
+  "objectives": [
+    "Explain what file timestomping is and how it breaks timeline based investigation",
+    "Identify the telemetry that proves a file's metadata was rewritten on each operating system",
+    "Correlate file metadata change events with the process that caused them",
+    "Compare observed file times with a trusted baseline such as backup or build records",
+    "Recognise the normal tools that rewrite timestamps so false alerts are reduced",
+    "Describe how to scope this detection to high value folders instead of every file on the host"
+  ],
+  "techniqueId": "t1070-006",
+  "detectsTechniques": [
+    "t1070-006"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, user and full command line",
+    "Sysmon event 2 file creation time changed with the target file name and the new creation time",
+    "Linux auditd records for utimensat, utimes and futimens system calls with the acting process and target path",
+    "Endpoint detection agent file inventory or file integrity monitoring records that include modification, access and change times",
+    "Backup or software deployment catalog data used as a trusted baseline for expected file timestamps"
+  ],
+  "logic": "The pattern has two halves that must be joined on host and time. First, a process executes a timestamp rewriting utility or a script that calls a file time change function, for example touch with a backdated value, a PowerShell command that sets LastWriteTime, or a macOS style SetFile call. Second, file metadata events appear for that host within seconds, showing creation or modification times that are older than the file's own directory or older than the trusted baseline. Correlating the process identifier and parent process from the execution record with the target path in the metadata record proves causality. The benign case looks different in two ways: the process is a known build, packaging or backup tool, or the rewritten time is newer than the baseline rather than older. Backdating, especially against system or temporary directories that no deployment touches, is the signal worth alerting on.",
+  "pseudoQuery": "# title: Backdated File Time Change With Timestamp Rewriting Utility\n# logsource:\n#   product: windows\n# detection:\n#   selection_process:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\touch.exe'\n#       - '\\\\powershell.exe'\n#     CommandLine|contains:\n#       - 'LastWriteTime'\n#       - 'CreationTime'\n#   selection_filetime:\n#     EventID: 2\n#   filter_maintenance:\n#     ParentImage|endswith:\n#       - '\\\\backup.exe'\n#       - '\\\\msiexec.exe'\n#   condition: selection_process and selection_filetime and not filter_maintenance\n# level: medium",
+  "falsePositives": [
+    "Software packaging and installer build pipelines that deliberately normalise timestamps to make builds reproducible",
+    "Backup and restore clients that reset file times on restored files so that the restored copy matches the archive index",
+    "Configuration management agents that enforce a declared modification time on managed files",
+    "Archive extraction tools that restore the stored timestamps of files inside a tar or zip archive"
+  ],
+  "tuningNotes": "Start by scoping the rule to directories that no legitimate deployment process writes to, such as the Windows temporary and startup folders or Linux shared memory and temporary directories, because those carry the highest signal and lowest volume. Build a baseline of which processes on each host group are allowed to rewrite timestamps, and place them in a documented allow list keyed on both image path and parent process rather than on file name alone. Then suppress cases where the new timestamp is later than the last known baseline time, since forward dating is normal in packaging while backdating is not. Expect to lose some coverage on hosts where developers legitimately run reproducible builds, and compensate by keeping those hosts on a weaker alert level instead of dropping them completely.",
+  "severity": "medium"
+}

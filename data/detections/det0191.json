@@ -1,0 +1,108 @@
+{
+  "id": "det0191",
+  "type": "detection",
+  "title": "Behavior-chain detection strategy for T1127.002 Trusted Developer Utilities Proxy Execution: ClickOnce (Windows)",
+  "shortTitle": "Behavior-chain detection strategy for T1127.002 Trusted D...",
+  "externalId": "DET0191",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of ClickOnce, the Microsoft deployment technology that lets a user launch an application from a web link or share using the signed deployment support library. It matters because the launch chain runs through trusted, signed Windows components and commonly involves a remote download, so the technique can execute attacker code while presenting a legitimate parent process and a legitimate network connection. Detection is behavioural: process creation showing the deployment library loaded by a system binary, deployment shortcut files appearing in user profiles, and the deployment support process spawning a child from a temporary directory. The usual failure mode is legitimate ClickOnce usage in enterprises that still deploy line of business software that way, so the rule has to weigh the deployment source against an approved list of publishers and hosts.",
+  "tags": [
+    "defense evasion",
+    "proxy execution",
+    "clickonce",
+    "windows",
+    "application deployment",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection strategy for T1127.002 Trusted Developer Utilities Proxy Execution: ClickOnce (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0191/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection strategy for T1127.002 Trusted Developer Utilities Proxy Execution: ClickOnce (Windows) - EASY",
+      "path": "exercises/det0191/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.002 Trusted Developer Utilities Proxy Execution: ClickOnce (Windows) - MEDIUM",
+      "path": "exercises/det0191/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.002 Trusted Developer Utilities Proxy Execution: ClickOnce (Windows) - HARD",
+      "path": "exercises/det0191/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection strategy for T1127.002 Trusted Developer Utilities Proxy Execution: ClickOnce (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0191/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs started through a built in Windows installer feature called ClickOnce. Developers use it to let staff open an app from a web link. Attackers can use the same feature to run their own file while it looks normal. The rule watches the parts of the launch chain, not just the file name.",
+    "whyItMatters": "Windows trusts the components that handle this kind of install. That trust is why the technique is useful to an attacker. The whole launch happens under a signed system program, so simple rules will not notice. Watching what the support process starts gives you a real signal. It also reveals the web address the file came from, which you can block.",
+    "howItWorks": [
+      "A user opens a deployment shortcut or a link that points to an application manifest.",
+      "Windows loads the deployment support library through a signed system binary.",
+      "The support process downloads the application files from the address in the manifest.",
+      "It also records the shortcut file written into the user profile.",
+      "The rule checks whether the deployment address is approved and who signed the package.",
+      "An unapproved address, or a child process from a temporary folder, raises the alert."
+    ],
+    "example": "Imagine a company that lets staff order equipment through an approved supplier catalogue. Anyone can open the catalogue and order. A fraudster copies the catalogue layout, changes the delivery address, and sends it to staff. The order form looks right and the process is allowed. What the finance team checks is the supplier on the form, not the form itself.",
+    "takeaways": [
+      "The technique hides inside trusted signed Windows components, so behaviour matters more than names.",
+      "The deployment address and the package publisher are the key facts to check.",
+      "A shortcut file appearing in a user profile is a durable clue you can hunt for later."
+    ]
+  },
+  "objectives": [
+    "Explain how a trusted deployment feature can be used to run untrusted code.",
+    "Identify the process chain that indicates a deployment launch has occurred.",
+    "Extract the deployment source address and publisher from manifest and network telemetry.",
+    "Hunt for deployment shortcut files written into user profiles.",
+    "Compare an observed deployment against an approved list of publishers and hosts.",
+    "Describe why blocking only the file extension leaves the technique partially uncovered."
+  ],
+  "techniqueId": "t1127-002",
+  "detectsTechniques": [
+    "t1127-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image and full command line for the deployment support library",
+    "Sysmon event 11 file creation recording deployment shortcut and manifest files written into user profiles",
+    "Sysmon event 3 network connection recording the remote address contacted by the deployment support process",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Web proxy logs recording retrieval of deployment manifest files from external hosts"
+  ],
+  "logic": "The pattern is a deployment launch chain in which a signed system binary loads the ClickOnce deployment library, followed by the deployment support process writing files into a user profile and then starting a child process, usually from a temporary or per user application directory. The fields that must be correlated are the parent image and command line, the child image and its directory, the manifest or shortcut file path created, the remote host contacted, and the signing information of the payload if your endpoint tool records it. The malicious case shows a deployment source that is not on the approved publisher list, an address that is a raw IP or a newly registered domain, a shortcut file placed on the desktop or in the startup folder, and a child process that spawns a scripting interpreter or opens a network connection immediately. The benign case is a known line of business application, distributed from an internal share or an approved vendor host, signed by a publisher your organisation already uses, and launched by a user who regularly uses that application.",
+  "pseudoQuery": "# title: ClickOnce Deployment Library Launched With Remote Manifest\n# logsource:\n#   product: windows\n# detection:\n#   selection_launch:\n#     EventID: 1\n#     CommandLine|contains: 'dfshim.dll'\n#     Image|endswith:\n#       - '\\\\rundll32.exe'\n#       - '\\\\dfsvc.exe'\n#   selection_child:\n#     EventID: 1\n#     ParentImage|endswith: '\\\\dfsvc.exe'\n#   filter_approved:\n#     CommandLine|contains: 'deploy.corp.example[.]internal'\n#   condition: (selection_launch or selection_child) and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Internal line of business applications that the organisation still publishes with the deployment feature from an approved web server",
+    "Vendor support tools that install a small launcher from the vendor download portal during a remote session",
+    "Software evaluation by developers who launch a demo package from a public code hosting release page",
+    "Legacy applications re-launched from a cached shortcut in the user profile after the package has been updated"
+  ],
+  "tuningNotes": "Build and maintain the approved publisher and host list first, then filter on that pair rather than on the deployment library name, because the library name itself is present in every legitimate launch and filtering it would collapse your coverage. Restrict the rule to hosts where the deployment feature is not part of normal business use, such as servers and finance workstations, and leave developer machines with a lower severity alert because they launch many packages. Add a hunting rule, independent of the alert, that lists shortcut files created in desktop or startup folders in the last seven days together with the source address in the manifest, which finds launches you suppressed at alert time. The coverage you lose by approving known publishers is a supply chain compromise of an approved vendor, so keep signature validation and a rule for manifests signed by a certificate that has not been seen in your estate before.",
+  "severity": "high"
+}

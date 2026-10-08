@@ -1,0 +1,106 @@
+{
+  "id": "det0117",
+  "type": "detection",
+  "title": "Detection of Masqueraded Tasks or Services with Suspicious Naming and Execution",
+  "shortTitle": "Detection of Masqueraded Tasks or Services with Suspiciou...",
+  "externalId": "DET0117",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects scheduled tasks and Windows services that are named or located to look like legitimate operating system components. The technique matters because a service called something close to a real Windows component, installed from an unusual directory, blends into a service list that administrators rarely read closely. Detection depends on service installation telemetry, Windows Security event 4697 and the System log service control manager events, on scheduled task creation records, and on file creation events that show a new executable appearing just before the service or task is registered. It fails in practice because service installation is a normal part of software deployment, so the rule must reason about naming similarity, install path and parent process rather than about the registration event alone.",
+  "tags": [
+    "masquerading",
+    "persistence",
+    "services",
+    "scheduled tasks",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Masqueraded Tasks or Services with Suspicious Naming and Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0117/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Masqueraded Tasks or Services with Suspicious Naming and Execution - EASY",
+      "path": "exercises/det0117/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Masqueraded Tasks or Services with Suspicious Naming and Execution - MEDIUM",
+      "path": "exercises/det0117/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Masqueraded Tasks or Services with Suspicious Naming and Execution - HARD",
+      "path": "exercises/det0117/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Masqueraded Tasks or Services with Suspicious Naming and Execution - EXTREMELY HARD",
+      "path": "exercises/det0117/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection finds scheduled tasks and services that pretend to be normal Windows parts. A scheduled task is a job Windows runs on a timer. A service is a program that runs in the background. Attackers name their own versions to look official.",
+    "whyItMatters": "Most people never read the full list of services on a computer. An attacker who copies a real name, or changes it by one letter, can hide there for months. The fake service also starts again after every reboot, which means the attacker keeps access.",
+    "howItWorks": [
+      "The rule collects events that record a new service or a new scheduled task.",
+      "It reads the name and the file path that the entry points to.",
+      "It compares the name against a list of real system component names.",
+      "It checks whether the file sits in a system folder, which real components usually do.",
+      "It checks whether the responsible process is a normal installer.",
+      "A close name match, an odd path and an unusual parent together raise an alert."
+    ],
+    "example": "Think of a building directory board. Every office lists a company name. A fraudster prints a sign that reads almost the same as the bank on the fourth floor. They rent the room next door. Visitors look at the board and assume both offices are the bank. Reading only the name is not enough; you also need to know the bank never opened a second office.",
+    "takeaways": [
+      "Names alone prove nothing, so check the file path as well.",
+      "New services and tasks are logged, so use those records.",
+      "A tiny spelling change in a system name is a strong hint."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers imitate system service and task names",
+    "Identify the service installation and scheduled task creation events to collect",
+    "Compare registered names and file paths against a known good baseline",
+    "Use parent process and signer information to separate installers from abuse",
+    "Investigate an alert by locating and hashing the referenced binary"
+  ],
+  "techniqueId": "t1036-004",
+  "detectsTechniques": [
+    "t1036-004"
+  ],
+  "dataSources": [
+    "Windows Security event 4697, which records that a service was installed on the system",
+    "Windows System log service control manager events that record a new service registration and its image path",
+    "Scheduled task creation records from the Windows Task Scheduler operational log, including the task action and author",
+    "Sysmon event 11 file creation showing a new executable written shortly before the service or task is registered",
+    "Sysmon event 13 registry value set for the service registry key"
+  ],
+  "logic": "The detection correlates a service or scheduled task registration with the file it points to and with the process that created it. The fields that must line up are the registered name, the image path, the creating process and its parent, the account used, and the file creation time of the binary. Suspicion comes from the combination: a name that is similar to but not identical with a genuine system component, an image path outside the system directories, and a parent process that is not a signed installer or the service host. The benign case is a software deployment package installing a signed binary into program files from a known management parent, while the malicious case is an executable dropped into a user writable directory minutes before an unfamiliar registration event.",
+  "pseudoQuery": "# title: Service registered with system like name from non system path\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4697\n#     ServiceName|contains:\n#       - 'WindowsUpdate'\n#       - 'WinDefend'\n#       - 'svchost'\n#       - 'Defender'\n#   filter:\n#     ServiceFileName|startswith: 'C:\\\\Windows\\\\System32\\\\'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Software vendors that name a legitimate service after a Windows component for compatibility reasons",
+    "Monitoring agents that deliberately reuse a familiar service name to pass vendor checks",
+    "Custom internal applications deployed with names copied from a vendor template",
+    "Migration tooling that temporarily registers services in a staging directory before moving them"
+  ],
+  "tuningNotes": "Build a baseline of every service name and image path in your estate first, then alert on names that are new and similar to system names, which removes the large volume of ordinary installs. Filter the parent processes of your deployment tools and the code signing certificates you trust. Scope to servers where service changes are rare, and keep workstations at a lower severity. The coverage you lose by trusting a certificate is a stolen signing key, so review any signature that appears for the first time in your environment and keep the alert on image paths outside system directories.",
+  "severity": "high"
+}

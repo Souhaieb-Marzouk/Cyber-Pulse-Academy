@@ -1,0 +1,108 @@
+{
+  "id": "det0298",
+  "type": "detection",
+  "title": "Detect Archiving via Utility (T1560.001)",
+  "shortTitle": "Detect Archiving via Utility (T1560.001)",
+  "externalId": "DET0298",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets archiving collected data with a built-in or third-party utility, mapped to T1560.001, which adversaries use to compress and often password protect files before exfiltration. It matters because archive creation is the last quiet step before data leaves the network: a single command can turn thousands of documents into one file, and encryption hides the content from inspection. The telemetry that makes it detectable is process creation with full command lines, file creation events for archive extensions, and the file access patterns that precede them. The main way it fails in practice is volume and ambiguity: archiving is a completely normal business activity, so a rule that alerts on every archive utility produces overwhelming noise, and a rule tuned to one command line misses the same behaviour performed through a scripting language or a renamed binary.",
+  "tags": [
+    "mitre t1560.001",
+    "collection",
+    "exfiltration staging",
+    "archive utility",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Archiving via Utility (T1560.001)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0298/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Archiving via Utility (T1560.001) - EASY",
+      "path": "exercises/det0298/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Archiving via Utility (T1560.001) - MEDIUM",
+      "path": "exercises/det0298/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Archiving via Utility (T1560.001) - HARD",
+      "path": "exercises/det0298/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Archiving via Utility (T1560.001) - EXTREMELY HARD",
+      "path": "exercises/det0298/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for programs that pack many files into a single smaller file. That action is called archiving. Attackers use it to gather stolen documents into one package before sending it out. The rule is not about the tool, because your own staff use the same tools. It is about where and how the tool is used.",
+    "whyItMatters": "Copying thousands of files one by one is slow and easy to notice. Packing them into one archive is fast and looks less suspicious on the network. If the archive is protected with a password, a security scanner cannot read what is inside it. Catching the moment of packing gives you a chance to stop the theft before it leaves.",
+    "howItWorks": [
+      "The host agent records every program start, including the full text of the command that was used.",
+      "The rule checks whether the program is a known archiving tool. Examples include a compression utility, a scripting engine or a backup tool.",
+      "It reads the command line for signs of bulk collection. Look for a whole folder, a wildcard or a long list of paths.",
+      "It also checks for options that add a password or a strong key to the new file.",
+      "At the same time it looks for the new archive file on disk. It checks temporary and public folders too.",
+      "If a bulk archive appears in an unusual location, made by an unusual account, the system alerts an analyst."
+    ],
+    "example": "Think of a warehouse worker who must move a whole aisle of goods. They do not carry boxes one by one through the front door. Instead they stack everything on one pallet and wrap it in plastic. The wrapper hides what is on the pallet. A forklift moving a full pallet is still easy to spot, and this rule watches for the wrapping moment.",
+    "takeaways": [
+      "Archiving is normal, so the alert is about context: unusual account, unusual folder, or a password protected output.",
+      "The command line is the most valuable piece of evidence because it shows what was collected.",
+      "A large archive in a temporary or staging folder is far more interesting than one in a normal project folder."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries archive data before exfiltration and how that changes the risk picture.",
+    "Identify the process and file creation telemetry that reveals archive creation.",
+    "Interpret archive utility command lines to recognise bulk collection and password protection options.",
+    "Separate routine business archiving from collection staging by using account, path and volume context.",
+    "Define a baseline of approved archiving jobs in your own environment before enabling alerts.",
+    "Describe follow-up steps such as checking outbound transfers for the newly created archive."
+  ],
+  "techniqueId": "t1560-001",
+  "detectsTechniques": [
+    "t1560-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled, capturing archive and compression utilities and their arguments",
+    "Sysmon event 1 process creation with parent image, image path and full command line",
+    "Sysmon event 11 file creation for new files with archive extensions such as zip, 7z, rar, tar and gz",
+    "Linux auditd execve records for archiving commands such as tar, zip and gzip with their argument vectors",
+    "Endpoint detection agent file access telemetry showing rapid reads across many files in one directory tree by a single process"
+  ],
+  "logic": "The pattern to detect is a single process that gathers many files into one output file, evidenced by an archive utility or scripting engine on the command line together with bulk path arguments, a password or key option, and a new archive file created shortly afterwards. The fields to correlate are the process image and command line, the parent process, the user account, the output path, and the count or breadth of source files read in the same time window. The benign case looks like a scheduled backup or release packaging job on a known server, run by a service account, writing to a known backup or artefact path, with consistent volume and timing. The malicious case is an interactive or scripting-language archive on a user workstation or a file server, launched from a productivity or remote access parent process, writing to a temporary, public or sync-client folder, and often covering data that the account does not normally handle.",
+  "pseudoQuery": "# title: Bulk Archive Creation with Password Protection\n# logsource:\n#   product: windows\n# detection:\n#   selection_tool:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\7z.exe'\n#       - '\\\\rar.exe'\n#   selection_args:\n#     CommandLine|contains:\n#       - '-p'\n#       - '-password'\n#   selection_output:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.zip'\n#       - '.7z'\n#   filter_backup:\n#     User|contains: 'svc-backup'\n#   condition: selection_tool and selection_args and selection_output and not filter_backup\n# level: medium",
+  "falsePositives": [
+    "Software build pipelines that package release artefacts into archives on build agents on a fixed schedule",
+    "Backup agents and database dump jobs that compress their output to a known backup share",
+    "Help desk staff compressing a user profile or log bundle for a support ticket before uploading it to a portal",
+    "Developers creating a source code archive to share a snapshot with a colleague or an external partner",
+    "Security or compliance teams password protecting a report before sending it to a regulator"
+  ],
+  "tuningNotes": "Build a baseline of approved archiving jobs first: which service accounts, on which hosts, writing to which destination paths, at which times, and with what typical output size. Allowlist those combinations explicitly instead of allowlisting the archiving tool, since the tool is present on almost every endpoint. Scope the rule to interactive user sessions and file servers where collection is plausible, and exclude dedicated build, backup and artefact hosts. Add a volume condition, such as an output archive larger than a threshold or a process reading more than a few hundred distinct source files, so that small everyday zips do not alert, and raise severity when the output lands in a temporary, public or file sync folder. This narrowing loses coverage of an attacker who archives only a small, highly sensitive document set, so keep a lower-severity variant that watches for archive creation in sync-client folders regardless of size.",
+  "severity": "medium"
+}

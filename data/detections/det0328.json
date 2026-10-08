@@ -1,0 +1,107 @@
+{
+  "id": "det0328",
+  "type": "detection",
+  "title": "Detection of Malicious Profile Installation via CMSTP.exe",
+  "shortTitle": "Detection of Malicious Profile Installation via CMSTP.exe",
+  "externalId": "DET0328",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the Microsoft Connection Manager Profile Installer (T1218.003), a signed Windows system binary that loads a connection profile and can execute a command stored inside it. Adversaries use it because the binary is trusted and, when invoked with a silent installation flag against a crafted profile, it can run script or command content without the usual scripting hosts. The detection relies on process creation with command line auditing, the parent-child relationship of the binary, and file writes of profile files to temporary or user-controlled paths. It mainly fails because some enterprises genuinely deploy virtual private network connection profiles this way, so direction, file origin and parent process decide whether an alert is real.",
+  "tags": [
+    "mitre t1218.003",
+    "system binary proxy",
+    "process creation",
+    "defense evasion",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Malicious Profile Installation via CMSTP.exe",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0328/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Malicious Profile Installation via CMSTP.exe - EASY",
+      "path": "exercises/det0328/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Malicious Profile Installation via CMSTP.exe - MEDIUM",
+      "path": "exercises/det0328/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Malicious Profile Installation via CMSTP.exe - HARD",
+      "path": "exercises/det0328/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Malicious Profile Installation via CMSTP.exe - EXTREMELY HARD",
+      "path": "exercises/det0328/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches a trusted Windows program that installs network connection profiles. Attackers can place their own instructions inside such a profile. The trusted program then runs those instructions for them, so the attacker does not need to start a suspicious tool.",
+    "whyItMatters": "Security allow lists often permit signed Windows programs to run anywhere. Attackers look for those programs and use them as a shield. When this happens, simple allow list rules stay quiet and you see nothing. This detection watches how the program is used, not whether it is allowed, so the abuse becomes visible again.",
+    "howItWorks": [
+      "The computer records each new program that starts, including the full command line.",
+      "The detection selects only the connection profile installer named cmstp.exe.",
+      "It checks the command line for silent install flags and for a profile file path.",
+      "It then looks at where that profile file came from, such as a download folder, a temporary folder or a network share.",
+      "It also checks the parent program, because a user clicking a document is more suspicious than a management tool.",
+      "If the flags, the file path and the parent all look unusual, the detection raises an alert with the whole process tree."
+    ],
+    "example": "Think of a building where cleaners carry master keys. A cleaner opening a store room is normal. Now picture that same cleaner entering through the basement at midnight. The cleaner carries a bag from outside and leaves the alarm off. The guard will report that pattern, even though the key itself is fine.",
+    "takeaways": [
+      "Trusted signed programs can be used as shields, so behaviour matters more than reputation.",
+      "The location of the profile file is often the clearest sign of abuse.",
+      "Record the full process tree, because the parent program tells the story."
+    ]
+  },
+  "objectives": [
+    "Explain why signed system binaries are attractive to attackers",
+    "Identify the command line flags that indicate a silent profile installation",
+    "Judge a profile file by its origin path and how it arrived on the host",
+    "Correlate parent process, file write and process creation into a single alert",
+    "Describe how an allow list can hide this abuse if it is not paired with behaviour rules"
+  ],
+  "techniqueId": "t1218-003",
+  "detectsTechniques": [
+    "t1218-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "Sysmon event 11 file create events for connection profile files in user or temporary directories",
+    "Sysmon event 3 network connection from the profile installer process to an external address",
+    "Email or web proxy download records showing the arrival of a profile attachment or file"
+  ],
+  "logic": "The pattern is the connection profile installer binary executing with a silent flag and a profile file argument, especially when the profile sits in a user-writable or temporary path and the parent process is an office application, a browser or a script host rather than a management agent. The fields to correlate are the process image and command line, the parent image, the created profile file path and any network connection made by the same process shortly afterwards. In the benign case the profile comes from a software deployment share, the parent is a configuration management agent, and the resulting connection targets the corporate virtual private network endpoint; in the malicious case the profile arrives from a download or mail attachment, lives in a temporary folder, and the process reaches out to an address unrelated to corporate remote access.",
+  "pseudoQuery": "# title: Connection Profile Installer Run With Silent Flag From User Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: '\\\\cmstp.exe'\n#     CommandLine|contains: ['/s', '/ni', '/ns', '.inf']\n#   filter_mgmt:\n#     ParentImage|endswith: ['\\\\ccmexec.exe', '\\\\intuneagent.exe', '\\\\services.exe']\n#     CommandLine|contains: '\\\\ProgramData\\\\VPN'\n#   condition: selection and not filter_mgmt\n# level: high",
+  "falsePositives": [
+    "Configuration management agents that install virtual private network connection profiles from a signed package share",
+    "Helpdesk scripts that repair broken remote access profiles on user laptops using a silent install flag",
+    "Virtual private network client updaters that rebuild the connection profile during a version upgrade",
+    "User self-service portals where a staff member downloads an approved profile and installs it with a click",
+    "Imaging pipelines that apply a base profile to newly built workstations before the first user signs in"
+  ],
+  "tuningNotes": "Baseline the exact command lines your deployment tooling uses, including the profile directory and the parent process, and filter only that combination so any deviation still alerts. Alert on any occurrence where the profile file path is under a user profile, a temporary directory or a mapped share, because legitimate deployment almost never writes there. Add the network connection as an enrichment field rather than a requirement, so blocked attempts still surface. Narrowing to managed deployment paths costs you visibility into an attacker who plants a profile in a location your filter trusts, so review the filter list quarterly and watch for new profile directories.",
+  "severity": "high"
+}

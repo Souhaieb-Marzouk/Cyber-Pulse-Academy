@@ -1,0 +1,106 @@
+{
+  "id": "det0397",
+  "type": "detection",
+  "title": "Automated Exfiltration Detection Strategy",
+  "shortTitle": "Automated Exfiltration Detection Strategy",
+  "externalId": "DET0397",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets automated exfiltration, where a tool rather than a person moves collected data out of the environment on a schedule or in repeated batches, matching the automated exfiltration technique. It matters because automation hides intent in volume: the individual transfer looks small, but the pattern across hours shows a steady drain toward one destination that the business does not use. The telemetry that enables it is proxy and firewall session logs with byte counts, network flow records, cloud storage and mail upload or send logs, and endpoint file access events that pair a large local read with a matching outbound transfer. The main failure is baseline drift: legitimate backup, telemetry and software update traffic is also large and regular, so thresholds set without a per destination baseline either miss the theft or alert all day.",
+  "tags": [
+    "exfiltration",
+    "network monitoring",
+    "mitre t1020",
+    "flow analysis",
+    "data loss"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Automated Exfiltration Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0397/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Automated Exfiltration Detection Strategy - EASY",
+      "path": "exercises/det0397/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Automated Exfiltration Detection Strategy - MEDIUM",
+      "path": "exercises/det0397/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Automated Exfiltration Detection Strategy - HARD",
+      "path": "exercises/det0397/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Automated Exfiltration Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0397/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for software that copies data out of your network again and again. It runs by itself, without a person doing it by hand. It focuses on repeating transfers to the same outside place. The alert means data left your network in a pattern that looks automatic.",
+    "whyItMatters": "An attacker who steals data rarely takes it all at once. That would be slow and easy to notice. Instead a program sends a piece every minute, or every night at two in the morning. Each piece looks small and harmless. Only when you add up the transfers to one destination does the theft become clear. This detection finds that pattern before the whole data set is gone.",
+    "howItWorks": [
+      "Network devices and proxies record each connection, including the source host, the destination, and the number of bytes sent.",
+      "Those session records are sent to the security monitoring platform with the account and host name attached.",
+      "The rule groups outbound transfers by source host, destination and account over a rolling window such as one hour.",
+      "It compares the total bytes and the number of transfers with the normal baseline for that host.",
+      "A steady stream of similarly sized transfers to a new destination raises the score.",
+      "High scoring groups become alerts that an analyst confirms with the data owner."
+    ],
+    "example": "Think of a warehouse worker who takes one small box out of the loading dock every hour. Nobody notices a single box. After a month the inventory is short by hundreds of boxes. The loading dock log, not the single box, is what proves the theft. This detection reads the loading dock log.",
+    "takeaways": [
+      "Automated theft is found by looking at the pattern, not one transfer.",
+      "You need bytes and destination counts from network logs, not just connection lists.",
+      "A good baseline of normal outbound traffic is the heart of this detection."
+    ]
+  },
+  "objectives": [
+    "Define automated exfiltration and explain why repeated small transfers matter more than a single large one.",
+    "Identify the telemetry fields needed to measure outbound volume per host and destination.",
+    "Build a rolling window comparison of outbound bytes against a per host baseline.",
+    "Recognise legitimate high volume traffic such as backup, telemetry and content distribution.",
+    "Explain how to confirm an exfiltration alert with a data owner before escalating."
+  ],
+  "techniqueId": "t1020",
+  "detectsTechniques": [
+    "t1020"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway session logs with source host, destination, account and bytes sent per request",
+    "Firewall and network flow records showing outbound session byte counts per source address and destination",
+    "Cloud storage service audit logs for upload operations including object size and calling identity",
+    "Mail gateway logs recording outbound messages with attachment sizes sent by internal accounts",
+    "Endpoint file access telemetry pairing large reads of archive or database files with outbound network activity"
+  ],
+  "logic": "The pattern is a repeating outbound transfer that is regular in size or timing, goes from one internal host or account to a destination with no history in the environment, and totals far more data than the host normally sends. The fields that must be correlated are the source host and user account, the destination address, domain or cloud storage bucket, the bytes sent per session, the count of sessions in the rolling window, and the asset role from your inventory. Benign cases are backup jobs, endpoint telemetry, software updates and content distribution, all of which have stable destinations and stable volumes that you can baseline; the malicious case is a new destination, a new user agent or client, and volumes that grow steadily outside that baseline, often during hours when the account is normally idle.",
+  "pseudoQuery": "# title: Repeated Outbound Data Transfer to New Destination Above Baseline\n# logsource:\n#   product: network\n#   service: proxy\n# detection:\n#   selection:\n#     direction: 'outbound'\n#     bytes_sent: '> 5000000'\n#   filter_known:\n#     destination|endswith:\n#       - '.windowsupdate.com'\n#       - '.backup.provider.example'\n#   condition: selection and not filter_known | count() by src_host, destination > 10 within 1h\n# level: high",
+  "falsePositives": [
+    "Nightly backup or replication jobs that send large volumes to a cloud storage endpoint",
+    "Endpoint agents uploading collected telemetry and crash reports to a vendor service",
+    "Software distribution servers seeding updates to many internal clients through a proxy",
+    "A user syncing a large project folder to their approved cloud drive after a long offline period"
+  ],
+  "tuningNotes": "Build the baseline first: for two to four weeks record the top destinations and the hourly outbound byte profile for every server and workstation group, then allow list the destinations that appear for more than ten hosts, because those are almost always update or backup services. Add a filter for internal destination addresses so east west traffic does not inflate the counts, and scope the high severity rule to hosts that hold regulated data while keeping a lower severity rule elsewhere. Set the count threshold from the observed ninety fifth percentile rather than a round number. Narrowing this way loses sight of exfiltration that hides inside an approved destination, so pair it with a rule that watches for unusual volume toward known good endpoints.",
+  "severity": "high"
+}

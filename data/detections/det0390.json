@@ -1,0 +1,107 @@
+{
+  "id": "det0390",
+  "type": "detection",
+  "title": "Linux Detection Strategy for T1547.013 - XDG Autostart Entries",
+  "shortTitle": "Linux Detection Strategy for T1547.013 - XDG Autostart En...",
+  "externalId": "DET0390",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers automatic start entries on Linux desktops, where an adversary drops a desktop entry file into a per user or system wide autostart directory so that a program runs again every time the user signs in. The activity is quiet because the format is plain text, the directories are ordinary, and the same mechanism is used by legitimate desktop applications every day. File creation telemetry, execution records for the referenced program, and package manager history provide the evidence, and authentication records show which session wrote the file. The strategy fails in practice because package installation and first run setup create the same files, so a rule that matches the directory alone triggers on normal desktop use rather than on abuse.",
+  "tags": [
+    "persistence",
+    "linux",
+    "autostart",
+    "file monitoring",
+    "desktop",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Linux Detection Strategy for T1547.013 - XDG Autostart Entries",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0390/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Linux Detection Strategy for T1547.013 - XDG Autostart Entries - EASY",
+      "path": "exercises/det0390/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Linux Detection Strategy for T1547.013 - XDG Autostart Entries - MEDIUM",
+      "path": "exercises/det0390/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Linux Detection Strategy for T1547.013 - XDG Autostart Entries - HARD",
+      "path": "exercises/det0390/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Linux Detection Strategy for T1547.013 - XDG Autostart Entries - EXTREMELY HARD",
+      "path": "exercises/det0390/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "On Linux desktops, a small text file can tell the system to start a program when a user signs in. These files live in a folder called autostart. This detection watches for new files in those folders and checks what program they point to.",
+    "whyItMatters": "An added start entry means the attacker's program returns after every sign in, so removing it once is not enough. Users rarely look inside that folder. Comparing new entries against the programs that a package manager installed shows clearly which entries arrived by themselves.",
+    "howItWorks": [
+      "The file monitoring agent records every new file in the home directory, including the full path.",
+      "The rule keeps files whose path is inside an autostart directory.",
+      "It reads the entry to find the program path that the entry will run at sign in.",
+      "It checks whether that program belongs to a package that the package manager installed.",
+      "An entry that points to a temporary folder or a downloaded script raises an alert for review."
+    ],
+    "example": "Think of a staff noticeboard where people pin reminders to themselves. Pinning a note is normal. A note that tells the cleaner to open a side door every morning, written in a handwriting nobody recognises, is the one the manager removes and reports.",
+    "takeaways": [
+      "A file in an autostart folder survives reboots and sign ins, so it deserves attention.",
+      "The entry itself matters less than the program it points to, so read the target path.",
+      "Compare new entries with installed packages to find the ones nobody asked for."
+    ]
+  },
+  "objectives": [
+    "Locate the per user and system wide autostart directories on a Linux desktop",
+    "Describe the plain text format of a desktop entry and the field that names the program",
+    "Build a rule that alerts on new autostart files rather than on the directory listing",
+    "Correlate a new entry with package manager history to separate installed software from a dropped file",
+    "Follow the reference from the entry to the program and its download history",
+    "Explain why a system wide entry is a higher priority finding than a single user entry"
+  ],
+  "techniqueId": "t1547-013",
+  "detectsTechniques": [
+    "t1547-013"
+  ],
+  "dataSources": [
+    "Linux audit framework or file integrity monitoring records for file creation in home directory configuration paths",
+    "Sysmon for Linux event 11 file creation showing the created path and the process that created it",
+    "Endpoint detection agent file write telemetry covering per user and system wide autostart directories",
+    "Package manager history and installed file lists used to confirm whether an entry came from an approved package",
+    "Linux authentication records that identify the session and the account active when the entry was written"
+  ],
+  "logic": "The pattern is a new autostart entry whose referenced program is not part of an approved package and is not located in a trusted installation directory. The rule matches file creation events whose path falls inside a per user or system wide autostart directory, extracts the desktop entry contents, and resolves the program path that the entry will start. It then correlates that program with package manager history for the host, so that an entry installed by a desktop application package is treated as expected, and raises severity when the target lives in a temporary or download folder, when the file was created by a script host rather than a package manager process, or when the entry appeared on a server that has no desktop. The benign case is a package install, a first login setup step, or a documented corporate application that registers itself to start with the session. The malicious case is an entry created by a shell or a downloaded script, referencing a program in a temporary directory, written outside a change window on a host that has no interactive desktop role.",
+  "pseudoQuery": "# title: Autostart Entry Created Outside Package Management\n# logsource:\n#   product: linux\n#   service: file_event\n# detection:\n#   selection_path:\n#     TargetFilename|contains:\n#       - '/.config/autostart/'\n#       - '/etc/xdg/autostart/'\n#   filter_pkg:\n#     Image|endswith:\n#       - '/usr/bin/dpkg'\n#       - '/usr/bin/rpm'\n#       - '/usr/bin/apt'\n#   condition: selection_path and not filter_pkg\n# level: medium",
+  "falsePositives": [
+    "Desktop application installs that register their own autostart entry through the package manager",
+    "First login setup on a new user account that creates default autostart entries for the desktop environment",
+    "Corporate messaging, backup, or virtual private network clients that enable start with session by policy",
+    "Users who enable an autostart option in a chat or sync client settings dialog"
+  ],
+  "tuningNotes": "Baseline the autostart entries present on each desktop image, then filter by package manager process and by known program paths so that the rule only fires on new entries with an unapproved target. Raise severity for system wide entries, since those affect every user on the host, and for any entry on a server that has no desktop role. Filter out the standard desktop environment entries by content hash or by program path, not by filename, because an attacker will happily reuse a familiar filename. Narrowing this way means you lose detection of an attacker who overwrites an existing approved entry rather than creating a new file, so add a secondary check that compares the current entry content against the baseline.",
+  "severity": "medium"
+}

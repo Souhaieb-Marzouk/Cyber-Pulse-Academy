@@ -1,0 +1,107 @@
+{
+  "id": "det0102",
+  "type": "detection",
+  "title": "Behavioral Detection of Input Capture Across Platforms",
+  "shortTitle": "Behavioral Detection of Input Capture Across Platforms",
+  "externalId": "DET0102",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1056 Input Capture, the family of behaviours that record what a user types, clicks or copies, whether through keyboard hooks, clipboard monitoring, fake credential prompts or a browser extension. It matters because captured keystrokes routinely include domain passwords, multi factor codes and session tokens, which turn a single compromised workstation into broad access. The telemetry that makes detection possible is API and hook telemetry from endpoint sensors on Windows and macOS, process access events against interactive applications, unexpected changes to input related registry settings, and clipboard or screen capture activity attributed to a process that has no interactive user. It fails in practice because remote support tools, accessibility software and password managers legitimately observe input, so the rule must weigh the observing process against the user session rather than alerting on any hook installation.",
+  "tags": [
+    "credential-access",
+    "keylogging",
+    "endpoint",
+    "input-capture",
+    "privacy"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Input Capture Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0102/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Input Capture Across Platforms - EASY",
+      "path": "exercises/det0102/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Input Capture Across Platforms - MEDIUM",
+      "path": "exercises/det0102/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Input Capture Across Platforms - HARD",
+      "path": "exercises/det0102/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Input Capture Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0102/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that record what you type or copy. The recording can be a keyboard hook, a clipboard watcher or a fake login window. The rule watches the low level calls that such a program must make.",
+    "whyItMatters": "Typed secrets are the keys to almost everything else. A captured password or one time code can be reused from anywhere. Many capture tools are small and quiet, so nothing breaks and no user complains. That silence is exactly why you need to catch the behaviour, not the outcome.",
+    "howItWorks": [
+      "The endpoint sensor records calls that install a keyboard or mouse hook, and calls that read another process memory.",
+      "It records which program made the call, which user session it belongs to, and whether a visible window exists.",
+      "Clipboard and screen capture events are collected with the process that caused them.",
+      "Process creation and loaded module records show whether a browser or messaging program was targeted for reading.",
+      "All of this reaches the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule keeps events where the observer has no window, no signed publisher and no matching interactive session, then alerts."
+    ],
+    "example": "Picture a hotel front desk where guests say their room number out loud. A person standing nearby with a notebook can collect every number without touching a single key. Nothing is broken and no door is forced. This detection is the manager who notices a stranger standing at the desk all day. The manager walks over and asks why that person is there.",
+    "takeaways": [
+      "Input capture steals credentials directly, so it often replaces harder attacks.",
+      "The signal is the observing call plus the context of the process that made it.",
+      "Silence is normal here: no crash, no error, so only telemetry will tell you."
+    ]
+  },
+  "objectives": [
+    "Explain how keyboard hooks, clipboard readers and fake prompts capture user input",
+    "List the endpoint telemetry sources that record input capture behaviour",
+    "Identify which process attributes make an input hook legitimate or suspicious",
+    "Describe how to separate remote support sessions from covert capture tools",
+    "Recognise the credential types most at risk when input capture succeeds",
+    "Prioritise response steps that limit damage before credentials are reused"
+  ],
+  "techniqueId": "t1056",
+  "detectsTechniques": [
+    "t1056"
+  ],
+  "dataSources": [
+    "Endpoint sensor API call telemetry recording keyboard and mouse hook installation with the calling image and session identifier",
+    "Sysmon event 1 process creation and Sysmon event 7 image load records for unsigned modules loaded into interactive applications",
+    "Windows Security event 4688 process creation with command line auditing enabled for capture utility binaries",
+    "Proxy or firewall logs showing an interactive workstation process uploading small periodic payloads to an external host",
+    "macOS endpoint telemetry for accessibility permission grants and event tap registration by application bundle"
+  ],
+  "logic": "The pattern is a process installing a system wide input hook, reading the memory of interactive applications, or consuming clipboard content while itself having no visible interface and no interactive user session of its own. The fields that must be correlated are the observing process image and its signature and publisher, the target process or hook scope, the session identifier, the account, and whether the process has a window or is running as a service or scheduled task. The benign case is a signed remote support or accessibility product that the user launched and sees in the tray, so an unsigned observer, one running in another user session, or one that hooks input while having no interface is what distinguishes the malicious case.",
+  "pseudoQuery": "# title: Input Hook Or Clipboard Capture By Non Interactive Process\n# logsource:\n#   product: windows\n# detection:\n#   selection_hook:\n#     EventType|contains: ['set_windows_hook', 'keyboard_hook', 'clipboard_read']\n#   filter_signed_tools:\n#     Image|contains: '\\\\Program Files\\\\'\n#     SignatureStatus: 'valid'\n#   filter_visible:\n#     HasVisibleWindow: 'true'\n#   condition: selection_hook and not filter_signed_tools and not filter_visible\n# level: high",
+  "falsePositives": [
+    "Approved remote support software used by the service desk to assist a user, which installs an input hook by design",
+    "Accessibility tools such as screen readers and on screen keyboards that must observe keystrokes to function",
+    "Password managers that read clipboard contents to clear copied secrets after a short timer",
+    "Automation and robotic process tools that send and observe keystrokes in a virtual desktop session"
+  ],
+  "tuningNotes": "Build an allowlist of approved input observing applications keyed on publisher plus binary hash, and verify each one has a business owner before you add it. Keep the rule strict for events where the observer runs in a different session from the user or has no visible window, because that combination has almost no legitimate use. Scope full content level logging to finance, administration and engineering groups where credentials are most valuable, since hooks elsewhere are mostly noise. Filtering approved tools means a new capture tool dressed as an update for one of them could pass, so alert separately on any change to an allowed binary hash.",
+  "severity": "high"
+}

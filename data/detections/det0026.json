@@ -1,0 +1,106 @@
+{
+  "id": "det0026",
+  "type": "detection",
+  "title": "Windows Detection Strategy for T1547.012 - Print Processor DLL Persistence",
+  "shortTitle": "Windows Detection Strategy for T1547.012 - Print Processo...",
+  "externalId": "DET0026",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects print processor persistence, mapped to ATT&CK technique T1547.012, where an adversary registers a malicious dynamic link library as a print processor so that the Windows print spooler loads it automatically at start up and every time a print job is processed. The change is a registry write under the print processor key, followed by the spooler service loading the registered module from a path that is not the system directory. Detection therefore needs registry modification telemetry for the print processor and print monitor keys, module load events attributed to the spooler process, and service start or restart events that explain when the load occurred. The strongest correlation is a new registry value naming a library outside the system directories and a later image load of that exact library by the spooler, especially where the library is unsigned. The strategy fails in practice because printer driver installation legitimately adds print processors, so the rule must distinguish signed vendor packages in standard directories from a library sitting in a temporary or user writable folder.",
+  "tags": [
+    "mitre t1547.012",
+    "print processor",
+    "persistence",
+    "windows",
+    "registry",
+    "spooler"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Windows Detection Strategy for T1547.012 - Print Processor DLL Persistence",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0026/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Windows Detection Strategy for T1547.012 - Print Processor DLL Persistence - EASY",
+      "path": "exercises/det0026/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Windows Detection Strategy for T1547.012 - Print Processor DLL Persistence - MEDIUM",
+      "path": "exercises/det0026/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Windows Detection Strategy for T1547.012 - Print Processor DLL Persistence - HARD",
+      "path": "exercises/det0026/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Windows Detection Strategy for T1547.012 - Print Processor DLL Persistence - EXTREMELY HARD",
+      "path": "exercises/det0026/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "The print spooler is the Windows part that manages printing. It can load extra files called print processors to handle different print jobs. This detection looks for a new print processor, or one that points to a strange file. It catches a file that starts every time the computer prints or boots.",
+    "whyItMatters": "The spooler starts early and runs with high rights, so anything it loads runs with those rights. This gives an attacker a way to stay on a machine across restarts. It looks like normal printing setup, which few teams review closely. A strange file loaded by a trusted service is easy to miss. Catching it removes a durable foothold.",
+    "howItWorks": [
+      "The sensor writes an event whenever a program changes a registry key, including the old and new values.",
+      "The rule watches the registry keys that list print processors and print monitors.",
+      "It checks the value added: a normal entry is a signed vendor file in a system or driver directory.",
+      "It then collects module load events where the print spooler process loaded the file named in the registry.",
+      "Both events are joined by host and file path. A registry entry that is never loaded is only a lead.",
+      "The alert lists the registry change, the loading process and the file path with its signature state."
+    ],
+    "example": "Think of a hotel that keeps a list of approved luggage handlers at the front desk. Someone adds a new name to the list. The front desk then lets that person walk into your room without a question. The list looks official. Print processor detection is the record of who added that name and whether the person ever showed up.",
+    "takeaways": [
+      "Persistence here hides behind a normal printing feature. So check that registry key on a schedule.",
+      "The registry change alone is a lead; the spooler loading the file confirms it.",
+      "Legitimate print processors are signed and live in standard driver directories."
+    ]
+  },
+  "objectives": [
+    "Explain how the print spooler can be made to load attacker supplied code at start up",
+    "Identify the registry keys that register print processors and print monitors",
+    "Read module load events to attribute a library load to the print spooler process",
+    "Judge a registered library by path, signature and publisher rather than by name",
+    "Separate printer driver installation from a malicious print processor registration"
+  ],
+  "techniqueId": "t1547-012",
+  "detectsTechniques": [
+    "t1547-012"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set events for print processor and print monitor keys",
+    "Sysmon event 7 image load events showing what the print spooler process loaded",
+    "Windows system log entries recording the print spooler service starting or restarting",
+    "Windows Security event 4688 process creation with command line auditing enabled for print configuration tools"
+  ],
+  "logic": "The pattern is a two step change. First a registry value is created or modified under the print processor or print monitor key, and the value names a file that is not in the Windows system directory, not in a signed driver store path, and preferably sits in a temporary folder, user profile or program data directory. Second, the print spooler process loads that exact module, seen as an image load event owned by the spooler, with an unsigned or unexpected publisher, usually at service start or on the next print job. The fields to correlate are the host, the registry key path, the registered value name and data, and the loaded module path in the spooler process. Benign activity comes from printer driver packages installed by a signed vendor installer, which write to the driver store and load signed modules from a system path; the malicious case is a single registry value added by an interactive or scripting process, pointing at a file that no print vendor produced.",
+  "pseudoQuery": "# title: Print Processor Registered Outside Driver Store\n# logsource:\n#   product: windows\n# detection:\n#   selection_registry:\n#     EventID: 13\n#     TargetObject|contains:\n#       - '\\\\Print Processors\\\\'\n#       - '\\\\Print Monitors\\\\'\n#   selection_path:\n#     Details|contains:\n#       - '\\\\Users\\\\'\n#       - '\\\\ProgramData\\\\'\n#       - '\\\\Temp\\\\'\n#   filter_driver_store:\n#     Details|contains: '\\\\System32\\\\spool\\\\drivers\\\\'\n#   condition: selection_registry and selection_path and not filter_driver_store\n# level: high",
+  "falsePositives": [
+    "Printer driver installations from a signed vendor package that register a new print processor during setup",
+    "Print management software that installs its own monitor to add accounting or watermarking to print jobs",
+    "Legacy line of business applications that deploy a custom print processor from an application directory",
+    "Administrators following a vendor support article that places a print processor in a program data folder temporarily"
+  ],
+  "tuningNotes": "Baseline the full set of print processor and monitor entries on a representative host of each build, then allow list the vendor paths and publishers you actually use rather than the key path itself. Require the loading process to be the spooler before raising severity, since a registry entry alone can be staged and never used. Restricting the rule to servers will remove most desktop printer noise, but you lose coverage of the workstations where this persistence is most often used to survive reboots.",
+  "severity": "high"
+}

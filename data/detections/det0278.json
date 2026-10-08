@@ -1,0 +1,106 @@
+{
+  "id": "det0278",
+  "type": "detection",
+  "title": "Detection Strategy for T1542 Pre-OS Boot",
+  "shortTitle": "Detection Strategy for T1542 Pre-OS Boot",
+  "externalId": "DET0278",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects modification of the components that run before the operating system loads, including boot configuration data, boot loaders and platform firmware. T1542 matters because code placed at this layer executes before most security controls, survives operating system reinstallation, and can disable protections before they start. Detection is inherently difficult: firmware and boot configuration rarely expose rich telemetry, so the practical approach is trusted platform module measurement logs, boot configuration inventory from signed system tools, secure boot state reporting, and file integrity monitoring of boot partitions. The usual failure mode is not false positives but absent data, since many fleets report nothing about firmware or boot state at all, leaving the rule blind rather than noisy.",
+  "tags": [
+    "pre-os boot",
+    "firmware",
+    "bootkit",
+    "persistence",
+    "integrity",
+    "t1542"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1542 Pre-OS Boot",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0278/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1542 Pre-OS Boot - EASY",
+      "path": "exercises/det0278/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1542 Pre-OS Boot - MEDIUM",
+      "path": "exercises/det0278/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1542 Pre-OS Boot - HARD",
+      "path": "exercises/det0278/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1542 Pre-OS Boot - EXTREMELY HARD",
+      "path": "exercises/det0278/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the parts of a computer that start before the operating system. It covers boot settings, the small program that loads the system, and the firmware built into the hardware. Attackers change these to hide from security tools and to survive a rebuild.",
+    "whyItMatters": "Anything that runs before the operating system can switch off your defences first. It can also survive a full reinstall, which makes cleanup far harder. Most organisations collect almost no information about this layer, so incidents stay hidden. Building even a simple record of boot and firmware settings gives you a baseline to check. A change with no work order is a serious signal.",
+    "howItWorks": [
+      "Managed computers report boot and firmware measurements to a central service at start up.",
+      "The detection stores those values as a baseline per hardware model and operating system version.",
+      "It watches for changes to boot configuration made by command line tools, such as edits that disable integrity checks.",
+      "It checks whether secure boot and other start up protections are still switched on.",
+      "It uses file integrity monitoring on the boot partition to catch new or altered boot files.",
+      "Any change without a matching hardware maintenance record is sent to the analyst with the old and new values."
+    ],
+    "example": "Think of a warehouse where the night shift loads the shelves before the day staff arrive. The day staff trust whatever is already on the shelves. If someone changes the loading schedule and the goods, the day staff inherit a problem they never saw happen. Pre-boot code is that night shift.",
+    "takeaways": [
+      "Pre-boot changes can outlive an operating system reinstall, so detection matters more than repair.",
+      "Record a known good baseline of boot and firmware values per hardware model, or you cannot spot drift.",
+      "Absent telemetry is the real problem here, so first make the fleet report its boot state at all."
+    ]
+  },
+  "objectives": [
+    "Describe the components that execute before the operating system and why they matter for detection.",
+    "Collect and interpret boot measurement logs and secure boot state reports from managed endpoints.",
+    "Identify suspicious edits to boot configuration, particularly changes that relax integrity or recovery settings.",
+    "Build a per model baseline of firmware and boot values and monitor for drift.",
+    "Explain why remediation of a pre-boot compromise may require firmware reflash or hardware replacement."
+  ],
+  "techniqueId": "t1542",
+  "detectsTechniques": [
+    "t1542"
+  ],
+  "dataSources": [
+    "Trusted platform module measurement or attestation records reported by managed endpoints at boot, listing measured boot components and their values",
+    "Windows Security event 4657 registry value modification for boot configuration related keys, including the old and new data",
+    "File integrity monitoring on the system boot partition and boot loader files, recording new or modified files and their hashes",
+    "Secure boot and device health state reports collected by the device management platform, showing whether start up protections are enabled"
+  ],
+  "logic": "The pattern is a change to boot configuration, boot loader files, or platform firmware measurements that is not explained by a hardware or operating system maintenance record, particularly when the change relaxes an integrity control or points the boot path at an unexpected location. The fields that must be correlated are the device identifier and hardware model, the boot configuration registry key and its old and new values, the hash of boot loader files before and after, the measured boot event values from the attestation log, and the secure boot state. The benign case is a vendor firmware update or an operating system upgrade, which changes measured values on many devices of the same model at the same time and follows a deployment record. The malicious case is isolated to one or a few hosts, changes integrity related settings such as disabling signature enforcement or recovery checks, and often appears alongside boot loader files with unexpected hashes or an attestation log that no longer matches the recorded baseline.",
+  "pseudoQuery": "# title: Boot Configuration or Secure Boot State Changed\n# logsource:\n#   product: windows\n# detection:\n#   selection_reg:\n#     EventID: 4657\n#     ObjectName|contains:\n#       - \\BootConfiguration\\\n#       - \\Control\\SecureBoot\n#   selection_change:\n#     OperationType: %%1904\n#   filter_maintenance:\n#     SubjectUserName|contains: svc-firmware\n#   condition: selection_reg and selection_change and not filter_maintenance\n# level: high",
+  "falsePositives": [
+    "Vendor firmware or basic input output system updates pushed to an entire hardware model during a planned maintenance window",
+    "Operating system feature upgrades that rewrite boot configuration entries as part of the upgrade process",
+    "Hardware repairs or disk replacements performed by a service partner, which reset measured boot values on the affected device",
+    "Dual boot or recovery environment configuration performed by engineers for documented troubleshooting purposes"
+  ],
+  "tuningNotes": "Because firmware telemetry is sparse, start by widening collection rather than narrowing the rule, and only then filter the mass changes that a firmware rollout produces by requiring that a change affect a single device or a small group instead of an entire model. Create a per model baseline of boot measurements and secure boot state so that drift is visible, and filter changes that correlate with a deployment record from the device management platform. The coverage you give up is a firmware implant that produces measurements matching the recorded baseline because the baseline was captured after the compromise, which is why the baseline must be taken from a known clean device of the same model and reviewed after every vendor update.",
+  "severity": "high"
+}

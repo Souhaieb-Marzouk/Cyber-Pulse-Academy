@@ -1,0 +1,104 @@
+{
+  "id": "det0872",
+  "type": "detection",
+  "title": "Detection of Malware",
+  "shortTitle": "Detection of Malware",
+  "externalId": "DET0872",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers malicious software development on infrastructure the adversary already controls or has borrowed, where a new payload is written, staged and tested before delivery. It matters because catching code before it is deployed shortens the useful life of an intrusion and can reveal the toolset an actor prefers. The telemetry that makes it possible is file creation and modification events, process creation with full command lines, and script block content from the target host. The strategy fails in practice because development work is legitimate work, so the same editors, compilers and packers appear in normal engineering activity and the rule must lean on location, parent process and timing rather than on tool names alone.",
+  "tags": [
+    "mitre t1587.001",
+    "resource development",
+    "malware development",
+    "endpoint telemetry",
+    "correlation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Malware",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0872/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Malware - EASY",
+      "path": "exercises/det0872/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Malware - MEDIUM",
+      "path": "exercises/det0872/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Malware - HARD",
+      "path": "exercises/det0872/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Malware - EXTREMELY HARD",
+      "path": "exercises/det0872/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Malware development means an attacker writes or changes malicious software. They build the tool that will run on a victim machine. This detection looks for building and testing activity on hosts you control, before the tool is used.",
+    "whyItMatters": "The build stage is the last quiet moment before an attack becomes visible. Files, commands and test runs are all recorded on the host. That gives you a chance to act early. If you find the development host, you have also found the operator.",
+    "howItWorks": [
+      "An endpoint agent records when a process starts, which parent started it and the full command line used.",
+      "It also records when files are created or changed, including the folder and the file type.",
+      "The rule watches for build and packer tools running in temporary folders, user download folders or public directories.",
+      "It looks at what runs next, such as a newly created program being executed seconds after it was written.",
+      "Alerts combine the file, the command line and the parent process so the analyst can judge intent and contain the host."
+    ],
+    "example": "Imagine a hotel sign in sheet. A guest signing in is normal. The same guest signing in at a workshop bench at three in the morning, with tools from the maintenance cupboard and the door sign turned to closed, tells a different story. The record is the same. The context makes it a concern.",
+    "takeaways": [
+      "Build activity is normal work, so the environment and the parent process carry the signal.",
+      "A file that is written and then executed seconds later is far more suspicious than either event alone.",
+      "Any detection here must be paired with a rule of engagement, because you may be looking at a colleague's research lab."
+    ]
+  },
+  "objectives": [
+    "Describe the development and staging stage of an intrusion and why it often precedes delivery",
+    "Identify the file and process events that record a payload being written and first run",
+    "Explain how parent process, working directory and timing raise or lower suspicion",
+    "Write a correlation rule that links a file write event to an immediate execution",
+    "State the legal and policy checks needed before investigating a suspected build host"
+  ],
+  "techniqueId": "t1587-001",
+  "detectsTechniques": [
+    "t1587-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation records with parent image, command line and working directory",
+    "Sysmon event 11 file creation records showing the written path and the process that wrote the file",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Script block logging or shell history records showing the content of commands run on the host"
+  ],
+  "logic": "The pattern is a payload lifecycle on one host: an interpreter or build tool writes an executable or script into a temporary, user or public directory, and within a short time the same host executes that new file with a parent process that is a spreadsheet, document reader or web browser. The fields to correlate are the writing process, the written path, the file hash and the executing process with its parent and command line. The benign case is a signed installer written by a deployment service and run by that same service, while the malicious case shows an unsigned file in a user writable path, a script interpreter in the parent chain and no matching software deployment record.",
+  "pseudoQuery": "# title: Newly written executable run by a script interpreter\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     event_type:\n#       - file_created\n#       - process_created\n#     target_path|contains:\n#       - '\\\\AppData\\\\Local\\\\Temp\\\\'\n#       - '\\\\Users\\\\Public\\\\'\n#     image|endswith:\n#       - '.exe'\n#       - '.dll'\n#   filter:\n#     parent_image|endswith:\n#       - '\\\\services.exe'\n#       - '\\\\msiexec.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Software developers compiling and immediately running their own builds inside a temporary build directory",
+    "An installer that extracts an executable to a temporary folder and launches it as part of a normal update",
+    "Security staff unpacking and running a sample inside an isolated malware analysis virtual machine",
+    "Patch management agents that stage an updater in a user writable folder and start it under a service account"
+  ],
+  "tuningNotes": "Suppress the exact hashes of approved installers and the service accounts used by deployment tooling, and scope the rule to production workstation and server groups rather than engineering build farms. Baseline which processes normally write executables on each host class, because a developer laptop looks nothing like a finance workstation. You lose coverage of development that happens entirely on infrastructure outside your estate, so pair this rule with cloud workload creation monitoring and accept a slower detection time.",
+  "severity": "high"
+}

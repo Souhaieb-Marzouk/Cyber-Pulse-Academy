@@ -1,0 +1,108 @@
+{
+  "id": "det0080",
+  "type": "detection",
+  "title": "Exploit Public-Facing Application – multi-signal correlation (request → error → post-exploit process/egress)",
+  "shortTitle": "Exploit Public-Facing Application – multi-signal correlat...",
+  "externalId": "DET0080",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses exploitation of an internet facing service by correlating three signals that are weak on their own: a suspicious or malformed request, a burst of server errors or crashes on the same service, and post exploitation behaviour on the host. It matters because every public application is scanned constantly, so a rule that alerts on exploit style requests alone produces volume no team can triage, while a rule that waits for obvious malware on the host arrives too late. The telemetry that makes correlation possible is the application or reverse proxy access log with request line, response code, source address and a request identifier, the web server error log, and endpoint process creation on the same host showing a shell or interpreter with a web server process as its parent. The pattern that justifies an alert is the same host and account appearing in more than one of those layers inside a short window, especially when a new outbound connection or a file write to a web directory follows. It fails in practice in two directions: noisy scanning activity floods the request layer, and a skilled operator who abuses a legitimate application feature never generates a malformed request at all.",
+  "tags": [
+    "exploit",
+    "public facing",
+    "web",
+    "correlation",
+    "process creation",
+    "incident response"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Exploit Public-Facing Application – multi-signal correlation (request → error → post-exploit process/egress)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0080/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Exploit Public-Facing Application – multi-signal correlation (request → error → post-exploit process/egress) - EASY",
+      "path": "exercises/det0080/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Exploit Public-Facing Application – multi-signal correlation (request → error → post-exploit process/egress) - MEDIUM",
+      "path": "exercises/det0080/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Exploit Public-Facing Application – multi-signal correlation (request → error → post-exploit process/egress) - HARD",
+      "path": "exercises/det0080/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Exploit Public-Facing Application – multi-signal correlation (request → error → post-exploit process/egress) - EXTREMELY HARD",
+      "path": "exercises/det0080/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A public facing application is any service that anyone on the internet can reach. A company website is one example. This detection looks for someone attacking such a service and succeeding. It does that by watching for three things close together in time.",
+    "whyItMatters": "These services sit on the edge of your network. They are attacked every day by automated tools. Most attempts fail and should be ignored. A few succeed, and those give an attacker a place inside your network. Telling the two apart quickly protects the rest of the estate.",
+    "howItWorks": [
+      "The web server writes a log line for each request. That line includes the path and response code.",
+      "The error log notes crashes, exceptions and requests the application could not handle.",
+      "The host sensor records new processes. It also records which process started each one.",
+      "The detection looks for a request that the application rejected or failed on.",
+      "It then looks for a process whose parent is the web server.",
+      "It adds weight for a new outbound connection or a write into a web directory."
+    ],
+    "example": "Think of a bank teller window with a camera above it. A single odd request is normal, because customers ask strange questions all day. What matters is the sequence. First a strange request, then the till drawer opens by itself. Finally a person walks out of the staff door. Each detail alone means little, but together they tell a clear story.",
+    "takeaways": [
+      "One layer of evidence is not enough for a public service, because scanning is constant.",
+      "A web process starting a command shell is the clearest sign that an attack worked.",
+      "Filter your own scanners first, or the request layer will drown everything else."
+    ]
+  },
+  "objectives": [
+    "Explain why single signal detection on internet facing services produces unusable alert volume.",
+    "Identify the request, error and process telemetry available on a typical public application host.",
+    "Correlate a failed exploit attempt with post exploitation process activity on the same host and account.",
+    "Use change detection on web directories and new outbound connections as confidence boosters.",
+    "Describe the containment sequence for a suspected compromise of an edge service."
+  ],
+  "techniqueId": "t1190",
+  "detectsTechniques": [
+    "t1190"
+  ],
+  "dataSources": [
+    "Web server access log records with request path, query string, response code, user agent and source address",
+    "Web server error log records showing exceptions, crashes and requests the application rejected",
+    "Sysmon event 1 process creation on the application host including the parent image and command line",
+    "Sysmon event 3 network connection records showing new outbound connections made by web server processes",
+    "Sysmon event 11 file creation records for writes into web content or application directories"
+  ],
+  "logic": "Score exploitation from the combination of layers rather than from any one event. A request that the application rejects or that carries recognised injection patterns raises the baseline, a burst of errors or a worker process crash on the same service raises it further, and a process started by the web server user or its parent process confirms it. The fields that must be correlated are the host, the source address, the request path or identifier, the response code, the time and the process tree. Benign traffic is dominated by vulnerability scanners, web application firewalls in learning mode, monitoring probes, vulnerability management agents and normal application errors caused by bad input. Those are recognisable by a stable source address range, a regular schedule, a broad path spread with no follow on activity and no process changes. The hostile case narrows to one or two requests, a specific vulnerable path, and evidence of execution within minutes, often followed by a download, a persistence action or outbound traffic to a new destination. Treat the process layer as the deciding factor and everything else as ranking.",
+  "pseudoQuery": "# title: Exploit Attempt Followed By Web Server Child Process\n# logsource:\n#   product: windows\n# detection:\n#   web_error:\n#     sc_status: 500\n#   error_burst:\n#     condition: count() by c_ip > 20 within 5m\n#   post_exploit_process:\n#     ParentImage|endswith:\n#       - '\\\\w3wp.exe'\n#       - '\\\\httpd.exe'\n#     Image|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\sh'\n#   filter_scanner:\n#     c_ip|cidr: '10[.]30[.]0[.]0/16'\n#   condition: (web_error or error_burst) and post_exploit_process and not filter_scanner\n# level: high",
+  "falsePositives": [
+    "Scheduled vulnerability scans from an approved scanning platform that trigger application errors on many paths",
+    "Health check and synthetic monitoring probes that produce rejected requests when a back end is slow",
+    "Application errors caused by malformed input from a legitimate customer integration",
+    "Administrative maintenance scripts that run commands from the application host under an operational account",
+    "Web application firewall test traffic sent from within the corporate network during a change or tuning exercise"
+  ],
+  "tuningNotes": "Build the rule outward from the process layer, because that is the component with the least noise: start with any process whose parent is the web server binary and whose image is a shell, script host or package manager, and treat that as the primary alert on its own. Only then add request and error context to the alert payload and to the severity ranking, which keeps the analyst oriented without generating pages from scan traffic. Maintain an accurate list of scanner and monitoring addresses and exclude them by source range rather than by user agent, since user agents are easy to forge. Baseline application error rates per path and per hour so an error burst is defined by deviation rather than an absolute count. The coverage you give up is exploitation that produces no new process, such as data theft through an application feature, so pair this rule with monitoring for large outbound transfers from edge hosts and with integrity monitoring of application files and configuration.",
+  "severity": "high"
+}

@@ -1,0 +1,105 @@
+{
+  "id": "det0485",
+  "type": "detection",
+  "title": "Detection Strategy for Dynamic Resolution using Fast Flux DNS",
+  "shortTitle": "Detection Strategy for Dynamic Resolution using Fast Flux...",
+  "externalId": "DET0485",
+  "theme": "Detection Strategy",
+  "summary": "Fast flux hides malicious infrastructure behind a domain name that returns a changing set of addresses with very short time to live values, so blocked addresses become useless within minutes and the true hosting host stays hidden. The strategy detects the shape of the answer rather than the reputation of any single address: a low time to live, a large and rotating set of answer records for one name, addresses spread across unrelated networks, and repeated queries from the same client receiving different results. Detection fails when resolver logging keeps only the query name and not the answer records, because the rotation is the signal, so response logging must be enabled at the recursive resolver and on the hosts themselves.",
+  "tags": [
+    "dns",
+    "network",
+    "command and control",
+    "detection",
+    "resolver"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Dynamic Resolution using Fast Flux DNS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0485/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Dynamic Resolution using Fast Flux DNS - EASY",
+      "path": "exercises/det0485/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution using Fast Flux DNS - MEDIUM",
+      "path": "exercises/det0485/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution using Fast Flux DNS - HARD",
+      "path": "exercises/det0485/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Dynamic Resolution using Fast Flux DNS - EXTREMELY HARD",
+      "path": "exercises/det0485/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A domain name system (DNS) server turns a name into an internet address. Fast flux means one name returns many addresses that keep changing. Each answer is valid for only a very short time. This plan spots names that behave in that shifting way.",
+    "whyItMatters": "Blocking a single address is easy but useless if the name changes address every minute. The shifting makes the malicious service hard to shut down. It also hides the real server behind many proxies. Watching the pattern of answers is often the only way to spot it. Without answer logging you simply cannot see the rotation at all.",
+    "howItWorks": [
+      "The recursive resolver or the endpoint agent records each DNS query together with the answer records it returned.",
+      "The detection groups the answers by queried name and looks at the time to live value in each record.",
+      "It counts how many different addresses one name returned across a short period, such as an hour.",
+      "It checks whether those addresses belong to unrelated networks or hosting providers.",
+      "Names with a very short time to live and a wide, changing address set are scored as suspicious.",
+      "An alert names the client that queried it, because that host may already be talking to the service."
+    ],
+    "example": "Think of a market stall that moves to a new pitch every ten minutes. A traffic warden who writes down one pitch is always one step behind. The useful clue is not any single pitch but the fact that the same stall keeps moving. In the same way, a flux domain is recognised by its restless behaviour, not by any one address.",
+    "takeaways": [
+      "Judge the answer set, not one address, because the addresses rotate.",
+      "A very short time to live combined with many addresses is the core signal.",
+      "Turn on response logging first or the rotation stays invisible."
+    ]
+  },
+  "objectives": [
+    "Explain what fast flux is and why address blocking fails against it.",
+    "Identify the DNS fields that reveal rotation, including time to live and answer count.",
+    "Describe how to group answers by name and by time window.",
+    "Explain why response logging matters more than query logging here.",
+    "Recognise legitimate content delivery networks that resemble flux."
+  ],
+  "techniqueId": "t1568-001",
+  "detectsTechniques": [
+    "t1568-001"
+  ],
+  "dataSources": [
+    "Recursive resolver response logs recording the queried name, answer records and time to live values",
+    "Sysmon event 22 DNS query including the queried name and the resolved addresses returned to the host",
+    "Zeek dns.log with query, answers, time to live and the client address",
+    "Passive DNS history that shows address changes for a name over several days"
+  ],
+  "logic": "The detection measures the answers instead of trusting a blocklist. For each queried name it counts how many distinct addresses were returned in a rolling window, how low the record time to live is, and how many different networks or hosting providers those addresses belong to. Normal business names resolve to a stable small set of addresses from one provider with a moderate time to live, while a flux name rotates through tens or hundreds of addresses across unrelated providers and advertises a time to live measured in seconds. The malicious case is confirmed by the combination of a new or rarely seen domain, an answer set that changes between consecutive queries from the same client, a short time to live, and addresses that carry no reverse name or certificate history. Correlating the queried name, the answer set, the time to live and the querying client is essential, because a single query record alone cannot show rotation.",
+  "pseudoQuery": "# title: DNS Name Returning Many Rotating Addresses With Very Short TTL\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: dns_response\n#     ttl: <= 60\n#   aggregation:\n#     group_by: query_name\n#     count_distinct: answers\n#     condition: count_distinct >= 8 within 1h\n#   filter:\n#     query_name|endswith: 'cdn-provider-domain'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Content delivery networks and large cloud platforms that rotate addresses on purpose with short time to live values",
+    "Load balanced internal services that answer with many addresses and a low time to live during a failover test",
+    "Security research and threat intelligence lookups that query known suspicious names from a sandbox",
+    "Dynamic name services used by small businesses to reach a home or branch office connection"
+  ],
+  "tuningNotes": "Baseline the top resolving names in your environment and add filters for the content delivery and cloud ranges your business depends on, since they legitimately rotate addresses. Require both a short time to live and a high distinct address count across unrelated networks before alerting, which removes most single provider load balancing. Narrowing to external names only keeps volume manageable but leaves internal flux style abuse from a compromised host unseen, so keep a separate check for internal clients resolving an unusual set of addresses repeatedly.",
+  "severity": "medium"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0093",
+  "type": "detection",
+  "title": "Behavioral Detection of User Discovery via Local and Remote Enumeration",
+  "shortTitle": "Behavioral Detection of User Discovery via Local and Remo...",
+  "externalId": "DET0093",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects enumeration of local and directory user accounts, which attackers perform to find service accounts, understand the naming scheme and choose who to target for credential theft. The technique matters because account discovery is cheap, it exposes privileged identities, and it hands the attacker a target list for later stages. Detection relies on process creation with command lines that show account query utilities, on directory service query auditing, and on the account and host context that separates a legitimate inventory script from a hostile sweep. The practical failure is that many administrative scripts list accounts, so a keyword rule produces noise and the scope of the query plus the asking account must decide the alert. This is independent learning material, not an authoritative rule set.",
+  "tags": [
+    "discovery",
+    "account enumeration",
+    "active directory",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of User Discovery via Local and Remote Enumeration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0093/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of User Discovery via Local and Remote Enumeration - EASY",
+      "path": "exercises/det0093/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of User Discovery via Local and Remote Enumeration - MEDIUM",
+      "path": "exercises/det0093/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of User Discovery via Local and Remote Enumeration - HARD",
+      "path": "exercises/det0093/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of User Discovery via Local and Remote Enumeration - EXTREMELY HARD",
+      "path": "exercises/det0093/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone listing the user accounts on a computer or in a company directory service. A list of accounts shows the attacker who exists and which names look important. The detection watches account listing commands, directory service queries and the tool that runs them. It then checks whether the person behind the command had a good reason.",
+    "whyItMatters": "An attacker who knows your account names can guess, target or trick the right people. Service accounts are especially valuable because they often have wide access and weak monitoring. Listing accounts is quiet and quick, so it rarely triggers a loud alarm. Seeing it early tells you that someone is planning, not just passing through. That warning buys time to protect the accounts that matter.",
+    "howItWorks": [
+      "The endpoint agent records new processes, including the exact command that was typed or scripted.",
+      "The rule looks for account listing commands, such as net user, whoami, query user or directory query tools.",
+      "It reads the domain field in the arguments, because a query against a whole domain is broader than a local check.",
+      "Directory service logs record searches, showing how many objects one account asked for.",
+      "The rule joins the command to the account and host, and flags hosts that normally see no such activity.",
+      "A large directory search from a workstation account, followed by a logon to another host, scores highest."
+    ],
+    "example": "Picture a reception desk with a staff list on the wall. Visiting the building means seeing the list, and that is normal. But a stranger who photographs the list, asks the receptionist about the finance director by name and then walks toward the finance floor is telling a story. The list is not secret; the interest in it is what matters. User discovery detection follows the same logic, where the account asking and the target of the question carry the meaning.",
+    "takeaways": [
+      "Account discovery is preparation, and it points the attacker toward privileged identities.",
+      "Listing accounts is normal for administrators, so judge the scope and the asking account.",
+      "A domain wide search from an ordinary workstation account is a strong signal."
+    ]
+  },
+  "objectives": [
+    "Explain why account enumeration is a meaningful early stage signal.",
+    "Recognise the command patterns and directory query events that reveal user discovery.",
+    "Use query scope, account type and host role to separate routine work from hostile discovery.",
+    "Write a rule with a count threshold on directory searches per account.",
+    "Escalate and document an account discovery alert on a critical server."
+  ],
+  "techniqueId": "t1033",
+  "detectsTechniques": [
+    "t1033"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including image, parent image and full command line",
+    "Windows Security event 4798 enumeration of a user account group membership",
+    "Windows Security event 4661 handle request to directory service objects with audit policy enabled",
+    "Windows Security event 4624 logon type and account context for the session that ran the query"
+  ],
+  "logic": "The pattern is a burst of account queries against the local machine or the directory, run by an account whose normal role does not include inventory. Correlated fields are the process image and parent, the command line arguments including any domain or filter switch, the count of directory objects read per session, and the account and logon type behind the process. Administrative inventory scripts, help desk tools and identity governance platforms all enumerate users, and they do so on a predictable schedule with a stable parent process and a service account. Hostile discovery is usually interactive, happens outside the normal job window, mixes several enumeration utilities in one session, asks about privileged groups, and is followed by an authentication attempt to a system the user has never touched. Volume and follow on behaviour, not the query keyword, carry the weight.",
+  "pseudoQuery": "# title: User and Group Enumeration Sweep\n# logsource:\n#   product: windows\n# detection:\n#   sel_cmd:\n#     EventID: 1\n#     Image|endswith: ['\\\\net.exe', '\\\\net1.exe', '\\\\whoami.exe', '\\\\query.exe', '\\\\dsquery.exe']\n#     CommandLine|contains: ['user', 'group', 'domain admins', 'Get-ADUser', 'Get-LocalUser', '/domain']\n#   sel_audit:\n#     EventID: [4798, 4661]\n#   filter:\n#     User|endswith: ['svc_identitysync', 'svc_inventory']\n#   condition: (sel_cmd or sel_audit) and not filter\n# level: medium",
+  "falsePositives": [
+    "Identity governance platforms that reconcile user and group membership on a nightly schedule",
+    "Help desk technicians who check whether an account is locked or disabled during a support call",
+    "Logon scripts that map network drives by querying group membership for the current user",
+    "Penetration testers running an approved enumeration phase inside a documented engagement window",
+    "Configuration management agents that inventory local user accounts as part of a compliance check"
+  ],
+  "tuningNotes": "Baseline which service accounts and parent processes perform account queries in your estate, allowlist those pairs, and add a per session count threshold so a single lookup stays silent while a sweep fires. Scope the strict version to servers and to privileged access workstations, and keep workstation coverage at a lower severity with the filter applied. Exclude the documented identity reconciliation window only after you verify the job schedule. Narrowing this way loses detection of discovery performed through a management interface your allowlist already trusts, and of slow enumeration spread over days, so keep a weekly summary of account reads per source host instead of per process.",
+  "severity": "medium"
+}

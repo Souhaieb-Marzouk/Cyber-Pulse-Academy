@@ -1,0 +1,106 @@
+{
+  "id": "det0213",
+  "type": "detection",
+  "title": "Detection Strategy for Data Transfer Size Limits and Chunked Exfiltration",
+  "shortTitle": "Detection Strategy for Data Transfer Size Limits and Chun...",
+  "externalId": "DET0213",
+  "theme": "Detection Strategy",
+  "summary": "This strategy addresses T1030, Data Transfer Size Limits, where an actor splits stolen data into small pieces so that no single transfer looks unusual. The workable detection is not a per-event size threshold but an aggregation: outbound byte volume and connection counts per host, account, or destination over a rolling window, compared with that asset's own baseline shape. It is genuinely hard to tune, because many business processes also move data in small steady pieces, and the standard failure is a fixed threshold that either floods analysts or never fires at all.",
+  "tags": [
+    "exfiltration",
+    "network",
+    "data transfer",
+    "baseline",
+    "proxy"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Data Transfer Size Limits and Chunked Exfiltration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0213/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Data Transfer Size Limits and Chunked Exfiltration - EASY",
+      "path": "exercises/det0213/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Data Transfer Size Limits and Chunked Exfiltration - MEDIUM",
+      "path": "exercises/det0213/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Data Transfer Size Limits and Chunked Exfiltration - HARD",
+      "path": "exercises/det0213/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Data Transfer Size Limits and Chunked Exfiltration - EXTREMELY HARD",
+      "path": "exercises/det0213/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a computer that sends many small amounts of data to the same outside place. Normal work often sends one large transfer. This pattern sends lots of tiny ones instead. The rule adds those pieces up over a period of time.",
+    "whyItMatters": "Data thieves know that a single huge upload is easy to notice. So they cut the stolen data into small parts and send them slowly. Each part looks normal on its own. Only the total over time looks wrong. Aggregation is one of the few ways to see that kind of theft.",
+    "howItWorks": [
+      "Network and proxy logs record each outbound connection, the number of bytes sent, and the destination.",
+      "The rule groups those records by the internal host or by the user account.",
+      "It sums the bytes and counts the connections inside a rolling window, such as one hour.",
+      "It compares that total with the normal range for the same host and that same destination.",
+      "It raises an alert when many small transfers go to one destination the host has not used before.",
+      "An analyst then checks whether the volume and the destination make sense for that host's role."
+    ],
+    "example": "Think of a shop worker who takes one small item home each day. One item in a bag never looks strange at the door. After a month, the stock records show a clear loss. This rule is the monthly stock count, not the door check.",
+    "takeaways": [
+      "Small transfers hide in normal traffic, but the total over time does not.",
+      "Group by host or account and use a rolling window instead of single events.",
+      "A destination the host has never used matters as much as the volume."
+    ]
+  },
+  "objectives": [
+    "Explain how splitting data into small pieces defeats per-event size limits.",
+    "Identify which logs record bytes sent, connection counts, and destinations in your environment.",
+    "Design a rolling-window aggregation that groups outbound activity by host or identity.",
+    "Build a per-asset baseline that accounts for the host role, business hours, and known destinations.",
+    "Describe how to combine volume, connection count, and destination novelty into one risk score."
+  ],
+  "techniqueId": "t1030",
+  "detectsTechniques": [
+    "t1030"
+  ],
+  "dataSources": [
+    "Proxy or secure web gateway logs with bytes sent, request count, and destination host per session",
+    "Firewall or network flow records with source host, destination address, destination port, and byte counters",
+    "Domain name system resolution logs showing repeated lookups of the same destination domain by one internal host",
+    "Cloud storage or file sharing audit logs recording repeated small uploads by a single identity"
+  ],
+  "logic": "The pattern is aggregation rather than a single event: one internal host or identity sends an unusually high number of small outbound transfers to the same destination within a rolling window, and the total volume exceeds that asset's own historical range. The fields to correlate are the internal source, the destination, the byte count, the connection count, and the time bucket. Benign traffic repeats familiar destinations and follows a stable daily shape, while suspicious chunking shows a new or rare destination, a near-constant piece size, and activity that continues outside business hours.",
+  "pseudoQuery": "# title: Many Small Outbound Transfers to a Rare Destination\n# logsource:\n#   product: network\n#   service: proxy\n# detection:\n#   selection:\n#     action: allowed\n#     bytes_out: < 65536\n#   filter_known:\n#     dest_host|endswith:\n#       - '.windowsupdate.com'\n#       - '.office365.com'\n#   condition: selection and not filter_known | count(dest_host) by src_ip > 200\n# level: medium",
+  "falsePositives": [
+    "Chat and collaboration clients that post thousands of small presence or keep-alive updates to a vendor endpoint",
+    "Software telemetry and crash reporting agents that send frequent small payloads to a fixed collector",
+    "Scheduled backup or database replication jobs that split changes into many small encrypted blocks",
+    "A developer workstation pulling and pushing many small container image layers to a registry",
+    "Security agents that check in with a management server every few seconds from every host"
+  ],
+  "tuningNotes": "Begin with a week of baseline data and set thresholds per asset group rather than globally, because a developer laptop and a file server have very different normal shapes. Allowlist the destination hosts your business depends on, then keep a second rule that only flags a new destination with a high connection count. Treat business hours as a scoring signal rather than a hard filter. Narrowing to a fixed destination list gives clean alerts but loses coverage of exfiltration to provider-hosted storage, so review that list every month.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0458",
+  "type": "detection",
+  "title": "Detection of Trust Relationship Modifications in Domain or Tenant Policies",
+  "shortTitle": "Detection of Trust Relationship Modifications in Domain o...",
+  "externalId": "DET0458",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects modification of trust relationships in domain or tenant policy, including changes to federation trusts, domain trust objects, and tenant wide authentication settings that let an attacker authenticate as a trusted party. It matters because a trust change can grant broad access that survives password resets and looks like normal identity federation. Detection depends on directory service change events on domain controllers, cloud audit logs for federation and domain settings, and process creation records that show which tool made the change. It fails in practice because identity teams make legitimate changes during migrations and mergers, so the alert must be judged against change records and against who normally performs identity administration.",
+  "tags": [
+    "persistence",
+    "identity",
+    "trust relationship",
+    "cloud",
+    "domain policy"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Trust Relationship Modifications in Domain or Tenant Policies",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0458/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Trust Relationship Modifications in Domain or Tenant Policies - EASY",
+      "path": "exercises/det0458/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Trust Relationship Modifications in Domain or Tenant Policies - MEDIUM",
+      "path": "exercises/det0458/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Trust Relationship Modifications in Domain or Tenant Policies - HARD",
+      "path": "exercises/det0458/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Trust Relationship Modifications in Domain or Tenant Policies - EXTREMELY HARD",
+      "path": "exercises/det0458/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A trust relationship is an agreement that lets one organisation or system accept logins from another. This detection watches for changes to those agreements in directory or cloud settings. A changed agreement can let an outsider log in as if they were a trusted partner.",
+    "whyItMatters": "Trust settings sit above normal permissions, so a small edit can open a wide door. The access may look like a partner login and pass routine checks. Changes are rare, which makes each one worth checking.",
+    "howItWorks": [
+      "Domain controllers or the cloud service record changes to trust and federation settings.",
+      "The rule filters those records for trust, federation and domain configuration objects.",
+      "It captures the account that made the change, the source address and the tool used.",
+      "It compares the change with the approved change record for that day.",
+      "It also notes new certificates or keys added to the federation configuration.",
+      "An unapproved trust change is raised at high severity for immediate review."
+    ],
+    "example": "Think of two offices that agree to accept each other's staff badges. Someone edits the agreement so a third office is also accepted. Guards at the door see a valid badge format and let the visitor through without a second thought.",
+    "takeaways": [
+      "Trust settings act above normal permissions and are rarely changed.",
+      "Any change should be matched to a known change record.",
+      "Federation keys and certificates are part of the same review."
+    ]
+  },
+  "objectives": [
+    "Explain what a domain trust and a federation trust allow",
+    "Identify directory and cloud telemetry that records trust changes",
+    "Recognise which roles and tools normally modify trust settings",
+    "Correlate a trust change with a change record and a source address",
+    "Escalate an unapproved trust change and plan its reversal"
+  ],
+  "techniqueId": "t1484-002",
+  "detectsTechniques": [
+    "t1484-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4706 directory service replication of a new trust object on a domain controller",
+    "Windows Security event 5136 directory service object modification with trust and federation attributes",
+    "Cloud audit logs for trust and federation settings changes in the identity platform",
+    "Windows Security event 4688 process creation showing the management tool and account used to change trust settings",
+    "Identity platform sign in logs for the actor account that performed the configuration change"
+  ],
+  "logic": "The detection watches for a write to a trust or federation configuration object and then establishes whether that write was planned. Correlate the object distinguished name or configuration path, the changed attribute, the acting account, the source address, the tool or user agent, and the change record or ticket that covers the same window. The benign case is an identity administrator working from a management host during a documented migration, using the standard console or provisioning tool, often after a change advisory approval and with a consistent source address. The malicious case is a change made out of hours, from a host that is not an identity management workstation, by an account that is not in the identity team, or the addition of a new signing certificate, key, or accepted issuer that no ticket explains. A new trust with an external tenant or an unexpected federation key is the strongest indicator.",
+  "pseudoQuery": "# title: Federation or domain trust configuration changed outside identity change window\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     operation|contains:\n#       - 'Set federation settings'\n#       - 'Add domain'\n#       - 'Set domain authentication'\n#       - 'Update trust'\n#     result: 'success'\n#   filter_identity_team:\n#     actorIp|cidr: '10[.]10[.]5[.]0/24'\n#   filter_approved:\n#     userAgent|contains: 'IdentityProvisioning'\n#   condition: selection and not filter_identity_team and not filter_approved\n# level: critical",
+  "falsePositives": [
+    "Planned identity migrations that add or remove federation settings during a maintenance window",
+    "Corporate mergers that create a new domain or tenant trust by design",
+    "Identity provisioning automation that rotates federation signing certificates on schedule",
+    "Disaster recovery testing that temporarily adds an authentication path to a standby environment"
+  ],
+  "tuningNotes": "Maintain a list of identity management hosts, service accounts, and approved federation certificate thumbprints, and allow those combinations rather than allowing the whole identity team. Keep an explicit change record join and page only when a trust change has no matching approved change, since the volume of legitimate identity work is low enough to review each one. Scope the cloud rule to identity and directory operations rather than all configuration changes, which keeps the alert count manageable. If you filter by source address alone you lose coverage of an attacker on an identity workstation, so pair this rule with one that alerts on any new federation signing key regardless of its source, and keep thumbprint history for at least a year.",
+  "severity": "critical"
+}

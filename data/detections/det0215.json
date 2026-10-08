@@ -1,0 +1,106 @@
+{
+  "id": "det0215",
+  "type": "detection",
+  "title": "Detection of Multi-Platform File Encryption for Impact",
+  "shortTitle": "Detection of Multi-Platform File Encryption for Impact",
+  "externalId": "DET0215",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1486, Data Encrypted for Impact, the final encryption stage of most ransomware operations. Detection rests on file system telemetry, such as a single process writing or renaming an abnormal number of distinct files in seconds, a shared new file extension appearing across many files, and concurrent deletion of backup or shadow copy data visible in process and service logs. Because this is the last line of defence, speed matters more than precision, and the common failure is that the rule only fires once enough files are encrypted to be obvious to everyone.",
+  "tags": [
+    "ransomware",
+    "impact",
+    "file integrity",
+    "containment",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Multi-Platform File Encryption for Impact",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0215/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Multi-Platform File Encryption for Impact - EASY",
+      "path": "exercises/det0215/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Multi-Platform File Encryption for Impact - MEDIUM",
+      "path": "exercises/det0215/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Multi-Platform File Encryption for Impact - HARD",
+      "path": "exercises/det0215/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Multi-Platform File Encryption for Impact - EXTREMELY HARD",
+      "path": "exercises/det0215/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a program that changes many files very quickly. It often gives each file a new name or a new ending. It may also destroy the backup copies first. The rule warns you while the damage is still starting.",
+    "whyItMatters": "Encryption for impact stops a business from working. Files become unreadable, and the backups may be deleted first. Every minute between the first encrypted file and your response changes the cost. Catching the pattern early can save the backup copies. It also tells you which machine to isolate first.",
+    "howItWorks": [
+      "File system monitoring records writes, renames, and deletes on servers and workstations.",
+      "The rule counts how many different files one process changes inside a short window.",
+      "It looks for a sudden change of file endings, such as many files gaining the same new suffix.",
+      "It watches process and command logs for tools that delete backup copies or restore points.",
+      "It raises a high-severity alert when volume, extension change, and backup deletion appear together.",
+      "Automation can then isolate the host while an analyst confirms what happened."
+    ],
+    "example": "Think of a night watchman who walks the same corridor every hour. On one round, every door handle is warm. That single detail tells him something happened in many rooms at once. Counting changed files is that warm handle.",
+    "takeaways": [
+      "The strongest sign is one process changing many files in seconds.",
+      "A shared new file ending across many files is a classic clue.",
+      "Backup and restore point deletion usually comes first, not last."
+    ]
+  },
+  "objectives": [
+    "Explain the file system patterns that appear in the first minutes of an encryption event.",
+    "Identify telemetry that records bulk file rename, write, and delete activity per process.",
+    "Describe why monitoring backup and shadow copy deletion belongs to this detection.",
+    "Set thresholds that balance early warning against analyst fatigue.",
+    "Plan an automated containment action that is safe to run on a confirmed alert."
+  ],
+  "techniqueId": "t1486",
+  "detectsTechniques": [
+    "t1486"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file create with the writing process, the target path, and the file extension",
+    "Windows Security event 4688 process creation showing backup or recovery utilities invoked with delete arguments",
+    "File server audit records or a file integrity agent reporting bulk rename and write rates per process",
+    "Operating system event records for shadow copy or backup service state changes on the same host"
+  ],
+  "logic": "The pattern is a single process or user account touching an abnormally large number of distinct files inside a short window, especially when many of those files receive the same new extension or lose their original names. The fields to correlate are the process image, the account, the breadth of target directories, the file extension change, and any concurrent shadow copy or backup deletion. Benign bulk writes come from patch deployment, search indexing, or backup software, and they are usually confined to one application directory, use known signed binaries, and do not rename files with a constant new suffix.",
+  "pseudoQuery": "# title: Bulk File Rename With Uniform New Extension\n# logsource:\n#   product: windows\n#   category: file_event\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.enc'\n#       - '.locked'\n#       - '.crypt'\n#   filter_backup:\n#     Image|endswith: '\\backup-agent.exe'\n#   condition: selection and not filter_backup | count() by Image > 50\n# level: critical",
+  "falsePositives": [
+    "Backup or archiving software that renames large batches of files with its own container extension",
+    "Data loss prevention or file encryption products that apply a corporate encryption wrapper across a share",
+    "Application deployment that rewrites thousands of small configuration files during an upgrade window",
+    "Storage migration tools that move and rename whole file trees between volumes",
+    "A developer build process that regenerates many output files with one constant new suffix"
+  ],
+  "tuningNotes": "Baseline normal bulk write rates per server role and per backup schedule, then exclude the directories your backup and deployment tools own. Allowlist those tools by signer and full path rather than by process name. Keep the backup deletion portion of the rule unfiltered, because almost nothing benign removes restore points during business hours. Narrowing to a fixed extension list loses coverage of actors who randomise extensions or encrypt files in place, so pair this rule with a rate-based rule that ignores extensions entirely.",
+  "severity": "critical"
+}

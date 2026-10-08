@@ -1,0 +1,107 @@
+{
+  "id": "det0047",
+  "type": "detection",
+  "title": "Detect Local Email Collection via Outlook Data File Access and Command Line Tooling",
+  "shortTitle": "Detect Local Email Collection via Outlook Data File Acces...",
+  "externalId": "DET0047",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1114.001, Local Email Collection, where an adversary reads or exports mail from a mail client profile on a host they have already accessed. It matters because mailbox contents give an attacker password resets, contracts, and internal context that supports later stages such as business email compromise. The telemetry that makes it visible is file level and process level: access to the local mail data files, command line use of mailbox export cmdlets, and the creation of exported mailbox archives on disk or on a share. The main way this fails in practice is that the mail client itself constantly touches the same data file, so file access alone is meaningless. The detection has to look at the process doing the reading and at the appearance of exported archives.",
+  "tags": [
+    "mitre t1114.001",
+    "collection",
+    "email",
+    "endpoint",
+    "file access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Local Email Collection via Outlook Data File Access and Command Line Tooling",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0047/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Local Email Collection via Outlook Data File Access and Command Line Tooling - EASY",
+      "path": "exercises/det0047/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Local Email Collection via Outlook Data File Access and Command Line Tooling - MEDIUM",
+      "path": "exercises/det0047/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Local Email Collection via Outlook Data File Access and Command Line Tooling - HARD",
+      "path": "exercises/det0047/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Local Email Collection via Outlook Data File Access and Command Line Tooling - EXTREMELY HARD",
+      "path": "exercises/det0047/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone copying email out of a computer. The mail program keeps its messages in a local data file. Attackers read that file or export it with a command. This rule watches for those exports and the tools that make them.",
+    "whyItMatters": "Email holds contracts, invoices, and password reset links. A single mailbox can unlock many other accounts. The mail file sits on the workstation, so an attacker who reaches the host can take it. Normal mail programs touch that file all the time, which makes the signal hard to read. Looking at which program did the reading solves most of that problem.",
+    "howItWorks": [
+      "The agent records file access and file creation events, with the process that performed each action.",
+      "The rule filters for the local mail data files, which have the ost and pst file name extensions.",
+      "It checks whether the reading process is the mail client or something else, such as a script host.",
+      "It looks for command lines that request a mailbox export or a mail folder copy.",
+      "It flags new archive files written to temporary folders, user download folders, or network shares.",
+      "The alert joins the file event, the process, and the account so an analyst can judge intent quickly."
+    ],
+    "example": "Think of a hotel clerk who can open any room with a master key. The clerk opens rooms all day, so the door log is full of normal entries. But one entry stands out on the same night. A cleaner opens a room at two in the morning, and a suitcase leaves by the service door. Local email collection detection looks for the suitcase. Reading the mail file is the room key. An export archive on a share is the suitcase.",
+    "takeaways": [
+      "The mail client reads its own data file constantly, so the identity of the reading process is the key detail.",
+      "An exported mail archive outside the mail client folders is a strong sign of collection.",
+      "Mailbox contents often unlock other systems, so this stage deserves a fast response."
+    ]
+  },
+  "objectives": [
+    "Describe how a mail client stores messages locally and how an attacker can collect them.",
+    "Identify the file access, file creation, and process telemetry that supports this detection.",
+    "Explain why the process performing the read matters more than the file path alone.",
+    "Write a pseudo rule that pairs a mail file path with a non mail process or an export command.",
+    "Recognise the administrative and backup activity that produces the same file patterns.",
+    "Recommend containment steps when an unauthorised mailbox export is confirmed."
+  ],
+  "techniqueId": "t1114-001",
+  "detectsTechniques": [
+    "t1114-001"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation for exported mailbox archive files with ost or pst extensions",
+    "Sysmon event 1 process creation including command line for mailbox export and mail profile commandlets",
+    "Windows Security event 4688 process creation with command line auditing for scripting hosts that read mail files",
+    "Endpoint file access auditing or the endpoint agent file read telemetry for the local mail data file path",
+    "Windows Security event 5145 detailed file share access for mailbox archives written to a network share"
+  ],
+  "logic": "The rule looks for a mailbox export pattern rather than for mail file activity in general. It correlates the process image and command line from process creation telemetry with file creation events for archive files that carry the ost or pst extension, and with file read telemetry against the path where the mail client stores its local data. The malicious case is a scripting host, a compression utility, or a command interpreter reading the mail data file and writing an archive to a temporary folder, a user download folder, or a share, usually from a session that is not the interactive user working in the mail client. The benign case is the mail client itself opening its own data file, an approved backup agent copying the profile on schedule, or a migration project exporting mailboxes with a change record. The process identity, the destination path, and the session type are the fields that separate the two.",
+  "pseudoQuery": "# title: Mailbox Export Or Mail Data File Read By Non Mail Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains: New-MailboxExportRequest, Export-Mailbox, Get-MailboxFolderStatistics\n#   fileevent:\n#     EventID: 11\n#     TargetFilename|endswith: .pst, .ost\n#   filter:\n#     Image|endswith: \\outlook.exe, \\MsiExec.exe\n#   condition: (selection or fileevent) and not filter\n# level: high",
+  "falsePositives": [
+    "Approved backup software that copies the mail profile while the user is logged off at night",
+    "Mail migration projects that export mailboxes to archive files during a planned tenant or server move",
+    "Desktop search indexing tools that read the mail data file to build a local search index for the user",
+    "Helpdesk staff repairing a damaged mail profile by exporting and reimporting files with a signed off ticket"
+  ],
+  "tuningNotes": "Filter on the process image and signer rather than on the file path, because the mail client and its repair tools read the data file legitimately all day. Exclude the scheduled backup window only for the known backup service account, and scope the high severity tier to mail file reads and exports outside that window. Baseline which accounts normally run mailbox export commandlets in your environment so that administrator accounts with a documented migration role do not create a permanent blind spot. Narrowing this rule reduces visibility into a slow collection that copies mail in small pieces over many days, so add a volume based rule counting archive files per user per day.",
+  "severity": "high"
+}

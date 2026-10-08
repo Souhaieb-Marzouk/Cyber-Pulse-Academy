@@ -1,0 +1,108 @@
+{
+  "id": "det0075",
+  "type": "detection",
+  "title": "Internal Proxy Behavior via Lateral Host-to-Host C2 Relay",
+  "shortTitle": "Internal Proxy Behavior via Lateral Host-to-Host C2 Relay",
+  "externalId": "DET0075",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy looks for an internal host that has been turned into a relay, receiving commands from another internal system and forwarding them outward so that the true controller never touches the monitored perimeter. It matters because the perimeter already sees the relay host egress, and one more innocuous looking internal hop hides the origin of the traffic from both the firewall and the proxy. The telemetry that makes the pattern visible is firewall session records and network flow exports that show a workstation both accepting connections from peers and holding long lived outbound sessions, together with connection duration and byte symmetry that differ from ordinary client traffic. The distinguishing feature is role mixing: the same internal address behaves like a server towards other internal hosts and like a client towards the outside, often on the same port and often with regular timing. It fails in practice because internal traffic is frequently unlogged, encrypted and full of legitimate peer relationships, so the rule detects the shape of the traffic rather than its content and needs a strong baseline of which hosts are allowed to accept connections at all.",
+  "tags": [
+    "command and control",
+    "proxy",
+    "lateral movement",
+    "network monitoring",
+    "flow analysis",
+    "baseline"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Internal Proxy Behavior via Lateral Host-to-Host C2 Relay",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0075/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Internal Proxy Behavior via Lateral Host-to-Host C2 Relay - EASY",
+      "path": "exercises/det0075/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Internal Proxy Behavior via Lateral Host-to-Host C2 Relay - MEDIUM",
+      "path": "exercises/det0075/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Internal Proxy Behavior via Lateral Host-to-Host C2 Relay - HARD",
+      "path": "exercises/det0075/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Internal Proxy Behavior via Lateral Host-to-Host C2 Relay - EXTREMELY HARD",
+      "path": "exercises/det0075/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A relay is a middle computer that passes traffic between two sides. It does not look unusual to either side. This detection looks for an internal machine that takes orders from another internal machine. It then looks for that machine sending the results out to the internet.",
+    "whyItMatters": "Most companies watch what leaves the network edge. They see the relay computer, which looks like an ordinary worker. They do not see where the orders came from. The real controller stays hidden behind the relay. Finding the relay is one of the few ways to map the whole path.",
+    "howItWorks": [
+      "The firewall writes a record for each connection. It includes both addresses, the port and the duration.",
+      "Flow records add the amount of data sent in each direction.",
+      "The detection groups traffic by internal address. It marks who started the connection.",
+      "It flags any address that does both, towards peers and towards the internet.",
+      "Further scoring uses the shape of the traffic, such as steady timing.",
+      "Internal machines that are expected to accept connections, such as servers, are excluded."
+    ],
+    "example": "Think of a school office where every visitor signs in at the front desk. One student starts carrying notes between two classrooms. The same student also posts letters for both of them. The front desk only sees a student walking out with post. It never sees the teacher who wrote the letters, because that teacher never leaves the building.",
+    "takeaways": [
+      "A relay hides the real controller from anyone watching only the network edge.",
+      "The clue is role mixing, where one machine is both a client and a server.",
+      "Know which internal hosts may accept connections before you alert."
+    ]
+  },
+  "objectives": [
+    "Explain how a host to host relay conceals the origin of command and control traffic from perimeter monitoring.",
+    "Interpret flow and session records to determine which internal host initiated or accepted a connection.",
+    "Detect role mixing where one internal address serves peers and also egresses to untrusted destinations.",
+    "Build a baseline of internal hosts that are permitted to accept inbound connections.",
+    "Describe how to trace a suspected relay to its controller and to any victim hosts it serves."
+  ],
+  "techniqueId": "t1090-001",
+  "detectsTechniques": [
+    "t1090-001"
+  ],
+  "dataSources": [
+    "Firewall session logs recording internal and external addresses, ports, timestamps and session duration",
+    "NetFlow or IPFIX exports with bytes and packets counted separately for each direction of a flow",
+    "Network intrusion detection or gateway records identifying internal hosts that accept inbound connections",
+    "Endpoint network connection records showing which local process owns a listening socket and an outbound session",
+    "Asset inventory data classifying each internal host as a server, workstation or network device"
+  ],
+  "logic": "Correlate accepted inbound sessions with long lived outbound sessions on the same internal address and alert when a host that is not a server plays both roles toward different populations. The necessary fields are the local and remote address, the local and remote port, the initiator flag, the session duration and the byte counters in each direction. Benign role mixing exists in remote support tools, software distribution, backup agents and virtual desktop brokers, and those are usually stable, expected and tied to a known service account or port. The malicious relay instead shows a workstation, sometimes with an ordinary user logged in, holding periodic outbound sessions of nearly constant duration while accepting connections from a small set of peer hosts on a fixed port that changes with a restart. Additional weight comes from destinations that appear in threat intelligence, from traffic that keeps flowing outside business hours, and from the outbound sessions outliving the interactive logon. Because internal flow data is often incomplete, treat the alert as a scoping lead and confirm the process behind the socket on the relay host.",
+  "pseudoQuery": "# title: Internal Host Acting As Both Server And External Client\n# logsource:\n#   product: network\n#   category: firewall\n# detection:\n#   internal_listener:\n#     action: 'allow'\n#     initiator: 'remote'\n#   internal_egress:\n#     initiator: 'local'\n#     duration|gte: 600\n#   filter_server_subnet:\n#     src_ip|cidr: '10[.]20[.]0[.]0/16'\n#   condition: internal_listener and internal_egress and not filter_server_subnet\n# level: medium",
+  "falsePositives": [
+    "Remote support and screen sharing tools that accept assistance requests from peers while maintaining their own outbound sessions",
+    "Software distribution and update agents that serve packages to peers on the local network while contacting a vendor over the internet",
+    "Virtual desktop brokers and application streaming platforms that proxy client sessions to back end services",
+    "Developer workstations running local containers or test services that accept connections while building dependencies from the internet",
+    "Backup and replication agents whose peer to peer transfers are legitimate but generate long lived two way sessions"
+  ],
+  "tuningNotes": "Begin by defining the set of internal addresses that are allowed to accept connections at all, using asset inventory rather than observation, and exclude that whole group so the rule targets workstations only. Express the outbound side as a deviation from each host normal session duration and byte volume, because absolute thresholds age badly across site sizes. Where flow data is sampled or incomplete, require confirmation from endpoint socket records before alerting, which removes most false positives at the cost of missing relays on hosts without that sensor. Exclude known peer to peer application ports only after confirming they are actually used for that purpose. The coverage you give up is a relay running on a legitimate server or on an unmonitored host, so compensate with periodic egress reviews of server subnets and with monitoring for new listeners on workstations.",
+  "severity": "medium"
+}

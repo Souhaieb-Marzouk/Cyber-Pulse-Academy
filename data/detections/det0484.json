@@ -1,0 +1,107 @@
+{
+  "id": "det0484",
+  "type": "detection",
+  "title": "Multi-Platform Cloud Storage Exfiltration Behavior Chain",
+  "shortTitle": "Multi-Platform Cloud Storage Exfiltration Behavior Chain",
+  "externalId": "DET0484",
+  "theme": "Detection Strategy",
+  "summary": "Exfiltration from cloud storage rarely needs malware: an identity with read permissions can pull large volumes of objects through the provider application programming interface, from an address the organisation has never used, using a scripting language or a synchronisation client. This strategy builds a behaviour chain across cloud audit logs, storage access logs and identity telemetry, correlating object read and list operations with the volume, the caller identity, the source address and any preceding permission change such as a new access key or a widened bucket policy. The frequent failure is that object level logging is disabled by default in several providers, so the chain collapses to identity events alone unless data event logging is turned on first.",
+  "tags": [
+    "cloud",
+    "aws",
+    "azure",
+    "gcp",
+    "exfiltration",
+    "storage"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Platform Cloud Storage Exfiltration Behavior Chain",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0484/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Platform Cloud Storage Exfiltration Behavior Chain - EASY",
+      "path": "exercises/det0484/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Platform Cloud Storage Exfiltration Behavior Chain - MEDIUM",
+      "path": "exercises/det0484/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Platform Cloud Storage Exfiltration Behavior Chain - HARD",
+      "path": "exercises/det0484/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Platform Cloud Storage Exfiltration Behavior Chain - EXTREMELY HARD",
+      "path": "exercises/det0484/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud storage keeps files in buckets or containers rather than on a single server. This plan watches for one identity reading many of those files in a short time. Reading a few files is normal work. Reading thousands of them, from a new place, is the pattern this detection is built to catch.",
+    "whyItMatters": "A stolen cloud key needs no software on your network to cause damage. The attacker can copy data straight out through the provider interface. Cloud logs often record the identity and address, which helps you trace the source. Because the traffic never touches your own network, endpoint tools will not see it. Cloud side logging is the only place this activity appears.",
+    "howItWorks": [
+      "The provider writes an audit record for each storage interface call, including the identity and source address.",
+      "The detection groups those records by identity and by short time windows to measure how much was read.",
+      "It compares the volume with a baseline for that identity, so a normal backup job does not fire the rule.",
+      "A second condition checks for a permission change shortly before, such as a new key or a wider policy.",
+      "The source address and the client program are compared with the addresses that identity normally uses.",
+      "A chain of permission widening, sudden volume and an unfamiliar client or address becomes the alert."
+    ],
+    "example": "Think of a library where members may photocopy pages. Copying a chapter for study is fine. One member copies a whole shelf in ten minutes. They use a borrowed card and they work at three in the morning. That is a different story. The librarian notices the pattern from the photocopier log, not from the books themselves. In the same way, cloud storage logs show the shape of the activity even when every single read is permitted.",
+    "takeaways": [
+      "Cloud storage theft can look exactly like permitted access.",
+      "Volume, identity, address and client program together reveal the misuse.",
+      "You must enable object level logging before you can detect this at all."
+    ]
+  },
+  "objectives": [
+    "Explain why cloud storage exfiltration is invisible to endpoint monitoring.",
+    "Name the audit records that capture object read and list operations.",
+    "Build a baseline of normal read volume for backup and application identities.",
+    "Correlate a permission change with a later spike in object reads.",
+    "Describe the coverage you lose when object level logging stays disabled."
+  ],
+  "techniqueId": "t1530",
+  "detectsTechniques": [
+    "t1530"
+  ],
+  "dataSources": [
+    "AWS CloudTrail data events for S3 GetObject, GetObjectAcl and ListObjectsV2 with the caller identity and source IP",
+    "AWS CloudTrail management events for IAM access key creation and bucket policy changes",
+    "Azure storage analytics and diagnostic logs for blob read and list operations with the caller object id",
+    "GCP Cloud Audit Logs for storage.objects.get and storage.objects.list with principal and caller IP",
+    "Cloud identity sign in logs recording successful authentication with a new user agent or country"
+  ],
+  "logic": "The chain starts with an identity action that widens access, such as creating a new access key, changing a bucket policy, or granting a role to a principal outside the tenant, and continues with a sharp rise in storage read operations performed by that identity. The volume side needs grouping by principal and by short window because a single read is meaningless, while a thousand reads in ten minutes by an account whose daily baseline is ten stands out immediately. What separates the malicious case from a legitimate backup or analytics job is the combination of context fields rather than any one of them: the caller address is new for that identity, the client user agent is a command line tool rather than the normal application, the reads cover object key prefixes unrelated to the application, and the activity starts shortly after a permission change. Correlating identity, source address, user agent, object prefix and volume is what makes the alert defensible.",
+  "pseudoQuery": "# title: Cloud Storage Read Spike After Permission Change From A New Address\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName|startswith: 'GetObject'\n#     userIdentity.type: 'IAMUser'\n#   filter_known:\n#     sourceIPAddress|in: 'corporate_egress_ranges'\n#     userAgent|contains: 'backup-agent'\n#   filter_app:\n#     requestParameters.bucketName|in: 'approved_backup_buckets'\n#   condition: selection and not filter_known and not filter_app\n# level: high",
+  "falsePositives": [
+    "Nightly backup and archive jobs that read an entire bucket from a dedicated service identity",
+    "Data analytics pipelines that scan many objects after a new model or report is deployed",
+    "Migration projects that copy buckets between regions using a temporary administrator role",
+    "Incident responders who download a large evidence set after an approved investigation"
+  ],
+  "tuningNotes": "Baseline read volume per principal for at least two weeks, then exclude the service identities and buckets used by backup, analytics and migration tooling by name rather than by address, because their addresses change. Add a threshold that reflects normal daily volume for the account instead of a fixed object count, and always keep the permission change correlation, since it is what turns volume into a story. Narrowing by bucket or identity reduces noise but will miss an intruder who uses a compromised application identity, so retain a lower severity rule for anomalous reads inside trusted buckets.",
+  "severity": "high"
+}

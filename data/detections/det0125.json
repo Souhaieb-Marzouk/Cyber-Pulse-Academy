@@ -1,0 +1,105 @@
+{
+  "id": "det0125",
+  "type": "detection",
+  "title": "Detect persistence via reopened application plist modification (macOS)",
+  "shortTitle": "Detect persistence via reopened application plist modific...",
+  "externalId": "DET0125",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence on macOS through the state that the operating system saves so an application can restore its windows the next time it is opened. The technique matters because the saved state directory is written by a normal framework, is processed automatically when a user relaunches the application, and draws far less attention than launch agents or login items. Detection depends on file system monitoring of the saved application state folders, unified log records for the framework that performs state restoration, and process creation showing a child process starting inside an application session. It fails in practice because applications rewrite their own saved state constantly, so the rule must focus on writes to unusual targets, on state directories belonging to applications that do not exist, and on execution that follows the write.",
+  "tags": [
+    "persistence",
+    "macos",
+    "saved state",
+    "application relaunch",
+    "autostart"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect persistence via reopened application plist modification (macOS)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0125/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect persistence via reopened application plist modification (macOS) - EASY",
+      "path": "exercises/det0125/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect persistence via reopened application plist modification (macOS) - MEDIUM",
+      "path": "exercises/det0125/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect persistence via reopened application plist modification (macOS) - HARD",
+      "path": "exercises/det0125/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect persistence via reopened application plist modification (macOS) - EXTREMELY HARD",
+      "path": "exercises/det0125/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches the saved state that a Mac keeps for applications. When you close and reopen an app, it can show the same windows as before. The system stores that state in files. An attacker can abuse those files to run code later.",
+    "whyItMatters": "This trick hides inside a normal feature. Nobody suspects the file that restores window positions. The code runs again the next time the user opens that application. The attacker does not need to stay active on the machine. It also survives restarts.",
+    "howItWorks": [
+      "The rule watches the folder where macOS saves application state.",
+      "It records the file name, the folder and the application the file belongs to.",
+      "It checks whether that application exists and whether the user runs it normally.",
+      "It looks for unusual content in the state files, such as paths to scripts.",
+      "It watches for a process starting from the application soon after the state file changes.",
+      "A state file for a missing app, or one that starts a script, raises an alert."
+    ],
+    "example": "Think of a bookmark left in a library book. The next reader opens the book at that page and reads what is written there. Anyone can move the bookmark. The bookmark itself looks harmless, and only the reader at that page sees the message.",
+    "takeaways": [
+      "Saved state runs automatically when a user reopens an application.",
+      "State files for applications that do not exist are a clear warning.",
+      "The alert becomes strong when execution follows the file change."
+    ]
+  },
+  "objectives": [
+    "Describe how macOS saved application state is used during relaunch",
+    "Identify the file paths and log sources that record state changes",
+    "Detect writes to state directories that belong to missing applications",
+    "Correlate a state file change with a following process execution",
+    "Clean up abused state files during incident response"
+  ],
+  "techniqueId": "t1547-007",
+  "detectsTechniques": [
+    "t1547-007"
+  ],
+  "dataSources": [
+    "macOS file system monitoring of the saved application state folders inside each user library directory",
+    "macOS unified log entries from the state restoration framework that record application state save and restore activity",
+    "Endpoint process creation records on macOS showing a process whose parent is a reopened application",
+    "Code signing records for the application bundle that owns the modified state directory"
+  ],
+  "logic": "The detection watches for a change under a user saved application state directory, then checks what that state belongs to and whether anything runs as a result. Fields that must be correlated are the state directory path and the application identifier it contains, the writing process and account, the modification time, and any process creation event that follows within a short window with the application as parent. The benign case is an application that the user genuinely runs, rewriting its own state at quit time with the application itself as the writer; the malicious case is a state directory written by a shell or a script, belonging to an application that is not installed, or a state change immediately followed by a script interpreter starting inside that application session. Checking that the owning application exists is the cheapest way to cut the noise.",
+  "pseudoQuery": "# title: Saved application state written by non application process\n# logsource:\n#   product: macos\n#   category: file_event\n# detection:\n#   selection:\n#     TargetFilename|contains: '/Saved Application State/'\n#   filter:\n#     Image|endswith:\n#       - '/System/Library/CoreServices/loginwindow.app'\n#       - '/usr/libexec/routined'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Applications that copy saved state between profiles during a migration",
+    "Backup software that restores saved state files after a recovery operation",
+    "Developers running the same application from a build directory under a different identifier",
+    "Support scripts that clear or reset saved state to fix a crashing application"
+  ],
+  "tuningNotes": "Filter the system processes that legitimately manage state, and add a condition that the writing process belongs to an installed and signed application bundle, which removes most of the volume. Then alert on state directories whose owning application is absent, and on any state write followed by a script interpreter starting with the application as parent. Scope the rule to user endpoints rather than shared build servers, and baseline the state write rate per user. The coverage you lose by trusting signed applications is the case where an installed application is itself abused, so keep the execution follow up condition and review any state directory that appears for the first time.",
+  "severity": "medium"
+}

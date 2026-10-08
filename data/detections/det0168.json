@@ -1,0 +1,107 @@
+{
+  "id": "det0168",
+  "type": "detection",
+  "title": "Virtualization/Sandbox Evasion via System Checks across Windows, Linux, macOS",
+  "shortTitle": "Virtualization/Sandbox Evasion via System Checks across W...",
+  "externalId": "DET0168",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the system checks that malware performs to decide whether it is running on a real user machine or inside a virtual machine, a sandbox or an analysis environment. The covered technique matters because a sample that recognises a sandbox will simply stop, so the analyst sees clean behaviour and the incident appears not to exist, which makes the technique a gate on every other detection you own. Process creation with command lines, query and enumeration telemetry and registry or service reads make it possible, because the checks appear as ordinary discovery commands issued by an unusual parent. The main failure mode is that inventory agents, installers and support staff issue the same queries constantly, so the rule must weigh the parent process, the sequence of several checks in one short window, and what the process does immediately after.",
+  "tags": [
+    "discovery",
+    "defense evasion",
+    "sandbox",
+    "virtualization",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Virtualization/Sandbox Evasion via System Checks across Windows, Linux, macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0168/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Virtualization/Sandbox Evasion via System Checks across Windows, Linux, macOS - EASY",
+      "path": "exercises/det0168/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Virtualization/Sandbox Evasion via System Checks across Windows, Linux, macOS - MEDIUM",
+      "path": "exercises/det0168/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Virtualization/Sandbox Evasion via System Checks across Windows, Linux, macOS - HARD",
+      "path": "exercises/det0168/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Virtualization/Sandbox Evasion via System Checks across Windows, Linux, macOS - EXTREMELY HARD",
+      "path": "exercises/det0168/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that inspect the machine to learn whether it is real or a test environment. Malware does this to avoid running while it is being analysed. The checks are ordinary commands, so the pattern matters more than any single command.",
+    "whyItMatters": "If malware notices it is inside a sandbox, it stays quiet and the analyst learns almost nothing. The same logic protects a real victim machine, because the checks decide whether the payload runs at all. Attackers usually combine several checks in a row, which gives you something to detect. Catching the check tells you a suspicious program is present even when nothing else happens.",
+    "howItWorks": [
+      "The program runs a few commands that ask about hardware, drivers or the system model.",
+      "The endpoint records each command with the parent program that launched it.",
+      "The detection counts how many different checks appear from one process tree in a short time.",
+      "It also watches for reads of virtual machine related registry keys or device names.",
+      "A cluster of checks from a document reader or a script host is the alert condition.",
+      "An analyst then finds the file that started the process and submits it for review."
+    ],
+    "example": "Imagine a burglar who first looks for a security guard, a camera and a dog before deciding to enter. The burglar does nothing illegal while checking. If you notice somebody inspecting all three in one minute, you already know their intention.",
+    "takeaways": [
+      "Sandbox checks are reconnaissance, so several in a row reveal intent before damage occurs.",
+      "The parent process is the key detail, because normal tools rarely spawn these checks.",
+      "Alerting on the check preserves evidence even when the payload never runs."
+    ]
+  },
+  "objectives": [
+    "Describe why malware checks for virtual machines and analysis tools before acting.",
+    "Identify the queries and registry reads that indicate a virtualisation check.",
+    "Count distinct checks per process tree in a short window rather than matching one command.",
+    "Use the parent process to distinguish inventory tooling from suspicious launchers.",
+    "Explain how a detected check supports evidence collection even without execution."
+  ],
+  "techniqueId": "t1497-001",
+  "detectsTechniques": [
+    "t1497-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled showing system information and query commands",
+    "Sysmon event 1 process creation including parent image, current directory, integrity level and full command line",
+    "Sysmon event 13 registry value set or query telemetry for virtual machine related keys and analysis tool artifacts",
+    "Linux auditd process execution records for hardware and virtualisation discovery commands and reads of virtualisation metadata",
+    "Endpoint asset inventory records identifying which hosts are virtual machines, which are physical, and which are analysis or test systems"
+  ],
+  "logic": "The pattern is several distinct system checks for virtualisation or analysis artifacts issued by one process tree within a short window, particularly when the parent is an application that has no reason to inspect hardware. The telemetry is process creation with command lines, the registry and file query events, and the auditd execution records on Linux, and the fields that must be correlated are the parent image and its signature status, the child process image and command line, the specific artifact being queried such as a hypervisor driver name, a virtual disk identifier, a virtual machine specific registry key or a known analysis tool file path, the host asset type, and the order and timing of the checks. Benign behaviour is a management or inventory agent that queries the hardware model once on a schedule, an installer that checks for supported virtualisation features, or a support engineer troubleshooting a virtual desktop problem, each of which shows a stable, repeated, explainable pattern from a signed parent. Malicious behaviour is a script host, an office document reader, a browser or a freshly written binary in a temporary folder producing a burst of hardware, driver and analysis tool checks, followed by no activity, a delay, or an unexpected outbound connection. The parent process and the burst of distinct checks are the discriminators, because the individual queries are entirely ordinary on their own.",
+  "pseudoQuery": "# title: Burst of virtualisation and analysis environment checks by one parent\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'Win32_ComputerSystem'\n#       - 'Win32_BIOS'\n#       - 'vboxservice'\n#       - 'vmware'\n#       - 'sandboxie'\n#   filter_inventory:\n#     ParentImage|endswith:\n#       - '\\InventoryAgent.exe'\n#       - '\\ccmexec.exe'\n#   condition: selection and not filter_inventory\n# level: medium",
+  "falsePositives": [
+    "Asset inventory and configuration management agents that collect hardware and virtualisation details on a fixed schedule",
+    "Software installers that check for supported virtualisation features or for a virtual desktop session before continuing",
+    "Virtual desktop infrastructure support staff who run hardware queries while diagnosing a performance problem",
+    "Antivirus and endpoint agents performing their own environment validation at start up",
+    "Developer tooling such as container runtimes and hypervisor managers that enumerate virtualisation capabilities"
+  ],
+  "tuningNotes": "Inventory the signed parent processes that legitimately query hardware and virtualisation state, exclude them by signer and image path, and require at least three distinct artifact checks from one process tree inside a two minute window before alerting. Use your asset inventory to separate hosts that are genuinely virtual from physical endpoints, because checks that are normal on a virtual desktop are suspicious on a physical kiosk. Scope the highest severity to endpoints that handle sensitive data and to analysis systems. The coverage you lose by excluding inventory agents is malware that injects into one of them, so also monitor for those agents spawning child processes and for unsigned modules loaded inside them. Keep a low severity variant with no parent filter and review it weekly, because a slow attacker may perform one check per session.",
+  "severity": "medium"
+}

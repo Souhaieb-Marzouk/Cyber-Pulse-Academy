@@ -1,0 +1,108 @@
+{
+  "id": "det0225",
+  "type": "detection",
+  "title": "Detect unauthorized LSASS driver persistence via LSA plugin abuse (Windows)",
+  "shortTitle": "Detect unauthorized LSASS driver persistence via LSA plug...",
+  "externalId": "DET0225",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the Windows Local Security Authority plug-in mechanism, tracked as ATT&CK T1547.008, where an adversary registers a malicious DLL as an authentication or notification package so that LSASS loads it. That matters because a plug-in inside LSASS survives reboots, runs with the highest privilege on the host, and can capture credentials in cleartext at logon time, which makes it a durable persistence and credential access path rather than a one-off action. The telemetry that makes detection possible is registry monitoring of the LSA configuration keys (Sysmon event 13 or equivalent registry auditing), combined with module load events that show the DLL entering the lsass.exe address space and the process creation that placed the file on disk. The main way this fails in practice is that legitimate security or identity products install their own plug-ins through the same keys, so a rule without a baseline of approved package names and signers drowns in known-good software and analysts start ignoring it.",
+  "tags": [
+    "windows",
+    "persistence",
+    "lsass",
+    "registry",
+    "credential access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect unauthorized LSASS driver persistence via LSA plugin abuse (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0225/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect unauthorized LSASS driver persistence via LSA plugin abuse (Windows) - EASY",
+      "path": "exercises/det0225/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect unauthorized LSASS driver persistence via LSA plugin abuse (Windows) - MEDIUM",
+      "path": "exercises/det0225/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect unauthorized LSASS driver persistence via LSA plugin abuse (Windows) - HARD",
+      "path": "exercises/det0225/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect unauthorized LSASS driver persistence via LSA plugin abuse (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0225/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for a new security package being added to Windows. A security package is a small program file that Windows loads into the process that checks your password at logon. If an attacker adds one, it can read passwords as they are typed. The detection looks at the registry, which holds the list of packages. It also looks for the event that records a file loading into the logon process.",
+    "whyItMatters": "The logon process runs with very high trust on the computer. Anything running inside it can see password material before it is protected. A package added here also starts again after every restart, so the attacker keeps access. Normal antivirus tools often do not inspect this area closely. Catching the change early gives you time to remove the file before accounts are stolen.",
+    "howItWorks": [
+      "The endpoint agent records registry changes. A registry change means a setting in the Windows configuration database was edited.",
+      "The rule filters for the two registry paths that hold the list of security packages.",
+      "It checks whether the name written there is new, and not on your list of known good packages.",
+      "The agent also records when a library file loads into the logon process, called lsass.exe.",
+      "The rule raises an alert when a package is added and a matching file loads into that process.",
+      "You confirm by looking at who made the registry change and where the file came from."
+    ],
+    "example": "Think of a hospital sign in sheet at the theatre door. Only approved staff names belong on the list, and the door guard lets in anyone whose name is written down. An attacker does not need to sneak past the guard. They only add a name to the sheet, and the guard opens the door on their own.",
+    "takeaways": [
+      "Watch the list of security packages, because adding a name there gives code deep access.",
+      "A new package plus a library load into the logon process is a strong signal.",
+      "Baseline your approved packages first, or trusted software will flood the alerts."
+    ]
+  },
+  "objectives": [
+    "Explain how Windows security and authentication packages are loaded during logon",
+    "Identify the registry keys that define the LSA package list and their audit requirements",
+    "Correlate registry modification events with module load events for lsass.exe",
+    "Build a baseline of approved package names and code signing certificates",
+    "Distinguish a legitimate product installation from an adversary registered plug-in",
+    "Describe containment steps once an unauthorized package is confirmed"
+  ],
+  "techniqueId": "t1547-008",
+  "detectsTechniques": [
+    "t1547-008"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set covering the LSA configuration keys under CurrentControlSet\\Control\\Lsa",
+    "Windows Security registry auditing events for object access on the LSA configuration keys",
+    "Sysmon event 7 image load showing a DLL mapped into the lsass.exe process",
+    "Sysmon event 11 file create recording the DLL written before it is registered as a package",
+    "Sysmon event 1 process creation capturing the process that wrote the registry value and its command line"
+  ],
+  "logic": "The detection looks for a write to the LSA configuration registry area, specifically the keys that hold authentication and notification packages, where the value data names a DLL that is not on the approved list, and then correlates that write with the same DLL loading into lsass.exe within a short window. The fields that must line up are the registry path, the package name written, the file path of the DLL, the signed status and signer of that DLL, and the parent process responsible for the write. The benign case is a known product installing or updating its own package, which shows a stable vendor signer, a predictable file path under Program Files, and a matching software deployment change record, whereas the malicious case usually shows an unsigned or oddly signed DLL outside standard application directories, a short gap between file creation and the registry write, and a parent process that is a script host, an office document, or a service that should not touch security configuration.",
+  "pseudoQuery": "# title: LSA Authentication Package Registered for an Unsigned DLL\n# logsource:\n#   product: windows\n# detection:\n#   selection_registry:\n#     EventID: 13\n#     TargetObject|contains:\n#       - '\\Control\\Lsa\\Authentication Packages'\n#       - '\\Control\\Lsa\\Notification Packages'\n#   filter_known:\n#     Details|contains:\n#       - 'msv1_0'\n#       - 'msapsspc'\n#       - 'schannel'\n#       - 'negoexts'\n#   selection_load:\n#     EventID: 7\n#     Image|endswith: '\\lsass.exe'\n#     Signed: 'false'\n#   condition: selection_registry and not filter_known\n# level: critical",
+  "falsePositives": [
+    "Endpoint or single sign-on agents that register their own authentication package during a planned version upgrade",
+    "Password filter or smart card middleware installed on domain controllers by a maintenance window change",
+    "Third party credential providers bundled with a laptop image and registered on first boot",
+    "Backup or disaster recovery software that registers a notification package to capture logon details",
+    "Security research tooling installed in an isolated lab with no change record to match"
+  ],
+  "tuningNotes": "Build the approved package list before enabling the rule in production, by collecting every package name and DLL path currently registered on domain controllers and servers, then allow those by name and by the vendor certificate that signs them rather than by file path, since paths change between versions. Scope the registry branch of the rule to domain controllers and servers that actually authenticate users, and keep the more sensitive notification package key on all endpoints, because an obscure workstation is more likely to be the attacker host. If volume is still high, require the package write and the lsass module load to occur within the same few minutes instead of alerting on either alone. The coverage you lose by narrowing to a package allowlist is a genuinely novel plug-in that names itself after a legitimate package, so pair the rule with a file integrity check on the directory holding the approved DLLs.",
+  "severity": "critical"
+}

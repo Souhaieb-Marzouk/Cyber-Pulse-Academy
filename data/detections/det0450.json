@@ -1,0 +1,107 @@
+{
+  "id": "det0450",
+  "type": "detection",
+  "title": "Detection Strategy for Kernel Modules and Extensions Autostart Execution",
+  "shortTitle": "Detection Strategy for Kernel Modules and Extensions Auto...",
+  "externalId": "DET0450",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence in kernel space, where a driver, kernel module or system extension is registered so it loads at boot or at login and runs with the highest privilege on the host. Adversaries use this to survive reboots, to hide files and processes, or to disable security controls from below them. Detection depends on driver and service installation records, on the service manager log, on kernel module load records and on the startup configuration files that make a module load automatically, combined with signature information for the module file. The recurring problem is that hardware and security products install signed drivers as part of normal updates, so the rule must focus on unsigned or unexpectedly signed modules, on modules loaded outside maintenance windows and on modules whose file lives in a folder where drivers are never kept.",
+  "tags": [
+    "persistence",
+    "kernel module",
+    "boot autostart",
+    "driver installation",
+    "windows",
+    "t1547.006"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Kernel Modules and Extensions Autostart Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0450/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Kernel Modules and Extensions Autostart Execution - EASY",
+      "path": "exercises/det0450/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Kernel Modules and Extensions Autostart Execution - MEDIUM",
+      "path": "exercises/det0450/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Kernel Modules and Extensions Autostart Execution - HARD",
+      "path": "exercises/det0450/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Kernel Modules and Extensions Autostart Execution - EXTREMELY HARD",
+      "path": "exercises/det0450/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for software that loads deep inside the operating system core. That core is called the kernel. Such software starts with the computer and runs with the highest rights. Attackers use it to stay on a machine and to hide.",
+    "whyItMatters": "Code in the kernel can hide files, processes and network connections. It can also switch off other protections. This makes it one of the most serious forms of persistence. It is also hard to remove once it is running. Detecting the installation step is much easier than detecting the running module.",
+    "howItWorks": [
+      "The system records a new driver, service or kernel module being registered.",
+      "The rule reads the module file path, its signature status and the account involved.",
+      "It checks whether the file sits in a normal driver folder.",
+      "It compares the load time with your maintenance windows.",
+      "Unsigned or oddly located modules raise a high severity alert for review."
+    ],
+    "example": "Think of a building where only the facilities team may change the wiring. A new cable run is fine when the team books it. A cable added at the weekend by an unknown contractor has no paperwork. That cable is the one you inspect before power returns.",
+    "takeaways": [
+      "Kernel level code can hide almost anything.",
+      "The installation event is easier to catch than the running module.",
+      "Signature status and file location are your main filters."
+    ]
+  },
+  "objectives": [
+    "Describe how a kernel module or driver gets loaded at boot.",
+    "Read a driver or service installation record and identify the file and account.",
+    "Check module signature status and file location against an approved list.",
+    "Correlate a module load with the startup configuration file that enables it.",
+    "Explain the limits of user space tooling against kernel level code.",
+    "Define an escalation path that includes host isolation and memory capture."
+  ],
+  "techniqueId": "t1547-006",
+  "detectsTechniques": [
+    "t1547-006"
+  ],
+  "dataSources": [
+    "Windows Security event 4697 service installed with the service name, image path and account",
+    "Windows System log service control manager events recording a new kernel driver service and its start type",
+    "Sysmon event 6 driver loaded with the driver image path and signature status",
+    "File integrity monitoring records for changes to the kernel module configuration files under the load directories",
+    "Linux kernel log records of module load messages with the module name and the loading process"
+  ],
+  "logic": "The pattern is a driver or kernel module registration whose file path is outside the standard driver directories, whose signature is missing or from an unexpected publisher, or that occurs outside the change window for that host group. The fields to correlate are the service or module name, the file path, the start type, the signature status and publisher, the account that performed the installation and the process that wrote the file, together with any matching change to a module autostart configuration file. A benign case is a vendor update service installing a signed driver from a program directory during patching hours, while the malicious case drops an unsigned module into a temporary or public folder, registers it as a boot start driver and loads it immediately from a command line rather than through the service manager.",
+  "pseudoQuery": "# title: Unsigned Kernel Driver Registered For Boot Start\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: [6, 4697]\n#     StartType: 'boot'\n#     ImagePath|contains: ['\\\\Temp\\\\', '\\\\Users\\\\', '\\\\ProgramData\\\\']\n#   filter:\n#     SignatureStatus: 'Valid'\n#   condition: selection and not filter\n# level: critical",
+  "falsePositives": [
+    "Security products that install a signed filter driver from a program data folder during deployment.",
+    "Virtualisation and container platforms that load kernel modules as part of their installation.",
+    "Hardware management agents updated by a vendor tool on a schedule.",
+    "Test and lab systems where engineers load a self signed module on purpose."
+  ],
+  "tuningNotes": "Inventory the drivers and kernel modules on each host class first, including the file path, publisher and start type, so that your allow list is built from observed reality rather than from memory. Alert on any module that is unsigned, that lives outside the standard driver folders, or that is loaded outside the patch window, and rate boot start drivers more severely than on demand modules. Exclude test and lab networks from paging but keep them reporting. The coverage you lose by requiring a path outside the standard folder is a malicious module copied into a legitimate driver directory, so keep a separate rule that alerts on signature status changes alone, regardless of path.",
+  "severity": "critical"
+}

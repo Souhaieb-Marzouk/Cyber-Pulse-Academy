@@ -1,0 +1,109 @@
+{
+  "id": "det0004",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow using Path Interception by PATH Environment Variable.",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow using Path I...",
+  "externalId": "DET0004",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects execution flow hijacking through the PATH environment variable (T1574.007, Hijack Execution Flow: Path Interception by PATH Environment Variable). When a service or scheduled task launches an executable without a full path, the operating system searches a list of directories, and anything earlier in that list wins. Adversaries therefore place a same named file in a directory they can write to, or reorder the search path so their directory is checked first. Detection depends on comparing the search path captured at process start with a baseline, and on noticing that a resolved binary runs from a user writable location instead of a system one. The usual failure is that PATH values are noisy and differ per user session, so only the ordering and the writable directory matter.",
+  "tags": [
+    "privilege escalation",
+    "persistence",
+    "path hijack",
+    "t1574.007",
+    "endpoint",
+    "environment"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow using Path Interception by PATH Environment Variable.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0004/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Path Interception by PATH Environment Variable. - EASY",
+      "path": "exercises/det0004/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Path Interception by PATH Environment Variable. - MEDIUM",
+      "path": "exercises/det0004/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Path Interception by PATH Environment Variable. - HARD",
+      "path": "exercises/det0004/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using Path Interception by PATH Environment Variable. - EXTREMELY HARD",
+      "path": "exercises/det0004/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "The search path is a list of folders that the system checks when you run a program by name only. It checks the folders in order, and it uses the first match it finds. If an attacker can put a file with a common name into an early folder, that file runs instead of the real program. This detection looks for that setup.",
+    "whyItMatters": "The trick gives an attacker the same rights as the program that was launched. A service often runs as a powerful account, so a small file in the right folder can mean full control of the machine. It also survives as long as the path setting stays in place. Nothing looks broken, because the real program still exists and is still on disk. You only see the problem if you check which copy actually ran.",
+    "howItWorks": [
+      "When a process starts, the endpoint agent records the full image path and the environment of the parent process, including the search path.",
+      "The detection compares that search path with a stored baseline for the same host and account.",
+      "It also checks whether any folder listed before the system folders is writable by ordinary users.",
+      "It watches for new files appearing in those folders with names that match common system tools.",
+      "Any process that starts from that earlier folder raises a flag, and the alert shows the parent process that launched it.",
+      "Correlating the file write with the later process start turns two weak events into one strong finding."
+    ],
+    "example": "Think of a shared kitchen with labelled shelves. The recipe says take the first jar of salt on the shelf. If someone puts their own jar in front, every cook uses it without looking. The kitchen rules were followed. Only the shelf order changed.",
+    "takeaways": [
+      "The search path decides which copy of a program runs when no full path is given.",
+      "A writable folder early in that list is the weakness attackers need.",
+      "Pair a file write into a path folder with the process that then starts from it."
+    ]
+  },
+  "objectives": [
+    "Explain how the operating system resolves a program name using the search path.",
+    "Identify the endpoint fields that record process environment and full image path at start time.",
+    "Recognise why a user writable directory early in the search path is a security weakness.",
+    "Correlate a file creation in a path directory with a later process start from that directory.",
+    "Describe how services and scheduled tasks can be hijacked when they call a program without a full path.",
+    "Plan a baseline of expected search path values for servers and workstations."
+  ],
+  "techniqueId": "t1574-007",
+  "detectsTechniques": [
+    "t1574-007"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation recording Image, ParentImage, CommandLine and process environment variables",
+    "Sysmon event 11 file creation monitoring directories that appear early in the process search path",
+    "Windows Security event 4688 process creation with command line auditing and the parent process name",
+    "Scheduled task registration events and service installation events that launch a program without a full path",
+    "Linux audit records of execve calls with the resolved absolute path alongside the environment passed to the process"
+  ],
+  "logic": "The rule looks for a process that starts from a directory capable of intercepting a name, and for the modification that placed it there. The primary selection is a process start whose image path lies in a directory that ordinary users can write to, such as a temporary or user profile folder, while the process name matches a common system tool. Fields that must be correlated are the image path, the process name, the parent image, the command line, the account that owns the process, and the environment block from the parent. The malicious case is a file that did not exist earlier appearing in one of those directories, followed within minutes by a privileged service or scheduled task starting a process with that name, especially where the parent passes a partial path. The benign case is a developer or build agent deliberately running a tool from a project folder, which is why the process name match plus the privileged parent is what separates the two.",
+  "pseudoQuery": "# title: Process Started From Writable Search Path Directory\n# logsource:\n#   product: windows\n# detection:\n#   selection_proc:\n#     EventID: 1\n#     Image|contains:\n#       - '\\\\Temp\\\\'\n#       - '\\\\Users\\\\Public\\\\'\n#       - '\\\\ProgramData\\\\'\n#     Image|endswith:\n#       - '.exe'\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|endswith: '.exe'\n#   selection_parent:\n#     ParentImage|endswith:\n#       - '\\\\services.exe'\n#       - '\\\\svchost.exe'\n#   condition: selection_proc and (selection_write or selection_parent)\n# level: high",
+  "falsePositives": [
+    "Developer workstations and build agents that run compiler or test tools from a project directory",
+    "Software packaging tools that stage helper executables in a program data folder before running them",
+    "Remote management agents that drop an update binary into a temporary folder and then execute it",
+    "Installers that expand support utilities into a public folder during an upgrade",
+    "Users running portable versions of common tools from a download folder"
+  ],
+  "tuningNotes": "Build the baseline before enabling this: collect the process search path and environment from a representative set of servers and workstations per operating system version, and store the expected directory order per host role. Exclude developer and build subnets entirely, because running tools from writable directories is their normal behaviour. Restrict the high severity variant to processes whose parent is a service host or task scheduler, and keep a separate low severity rule for interactive sessions. Filter known update agents by signer rather than by filename, since attackers choose filenames that look legitimate. The coverage you lose by excluding developer subnets is a genuine compromise on a developer endpoint, so compensate with egress and credential theft detections on those hosts.",
+  "severity": "high"
+}

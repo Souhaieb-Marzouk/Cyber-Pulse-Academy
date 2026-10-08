@@ -1,0 +1,107 @@
+{
+  "id": "det0043",
+  "type": "detection",
+  "title": "Detection Strategy for System Location Discovery",
+  "shortTitle": "Detection Strategy for System Location Discovery",
+  "externalId": "DET0043",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1614, System Location Discovery, where an adversary enumerates the geographic and regional identity of a host before deciding how to act. Useful telemetry includes process creation with full command lines, Windows registry reads of the time zone and internationalization keys, and Windows Management Instrumentation queries for country and locale values. The pattern that matters is not a single field but a burst of location requests from one process or session, especially from scripting hosts on servers that rarely answer such questions. The common failure mode is volume: legitimate software asks the operating system about the time zone all day long, so a rule that fires on any location call will drown the queue and get disabled. Detection therefore depends on baselining which parent processes normally perform these lookups and scoring rarity and clustering rather than presence.",
+  "tags": [
+    "mitre t1614",
+    "discovery",
+    "windows",
+    "process creation",
+    "baselining"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for System Location Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0043/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for System Location Discovery - EASY",
+      "path": "exercises/det0043/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for System Location Discovery - MEDIUM",
+      "path": "exercises/det0043/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for System Location Discovery - HARD",
+      "path": "exercises/det0043/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for System Location Discovery - EXTREMELY HARD",
+      "path": "exercises/det0043/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for programs that ask a computer where it is in the world. It looks for requests about the time zone, the country, or the language settings. Security teams call this system location discovery. The detection catches this early step so analysts can react before an attack grows.",
+    "whyItMatters": "An attacker often checks the location of a machine first. The answer helps decide if the machine is worth attacking. It also helps the attacker guess whether a fake test network is in use. Your own staff and software do the same checks for normal reasons, so the signal is weak alone. That means you need context, not just a single event.",
+    "howItWorks": [
+      "A process creation event records the program name and the full command line that started it.",
+      "The rule scans those command lines for queries about time zone, locale, region, or country.",
+      "It notes which parent program launched the query, because that detail separates routine tools from odd ones.",
+      "It compares the query against a baseline of normal behaviour for that host and that user account.",
+      "Known setup helpers and clock services are filtered out so they do not raise alerts every day.",
+      "Several location checks from one session inside a short window raise the alert for a human to review."
+    ],
+    "example": "Think of a hotel night watchman who writes down each guest name, home country, and language. The front desk does this for every guest, so the list alone proves nothing. But a visitor at three in the morning breaks the pattern. This visitor reads the guest book three times and touches nothing else. The watchman becomes suspicious. Location discovery detection works the same way. One lookup is paperwork. Many lookups from one quiet source, at a strange hour, is worth a second look.",
+    "takeaways": [
+      "Location discovery is a preparation step, so it is most useful when paired with other strange behaviour.",
+      "Almost every normal program asks about the time zone, so rarity and clustering matter more than the request itself.",
+      "A match is a prompt to investigate, not proof that an attacker is present."
+    ]
+  },
+  "objectives": [
+    "Explain what system location discovery is and why it is an early stage of an intrusion.",
+    "Identify the process creation and registry telemetry that records location lookups on Windows.",
+    "Describe how to baseline normal callers of time zone and locale information on your estate.",
+    "Build a pseudo rule that scores rare callers instead of alerting on every lookup.",
+    "Recognise the false positive sources that make this detection noisy in practice.",
+    "Describe how to combine location discovery with sandbox evasion signals for higher confidence."
+  ],
+  "techniqueId": "t1614",
+  "detectsTechniques": [
+    "t1614"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line",
+    "Sysmon event 13 registry value set or query telemetry for the time zone and internationalization keys",
+    "Windows Management Instrumentation activity recorded by the endpoint agent when locale or country classes are queried",
+    "Windows Security event 4624 logon records used to correlate a location burst with a specific session"
+  ],
+  "logic": "The rule looks for a short burst of location requests from one process or one logon session, rather than a single request. It correlates the process image and command line from process creation telemetry, the parent image that launched it, the user session from logon records, and the registry paths that hold time zone and locale values. The malicious case is a scripting host or an unusual binary asking for country, locale, and time zone together on a server that almost never answers such questions. The benign case is a signed installer, the time service, or a language setup task asking the same questions from its normal install path. Rarity of the caller and clustering inside a short window are what separate the two.",
+  "pseudoQuery": "# title: Rare Process Performing System Location Discovery\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains: Get-WinSystemLocale, Get-TimeZone, tzutil, geoposition\n#   filter:\n#     ParentImage|endswith: \\svchost.exe, \\TiWorker.exe\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Endpoint management agents that report device locale and time zone during their daily inventory upload",
+    "Application installers that read the regional settings to choose a default language for a new install",
+    "Virtual desktop and remote access clients that resynchronise the client time zone with the host on each connection",
+    "Support scripts that collect time zone and language values when a user opens a service ticket about display settings"
+  ],
+  "tuningNotes": "Start by collecting two weeks of raw hits and grouping them by parent image, host role, and user, then allowlist the parent image and command line pairs that dominate the volume. Scope the rule to server subnets and administrative jump hosts first, because these answer location questions far less often than user laptops do. Keep a lower severity version of the rule estate wide so you still see anomalies outside that scope. Narrowing this way costs you visibility into genuine discovery on user workstations, where legitimate locale queries are common, so pair the narrowed rule with a count based threshold and revisit the allowlist every quarter.",
+  "severity": "medium"
+}

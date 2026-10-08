@@ -1,0 +1,107 @@
+{
+  "id": "det0829",
+  "type": "detection",
+  "title": "Detection of Serverless",
+  "shortTitle": "Detection of Serverless",
+  "externalId": "DET0829",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Serverless, the resource development technique in which an adversary buys or provisions serverless compute as infrastructure for later stages of an operation. It matters because serverless functions need no server to maintain, are cheap, and inherit the provider's reputation, so they make durable command and control, payload hosting, or credential harvesting endpoints. Detection relies on cloud control plane audit logs for function and container creation, IAM role and policy changes attached to those functions, and API gateway or function URL configuration events. The main failure in practice is that continuous integration and deployment pipelines create functions all day, so the signal is only useful when it is profiled per identity, per region, and per runtime.",
+  "tags": [
+    "resource development",
+    "mitre attack",
+    "cloud",
+    "serverless",
+    "audit log",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Serverless",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0829/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Serverless - EASY",
+      "path": "exercises/det0829/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Serverless - MEDIUM",
+      "path": "exercises/det0829/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Serverless - HARD",
+      "path": "exercises/det0829/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Serverless - EXTREMELY HARD",
+      "path": "exercises/det0829/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for new serverless functions and similar cloud code services. Serverless means you upload small pieces of code and the cloud provider runs them when needed. The detection looks for functions created outside the normal build process.",
+    "whyItMatters": "A serverless function is a small server that you do not have to manage. That makes it useful to an attacker who needs a stable place to send commands or host a fake login page. It is also cheap and quick to create. If nobody watches creation events, these functions can sit unnoticed for months. Monitoring creation keeps your cloud account from becoming someone else's free hosting.",
+    "howItWorks": [
+      "The cloud provider writes an audit record for every control plane action, such as creating a function.",
+      "A security information and event management system collects those records into one place.",
+      "The rule looks for function, container, and API gateway creation events in the audit stream.",
+      "It checks who made the request and whether that identity normally deploys code.",
+      "It also flags role changes that give the new function broad permissions.",
+      "Approved deployment service accounts are filtered, and the rest is sent for review."
+    ],
+    "example": "Picture a shared office kitchen. Anyone may use the microwave, and nobody questions it. But if a stranger walks in at midnight, plugs in a new appliance, and leaves it running, the building manager wants to know. The appliance is not a crime on its own. It is the fact that a new, unmanaged device now draws power and sits in the kitchen that matters.",
+    "takeaways": [
+      "Serverless resources are attractive attack infrastructure because they are cheap, quick, and provider hosted.",
+      "Creation events are rare enough in most accounts to be worth monitoring per identity.",
+      "The strongest signal is a function or role created by an identity that never deploys code."
+    ]
+  },
+  "objectives": [
+    "Define serverless compute and explain why adversaries use it as infrastructure",
+    "Locate the audit events that record function, container, and API gateway creation",
+    "Profile which identities and pipelines normally deploy serverless resources",
+    "Correlate a function creation event with the IAM role and permissions attached to it",
+    "Set severity based on whether the new resource can be reached from the internet"
+  ],
+  "techniqueId": "t1583-007",
+  "detectsTechniques": [
+    "t1583-007"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for Lambda function creation and function URL configuration",
+    "AWS CloudTrail IAM events for role creation and policy attachment tied to new compute resources",
+    "Azure Activity log entries for function app and container instance creation",
+    "Google Cloud Audit Logs for Cloud Functions deployment and service account binding",
+    "Cloud cost and usage reports showing new serverless spend from a previously inactive region"
+  ],
+  "logic": "The pattern is serverless control plane activity performed by an identity or from a region that does not match the normal deployment profile: function creation, function URL or API gateway exposure, and a role attachment that grants broad access, all clustered in a short window. The fields to correlate are the calling identity, the source internet address, the account and region, the runtime, and the permissions granted to the new resource. Benign cases come from build pipelines and infrastructure as code service accounts that deploy the same way repeatedly and keep permissions narrow. The malicious case usually involves a personal or newly created identity, an unused region, a runtime the organisation does not standardise on, and public exposure enabled immediately.",
+  "pseudoQuery": "# title: Serverless Function Created Outside Deployment Pipeline\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     eventName:\n#       - 'CreateFunction20150331'\n#       - 'PublishVersion'\n#       - 'CreateFunctionUrlConfig'\n#   filter:\n#     userIdentity.arn|contains: 'role/DeploymentPipeline'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Developers creating temporary function prototypes in a sandbox account for testing",
+    "Infrastructure as code pipelines that deploy functions under a rotating role name not yet allowlisted",
+    "Disaster recovery exercises that stand up function copies in a secondary region",
+    "Scheduled automation that recycles functions and recreates them with the same naming pattern"
+  ],
+  "tuningNotes": "Baseline function creation by calling identity, account, region, and runtime for at least thirty days, then allowlist approved pipeline roles explicitly instead of assuming every automated action is safe. Scope the alert to production accounts and treat sandbox accounts as hunt only. Add a condition on public exposure, such as a new function URL or API gateway stage, to raise severity without alerting on every deployment. Narrowing to production loses early warning of staging abuse in developer accounts, so keep the audit data retained and review it when an incident is suspected.",
+  "severity": "medium"
+}

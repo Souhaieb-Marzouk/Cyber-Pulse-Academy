@@ -1,0 +1,109 @@
+{
+  "id": "det0507",
+  "type": "detection",
+  "title": "Detect browser session hijacking via privilege, handle access, and remote thread into browsers",
+  "shortTitle": "Detect browser session hijacking via privilege, handle ac...",
+  "externalId": "DET0507",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers browser session hijacking, the technique tracked as T1185. A browser session is kept alive by cookies and tokens that live in browser memory and on disk, so an attacker who can reach those secrets takes over a logged in account without ever learning the password. The telemetry that makes this visible is process access reporting on the endpoint, where one process asks for rights over a browser process, handle requests to browser memory, remote thread creation inside a browser process, and network metadata that shows the same session being used from a different origin. In practice the strategy fails on volume rather than on coverage, because browsers constantly touch their own memory and duplicate their own handles, so any rule that does not baseline normal browser behaviour per build drowns the analyst in noise.",
+  "tags": [
+    "browser",
+    "credential access",
+    "t1185",
+    "process injection",
+    "session hijacking",
+    "endpoint"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect browser session hijacking via privilege, handle access, and remote thread into browsers",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0507/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect browser session hijacking via privilege, handle access, and remote thread into browsers - EASY",
+      "path": "exercises/det0507/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect browser session hijacking via privilege, handle access, and remote thread into browsers - MEDIUM",
+      "path": "exercises/det0507/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect browser session hijacking via privilege, handle access, and remote thread into browsers - HARD",
+      "path": "exercises/det0507/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect browser session hijacking via privilege, handle access, and remote thread into browsers - EXTREMELY HARD",
+      "path": "exercises/det0507/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for programs touching a web browser in a way that lets them steal a live login session. A session is the short lived pass a site gives you after you sign in. The rule watches for an unexpected program reading browser memory or starting a thread inside the browser. It catches account takeover that does not use a stolen password.",
+    "whyItMatters": "Attackers often skip passwords and steal the session itself, because a session is already trusted by the site. Multi factor authentication does not stop this, since the victim already passed it. The stolen session can be replayed from another machine until it expires. This makes the activity look like normal use, so it is easy to miss without memory and process telemetry.",
+    "howItWorks": [
+      "The endpoint agent records every process that starts, with its parent process and full command line.",
+      "A second data source records when one process opens another, and which access rights it requests.",
+      "The rule keeps only events where the target process is a known browser, such as Chrome or Edge.",
+      "It then checks the source process. A script host or an unsigned binary is suspicious.",
+      "Rights that allow memory reading or thread creation inside the browser push the score much higher.",
+      "If the same host then talks to a site the browser was logged into, the two signals become one alert."
+    ],
+    "example": "Imagine a gym locker room with an attendant. The attendant checks that you have a key before you open your locker. If someone borrows a key that is already inside, the attendant sees nothing wrong, because the key is real. This rule is the second attendant who also watches who is holding keys they never signed for.",
+    "takeaways": [
+      "A stolen session works without a password and without a second factor.",
+      "Browser memory and handle access are the quietest place to steal it.",
+      "You must baseline how browsers use memory or the alert volume will be unmanageable."
+    ]
+  },
+  "objectives": [
+    "Explain what a browser session is and why taking it over bypasses password and second factor controls.",
+    "Identify the telemetry that records one process opening another process and the rights it asked for.",
+    "Describe which access rights over a browser are normal for helper software and which are not.",
+    "Baseline browser process behaviour per browser version before enabling this rule in production.",
+    "Correlate endpoint process access events with network use of the same session on one host.",
+    "Write a response step that ends the stolen session rather than only resetting the password."
+  ],
+  "techniqueId": "t1185",
+  "detectsTechniques": [
+    "t1185"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, image path and command line",
+    "Sysmon event 10 process access showing SourceImage, TargetImage, GrantedAccess and CallTrace",
+    "Endpoint detection and response handle and remote thread telemetry for browser processes",
+    "Browser remote debugging and DevTools attachment records for Chrome and Edge",
+    "Proxy or firewall flow records showing the account session used from an unexpected source address"
+  ],
+  "logic": "The pattern is a process that is not the browser itself opening a browser process, asking for rights that allow reading its memory or starting a thread inside it, followed within a short window by outbound traffic to a site that session was authenticated to. The fields that must be correlated are SourceImage, TargetImage and GrantedAccess on the process access event, and the source host, destination host and account on the network side. The malicious case usually shows a source process in a temporary or user profile directory, an unsigned image, rights such as memory read plus thread creation, and a browser that is deliberately running without its usual sandbox hardening. The benign case is browser updates, accessibility helpers and endpoint security agents that read browser memory on a fixed schedule from a signed image in a program files directory.",
+  "pseudoQuery": "# title: Non Browser Process Accessing Browser Memory or Handle Rights\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 10\n#     TargetImage|endswith:\n#       - '\\chrome.exe'\n#       - '\\msedge.exe'\n#       - '\\firefox.exe'\n#     GrantedAccess|contains:\n#       - '0x1F0FFF'\n#       - '0x0008'\n#       - '0x0020'\n#   filter:\n#     SourceImage|endswith:\n#       - '\\chrome.exe'\n#       - '\\msedge.exe'\n#       - '\\firefox.exe'\n#       - '\\MsMpEng.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Endpoint security or antivirus agents that scan browser memory on a fixed schedule from a signed product directory",
+    "Browser updater services and crash reporter processes that briefly open the browser process during startup",
+    "Accessibility tools and screen readers that attach to the browser to read page content for the user",
+    "Internal application testing harnesses that drive a browser build under test from an engineering workstation",
+    "Password manager extensions that query browser internals through a documented supported interface"
+  ],
+  "tuningNotes": "Start by allow listing the exact image paths of your endpoint agent, browser updater and accessibility tooling, because these dominate the raw event volume. Scope the rule to browser processes only and require either an unsigned source image or a source image that lives outside the standard program directories. Baseline for at least two weeks to see which legitimate rights your browsers request on each build, and alert only when the granted rights include a memory write or remote thread creation. The coverage you lose is the attacker who uses a signed or allow listed tool to read browser memory, and the attacker who operates from a browser process that is already trusted on the host.",
+  "severity": "high"
+}

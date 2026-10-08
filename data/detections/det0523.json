@@ -1,0 +1,107 @@
+{
+  "id": "det0523",
+  "type": "detection",
+  "title": "Detect Code Signing Policy Modification (Windows & macOS)",
+  "shortTitle": "Detect Code Signing Policy Modification (Windows & macOS)",
+  "externalId": "DET0523",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers changes that weaken the trust rules for signed code on Windows and macOS, the behaviour behind code signing policy modification. If an attacker can loosen code integrity enforcement, they no longer need a valid signature to run a driver or a binary, so the technique is a stepping stone rather than the payload itself. Registry value set events for code integrity and software restriction policy keys, command lines that disable integrity checking, and macOS system policy or system integrity protection changes provide the evidence. The usual failure is alerting on every write under a broad policy path, because endpoint management tools and operating system upgrades rewrite the same keys during routine maintenance.",
+  "tags": [
+    "defense evasion",
+    "code signing",
+    "windows",
+    "macos",
+    "registry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Code Signing Policy Modification (Windows & macOS)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0523/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Code Signing Policy Modification (Windows & macOS) - EASY",
+      "path": "exercises/det0523/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Code Signing Policy Modification (Windows & macOS) - MEDIUM",
+      "path": "exercises/det0523/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Code Signing Policy Modification (Windows & macOS) - HARD",
+      "path": "exercises/det0523/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Code Signing Policy Modification (Windows & macOS) - EXTREMELY HARD",
+      "path": "exercises/det0523/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes that make an operating system trust unsigned or badly signed programs. Both Windows and macOS check a signature before running security sensitive code. An attacker who turns that check down can run their own program without a valid signature. The alert fires when those settings change outside an approved deployment.",
+    "whyItMatters": "Signature checks block a large amount of unwanted software. Servers and drivers rely on them most of all. When the rule that enforces them is weakened, an attacker gains an easy path. They can then run code that would normally be refused. The change itself is small and quiet, and it can look like a normal setting update. If nobody watches these settings, the weakening can sit in place for months.",
+    "howItWorks": [
+      "Agents record registry value changes. Each record holds the key path, the value name, the new data and the writing process.",
+      "On macOS, the same agents record process starts and the settings files that control which software may run.",
+      "The rule matches writes to the code integrity and software restriction policy keys, or command lines that disable integrity checking.",
+      "A second condition looks at the process behind the change. An approved management tool is expected, while a script host is not.",
+      "Matching events are enriched with the asset owner and the change window before they reach the analyst.",
+      "Analysts compare each alert against the approved deployment record for that asset group."
+    ],
+    "example": "Think of a night watchman who checks every visitor's identity card. Someone rewrites the rulebook so that only a quick glance is needed, and a fake card now passes. Nothing is stolen that night. The watchman still walks the same route and still checks cards. The change to the rulebook is the event worth catching, long before the visitor with the fake card arrives.",
+    "takeaways": [
+      "Weakening a signing policy is a quiet step that makes later unsigned code easy to run.",
+      "Watch both the setting change and the process that made it, because management tools also write these keys.",
+      "Compare every hit with the approved change records for that asset group."
+    ]
+  },
+  "objectives": [
+    "Explain how code signing policy enforcement blocks unsigned drivers and programs",
+    "Identify the registry keys and settings that control code integrity and software restriction policy on Windows",
+    "Describe the equivalent macOS settings and the tools that change them",
+    "Correlate a policy change with the process that made it and with the asset change record",
+    "Select filters that remove approved management activity without hiding manual changes",
+    "Choose a severity based on the impact of weakened code integrity, not on how easy the change is to detect"
+  ],
+  "techniqueId": "t1553-006",
+  "detectsTechniques": [
+    "t1553-006"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for code integrity and software restriction policy keys, with the modifying process",
+    "Windows Security event 4657 registry value modification including object name, value name and new value data",
+    "Process creation records for the boot configuration utility that changes integrity check settings, with full arguments",
+    "macOS unified log entries from the system policy command line tool and the system integrity protection utility",
+    "Endpoint management audit records showing approved policy deployment jobs and their target groups"
+  ],
+  "logic": "The pattern is a change to the rules that decide which signed code may run, made by something other than the change management system. Correlate the registry key path or macOS setting with the image, publisher and signature status of the process that wrote it, then compare the write time with approved deployment jobs for that asset group. The benign case is a signed management agent applying an approved configuration during a scheduled window, or an operating system update that resets a policy value. The malicious case is a script host, an unsigned binary or an interactive administrator session changing the same setting with no corresponding change record.",
+  "pseudoQuery": "# title: Code Signing Enforcement Policy Modified\n# logsource:\n#   product: windows\ndetection:\n  selection_reg:\n    EventID: 13\n    TargetObject|contains:\n      - '\\Policies\\Microsoft\\Windows\\Safer\\CodeIdentifiers'\n      - '\\Control\\CI\\Policy'\n  selection_cmd:\n    EventID: 1\n    CommandLine|contains:\n      - 'nointegritychecks'\n      - 'testsigning'\n  filter_mgmt:\n    Image|startswith: 'C:\\Program Files\\'\n  condition: (selection_reg or selection_cmd) and not filter_mgmt\nlevel: high",
+  "falsePositives": [
+    "Windows feature updates and driver installs that reset code integrity policy values during maintenance",
+    "Endpoint management agents that deploy a new application control policy from a signed package",
+    "Test and development images where test signing is intentionally left enabled by the build team",
+    "Security teams tightening code integrity settings as part of an approved hardening project"
+  ],
+  "tuningNotes": "Scope the registry condition to managed production asset groups and exclude your endpoint management servers by name. Ask desktop engineering for the format of their change records, then filter writes made by the approved deployment binary inside scheduled windows. On macOS, allow the mobile device management agent and filter manual use of the command line tools. Filtering too widely loses coverage of an attacker who copies the management agent name, so alert separately when that name is used from a path outside the managed folder.",
+  "severity": "high"
+}

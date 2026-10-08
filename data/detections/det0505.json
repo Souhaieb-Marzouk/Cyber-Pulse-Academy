@@ -1,0 +1,106 @@
+{
+  "id": "det0505",
+  "type": "detection",
+  "title": "Detection Strategy for Command Obfuscation",
+  "shortTitle": "Detection Strategy for Command Obfuscation",
+  "externalId": "DET0505",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects command line obfuscation, where an adversary rewrites a command so that both string matching and quick human review fail. Common shapes are encoded script blocks, characters inserted between letters, environment variable expansion, random case mixing and long runs of escape characters. The signal is statistical rather than exact: encoded argument flags, symbol density, string length and the difference between the written command and the command the interpreter finally runs. Telemetry comes from process creation with command lines, script block logging and shell history records. It fails in practice because packaging, monitoring and configuration tools legitimately generate complicated command lines that look scrambled to a scoring rule.",
+  "tags": [
+    "command obfuscation",
+    "powershell",
+    "script block logging",
+    "entropy",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Command Obfuscation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0505/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Command Obfuscation - EASY",
+      "path": "exercises/det0505/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Command Obfuscation - MEDIUM",
+      "path": "exercises/det0505/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Command Obfuscation - HARD",
+      "path": "exercises/det0505/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Command Obfuscation - EXTREMELY HARD",
+      "path": "exercises/det0505/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Command obfuscation means writing a command in a strange way so that its real meaning is hidden. The computer still understands it perfectly. This detection looks for commands that look scrambled rather than plain. The aim is to catch hidden instructions before they run.",
+    "whyItMatters": "Attackers know that defenders search logs for words such as download or encoded. A small change to the text breaks those searches completely. Obfuscation also hides the purpose from the analyst who reads the alert. Normal administrators almost never scramble a command, so the pattern is a strong signal of malicious intent.",
+    "howItWorks": [
+      "The operating system or the agent records the full command line of each new process.",
+      "The rule measures simple features, such as length, character variety and symbol counts.",
+      "It looks for known encoding flags and for long encoded blocks of text.",
+      "It compares the written command with the command the shell finally interprets.",
+      "A score above the threshold raises an alert with the decoded text when that is safe.",
+      "The analyst reads the decoded command and decides whether it is malicious."
+    ],
+    "example": "Think of a postcard that says see you at the station at six. Now imagine the sender replaces certain letters with symbols and adds a small key at the bottom of the card. The postman still delivers it without a second thought. The reader still understands it. Anyone glancing at it sees nonsense. This detection is the sorting office that stops and decodes odd looking postcards.",
+    "takeaways": [
+      "Obfuscated commands defeat word based searches, so measure the shape of the text.",
+      "Wrapping a command in quotes or using variables is common and often benign.",
+      "Always show the decoded command to the analyst, never only the score."
+    ]
+  },
+  "objectives": [
+    "Describe the common ways a command line can be obfuscated.",
+    "Name the telemetry that captures commands and script blocks.",
+    "Explain which simple features separate scrambled commands from merely long ones.",
+    "Decode an encoded command safely for analyst review.",
+    "Write a pseudo-rule that scores command line shape."
+  ],
+  "techniqueId": "t1027-010",
+  "detectsTechniques": [
+    "t1027-010"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with the full command line of the new process",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "PowerShell script block logging events recording the script text that actually executed",
+    "Linux process accounting and shell history records with the executed argument list",
+    "Endpoint detection agent records of decoded script content and interpreter arguments"
+  ],
+  "logic": "The pattern is a command line whose written form does not match its apparent purpose, shown by encoding flags, high symbol density, unusual case mixing or long encoded blocks, while the command that finally runs performs an ordinary action. Analysts correlate the process image and parent image from process creation records with the decoded script text from script block logging, and compare the two to see what the shell really executed. Benign cases come from software packaging, installer wrappers and configuration management tools, which produce long command lines from a known parent and a stable template. The malicious case shows a short parent such as an office document or a browser, an encoding flag, and a decoded command that contacts an external address or reads credential stores.",
+  "pseudoQuery": "# title: Heavily Obfuscated Command Line With Encoded Arguments\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - '-enc'\n#       - '-EncodedCommand'\n#       - 'FromBase64String'\n#   filter_admin:\n#     ParentImage|endswith:\n#       - '\\msiexec.exe'\n#       - '\\services.exe'\n#   condition: selection and not filter_admin\n# level: medium",
+  "falsePositives": [
+    "Software deployment tool that executes installers with encoded arguments from a management share",
+    "Backup or monitoring script that stores a long configuration blob inside its command line",
+    "Developer running a generated command from a build script that contains many escaped characters",
+    "Endpoint management platform sending a base64 encoded instruction file to a managed agent"
+  ],
+  "tuningNotes": "Decode a sample of alerts first, then allow list the parent process and template combinations that your deployment and monitoring tools use, rather than the encoded strings themselves, because those strings change with every release. Scope the rule to user endpoints and to servers that do not run automation, and keep a separate higher severity rule for encoded commands that also make a network connection. Raise the score threshold if your environment relies heavily on automation. Tightening the rule this way removes most benign hits, but a determined attacker can obfuscate lightly and stay below your threshold.",
+  "severity": "medium"
+}

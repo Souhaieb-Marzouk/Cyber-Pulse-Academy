@@ -1,0 +1,105 @@
+{
+  "id": "det0537",
+  "type": "detection",
+  "title": "Behavioral detection for Supply Chain Compromise (package/update tamper → install → first-run)",
+  "shortTitle": "Behavioral detection for Supply Chain Compromise (package...",
+  "externalId": "DET0537",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy follows the three stage shape of a software supply chain compromise, matching technique T1195: a trusted package or update is tampered with, the tampered artefact is installed by the normal mechanism, and something new runs for the first time on the endpoint. It matters because the installer is signed and expected, so reputation checks and user awareness both fail. The telemetry that makes it possible is file integrity monitoring over package caches and update staging directories, package manager and installer process creation records, and first run execution data correlated with the hash of the installed artefact. It fails in practice because software deployment is constant and legitimate, so the rule must lean on the correlation between a changed file hash and a first run child process rather than on any single installation event.",
+  "tags": [
+    "supply chain",
+    "software update",
+    "file integrity",
+    "t1195",
+    "first run"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral detection for Supply Chain Compromise (package/update tamper → install → first-run)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0537/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral detection for Supply Chain Compromise (package/update tamper → install → first-run) - EASY",
+      "path": "exercises/det0537/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral detection for Supply Chain Compromise (package/update tamper → install → first-run) - MEDIUM",
+      "path": "exercises/det0537/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral detection for Supply Chain Compromise (package/update tamper → install → first-run) - HARD",
+      "path": "exercises/det0537/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral detection for Supply Chain Compromise (package/update tamper → install → first-run) - EXTREMELY HARD",
+      "path": "exercises/det0537/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for tampering with software you already trust. It watches for a package or update file that changes, then gets installed, then starts something new. That chain is how a supply chain attack hides.",
+    "whyItMatters": "You install updates to stay safe, so you allow them to run without much thought. If an attacker changes an update before you receive it, your own installer becomes the delivery method. Nothing looks strange at the door, because the package carries the usual signature and the usual name.",
+    "howItWorks": [
+      "A file monitoring agent records the hash of every package and update file in the staging folders.",
+      "When a hash changes, the agent reports the file path, the old hash, the new hash and the change time.",
+      "The endpoint records the install process, its parent process and the full command line that ran.",
+      "The endpoint also records the first child process that the newly installed software starts.",
+      "The platform joins these three records by host and time window into one chain.",
+      "A chain that shows a hash change, an install and an unexpected first run becomes one alert."
+    ],
+    "example": "Think of a parcel delivery office. Every parcel is weighed and logged, and the driver trusts the label. If someone swaps the contents after the weighing but before the van leaves, the label still looks right. The only clue is that the parcel weight no longer matches the note. A changed package hash is that missing weight.",
+    "takeaways": [
+      "A trusted signature proves who built a package, not what it contains now.",
+      "Join the file change, the install and the first run together before you decide.",
+      "A hash that changes outside a release window is the strongest single clue."
+    ]
+  },
+  "objectives": [
+    "Explain how a software supply chain compromise uses trusted installers and update channels",
+    "Identify the file integrity, process creation and first run telemetry needed to reconstruct an install chain",
+    "Correlate a changed package hash with the installation event and the child process that follows",
+    "Distinguish an expected software release from a tampered artefact using hash baselines and release windows",
+    "Write a detection rule for the install and first run sequence and tune it against your deployment tooling"
+  ],
+  "techniqueId": "t1195",
+  "detectsTechniques": [
+    "t1195"
+  ],
+  "dataSources": [
+    "File integrity monitoring events for package caches, update staging directories and installer directories including before and after hashes",
+    "Process creation records for package manager and installer binaries with parent process and full command line",
+    "Endpoint execution records of the first child process started by a newly installed binary",
+    "Vulnerability and software inventory records that map installed versions and release windows for each host"
+  ],
+  "logic": "The pattern is a short sequence on one host: a file in a package or update staging path changes hash, then an installer or package manager process runs against that file, then a binary from the same directory tree starts for the first time. The fields that must be correlated are the host, the file path, the hash before and after the change, the installer command line, the resulting child process image, and the time gap between each step. The benign case is a published release where the new hash matches the vendor checksum and the install happens inside a deployment window; the malicious case shows a hash that does not match the vendor record, an install that runs outside the deployment window, or a first run child process that does not belong to the package.",
+  "pseudoQuery": "# title: Tampered package installed followed by unexpected first run\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_hash_change:\n#     EventID: 2\n#     TargetFilename|contains: [staging, cache, update]\n#   selection_install:\n#     EventID: 1\n#     Image|endswith: [msiexec.exe, setup.exe, dpkg, rpm]\n#   selection_first_run:\n#     EventID: 1\n#     Image|startswith: staging\n#     ParentImage|endswith: [services.exe, explorer.exe]\n#   condition: selection_hash_change and selection_install and selection_first_run\n# level: high",
+  "falsePositives": [
+    "Software deployment tooling that refreshes a local package cache and reinstalls the same application version during a maintenance window",
+    "Endpoint management agents that update themselves in place and restart a helper process from the staging directory",
+    "Developer workstations where build scripts regenerate installer artefacts locally and then run them for testing",
+    "Antivirus or backup products that unpack a signed update blob into a cache folder and execute a first run component"
+  ],
+  "tuningNotes": "Begin by recording the vendor published checksum for every package your deployment tooling distributes, then allow list only installs whose after hash matches that record, which removes almost all legitimate noise while keeping tampered artefacts in scope. Scope the rule to servers and managed workstations rather than developer machines, where local builds look identical to the malicious pattern. Baseline the child processes each package normally starts so you can filter known first run helpers by name. You lose some early warning by allow listing on the vendor hash, because a tampered package that reuses an old published hash would pass, so also alert separately when a package file changes outside any scheduled deployment window.",
+  "severity": "high"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0530",
+  "type": "detection",
+  "title": "Multi-Event Detection for SMB Admin Share Lateral Movement",
+  "shortTitle": "Multi-Event Detection for SMB Admin Share Lateral Movement",
+  "externalId": "DET0530",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy follows lateral movement over server message block administrative shares by joining several events into one story. A single share access event is weak evidence, but a remote logon, a write to an administrative share, named pipe activity, and a new service or scheduled task on the target host within a few minutes describe a complete remote execution chain. Security log entries for network logon and share access, service installation records, and named pipe events on the destination provide the evidence. The rule fails when it alerts on administrative share access alone, because backup, inventory and monitoring tools touch these shares constantly, so the strongest signal is the service or task that appears after the write.",
+  "tags": [
+    "lateral movement",
+    "windows",
+    "smb",
+    "active directory",
+    "network share"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Multi-Event Detection for SMB Admin Share Lateral Movement",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0530/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Multi-Event Detection for SMB Admin Share Lateral Movement - EASY",
+      "path": "exercises/det0530/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Multi-Event Detection for SMB Admin Share Lateral Movement - MEDIUM",
+      "path": "exercises/det0530/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Multi-Event Detection for SMB Admin Share Lateral Movement - HARD",
+      "path": "exercises/det0530/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Multi-Event Detection for SMB Admin Share Lateral Movement - EXTREMELY HARD",
+      "path": "exercises/det0530/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for an attacker who moves from one computer to another using hidden administrative shares. These shares are named with a dollar sign and are used by administrators and by tools. The alert fires when a remote connection to such a share comes first. A new service or task on the target machine must follow it.",
+    "whyItMatters": "After taking one machine, attackers want more, especially servers with valuable data. They often copy a tool to a hidden share and start it as a service. A service runs with high rights and survives a reboot. Each single event looks like normal administration, so only the order of events tells the story. Joining the events lets you see the chain and stop it before it reaches your most important systems.",
+    "howItWorks": [
+      "The collector gathers network logon events, share access events and service installation records from every Windows machine.",
+      "The rule looks for a successful network logon followed by access to an administrative share from the same account.",
+      "It then waits a short time, such as five minutes. Within that time a service installation or task must appear on the same target machine.",
+      "Named pipe events are added when available, because remote service creation usually opens a named pipe first.",
+      "The rule checks the source of the write and the source of the service installation. Both must be the same address and account.",
+      "When all steps appear, one alert lists the source, the target, the account and the new service name."
+    ],
+    "example": "Think of a hotel where each floor has a staff cupboard. Staff take things from the cupboard all day, so that alone means nothing. But a guest badge opens a cupboard and takes out a tool. Five minutes later a new door appears on that floor. The whole sequence is what tells the story. One action is normal. The chain is not.",
+    "takeaways": [
+      "Administrative share access is normal, so the alert must join it with what happens next.",
+      "Source address, account, target host and timing are the fields that turn separate events into one chain.",
+      "A new service on the target host right after a remote write is the strongest single clue."
+    ]
+  },
+  "objectives": [
+    "Explain how administrative shares are used for remote execution during lateral movement",
+    "Identify the logon, share access and service installation fields needed to join the chain",
+    "Choose a correlation window that links the write to the service without merging unrelated activity",
+    "Describe the role of named pipe events in remote service creation",
+    "Separate approved deployment and backup activity from unapproved share writes",
+    "Explain how to read a joined alert and decide the containment action for the target host"
+  ],
+  "techniqueId": "t1021-002",
+  "detectsTechniques": [
+    "t1021-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4624 logon with logon type 3 and the source network address field",
+    "Windows Security event 5140 network share object access with the share name and the accessing account",
+    "Windows Security event 5145 detailed file share access showing the file path written through an administrative share",
+    "Service installation records such as the system log entry that names a newly installed service and its image path",
+    "Sysmon event 17 and event 18 named pipe created and named pipe connected, with the owning process"
+  ],
+  "logic": "The pattern is a remote write to an administrative share followed quickly by new executable code on the target host. Correlate the network logon, the share access and the file write by source address, account and target host, then join a service installation or scheduled task creation on the same host inside the window. The benign case is a deployment or backup product that copies a package to an administrative share and registers its own service from a known management server. The malicious case is a source host that is not a management server, a write into the administrative share root rather than a software distribution folder, and a service whose image path points at a temporary directory.",
+  "pseudoQuery": "# title: Admin Share Write Followed By Service Installation\n# logsource:\n#   product: windows\ndetection:\n  selection_share:\n    EventID: 5145\n    ShareName|endswith:\n      - '\\ADMIN$'\n      - '\\C$'\n  selection_service:\n    EventID: 7045\n  filter_mgmt:\n    IpAddress: '10[.]0[.]0[.]25'\n  condition: selection_share and selection_service and not filter_mgmt\nlevel: high",
+  "falsePositives": [
+    "Software deployment and patch tools that copy installers to administrative shares and register a service",
+    "Backup agents that write to administrative shares and restart their own service on the target",
+    "Administrators using remote management tools to push a legitimate agent to a new server",
+    "Monitoring platforms that deploy a collector service to newly discovered hosts from a management server"
+  ],
+  "tuningNotes": "Allow the management servers, deployment accounts and backup service accounts that legitimately use administrative shares, and require the write and the service creation to share a source address and a short window. Scope the rule to servers and to accounts that do not normally touch administrative shares across hosts. Baseline which services appear during your normal deployment windows so known change activity can be filtered. Filtering by source host removes noise but also hides an attacker working from a compromised jump server, so keep a lower severity alert for administrative share writes that match no scheduled deployment.",
+  "severity": "high"
+}

@@ -1,0 +1,105 @@
+{
+  "id": "det0371",
+  "type": "detection",
+  "title": "Detection Strategy for Debugger Evasion (T1622)",
+  "shortTitle": "Detection Strategy for Debugger Evasion (T1622)",
+  "externalId": "DET0371",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects debugger evasion, where an adversary checks whether their code is being analysed and then changes behaviour to avoid observation. The observable signs are not the technique itself but its side effects: process creation showing debugging interfaces or profiling tools attached to a target, calls to debugger detection functions in a loaded module, unusually long pauses or fork storms at start up, and abrupt process exits immediately after a debug object is created. Telemetry comes from endpoint process and image load events, kernel or user mode hook telemetry, and script block logging for interpreted code. The technique fails to detect in practice because evasion is quiet by design and many developer and reliability tools create the same signals, so rule precision depends on scoping to hosts that should never run a debugger.",
+  "tags": [
+    "defense evasion",
+    "debugger",
+    "endpoint",
+    "windows",
+    "sandbox"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Debugger Evasion (T1622)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0371/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Debugger Evasion (T1622) - EASY",
+      "path": "exercises/det0371/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Debugger Evasion (T1622) - MEDIUM",
+      "path": "exercises/det0371/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Debugger Evasion (T1622) - HARD",
+      "path": "exercises/det0371/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Debugger Evasion (T1622) - EXTREMELY HARD",
+      "path": "exercises/det0371/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Some programs check whether a person is watching them with a tool called a debugger, which lets an analyst stop the program and look inside it. If the program finds a debugger, it hides or stops. This detection looks for those checks and for debuggers being attached where they should not be.",
+    "whyItMatters": "Analysts need to watch a program run in order to understand it. If the program can tell it is being watched, it can stay silent while you look, and your analysis report will be wrong. This also hides malicious behaviour from automated sandboxes. Spotting the check tells you the sample is hostile even when it does nothing.",
+    "howItWorks": [
+      "Collect process creation events and image load events from endpoints, including the parent process.",
+      "Collect script block logging events for interpreted code that calls debugging interfaces.",
+      "Look for a debugging interface being created for a process that is not a known development tool.",
+      "Look for immediate process exit right after such a debugging interface appears.",
+      "Compare the host role against a list of hosts where debuggers are allowed to run.",
+      "Alert with the target process, the parent, the account, and the module that was loaded."
+    ],
+    "example": "Imagine a burglar who listens at the door before entering. If the house is quiet, he goes in. If he hears the radio of a guard, he walks away. A debugger check is that listening step. The detection is the guard noting that someone paused at the door and left.",
+    "takeaways": [
+      "Debugger evasion shows up as behaviour around the check, not as a single file name.",
+      "Hosts that should never run a debugger give you the cleanest rule.",
+      "A process that quits the moment it is attached is a strong sign of deliberate evasion."
+    ]
+  },
+  "objectives": [
+    "Explain what a debugger is and why malicious code tries to detect one.",
+    "Name at least three observable side effects of a debugger check on an endpoint.",
+    "Build a rule that uses host role to reduce noise from developer workstations.",
+    "Correlate a debugging interface creation with the exit of the target process.",
+    "Describe how debugger evasion limits the value of dynamic analysis in a sandbox."
+  ],
+  "techniqueId": "t1622",
+  "detectsTechniques": [
+    "t1622"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, command line and integrity level",
+    "Sysmon event 7 image load events showing debugging related libraries loaded into a process",
+    "Windows Security event 4688 process creation with command line auditing and parent process name",
+    "PowerShell script block logging events recording calls to debugging interfaces from interpreted scripts",
+    "Endpoint agent telemetry for debugging object creation and for process termination codes on protected hosts"
+  ],
+  "logic": "The pattern is a process creating a debugging relationship with another process, or loading debugger detection libraries, on a host where neither is expected. The sources are process creation for the tool and its parent, image load for the library that enables the check, and script block logging for interpreted calls. The correlated fields are the host, the target process, the parent process, the account and the loaded module path. What separates malicious from benign is host role and context: a debugging interface on a developer workstation is routine, while one created against a database or domain service process by an unexpected parent, followed by an immediate exit, is not.",
+  "pseudoQuery": "# title: Debugging Interface Attached to a Server Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'IsDebuggerPresent'\n#       - 'CheckRemoteDebuggerPresent'\n#       - 'OutputDebugString'\n#   selection_attach:\n#     EventType: 'DebugObjectCreated'\n#   filter_dev:\n#     Image|endswith:\n#       - '\\devenv.exe'\n#       - '\\windbg.exe'\n#   condition: (selection or selection_attach) and not filter_dev\n# level: medium",
+  "falsePositives": [
+    "Crash reporting and error tracking libraries that query debugger state as part of their normal start up sequence",
+    "Software developers or support engineers attaching a debugger to a service on a shared test server",
+    "Licence protection and anti tamper code inside commercial applications that refuses to run under analysis"
+  ],
+  "tuningNotes": "Scope the rule to production servers and to managed endpoints that have no development role, and allow list the specific debugging tools your support teams are permitted to use. Baseline which applications in your estate load debugging libraries during normal start up, because several crash handlers do. Narrowing by host role costs you coverage on developer endpoints and on jump hosts used by engineers, so keep a lower severity copy of the rule for those groups and review them during business hours instead of alerting around the clock.",
+  "severity": "medium"
+}

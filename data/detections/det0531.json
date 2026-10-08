@@ -1,0 +1,107 @@
+{
+  "id": "det0531",
+  "type": "detection",
+  "title": "Detection Strategy for Additional Cloud Credentials in IaaS/IdP/SaaS",
+  "shortTitle": "Detection Strategy for Additional Cloud Credentials in Ia...",
+  "externalId": "DET0531",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the creation of extra credentials for an existing cloud or directory identity, the behaviour behind additional cloud credentials. An attacker who already has a foothold adds an access key, an application secret or a login profile so that access survives a password reset and looks like a legitimate application integration. Cloud provider audit records for identity and access management changes, identity provider audit events for application credential updates, and directory service account changes supply the evidence. The rule fails when it alerts on every credential creation, because automation accounts, build pipelines and onboarding workflows create credentials constantly, so the actor, the target and the timing must be correlated before alerting.",
+  "tags": [
+    "persistence",
+    "cloud",
+    "identity",
+    "iam",
+    "audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Additional Cloud Credentials in IaaS/IdP/SaaS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0531/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Additional Cloud Credentials in IaaS/IdP/SaaS - EASY",
+      "path": "exercises/det0531/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Additional Cloud Credentials in IaaS/IdP/SaaS - MEDIUM",
+      "path": "exercises/det0531/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Additional Cloud Credentials in IaaS/IdP/SaaS - HARD",
+      "path": "exercises/det0531/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Additional Cloud Credentials in IaaS/IdP/SaaS - EXTREMELY HARD",
+      "path": "exercises/det0531/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new passwords, keys or secrets added to an existing account in a cloud service. Attackers do this so they can return later, even if the first password is changed. The alert fires when a key or secret is created for an account that does not usually need one. It also fires when the creator is not an approved automation tool.",
+    "whyItMatters": "Losing a password is annoying for an attacker. A secret key that nobody knows about can keep them inside for months. Extra credentials often look like normal application setup, so they pass a quick review. If you remove only the first account, the added key still works. Watch who creates credentials, and for which identity. That is one of the few ways to break the chain early.",
+    "howItWorks": [
+      "Cloud audit records capture every identity change, including who made it, from where, and which identity was changed.",
+      "The rule keeps the operations that create or update long lived credentials. Examples are access keys, login profiles and application secrets.",
+      "It removes events caused by known automation roles, deployment pipelines and single sign-on provisioning connectors.",
+      "The remaining events are scored by how rarely that actor performs the operation and how privileged the target identity is.",
+      "The rule also checks the source address, because a first time creation from a new address is more interesting.",
+      "High scoring events raise an alert naming the target identity, the new credential and the source address."
+    ],
+    "example": "Think of an office where each worker has a locker key. Someone copies a key for an empty locker that nobody checks, and keeps it. The supervisor later changes the worker's own key, but the copy still opens the locker. The detection is not about the copied key being used. It is about the moment a second key was cut for that locker.",
+    "takeaways": [
+      "Extra credentials survive password resets, so removing the first account is not enough.",
+      "Automation roles create credentials every day, so the actor and the target identity must be correlated.",
+      "Track both the target identity and the source address to spot an unusual creation."
+    ]
+  },
+  "objectives": [
+    "Explain how added cloud credentials give an attacker persistence that survives a password reset",
+    "Identify the audit operations that create long lived credentials in a cloud provider control plane",
+    "Describe the equivalent events in a directory service, such as a new account or a new group member",
+    "Correlate the actor, the target identity, the operation and the source address in one rule",
+    "Build an allow list of automation roles and expected creation schedules",
+    "Explain why a credential created shortly after an unusual logon deserves priority triage"
+  ],
+  "techniqueId": "t1098-001",
+  "detectsTechniques": [
+    "t1098-001"
+  ],
+  "dataSources": [
+    "Cloud provider audit trail records for identity and access management calls that create access keys or login profiles",
+    "Identity provider audit events for application or service principal credential additions, with actor and target fields",
+    "Windows Security event 4720 user account created and event 4728 member added to a security enabled global group",
+    "Cloud platform audit logs for service account key creation in the infrastructure as a service control plane",
+    "Privileged access management records showing approved just in time credential issuance requests"
+  ],
+  "logic": "The pattern is a long lived credential created for an identity that did not previously have one, by an actor that does not normally perform that operation. Correlate the audit event name, the actor identity and role, the target identity, the requested credential lifetime and the source address. The benign case is an automation role rotating keys on a schedule, an onboarding workflow creating a first login, or a team adding a secret during a planned integration release. The malicious case is a human identity or a newly assumed role creating a key for a privileged account, outside a change window, from an address that has never been used by that actor.",
+  "pseudoQuery": "# title: Long Lived Cloud Credential Created Outside Automation\n# logsource:\n#   product: aws\ndetection:\n  selection:\n    eventSource: 'iam.amazonaws.com'\n    eventName:\n      - 'CreateAccessKey'\n      - 'CreateLoginProfile'\n      - 'UpdateLoginProfile'\n      - 'CreateServiceSpecificCredential'\n  filter_automation:\n    userIdentityArn|contains:\n      - 'role/Automation'\n      - 'role/Provisioning'\n  condition: selection and not filter_automation\nlevel: high",
+  "falsePositives": [
+    "Automation roles that rotate or create service credentials on a fixed schedule",
+    "Onboarding workflows that create a login profile for each new employee",
+    "Application teams adding a service principal secret during a planned integration release",
+    "Break glass procedures where an administrator creates a temporary key during an approved incident"
+  ],
+  "tuningNotes": "Build a list of the roles and service accounts that create credentials in your environment, then allow them by principal and expected schedule. Keep the alert for human identities and for roles that have never performed the operation before, and add a correlation rule for a key created shortly after a logon from a new address. Correlate the actor, the target identity and the source address rather than matching the operation alone. Removing automation principal noise reduces coverage of an attacker who steals an automation role, so alert when such a role is used from an address outside your build network.",
+  "severity": "high"
+}

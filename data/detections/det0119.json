@@ -1,0 +1,105 @@
+{
+  "id": "det0119",
+  "type": "detection",
+  "title": "Detection Strategy for Steganographic Abuse in File & Script Execution",
+  "shortTitle": "Detection Strategy for Steganographic Abuse in File & Scr...",
+  "externalId": "DET0119",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the use of steganography to hide payloads or stolen data inside ordinary looking files. The technique matters because a carrier image or document passes file type checks and content filters that would stop an executable, and the hidden content only appears when a specific tool or key extracts it. Detection depends on file creation telemetry such as Sysmon event 11, process creation that shows a tool loading and rewriting a media file, and command lines containing least significant bit or carrier file options. It fails in practice because steganography at low volume produces almost no unique events, so the rule leans on the combination of a recent decode or encode tool run, a media file written outside normal application paths, and a script that reads the file immediately afterwards.",
+  "tags": [
+    "defense evasion",
+    "steganography",
+    "file creation",
+    "process creation",
+    "data hiding"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Steganographic Abuse in File & Script Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0119/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Steganographic Abuse in File & Script Execution - EASY",
+      "path": "exercises/det0119/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Steganographic Abuse in File & Script Execution - MEDIUM",
+      "path": "exercises/det0119/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Steganographic Abuse in File & Script Execution - HARD",
+      "path": "exercises/det0119/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Steganographic Abuse in File & Script Execution - EXTREMELY HARD",
+      "path": "exercises/det0119/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for files that carry hidden content inside them. Steganography is the practice of hiding a message inside a normal file. A picture can look unchanged while it carries a hidden payload. The rule watches how such files are written and then used.",
+    "whyItMatters": "An attacker can move data past your defences inside a picture. Your tools see a normal image and allow it. The hidden part only appears when a special tool reads it. If you only scan file types, you will miss it.",
+    "howItWorks": [
+      "The rule watches for new files created on disk, with their name and location.",
+      "It keeps files whose name suggests a carrier, such as common image formats.",
+      "It looks for a process that reads and rewrites the file, which is how hiding works.",
+      "It compares the file size with what the file extension normally expects.",
+      "It looks for a second process that opens the file within a short time.",
+      "A rewrite tool, an odd path and a quick follow up reader together raise an alert."
+    ],
+    "example": "Think of a sealed envelope delivered through normal post. The paper inside is a birthday card, but a message is written in lemon juice between the lines. The post room checks the envelope and the paper type and lets it through. Only someone who knows to heat the paper sees the message.",
+    "takeaways": [
+      "Hidden data survives when you only check file types.",
+      "Watch the tool that rewrites the file, not just the file.",
+      "A file written in an odd folder and read straight away is suspicious."
+    ]
+  },
+  "objectives": [
+    "Explain how data can be hidden inside ordinary media files",
+    "Select file creation and process creation telemetry that reveals hiding activity",
+    "Recognise command line indicators of encoding and carrier file handling",
+    "Correlate a rewritten media file with the process that reads it next",
+    "Escalate an alert by isolating and preserving the carrier file"
+  ],
+  "techniqueId": "t1027-003",
+  "detectsTechniques": [
+    "t1027-003"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation including target file name and the creating process",
+    "Sysmon event 1 process creation with full command line for image and media processing utilities",
+    "Windows Security event 4688 process creation with command line auditing for script interpreters",
+    "Linux auditd execve records showing a media tool invoked with a carrier file argument"
+  ],
+  "logic": "The detection connects a file write to the process that produced it and to the process that consumes it. Fields that must align are the target file name and extension, the image of the writing process, the command line arguments, the parent process, and the time between the write and the next read of that file. Suspicion comes from the combination of a media file written into a user or temporary directory where no application would store it, a process image that is a generic toolkit or script interpreter rather than an image editor, and a second process opening the same file seconds later. The benign case is a photo application or a build pipeline handling media with a consistent parent and predictable paths, while the malicious case is a command line that names a carrier file next to an output file in a script driven sequence.",
+  "pseudoQuery": "# title: Media file rewritten by script or toolkit process\n# logsource:\n#   product: windows\n#   category: file_event\n# detection:\n#   selection:\n#     TargetFilename|endswith:\n#       - '.png'\n#       - '.jpg'\n#       - '.bmp'\n#       - '.wav'\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\python.exe'\n#       - '\\\\certutil.exe'\n#   filter:\n#     TargetFilename|startswith: 'C:\\\\Users\\\\Public\\\\Pictures\\\\'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Image processing pipelines that batch resize and rewrite thousands of media files",
+    "Security tooling that embeds watermarks or metadata into documents during export",
+    "Digital forensics work that extracts hidden content from a sample under investigation",
+    "Publishing workflows that convert and recompress media before uploading to a content system"
+  ],
+  "tuningNotes": "Begin by listing the folders and process images where media rewriting is normal, for example a content pipeline or an accessibility converter, and filter those combinations rather than the file extension alone. Keep the rule focused on script interpreters and generic toolkits, and require that the same host also shows a read of the file within a short window. On servers, restrict to paths outside the application data directories. The coverage you lose is steganography performed by a compiled tool with an innocuous name, so keep the file size anomaly check and combine this rule with egress monitoring for unusually large media transfers.",
+  "severity": "medium"
+}

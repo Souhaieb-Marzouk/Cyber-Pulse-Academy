@@ -1,0 +1,107 @@
+{
+  "id": "det0888",
+  "type": "detection",
+  "title": "Detection of Software",
+  "shortTitle": "Detection of Software",
+  "externalId": "DET0888",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects software and version fingerprinting against your environment, mapped to MITRE ATT&CK T1592.002 (Gather Victim Host Information: Software). An adversary who knows you run a specific web framework, content management system, mail gateway, or remote access product at a specific version can choose an exploit with a high chance of success, which is why banner grabbing and path probing are common first steps. The activity is visible mainly at service edges rather than on endpoints: reverse proxy and web server access logs, firewall and intrusion detection records, transport layer security handshake metadata, and honeypot interactions. The strongest signal is repeated requests for files and paths that only exist in particular product versions, from one source, in a short window. The strategy fails when it relies on user agent strings alone, because the string is easy to fake and ordinary crawlers look similar, so path and response behaviour must carry the decision.",
+  "tags": [
+    "mitre t1592.002",
+    "reconnaissance",
+    "web security",
+    "attack surface",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Software",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0888/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Software - EASY",
+      "path": "exercises/det0888/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Software - MEDIUM",
+      "path": "exercises/det0888/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Software - HARD",
+      "path": "exercises/det0888/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Software - EXTREMELY HARD",
+      "path": "exercises/det0888/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Software fingerprinting means working out which programs and which versions a company uses. Attackers do it to match a known weakness to your systems. This detection watches your web and network logs for the repeated probing that this work produces.",
+    "whyItMatters": "Old software often has known weaknesses, and public lists describe them in detail. An attacker who can name your exact version does not have to guess. The probing may look like harmless requests for missing pages, so it is easy to ignore. Catching it early tells you which systems are interesting to an outsider, and often that a system needs patching or hiding.",
+    "howItWorks": [
+      "Web servers, reverse proxies, and load balancers log every request, including the path, the source address, and the response code.",
+      "The detection builds a list of paths and headers that reveal product names and versions.",
+      "It groups requests by source address so that a series of probes becomes one event.",
+      "Repeated requests that return not found or forbidden codes raise the score, because they are guesses.",
+      "Enrichment adds reputation and your own asset data, so you know which system was probed.",
+      "An alert names the source, the targeted service, and the exact paths requested."
+    ],
+    "example": "Think of a burglar checking letterboxes for the name of the alarm company. Asking one neighbour is harmless. Walking the whole street and reading every alarm box, then noting which houses have the oldest model, is preparation. Your web logs are the street, and the requests are the glances at the alarm boxes.",
+    "takeaways": [
+      "Version probing shows up as requests for files that belong to a specific product version.",
+      "User agent strings alone prove very little, because anyone can change them.",
+      "Frequent probing of one service is a reason to reduce its exposure and confirm it is patched."
+    ]
+  },
+  "objectives": [
+    "Explain how software and version knowledge shapes an adversary's exploit choice",
+    "Identify request, response, and handshake telemetry that reveals software fingerprinting",
+    "Distinguish version probing from ordinary crawler traffic and from application errors",
+    "Write a grouped detection that counts suspicious paths per source per time window",
+    "Map a confirmed probe back to the exposed asset and its patch status"
+  ],
+  "techniqueId": "t1592-002",
+  "detectsTechniques": [
+    "t1592-002"
+  ],
+  "dataSources": [
+    "Web server and reverse proxy access logs with request path, user agent, source address, and response status code",
+    "Web application firewall logs recording blocked requests for known probing patterns and scanner signatures",
+    "Firewall and intrusion detection events for service probing with source, destination port, and signature name",
+    "Transport layer security handshake metadata such as client offered cipher suites and protocol versions recorded by the load balancer",
+    "Honeypot web service logs that capture probing paths and the sequence of follow up requests"
+  ],
+  "logic": "The pattern is a sequence of requests from one source that targets files, paths, or query parameters which reveal a product name or version, mixed with requests for paths that do not exist on your service, delivered at machine speed. The fields to correlate are the source address, the requested path and its template, the user agent, the response status and body size, the server or virtual host that answered, and the interval between requests. The benign version is a search engine crawler, a monitoring check, or a genuine application error, all of which repeat a small set of valid paths at a steady but modest rate and rarely ask for administrative or version specific files. The malicious version asks for an ordered collection of product signature paths, accepts many not found responses without slowing down, and often probes several services on the same host so that responses can be compared.",
+  "pseudoQuery": "# title: Web Service Version Fingerprinting by Path Probing\n# logsource:\n#   product: web\n#   category: proxy\n# detection:\n#   selection:\n#     http.request.method: GET\n#   probe:\n#     http.request.path|endswith:\n#       - /CHANGELOG.txt\n#       - /readme.html\n#       - /composer.json\n#       - /WEB-INF/web.xml\n#   filter_known_agents:\n#     user_agent.original|contains: approved-monitor\n#   condition: selection | count() by source.ip, http.request.path > 8 within 5m and not filter_known_agents\n# level: medium",
+  "falsePositives": [
+    "Search engine and social media crawlers that request many paths on a large public site at high speed",
+    "Developer and deployment tooling that checks for configuration or changelog files during a release",
+    "Vulnerability scanners operated by your own team or by an authorised third party assessment",
+    "Legitimate users who mistype or bookmark old paths and generate a burst of not found responses",
+    "Caching and optimisation services that fetch many pages from a new content delivery integration"
+  ],
+  "tuningNotes": "Filter known crawler user agent families and verified monitoring sources, but keep the filter narrow enough that a spoofed agent still trips the path based selection. Raise the count threshold to a level your own baseline data supports, and require at least one request for a path that has never previously existed on that virtual host, which separates probing from caching errors. Scope the rule to internet facing services with sensitive data or an administrative interface. The coverage you lose is a careful adversary who probes one path per host per day; for that case keep a monthly report of distinct sources requesting rare paths and review it by hand.",
+  "severity": "medium"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0279",
+  "type": "detection",
+  "title": "Detection Strategy for System Services across OS platforms.",
+  "shortTitle": "Detection Strategy for System Services across OS platforms.",
+  "externalId": "DET0279",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the service control mechanism on Windows and the equivalent service managers on Linux, where an adversary installs, modifies or starts a service to execute code with high privileges and to persist. T1569 covers service execution broadly, and it is attractive because services run as system accounts, start automatically, and are frequently trusted or excluded by application control policy. Detection uses service installation events, command line records showing a service control request against a named service, process creation for the service binary with its parent and account, and file integrity monitoring of service definitions. The recurring problem is that legitimate software installs services constantly, so the rule earns its keep only when it focuses on the service image path, the launching account and the gap between installation and execution.",
+  "tags": [
+    "service execution",
+    "persistence",
+    "privilege escalation",
+    "windows",
+    "linux",
+    "t1569"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for System Services across OS platforms.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0279/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for System Services across OS platforms. - EASY",
+      "path": "exercises/det0279/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for System Services across OS platforms. - MEDIUM",
+      "path": "exercises/det0279/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for System Services across OS platforms. - HARD",
+      "path": "exercises/det0279/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for System Services across OS platforms. - EXTREMELY HARD",
+      "path": "exercises/det0279/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for programs being registered or started as system services. A service is a background program that runs without anyone logging in, often with high privileges. Attackers use services to run their tools and to stay on a machine after a restart.",
+    "whyItMatters": "Services run with powerful accounts and start on their own. That makes them a favourite route for running code and for persistence. Many security controls allow services because they expect them to be trustworthy. Services also blend into a long list that few people review. Watching how a service is created and what it points at tells you quickly whether it belongs.",
+    "howItWorks": [
+      "The operating system logs each new service installation, including its name and the program it will run.",
+      "The detection keeps installations where the program path sits in a temporary, user or public folder.",
+      "It checks whether the program is a script interpreter or a file with an unusual extension.",
+      "It watches for the starting account and the parent process, because administrators normally use signed management tools.",
+      "On Linux, it reads the service definitions written to the system service directory and compares them with the baseline.",
+      "When the service starts shortly after being created, the alert links the creation, the binary and the execution together."
+    ],
+    "example": "Think of an office building where contractors must sign in at reception. Reception keeps a list of approved firms. If someone adds a new firm to the list at midnight and that firm enters an hour later, the sign-in sheet shows both the change and the visit. Services work the same way: creation and first run are the two records you compare.",
+    "takeaways": [
+      "A service is a privileged background program, so both its creation and its first run deserve attention.",
+      "The image path is the strongest clue, because attackers rarely place service binaries in proper program folders.",
+      "Compare the service list with your software inventory instead of judging each new service by name."
+    ]
+  },
+  "objectives": [
+    "Explain why service managers are used by adversaries for privileged execution and persistence on multiple operating systems.",
+    "Read service installation events and extract the service name, image path, start type and account.",
+    "Recognise image paths and interpreter based service definitions that indicate malicious intent.",
+    "Correlate a service installation with the subsequent process creation of its binary.",
+    "Describe how to diff service inventories on Linux and Windows against a known good baseline."
+  ],
+  "techniqueId": "t1569",
+  "detectsTechniques": [
+    "t1569"
+  ],
+  "dataSources": [
+    "Windows Security event 4697 service installation, recording the service name, image path, start type and installing account",
+    "Windows system log service control manager events for service start and stop, including the service name and reported state",
+    "Sysmon event 1 process creation showing the service binary image, parent image such as the services process, and the account it runs as",
+    "Linux system service definition files from the system service directory and their modification times, captured by file integrity monitoring",
+    "Linux process accounting or audit records showing execution of a binary with the service manager as the parent process"
+  ],
+  "logic": "The pattern is a service that is installed or modified and whose image path resolves to a temporary directory, a user profile, a public folder, or a command interpreter rather than a signed program directory, especially when the installation is followed within minutes by the first run of that binary under a system account. The fields that must be correlated are the service name, image path and start type from the installation event, the installing account and parent process from process creation, the account and parent image of the service process when it starts, and the file hash and signature status of the binary. The benign case is a vendor installer or patch management agent that creates a service pointing at its own signed program under a program directory, usually in a batch across many hosts. The malicious case is isolated, points at a user writable path or a script host, uses a name that resembles a legitimate service, and starts almost immediately after creation, which is the sequence that distinguishes abuse from normal software deployment.",
+  "pseudoQuery": "# title: Service Installed with Image Path in User Writable Directory\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_service:\n#     EventID: 4697\n#     ServiceFileName|contains:\n#       - \\Temp\\\n#       - \\AppData\\\n#       - \\Users\\Public\\\n#       - \\ProgramData\\\n#   filter_signed:\n#     ServiceFileName|contains: \\Program Files\\\n#   condition: selection_service and not filter_signed\n# level: high",
+  "falsePositives": [
+    "Remote monitoring and management agents that install a service whose binary lives in a program data folder by design",
+    "Software deployment tooling that stages an installer under a public folder and registers a temporary helper service during the install",
+    "Backup or database products that run a service from a custom installation path chosen by the administrator",
+    "Development or test hosts where engineers register a service pointing at a script for an internal build pipeline"
+  ],
+  "tuningNotes": "Whitelist by exact image path and file hash for the agents you have deployed, since program data and public folder locations are legitimate for several management products, and require a signature from your trusted publisher set where possible. Scope a stricter version of the rule to servers and domain controllers, and keep the looser version on workstations so that developer machines do not dominate the queue. The coverage you lose by allowing known paths is an attacker who drops a binary into a whitelisted folder, so add a rule that alerts when a service image path already on the list changes hash, and review the service inventory against the software inventory each month to catch slow abuse.",
+  "severity": "high"
+}

@@ -1,0 +1,105 @@
+{
+  "id": "det0373",
+  "type": "detection",
+  "title": "Detection Strategy for Addition of Email Delegate Permissions",
+  "shortTitle": "Detection Strategy for Addition of Email Delegate Permiss...",
+  "externalId": "DET0373",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the addition of mailbox delegate permissions, where an adversary grants an account full access or send as rights over another user's mailbox so they can read mail or send messages that appear to come from the victim. The technique is popular because it survives a password reset, produces no malware on disk, and looks like normal administration from the endpoint side. Detection depends on audit telemetry: mailbox permission change events from the mail platform, directory service object modifications, and cloud audit logs for the equivalent permission grant on a hosted mailbox. The pattern worth alerting on is a delegation grant made by a non administrative account, or one that targets a mailbox outside the requester's normal scope, especially when followed by mail access from a new location.",
+  "tags": [
+    "email",
+    "persistence",
+    "identity",
+    "cloud",
+    "audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Addition of Email Delegate Permissions",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0373/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Addition of Email Delegate Permissions - EASY",
+      "path": "exercises/det0373/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Addition of Email Delegate Permissions - MEDIUM",
+      "path": "exercises/det0373/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Addition of Email Delegate Permissions - HARD",
+      "path": "exercises/det0373/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Addition of Email Delegate Permissions - EXTREMELY HARD",
+      "path": "exercises/det0373/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Delegate permission means letting another person open and read your mailbox, or send mail as you. This detection looks for someone granting that right without a proper request. It watches the mail system and the directory records where permissions are stored. It catches the change before any mail is read.",
+    "whyItMatters": "Mail holds password resets, invoices and private conversations. One quiet permission change gives an attacker a long term, hard to notice view of all of it. Because nothing is installed, endpoint tools may see nothing at all. The change is often the first clear proof that an account has been taken over.",
+    "howItWorks": [
+      "Collect mailbox permission change events from the mail platform, including who made the change.",
+      "Collect directory service modification events for the mail related attributes of the target mailbox.",
+      "Collect cloud audit records for permission grants on hosted mailboxes.",
+      "Compare the requesting account with the list of accounts that are allowed to grant delegation.",
+      "Check whether the requester and the mailbox owner work in the same team or department.",
+      "Alert on unusual grants, then look for mail access from a new address in the following hours."
+    ],
+    "example": "Think of a hotel front desk that can issue a spare key to any room. A guest asking for their own spare key is normal. A cleaner asking for a key to the manager's office at two in the morning is not. The permission log is the key register.",
+    "takeaways": [
+      "Mailbox delegation is persistence that needs no file on disk, so it survives password resets.",
+      "The requester identity and their normal scope decide whether a grant is suspicious.",
+      "A grant followed by mail access from a new location is a much stronger case."
+    ]
+  },
+  "objectives": [
+    "Explain what mailbox delegate permission is and why an attacker wants it.",
+    "Name the mail platform and directory telemetry that records permission changes.",
+    "Build a rule that compares the requester against an approved administration group.",
+    "Correlate a permission grant with subsequent mailbox access from new locations.",
+    "Describe the steps to remove an unwanted delegation safely and confirm the removal."
+  ],
+  "techniqueId": "t1098-002",
+  "detectsTechniques": [
+    "t1098-002"
+  ],
+  "dataSources": [
+    "Exchange mailbox audit events recording the Add-MailboxPermission and Add-RecipientPermission operations with the acting user",
+    "Active Directory security event 5136 directory service object modification on the mailbox related attributes of a user object",
+    "Microsoft 365 unified audit log entries for mailbox permission changes with the client address of the requester",
+    "Mail platform access logs showing a delegate opening another user's mailbox from a new client address",
+    "Cloud identity provider audit logs for role or permission assignment on a shared mailbox resource"
+  ],
+  "logic": "The pattern is a permission grant that widens access to a mailbox beyond its owner, made by an account that does not normally perform that action. Telemetry shows a delegation change event naming an acting user and a target mailbox, or a directory modification of the relevant mail attributes. The fields to correlate are the acting account, the target mailbox owner, the granted right, and the source address of the request. What separates malicious from benign is scope and process: a help desk grant tied to a ticket on a mailbox in the requester's own team is routine, while a grant by a service account or a recently created account, targeting a senior mailbox outside any ticket, is not.",
+  "pseudoQuery": "# title: Mailbox Delegate Permission Granted Outside Helpdesk Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     Operation:\n#       - 'Add-MailboxPermission'\n#       - 'Add-RecipientPermission'\n#     Permission|contains: 'FullAccess'\n#   filter_helpdesk:\n#     ActingUser|in: 'approved-mailbox-admins'\n#   filter_ticket:\n#     TicketId|exists: true\n#   condition: selection and not filter_helpdesk and not filter_ticket\n# level: high",
+  "falsePositives": [
+    "Executive assistants who are granted full access to a manager's calendar and mailbox by a documented business process",
+    "Migration or backup service accounts that are given delegate rights across all mailboxes during a tenant move",
+    "Automatic grants created by a ticketed offboarding process so that a manager can read a leaver's mailbox"
+  ],
+  "tuningNotes": "Allow list the accounts and groups that are entitled to grant delegation, and filter on the presence of a linked change ticket where your identity platform supports it. Scope the high severity rule to mailboxes belonging to executives, finance and administrators, and keep a lower severity rule for everyone else. Baseline which automation accounts make broad grants during migrations before you enable the filter, or the first tenant move will drown you. Filtering on tickets loses coverage of an attacker who grants delegation while using a privileged account that does have a ticket, so review privileged grants manually instead of filtering them.",
+  "severity": "high"
+}

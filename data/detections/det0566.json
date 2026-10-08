@@ -1,0 +1,107 @@
+{
+  "id": "det0566",
+  "type": "detection",
+  "title": "Template Injection Detection - Windows",
+  "shortTitle": "Template Injection Detection - Windows",
+  "externalId": "DET0566",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers template injection on Windows, tracked as T1221, where an adversary modifies or replaces a document template so that harmful content is loaded automatically when a document is opened, often from a remote location. Detection matters because the template supplies the payload, so the visible document can be completely clean and still fetch and run attacker content when opened by an ordinary user. The telemetry that supports it includes file creation events on template and add-in directories, process creation showing the office application reaching out or starting a child process, network connections from the office application to an external template host, and registry changes that point a user template path somewhere unexpected. The main practical failure is that shared workgroup templates, document management systems and cloud document customisation create legitimate template writes and fetches that look identical at the event level.",
+  "tags": [
+    "execution",
+    "template-injection",
+    "office",
+    "windows",
+    "phishing",
+    "t1221"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Template Injection Detection - Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0566/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Template Injection Detection - Windows - EASY",
+      "path": "exercises/det0566/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Template Injection Detection - Windows - MEDIUM",
+      "path": "exercises/det0566/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Template Injection Detection - Windows - HARD",
+      "path": "exercises/det0566/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Template Injection Detection - Windows - EXTREMELY HARD",
+      "path": "exercises/det0566/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for changes to document templates, or for a document that loads its template from the internet. A template is a ready-made file that gives a document its layout and content. The technique is template injection because harmful content is placed inside that template.",
+    "whyItMatters": "One poisoned template can affect every document that uses it. The document the user opens may look perfectly normal, so nobody suspects it. The template can also be stored far away, which lets an attacker change the content later. This makes it a quiet and reusable way to reach many people.",
+    "howItWorks": [
+      "The agent records file writes in the folders where office applications keep templates and add-ins.",
+      "A second feed records network connections made by the office application itself.",
+      "The platform checks whether the template path is local or points to a remote location.",
+      "It also watches registry values that define where the user template folder lives.",
+      "Each match is joined with the parent process, so you see whether an installer or the office program caused the change.",
+      "An alert fires when a template is created or changed and the same process reaches an external address."
+    ],
+    "example": "Think of a shared recipe card in an office kitchen. One person replaces the card with a version that says to use a strange ingredient. Everyone who copies the card follows the wrong instructions, and the card itself still looks like the familiar one. The safe-looking card is exactly why this is dangerous.",
+    "takeaways": [
+      "Templates can carry harmful content across every document that uses them.",
+      "A clean document does not mean a clean template, so watch the template path.",
+      "Treat remote template locations as untrusted until you confirm them."
+    ]
+  },
+  "objectives": [
+    "Explain what a document template is and why it can carry harmful content.",
+    "Identify which telemetry shows a template being written or fetched.",
+    "Describe how registry values can redirect the template folder.",
+    "Correlate an office application network connection with a template file change.",
+    "List benign template workflows that must be excluded before alerting."
+  ],
+  "techniqueId": "t1221",
+  "detectsTechniques": [
+    "t1221"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation events for document template and add-in file extensions",
+    "Sysmon event 1 process creation showing the office application and its child processes",
+    "Sysmon event 3 network connection events from office application processes to external hosts",
+    "Sysmon event 13 registry value set events for the user and workgroup template folder locations",
+    "Proxy web request logs showing office application user agents requesting template files over unencrypted or encrypted web traffic"
+  ],
+  "logic": "The pattern is an office application writing to a template directory or loading a template from a location outside the organisation, especially when the same process then opens a network connection or starts a child process. You must correlate the file path, the file extension, the responsible process, the parent process and the destination host, because a template file on a managed share is normal while a template fetched from an address in a newly registered domain is not. The malicious case also tends to be one-off and unexpected for the host: an ordinary user who has never edited a template suddenly produces a template in a personal folder while the office process talks to an unfamiliar external address.",
+  "pseudoQuery": "# title: Office Application Writing Template File or Loading Remote Template\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.dotm'\n#       - '.xltm'\n#       - '.potm'\n#   filter_share:\n#     TargetFilename|startswith: 'C:\\\\Program Files\\\\'\n#   condition: selection and not filter_share\n# level: medium",
+  "falsePositives": [
+    "Departmental staff saving a legitimately updated workgroup template to a shared drive",
+    "Document management software that generates template copies inside a user profile folder",
+    "Cloud document suites that download template files from a vendor service when a new document is created",
+    "Office customisation scripts that repoint the user template folder during a software upgrade"
+  ],
+  "tuningNotes": "Baselining is essential here: inventory the template directories and remote template hosts your organisation really uses, then add them as explicit allowed values and alert only on template writes outside those paths or template fetches to an address that is not on the allow list. Scope the network side of the rule to office application processes, because those are the only ones that should ever request a template file, and require the file path to be new or the template host to be unfamiliar. The coverage you give up is a template swap that lands on an already allowed share, so keep file integrity monitoring on the approved shares and alert on any content change there instead.",
+  "severity": "high"
+}

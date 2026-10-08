@@ -1,0 +1,108 @@
+{
+  "id": "det0434",
+  "type": "detection",
+  "title": "Detection of Launch Agent Creation or Modification on macOS",
+  "shortTitle": "Detection of Launch Agent Creation or Modification on macOS",
+  "externalId": "DET0434",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the creation or modification of a launch agent on macOS, a per user persistence mechanism that causes a program to start automatically whenever the user logs in. It matters because launch agents need no administrator rights, run in the user session with access to that user's data and tokens, and are a documented favourite for adware, commodity malware and hands on intruders. Detection depends on file system telemetry for the launch agent directories, process telemetry that names the writing process and its parent, and unified log records showing the launch service loading the new job. The main way it fails in practice is installer and updater noise together with the sheer number of legitimate agents on a typical Mac, so a baseline of expected agents and a signature check on the writer are what make the rule usable.",
+  "tags": [
+    "macos",
+    "launch agent",
+    "t1543-001",
+    "persistence",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Launch Agent Creation or Modification on macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0434/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Launch Agent Creation or Modification on macOS - EASY",
+      "path": "exercises/det0434/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Launch Agent Creation or Modification on macOS - MEDIUM",
+      "path": "exercises/det0434/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Launch Agent Creation or Modification on macOS - HARD",
+      "path": "exercises/det0434/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Launch Agent Creation or Modification on macOS - EXTREMELY HARD",
+      "path": "exercises/det0434/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new launch agent files on a Mac. A launch agent is a small settings file that tells macOS to start a program when a user logs in. The rule reports new or changed agents, especially when an unusual program created them.",
+    "whyItMatters": "Attackers want their code to run again after a restart or a new login. A launch agent gives them that without needing an administrator password. It sits in the user's own folder, so it is easy to add. Because the same folders hold normal software helpers, you need a known list to compare against. Anything new and unexplained deserves a look.",
+    "howItWorks": [
+      "A program creates a settings file inside a launch agent folder for the current user.",
+      "Endpoint monitoring records the file name, the folder, the owner and the writing process.",
+      "The writing process is checked for a valid code signature and a known parent.",
+      "The system log shows the launch service loading the new agent for that user session.",
+      "The rule compares the agent against a baseline of approved files for that machine.",
+      "An unexpected agent that starts a program from a user or temporary folder raises an alert."
+    ],
+    "example": "Think of a staff noticeboard in an office kitchen. Anyone may pin a note, and most notes are about the coffee rota or a fire drill. Nobody checks each one. A note that says the office will be unlocked at midnight, pinned by someone nobody knows, gets read carefully. The board is a normal part of the office. The single odd note is the signal.",
+    "takeaways": [
+      "Launch agents give a user level attacker persistence without administrator rights.",
+      "Compare each new agent with a known baseline and check the writer signature.",
+      "An agent that starts a program from a temporary folder is a strong warning sign."
+    ]
+  },
+  "objectives": [
+    "Explain how a launch agent causes code to run automatically at user logon.",
+    "Identify the folders, file types and properties that define a launch agent.",
+    "Correlate the new agent file with the writing process, its parent and its code signature.",
+    "Use a per machine baseline to detect drift instead of alerting on existence.",
+    "Recognise agents that point at unsigned programs in user or temporary directories.",
+    "Describe the difference between a user level launch agent and a system level launch daemon."
+  ],
+  "techniqueId": "t1543-001",
+  "detectsTechniques": [
+    "t1543-001"
+  ],
+  "dataSources": [
+    "Endpoint file system monitoring for creation and modification inside system and user launch agent directories",
+    "Process creation telemetry recording the writing process image, parent image and code signature status",
+    "macOS unified log entries where the launch service registers and starts a launch agent job",
+    "Endpoint inventory baseline of approved launch agents per machine with expected file hashes",
+    "File metadata records showing owner, permissions, quarantine flag and the program path inside the agent"
+  ],
+  "logic": "The pattern is a new or changed property list file in a launch agent directory where the writing process is unsigned, is not an approved package installer or management agent, or where the file references a program that lives in a user home directory, a downloads folder or a temporary location. The fields that must be correlated are the agent file path and name, the writing process and its parent, the signing status and team identifier of that process, the program path referenced inside the job definition, and the follow on launch service event that records the job being loaded. The benign case is dominated by signed installers, updaters and enterprise management agents that create agents on a predictable schedule, so signature status, writer identity and the referenced program path separate the two cases. Confidence is high when an agent appears on a machine with no install or update event in the same window, when its referenced program has no valid signature, or when the same agent name and payload appear across many machines in a short period, which suggests a campaign rather than an install.",
+  "pseudoQuery": "# title: Launch Agent Created by Unsigned Process Referencing User Directory Program\n# logsource:\n#   product: macos\n# detection:\n#   selection:\n#     EventType: 'file_create'\n#     TargetFilename|contains:\n#       - '/Library/LaunchAgents/'\n#       - '/Users/'\n#     TargetFilename|endswith: '.plist'\n#     ProgramPath|contains:\n#       - '/Users/Shared/'\n#       - '/tmp/'\n#       - '/var/folders/'\n#   filter_installer:\n#     SignatureStatus: 'signed'\n#     ParentImage|endswith: '/usr/sbin/installer'\n#   condition: selection and not filter_installer\n# level: high",
+  "falsePositives": [
+    "Chat, sync and backup clients that register a per user helper agent during installation",
+    "Enterprise management agents that recreate a launch agent after a repair or an operating system upgrade",
+    "Developer tools such as container runtimes that install a user level background service on first run",
+    "Remote support sessions where a technician reinstalls a broken helper for a user",
+    "Users adding a legitimate login script or automation agent for their own workflow"
+  ],
+  "tuningNotes": "Collect the current set of launch agents from every Mac and store the file names, hashes and referenced program paths as the expected baseline, then alert on additions and on changes to files that already exist rather than on every file, which removes the installer noise in one step. Filter on the exact writing process paths and signatures of your approved installers and management agents, and keep everything written by an unsigned process, or pointing at a program outside the applications and library directories, in scope. Scope the first release to machines used by privileged users, finance and engineering, and treat user directory agents that reference temporary paths as a separate high severity case. You lose coverage when an attacker reuses a legitimate agent name or payload path, and when persistence is created by an installer that is later abused, so also diff the loaded job list against the baseline and watch for the same agent appearing across many machines within a short window.",
+  "severity": "high"
+}

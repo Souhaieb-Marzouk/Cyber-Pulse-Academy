@@ -1,0 +1,106 @@
+{
+  "id": "det0060",
+  "type": "detection",
+  "title": "Detect Ingress Tool Transfers via Behavioral Chain",
+  "shortTitle": "Detect Ingress Tool Transfers via Behavioral Chain",
+  "externalId": "DET0060",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the transfer of attacker tooling onto or between hosts by looking at the behaviour around the transfer instead of at the file itself. Ingress tool transfer rarely happens through one obvious command, so mature coverage chains process creation, network connection and file creation events on the same host within a short window, then checks whether the new file was executed. The telemetry that makes this work is Sysmon style process creation with command line capture, network connection events tied to a process identifier, and file creation events that carry the download origin in an alternate data stream. The usual failure is that the same pattern is produced by software updates and administrative installers, so without asset scoping and a known good tool inventory the rule either floods the queue or gets disabled.",
+  "tags": [
+    "windows",
+    "command-and-control",
+    "tool-transfer",
+    "sysmon",
+    "process-creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Ingress Tool Transfers via Behavioral Chain",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0060/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Ingress Tool Transfers via Behavioral Chain - EASY",
+      "path": "exercises/det0060/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Ingress Tool Transfers via Behavioral Chain - MEDIUM",
+      "path": "exercises/det0060/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Ingress Tool Transfers via Behavioral Chain - HARD",
+      "path": "exercises/det0060/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Ingress Tool Transfers via Behavioral Chain - EXTREMELY HARD",
+      "path": "exercises/det0060/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for files that arrive on a computer from outside and are then run. Attackers often first bring their own tools onto a machine they have already reached. Watching the arrival and the first run together shows the transfer even when the tool itself is unknown.",
+    "whyItMatters": "An attacker who can only use tools already installed is limited. Bringing new tools widens what they can do, from scanning to stealing data. File names change every time, so name based detection is weak. Behaviour around the transfer is the part that stays stable.",
+    "howItWorks": [
+      "A sensor records each new process, including the full command line and the parent process.",
+      "It records network connections per process, so you can see which tool reached out to which address.",
+      "It records file creation, including a marker that shows the file came from the internet.",
+      "The SIEM (Security Information and Event Management system) links these records by process identifier and host.",
+      "The rule looks for a downloader writing a file into a user or temporary folder and then running it.",
+      "That chain raises the alert, with the origin address attached so you can confirm the source."
+    ],
+    "example": "Picture a night watchman who cannot inspect every parcel. Instead, he notes that a van delivered a box to the back door. Five minutes later, someone opened that same box. The delivery plus the opening is the clue, whatever the box contains.",
+    "takeaways": [
+      "Watch the transfer chain, not the file name, because names change constantly.",
+      "The strongest signal is a new file written outside normal update paths and then executed.",
+      "A list of approved tools and update sources is what keeps this rule usable."
+    ]
+  },
+  "objectives": [
+    "Describe why ingress tool transfer is detected by behaviour rather than by file name or hash.",
+    "Identify the process, network and file creation fields needed to rebuild a transfer chain.",
+    "Correlate events by host and process identifier within a bounded time window.",
+    "Recognise legitimate downloaders and update services that must be excluded or scoped out.",
+    "Explain how staging location and first execution time separate malicious from benign transfers."
+  ],
+  "techniqueId": "t1105",
+  "detectsTechniques": [
+    "t1105"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including the parent image, full command line and process identifier",
+    "Sysmon event 3 network connection showing the source process identifier, destination address and port",
+    "Sysmon event 11 file creation recording the written path and the creating process identifier",
+    "Sysmon event 15 alternate data stream creation used to see the zone identifier marker on a downloaded file",
+    "Windows Security event 4688 process creation with command line auditing enabled as a fallback where Sysmon is absent"
+  ],
+  "logic": "The pattern is a short behavioural chain on one host: a process that does not normally handle downloads opens an outbound connection, writes an executable or script into a user writable or temporary directory, and that file runs within a few minutes. The fields that must be joined are the process identifier across the connection and file events, the writing image path, the target file path and extension, and the timestamp of the first execution. The benign case is updater services writing into their own program directories and signing their payloads, repeating on a schedule with the same destination hosts across many machines. The malicious case clusters on a small number of hosts, writes into unusual locations such as a user profile or public folder, produces a file with no valid signature, and the file runs almost immediately with a parent that is a browser, office application or script interpreter.",
+  "pseudoQuery": "# title: Tool Written to Staging Path Then Executed on Same Host\n# logsource:\n#   product: windows\n#   category: file_event\n# detection:\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.exe'\n#       - '.dll'\n#       - '.ps1'\n#       - '.bat'\n#     TargetFilename|contains|all:\n#       - '\\\\Users\\\\'\n#       - '\\\\Downloads\\\\'\n#   selection_run:\n#     EventID: 1\n#     Image|endswith: '.exe'\n#   filter_signed:\n#     SignatureStatus: 'Valid'\n#   condition: selection_write and selection_run and not filter_signed\n# level: high",
+  "falsePositives": [
+    "Software deployment agents that fetch installers from an internal management share into a temporary folder and run them",
+    "Developer workstations where package managers download and execute build tooling from public repositories",
+    "Sign in scripts or logon tasks that retrieve configuration from an internal web server and run a small helper binary",
+    "Browser and office update components that stage a patch in a user writable directory before the installer service runs it"
+  ],
+  "tuningNotes": "Scope the rule to server subnets and to hosts whose users should not install software, and add filters for approved deployment agents and package managers with their known source hosts. Baseline one month of file creation events per host to learn which directories are normal staging areas in your estate, then alert only when a file lands somewhere new. The trade off is that a transfer into an already trusted staging directory, or one that uses an approved tool from an approved source, no longer fires, so keep a lower severity rule for outbound connections by downloader binaries to addresses with no reverse lookup or internal owner.",
+  "severity": "high"
+}

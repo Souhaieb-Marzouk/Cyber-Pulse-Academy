@@ -1,0 +1,109 @@
+{
+  "id": "det0520",
+  "type": "detection",
+  "title": "Behavioral Detection of Log File Clearing on Linux and macOS",
+  "shortTitle": "Behavioral Detection of Log File Clearing on Linux and macOS",
+  "externalId": "DET0520",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the indicator removal technique of clearing or tampering with log files on Linux and macOS, tracked under T1685.006. On these platforms the log trail is a set of files under the system log directory, the audit records written by the audit subsystem, and the shell history files in each user home directory, and an attacker with enough rights can truncate, delete or rewrite any of them so that investigations lose the evidence of the earlier steps. The telemetry that makes it visible is process creation with command line arguments naming log paths, file deletion and file truncation events reported by the kernel audit subsystem or a file integrity monitor, audit service stop and reconfigure events, and shell history being emptied. The strategy fails in practice because routine log rotation, troubleshooting and container housekeeping touch the same files, so the rule needs the tool, the target and the account to line up before it is worth alerting.",
+  "tags": [
+    "log deletion",
+    "t1685.006",
+    "defense evasion",
+    "linux",
+    "macos",
+    "auditd"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Log File Clearing on Linux and macOS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0520/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Log File Clearing on Linux and macOS - EASY",
+      "path": "exercises/det0520/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Log File Clearing on Linux and macOS - MEDIUM",
+      "path": "exercises/det0520/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Log File Clearing on Linux and macOS - HARD",
+      "path": "exercises/det0520/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Log File Clearing on Linux and macOS - EXTREMELY HARD",
+      "path": "exercises/det0520/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for someone erasing system log files on a Linux or macOS computer. Log files are the written records of what happened on the machine. An attacker who has already broken in may delete them so that nobody can see the earlier steps. The rule watches for commands and file changes that empty or remove those records.",
+    "whyItMatters": "The log is the story of what happened. If it is removed, you cannot tell how the attacker got in or what they touched. Attackers often clear logs right after they gain higher rights, to buy time before anyone notices. Emptying one file can also break a whole chain of evidence, because records stop before the interesting moment.",
+    "howItWorks": [
+      "The audit subsystem records every command that runs, with its full arguments and the account that ran it.",
+      "The rule keeps commands that name a system log path or a shell history file.",
+      "It also watches for file deletion and truncation events on those same paths.",
+      "Log rotation and container housekeeping are removed using their known parent processes and schedules.",
+      "A rename or a service stop is treated as a separate signal, because it hides records without deleting them.",
+      "Command evidence plus a matching file event on the same host close together becomes the alert."
+    ],
+    "example": "Think of a shop that keeps a written till receipt for every sale. A cashier who has been taking money deletes the last few pages of the receipt book. The sales still happened, and the money is still gone, but the record no longer shows it. This rule watches the receipt book, not the till.",
+    "takeaways": [
+      "Log deletion is a response to being discovered, so treat it as a high priority signal.",
+      "Rename and truncate hide records just as well as deletion, so watch all three.",
+      "Send logs to a central server, because local records can always be removed."
+    ]
+  },
+  "objectives": [
+    "Name the log and history file locations that matter most on Linux and macOS hosts.",
+    "Identify the commands that truncate, delete or rename log files and how they appear in audit records.",
+    "Use file deletion and file attribute change events from the kernel audit subsystem as secondary evidence.",
+    "Separate legitimate log rotation and container housekeeping from deliberate removal.",
+    "Explain why forwarding logs to a central collector changes the value of this detection.",
+    "Describe the escalation path when log removal appears on a server that handles sensitive data."
+  ],
+  "techniqueId": "t1685-006",
+  "detectsTechniques": [
+    "t1685-006"
+  ],
+  "dataSources": [
+    "Linux auditd execve and process creation records with full command line and effective user identifier",
+    "Audit records for file delete, file rename and file truncate operations on system log directories",
+    "Sysmon for Linux process creation and file deletion events for log paths",
+    "macOS unified log and endpoint security framework process events naming log or history files",
+    "File integrity monitoring baselines that report size and hash changes for log and history files"
+  ],
+  "logic": "The pattern is a process whose command line names a system log file, an audit record file or a shell history file, or a file event that deletes, truncates or renames one of those files, in a context that does not match a scheduled rotation. The fields that must be correlated are the command line and executable path, the effective user identifier, the target file path from the file event, and the parent process, joined on host within a short window so that the command and the file change are treated as one incident. The malicious case usually shows a shell or script as the parent process, an account that is not the log rotation service, removal of several different log files in one session, and immediate follow up activity such as clearing history or stopping the audit service. The benign case is a rotation service that renames files on a fixed schedule, an administrator who truncates one large file during troubleshooting, and container runtimes that remove per container log files when a container is destroyed.",
+  "pseudoQuery": "# title: Log File or Shell History Cleared by Interactive Process\n# logsource:\n#   product: linux\n# detection:\n#   selection_cmd:\n#     event_type: 'process_creation'\n#     command_line|contains:\n#       - '/var/log/'\n#       - 'audit.log'\n#       - '.bash_history'\n#       - 'history -c'\n#   selection_file:\n#     event_type: 'file_delete'\n#     target_path|startswith: '/var/log/'\n#   filter_rotation:\n#     parent_process|endswith:\n#       - '/logrotate'\n#       - '/systemd-journald'\n#   condition: (selection_cmd or selection_file) and not filter_rotation\n# level: high",
+  "falsePositives": [
+    "Scheduled log rotation scripts that rename and compress files in the system log directory on a fixed timetable",
+    "Administrators who truncate one oversized log file during troubleshooting with a change ticket",
+    "Container runtimes that remove per container log files when the container is destroyed",
+    "Application upgrade scripts that clear their own application log before a version change",
+    "Developers who clear their own shell history file to reset a debugging session on a shared test host"
+  ],
+  "tuningNotes": "Add a filter that excludes the rotation and journal services by their full parent process path, and require the acting account to be an interactive user or a non system account before alerting. Scope the rule to production servers and exclude build and container hosts where log churn is expected. Baseline which processes touch the log directory in a normal week so that a new tool stands out immediately. The coverage you lose is deletion performed by a process that already looks like your rotation service, and removal of logs on hosts where the audit subsystem is not running or not configured to record file events.",
+  "severity": "high"
+}

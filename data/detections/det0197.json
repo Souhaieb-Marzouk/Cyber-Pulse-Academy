@@ -1,0 +1,107 @@
+{
+  "id": "det0197",
+  "type": "detection",
+  "title": "Behavior-chain, platform-aware detection strategy for T1125 Video Capture",
+  "shortTitle": "Behavior-chain, platform-aware detection strategy for T11...",
+  "externalId": "DET0197",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the abuse of camera and screen capture on an endpoint, covering T1125 Video Capture. The technique matters because a single frame of a webcam feed or a screen grab can expose credentials, badge codes, or a live view of a restricted area, and the capture itself produces almost no network signature. The telemetry that makes it visible is process to device correlation: the process that opens a camera or screen capture handle, the driver or interface it talks to, and the file or stream it writes to next. In practice the strategy fails because conferencing clients, browser tabs, and remote support tools use the same calls, so the rule must lean on lineage and destination rather than on the capture call alone.",
+  "tags": [
+    "mitre t1125",
+    "video capture",
+    "endpoint detection",
+    "collection",
+    "webcam"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain, platform-aware detection strategy for T1125 Video Capture",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0197/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1125 Video Capture - EASY",
+      "path": "exercises/det0197/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1125 Video Capture - MEDIUM",
+      "path": "exercises/det0197/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1125 Video Capture - HARD",
+      "path": "exercises/det0197/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1125 Video Capture - EXTREMELY HARD",
+      "path": "exercises/det0197/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that turn on a camera or record the screen. It focuses on the moment a program opens a video device or a screen capture handle. The goal is to spot capture that no user asked for. You see it as a process that grabs video and then writes a file or sends a stream.",
+    "whyItMatters": "A camera or screen recording can leak far more than a password. It can show a private meeting, a badge reader, or a customer record on a desk. Most security tools watch network traffic, and a local recording never touches the network. That means nobody sees it until the file leaves the building. This detection gives you a chance to catch the recording while it is still happening.",
+    "howItWorks": [
+      "Your endpoint agent records every process that starts, together with the parent process that started it.",
+      "The agent also records the moment a process opens a camera device or a screen capture interface.",
+      "The detection joins those two records, so you can see which program began the capture.",
+      "It then checks the parent chain and the file writes that follow the capture call.",
+      "A capture from a known conferencing application inside a user session is treated as normal.",
+      "A capture from an unsigned program running under a document reader raises an alert for review."
+    ],
+    "example": "Imagine a night watchman who walks the same corridor every hour. He knows the sound of the air conditioning and the sound of a door. One night he hears a camera shutter behind a closed office door. The shutter alone means little, because visitors take photos. What makes him stop is the timing and the place. A camera clicking in a locked records room at night is a story he must write down. A detection rule works in the same way. The capture event is the shutter sound. The process tree and the file write tell him who was in the room.",
+    "takeaways": [
+      "Video capture can leak sensitive data without any network traffic at all.",
+      "Correlate the capture call with the process and the parent that made it.",
+      "Expect noise from conferencing tools, so baseline them before you alert."
+    ]
+  },
+  "objectives": [
+    "Explain what video and screen capture looks like in endpoint telemetry.",
+    "Correlate a camera or screen handle open with its owning process and parent chain.",
+    "Separate user driven conferencing capture from unsolicited capture.",
+    "Identify file and stream destinations that suggest staging or exfiltration.",
+    "Describe why a local recording can bypass network only monitoring."
+  ],
+  "techniqueId": "t1125",
+  "detectsTechniques": [
+    "t1125"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image and full command line",
+    "Kernel driver telemetry for opens of the camera device interface by a user mode process",
+    "Endpoint sensor records of screen capture interface calls with the requesting process identifier",
+    "File system write events recording new media files in user profile folders",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is a process that opens a camera or screen capture device and then writes the captured data to disk or to a pipe. The fields that must be correlated are the process image and identifier, its parent image and command line, the device or interface being opened, and the file handle or socket created immediately afterwards. The malicious case differs from the benign one in lineage and destination: conferencing and browser processes are expected to open camera handles while an interactive user session is present, whereas a script interpreter, an office document reader, or an unsigned binary in a temporary directory that opens a camera handle and then writes a media file into a staging folder is not. Timing also matters, because capture outside working hours on a host with no logged on user removes most benign explanations.",
+  "pseudoQuery": "# title: Camera or Screen Capture Started by Unusual Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     event_type: device_handle_open\n#     device_class: camera\n#   filter_known:\n#     image|endswith:\n#       - 'Teams.exe'\n#       - 'chrome.exe'\n#       - 'Zoom.exe'\n#   condition: selection and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Video conferencing clients that open the camera the moment a meeting starts",
+    "Browser based telehealth or proctoring portals that request camera access",
+    "Remote support tools that share the screen during a help desk session",
+    "Digital signage or kiosk software that captures screen frames for monitoring",
+    "Accessibility software that reads the screen to produce speech"
+  ],
+  "tuningNotes": "Filter by image path and signature rather than by process name alone, because names are easy to reuse, and allow only the conferencing and browser binaries that your software inventory confirms. Baseline camera and screen capture opens for two weeks so you know which hosts normally use them, then scope the rule to servers, kiosks, and hosts outside the conferencing group. Narrowing this way loses some coverage on user workstations where an approved tool is repackaged, so keep a low severity copy of the rule running everywhere to catch that drift.",
+  "severity": "medium"
+}

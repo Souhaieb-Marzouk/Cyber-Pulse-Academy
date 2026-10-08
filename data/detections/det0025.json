@@ -1,0 +1,106 @@
+{
+  "id": "det0025",
+  "type": "detection",
+  "title": "Detecting Electron Application Abuse for Proxy Execution",
+  "shortTitle": "Detecting Electron Application Abuse for Proxy Execution",
+  "externalId": "DET0025",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of Electron based applications for proxy execution, mapped to ATT&CK technique T1218.015, where an adversary makes a trusted desktop application start with unusual command line options or load a modified resource so that it runs attacker code under a signed, familiar process name. Electron applications are commonly allowed through application control and often carry update or inspection features that can load local content, which is exactly what makes them attractive as a launch pad. Useful telemetry is process creation showing a signed Electron binary started with debugging, remote debugging or inspection switches, or pointing at content outside its own installation directory, plus child process creation where the Electron parent spawns a shell, a script interpreter or a binary in a temporary directory. The correlation of parent image, parent command line and the child process is what makes the alert meaningful. The strategy fails frequently because desktop applications spawn helper processes constantly, so the rule must key on the switches and the child path rather than on the parent process name.",
+  "tags": [
+    "mitre t1218.015",
+    "electron",
+    "proxy execution",
+    "defense evasion",
+    "windows",
+    "process lineage"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Electron Application Abuse for Proxy Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0025/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Electron Application Abuse for Proxy Execution - EASY",
+      "path": "exercises/det0025/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Electron Application Abuse for Proxy Execution - MEDIUM",
+      "path": "exercises/det0025/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Electron Application Abuse for Proxy Execution - HARD",
+      "path": "exercises/det0025/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Electron Application Abuse for Proxy Execution - EXTREMELY HARD",
+      "path": "exercises/det0025/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Electron is a toolkit used to build desktop applications with web technology. Many chat and meeting apps use it. This detection looks for those apps starting in strange ways. It catches an attacker using a trusted app to launch their own code.",
+    "whyItMatters": "These applications are signed and expected on most laptops, so security tools trust them. If an attacker can make one start with the right option, their code runs under that trust. The behaviour is a normal parent starting a strange child, which is easy to overlook. Your allow list becomes the attacker's cover. Detecting the pattern lets you keep the application while still catching the abuse.",
+    "howItWorks": [
+      "The sensor records each process start together with the parent process name and both command lines.",
+      "The rule matches a known Electron application binary being launched with option flags used for debugging or content loading.",
+      "It also checks whether those options point at a path outside the application's own installation directory.",
+      "It then looks for a child process started by that application. Examples are a shell, a script host or a temporary file.",
+      "The parent and child facts are linked by process identifier. The whole chain is one event, not two unrelated ones.",
+      "The alert shows the signed parent, the suspicious switches and the child binary. The analyst sees the full chain."
+    ],
+    "example": "Picture an office where the CEO's assistant can sign for deliveries. A stranger asks the assistant to sign for a package, and the courier accepts it without question. The signature is real but the parcel is not. Electron proxy execution detection is the note that says the trusted assistant signed for something nobody ordered.",
+    "takeaways": [
+      "Application control allow lists do not help when the trusted app does the launching.",
+      "Watch for debugging switches and for children that live outside the app directory.",
+      "The whole story is the parent, its options and the child it starts."
+    ]
+  },
+  "objectives": [
+    "Explain why signed desktop applications are attractive for proxy execution",
+    "Identify command line switches on Electron applications that indicate debugging or local content loading",
+    "Correlate a parent application process with the child process it starts",
+    "Judge child process paths against the application installation directory",
+    "Describe how to keep coverage without blocking normal application helper processes"
+  ],
+  "techniqueId": "t1218-015",
+  "detectsTechniques": [
+    "t1218-015"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, parent command line and child command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Code integrity or application control events recording the signature state of the Electron binary",
+    "File creation events for content written next to an Electron application by an update or inspection routine"
+  ],
+  "logic": "The detection hinges on lineage rather than on a single process name. It fires when a signed Electron application process is started with inspection, debugging or remote debugging switches, or with arguments pointing at a resource outside its own installation directory, and that same process then creates a child that is a command shell, a scripting host or a binary located in a temporary or user writable folder. The fields that must be correlated are the parent process identifier, the parent image and full command line, the child image and path, and the interval between the two, which is normally seconds. Benign behaviour is the application starting its own helper processes from inside its install directory with the same switches every time, or a developer starting a locally built Electron application with debugging enabled from a project folder. The malicious case is a user facing application spawning a shell or an interpreter it has no reason to launch, often after a document or link was opened.",
+  "pseudoQuery": "# title: Electron App Spawns Shell From User Directory\n# logsource:\n#   product: windows\n# detection:\n#   selection_parent:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\\\Teams.exe'\n#       - '\\\\slack.exe'\n#       - '\\\\Code.exe'\n#     ParentCommandLine|contains:\n#       - '--inspect'\n#       - '--remote-debugging-port'\n#   selection_child:\n#     Image|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\powershell.exe'\n#   condition: selection_parent and selection_child\n# level: high",
+  "falsePositives": [
+    "Developers running a locally built Electron application with remote debugging enabled while testing their own code",
+    "Application support engineers using an inspection switch to capture logs from a user reported crash",
+    "Electron update mechanisms that start a helper process from a staging folder during an in place upgrade",
+    "Integrated development environments that use an Electron shell to launch a terminal as part of normal work"
+  ],
+  "tuningNotes": "Allow the specific Electron applications your estate actually deploys and record the child processes each one normally starts, then alert only on children outside that observed set. Require the child to come from a temporary or user writable path, or to be a scripting host the application never uses, which removes nearly all marketing and support noise. Restricting the rule to a small set of application names improves precision but means an attacker using a less common Electron application is missed, so review the application inventory quarterly and add newly deployed applications before their users do.",
+  "severity": "high"
+}

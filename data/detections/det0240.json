@@ -1,0 +1,108 @@
+{
+  "id": "det0240",
+  "type": "detection",
+  "title": "Detection Strategy for Steal or Forge Authentication Certificates",
+  "shortTitle": "Detection Strategy for Steal or Forge Authentication Cert...",
+  "externalId": "DET0240",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the theft or forgery of authentication certificates, the credential material that lets an identity prove who it is without a password. The technique matters because a certificate keeps working after a password reset, can be used for certificate based sign in, and is often trusted by federation services, so it gives durable access that ordinary credential hygiene does not remove. Detection depends on certificate enrollment and issuance records, certificate template changes, and Kerberos or federation authentication events that name the certificate. The main way it fails is that certificates are also the normal way staff sign in and services authenticate, so a usable rule has to compare the subject, issuer, template and requesting host against a baseline instead of alerting on certificate use itself.",
+  "tags": [
+    "identity",
+    "certificate",
+    "credential access",
+    "active directory",
+    "persistence",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Steal or Forge Authentication Certificates",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0240/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Steal or Forge Authentication Certificates - EASY",
+      "path": "exercises/det0240/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Steal or Forge Authentication Certificates - MEDIUM",
+      "path": "exercises/det0240/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Steal or Forge Authentication Certificates - HARD",
+      "path": "exercises/det0240/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Steal or Forge Authentication Certificates - EXTREMELY HARD",
+      "path": "exercises/det0240/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for stolen or faked certificates used to log in. A certificate is a small digital file that proves an identity, like a passport for a computer. It is stronger than a password, so attackers want to copy one or make their own. The rule watches where certificates are asked for, exported or used, and by whom.",
+    "whyItMatters": "A password can be changed quickly when it leaks. A stolen certificate often keeps working even after that. Some systems trust a certificate on its own, so no password is asked for. This makes it a quiet way to keep access to an account. Catching the moment a strange certificate is issued or used can stop that access early.",
+    "howItWorks": [
+      "A person or a service asks the certificate authority for a new certificate.",
+      "The certificate authority writes a record of the request and answers it.",
+      "The rule reads that record and notes the subject, the template and the machine that asked.",
+      "It compares these details with the normal pattern for that account and host.",
+      "At the same time it watches logins that use a certificate, such as Kerberos or federation sign in.",
+      "If a certificate appears that nobody asked for, or one is used from a new place, it raises an alert."
+    ],
+    "example": "Think of a building where staff use a printed pass instead of saying a password. A stolen pass still opens the door next week, even if the person changes their spoken password. A forged pass is worse, because the door reader was never told to expect it. The guard only notices if the desk log shows a pass printed for someone who never asked.",
+    "takeaways": [
+      "A certificate is a credential, so it needs the same care as a password.",
+      "Watch both the moment a certificate is issued and the moment it is used.",
+      "Normal certificate use is common, so compare against a baseline before alerting."
+    ]
+  },
+  "objectives": [
+    "Explain why certificate based credentials survive a password reset.",
+    "Identify the events that record certificate requests, issuance and export.",
+    "Correlate a certificate subject with the account, host and template that requested it.",
+    "Describe how certificate template changes can weaken who may enrol.",
+    "Recognise certificate based authentication in Kerberos and federation log records.",
+    "List the baseline facts needed before certificate use can be scored as unusual."
+  ],
+  "techniqueId": "t1649",
+  "detectsTechniques": [
+    "t1649"
+  ],
+  "dataSources": [
+    "Windows security event 4886 recording a certificate services request received, with requester and subject name",
+    "Windows security event 4887 recording a certificate services request that was approved and issued",
+    "Windows security event 4768 recording a Kerberos ticket granting ticket request with certificate based pre-authentication details",
+    "Certificate authority configuration change records for certificate template and permission edits",
+    "Sysmon event 11 file creation records for exported certificate files in user profile and temporary directories"
+  ],
+  "logic": "The pattern is certificate material being created, exported or used in a way that does not match the account's normal working life. The fields to correlate are the requester account, the subject name inside the certificate, the template or policy used, the issuing authority, the requesting host, and the time, joined to the authentication records that consume the certificate. The malicious case usually shows a request for a template the requester has never used, a subject name that does not match the requester, an export of a private key or personal certificate store to a user writable path, or certificate based sign in from a new host or address shortly after a request. The benign case is a managed enrolment from a known management server, a renewal inside the normal template, or a documented smart card issuance made by the identity team.",
+  "pseudoQuery": "# title: Anomalous Certificate Enrolment or Certificate Based Sign In\n# logsource:\n#   product: windows\n# detection:\n#   selection_issue:\n#     EventID:\n#       - 4886\n#       - 4887\n#   selection_auth:\n#     EventID: 4768\n#     PreAuthType: 16\n#   filter_managed:\n#     Requester|endswith: '$'\n#     Template|contains: 'ManagedEnrolment'\n#   condition: (selection_issue or selection_auth) and not filter_managed\n# level: high",
+  "falsePositives": [
+    "Managed certificate auto-enrolment from the internal mobile device management or configuration management server",
+    "A scheduled certificate renewal that uses the same template the account has used for years",
+    "Smart card issuance at a desk appointment where the requesting administrator is recorded in the ticket",
+    "A certificate export performed by a developer copying a client authentication certificate to a test host with a change record"
+  ],
+  "tuningNotes": "Start by baselining which accounts request certificates, which templates they use and which hosts perform the request, then alert only when the template or subject deviates from that baseline rather than on enrolment volume. Treat certificate template and permission changes as a separate higher severity rule, because loosening who may enrol is the quiet step that makes later misuse look legitimate. Scope the first version to certificate authorities that issue authentication certificates and to accounts with directory or federation privileges, and push ordinary user renewals into a daily summary. The coverage you lose by narrowing to privileged accounts is a compromised standard account obtaining a certificate that is trusted by a federation service, so pair this rule with detection of new certificate based sign in from hosting provider address ranges.",
+  "severity": "high"
+}

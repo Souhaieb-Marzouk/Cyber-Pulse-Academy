@@ -1,0 +1,107 @@
+{
+  "id": "det0265",
+  "type": "detection",
+  "title": "Detection Strategy for System Services: Launchctl",
+  "shortTitle": "Detection Strategy for System Services: Launchctl",
+  "externalId": "DET0265",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers abuse of system service management through launchctl on macOS, tracked as T1569.001, where an adversary registers a persistent service or starts one on demand. Launch agents and launch daemons are the native persistence mechanism on macOS, and a single property list file is enough to run a program at logon or at boot. The telemetry is unified log entries for service submission, process monitoring of the launchctl command, and file monitoring of the launch agents and launch daemons directories. The strategy fails when file monitoring does not cover user library paths, when a legitimate installer uses the same mechanism, and when the job is registered through a programming interface rather than the command line tool.",
+  "tags": [
+    "macos",
+    "launchctl",
+    "t1569.001",
+    "persistence",
+    "service execution",
+    "unified log"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for System Services: Launchctl",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0265/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for System Services: Launchctl - EASY",
+      "path": "exercises/det0265/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for System Services: Launchctl - MEDIUM",
+      "path": "exercises/det0265/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for System Services: Launchctl - HARD",
+      "path": "exercises/det0265/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for System Services: Launchctl - EXTREMELY HARD",
+      "path": "exercises/det0265/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Launchd is the part of macOS that starts and watches background programs. The launchctl command is how you talk to it. A launch agent is a small settings file. It tells launchd what to run for one user. A launch daemon does the same for the whole system. This detection watches for new service files and for the commands that load them.",
+    "whyItMatters": "macOS keeps a list of programs that start by themselves. An attacker who adds one entry owns the machine again after every restart. The entry looks like a normal system file, so it is easy to miss. The built-in protections help, but they do not cover everything. Watching the loading command and the new settings file gives you a clear, early signal.",
+    "howItWorks": [
+      "The host records commands run by users, including launchctl and all of its arguments.",
+      "File monitoring watches the user and system folders that hold service definition files.",
+      "The rule links a new definition file with the launchctl command that loaded it.",
+      "It reads the program path inside the definition and compares it with the software inventory for that host.",
+      "A definition that points to a program outside a managed location is scored as suspicious.",
+      "The alert includes the job label, the program path, and the account that registered it."
+    ],
+    "example": "Think of a building's key register. Every key that opens a door is written in the book. A new entry means a new key exists, and the manager wants to know who asked for it. A person who adds an entry for the back door without permission can enter whenever they like. Launch agents are those entries, and the register is the launchd service list.",
+    "takeaways": [
+      "A single settings file can give an intruder permanent access on macOS.",
+      "Link the new service file to the command that loaded it, and to the account behind it.",
+      "Compare the program path inside the file with your approved software list."
+    ]
+  },
+  "objectives": [
+    "Describe how launch agents and launch daemons provide persistence on macOS",
+    "Monitor the directories that hold service definition files",
+    "Correlate launchctl execution with newly created service definitions",
+    "Validate the program path inside a service definition against software inventory",
+    "Explain why legitimate installers produce the same events"
+  ],
+  "techniqueId": "t1569-001",
+  "detectsTechniques": [
+    "t1569-001"
+  ],
+  "dataSources": [
+    "macOS unified log entries for launchd service load, bootstrap, and enable operations with the submitted job label",
+    "Endpoint process monitoring of launchctl execution with its arguments and parent process",
+    "File system monitoring for property list creation under the user launch agents and system launch daemons directories",
+    "Endpoint security framework file and process events recording the executable path referenced by a new service definition",
+    "Software inventory data listing the launchd jobs that should exist on a managed host"
+  ],
+  "logic": "The pattern is a new or modified service definition in a launch agents or launch daemons directory, combined with a launchctl operation that loads it, submitted by an account that does not normally manage services. The rule joins file monitoring events for property list creation with process monitoring events for launchctl on the same host within a short window, then resolves the program path named inside the definition and checks it against the managed software inventory and code signing status. Benign cases are commercial installers and management agents that register their own jobs, which are signed and write to system directories from a privileged parent process. Malicious cases more often land in a user library directory and reference a binary in a temporary or hidden folder.",
+  "pseudoQuery": "# title: New launchd service definition loaded from a user directory\n# logsource:\n#   product: macos\n# detection:\n#   selection_cmd:\n#     event_type: 'process_start'\n#     process_name: 'launchctl'\n#     argument|contains: 'load'\n#   selection_file:\n#     event_type: 'file_create'\n#     file_path|contains: '/Library/LaunchAgents/'\n#   filter:\n#     signing_status: 'valid'\n#     parent_process: '/usr/sbin/installer'\n#   condition: selection_cmd and selection_file and not filter\n# level: high",
+  "falsePositives": [
+    "Commercial software installers that register a launch agent so their updater runs at logon",
+    "Mobile device management agents that install and load their own launch daemon during enrolment",
+    "Developers who register a local helper service for a tool they are testing",
+    "Backup clients that create a user launch agent to run scheduled copies"
+  ],
+  "tuningNotes": "Scope the rule to managed fleets and allowlist the job labels and signing identities of your approved agents, then alert on any new label outside that list. Require the definition file to be only a few minutes old, so that launchctl operations on long standing jobs do not fire the rule. Add a condition on the executable path inside the definition and exclude paths under managed application directories. Narrowing this way loses coverage for an intruder who overwrites an existing approved job file rather than registering a new one, so add a separate file modification rule for those paths.",
+  "severity": "high"
+}

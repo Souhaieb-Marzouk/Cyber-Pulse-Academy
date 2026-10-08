@@ -1,0 +1,106 @@
+{
+  "id": "det0153",
+  "type": "detection",
+  "title": "Detection Strategy for Exfiltration Over Webhook",
+  "shortTitle": "Detection Strategy for Exfiltration Over Webhook",
+  "externalId": "DET0153",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1567.004, exfiltration over a webhook, where an intruder sends stolen data as structured messages to a uniform resource locator provided by a collaboration or automation service, so the traffic blends into normal business integrations and needs no attacker controlled infrastructure. Detection uses web proxy logs for uniform resource locator paths that identify webhook endpoints, endpoint network and process telemetry to attribute the request, and service side audit logs where the tenant integration is visible. The strength of the pattern is that webhook destinations are a finite, enumerable list of well known hosts and paths, so matching them is precise. The practical failure is that automation platforms and chat applications are legitimate business tools, so the rule must separate approved integrations from unrecognised processes posting to those endpoints.",
+  "tags": [
+    "t1567.004",
+    "exfiltration",
+    "webhook",
+    "saas",
+    "proxy-logs"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exfiltration Over Webhook",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0153/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exfiltration Over Webhook - EASY",
+      "path": "exercises/det0153/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration Over Webhook - MEDIUM",
+      "path": "exercises/det0153/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration Over Webhook - HARD",
+      "path": "exercises/det0153/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exfiltration Over Webhook - EXTREMELY HARD",
+      "path": "exercises/det0153/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A webhook is a web address that accepts messages automatically, like a mailbox for a program. This detection looks for data being sent to those addresses. It focuses on messages sent by programs that have no business reason to use them.",
+    "whyItMatters": "Webhook addresses are public and easy to use. Traffic to them usually looks like ordinary business messaging, so it passes many filters. An attacker can send data out this way without owning any server. Knowing which programs normally post to these addresses is what makes the difference.",
+    "howItWorks": [
+      "The web proxy logs each request, including the full web address and the bytes uploaded.",
+      "The detection matches addresses that belong to known webhook or automation services.",
+      "It identifies the program and the user that made the request.",
+      "It compares that program with the list of approved integrations for that asset group.",
+      "A request from an unrecognised program, or one carrying a large body, raises an alert."
+    ],
+    "example": "Think of a hotel where guests can drop notes into an internal mail slot for the concierge. Staff use it all day. One guest has never spoken to the concierge. That guest pushes a thick envelope through the slot at midnight. This is worth a second look. The slot is not wrong, the sender is unexpected.",
+    "takeaways": [
+      "Webhook addresses are a short, matchable list.",
+      "The sending program matters more than the destination.",
+      "Upload size and repetition turn a normal message into a warning."
+    ]
+  },
+  "objectives": [
+    "Explain what a webhook is and why it suits outbound data theft",
+    "Recognise webhook and automation endpoints in proxy and network logs",
+    "Attribute a webhook request to a process, account, and host",
+    "Compare observed senders with the approved integration inventory",
+    "Use message size and frequency to rank webhook alerts",
+    "Select severity based on the volume and sensitivity of data sent"
+  ],
+  "techniqueId": "t1567-004",
+  "detectsTechniques": [
+    "t1567-004"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway logs recording full request uniform resource locator, method, uploaded bytes, and user agent",
+    "Sysmon event 22 domain name system query events and event 3 network connection events tying a request to a process image",
+    "Software as a service audit logs showing incoming webhook executions with the calling address and payload size",
+    "Endpoint sensor process creation records for scripting hosts and command line tools that perform outbound posts",
+    "Firewall or flow records showing repeated small uploads to a small set of automation service addresses"
+  ],
+  "logic": "The detection looks for structured message uploads to webhook or automation endpoints from a process that is not part of the approved integration inventory for that asset group, or for such uploads whose volume and repetition exceed the normal pattern. The fields that must be correlated are the destination host and path, the request method and body size, the process image and its parent, the account, the host role, and the frequency of similar requests over the previous days. A benign case is a signed monitoring or chat integration agent posting short status messages on a schedule, while the malicious case is a script host, archive utility, or database client posting larger bodies to a webhook path that no other host in the estate contacts.",
+  "pseudoQuery": "# title: Webhook Post From Unrecognised Process\n# logsource:\n#   product: network\n#   service: proxy\n# detection:\n#   selection:\n#     Url|contains:\n#       - '/api/webhooks/'\n#       - 'hooks.slack'\n#       - 'webhook.office'\n#     Method: 'POST'\n#   filter:\n#     ProcessImage|endswith:\n#       - '\\Program Files\\Monitoring Agent\\agent.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Chat operations integrations that post build, alert, or ticket notifications from approved service accounts",
+    "Business automation platforms executing approved workflows that send data to collaboration channels",
+    "Development teams testing their own webhook receivers against a sandbox endpoint",
+    "Security tooling that forwards findings to a chat channel through a configured webhook"
+  ],
+  "tuningNotes": "Build the approved integration inventory first, recording which processes and service accounts may post to which webhook paths, and suppress only those exact combinations. Then set a body size threshold above normal notification traffic and count repeats per host per hour. Scope the strongest branch to servers and to hosts that hold regulated data, where a webhook upload is rarely part of normal work. The coverage you lose by allow listing legitimate automation is data theft that hides inside an approved workflow, so review the integration inventory regularly and alert on changes to workflow definitions in the automation platform itself.",
+  "severity": "high"
+}

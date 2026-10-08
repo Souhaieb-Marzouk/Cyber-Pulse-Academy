@@ -1,0 +1,107 @@
+{
+  "id": "det0094",
+  "type": "detection",
+  "title": "Cross-Platform Behavioral Detection of Scheduled Task/Job Abuse",
+  "shortTitle": "Cross-Platform Behavioral Detection of Scheduled Task/Job...",
+  "externalId": "DET0094",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of scheduled tasks and jobs on Windows and Linux, where an attacker registers work that runs later, often as a privileged account. The technique matters because scheduled execution provides persistence, allows execution under another user identity, and hides activity inside legitimate automation. Detection combines scheduling service events on Windows with process creation showing the scheduler registering a task, and on Linux with audit records for crontab and systemd timer file changes followed by job execution. The recurring failure is volume, because real environments run thousands of legitimate scheduled jobs, so the rule must focus on the task action and the account rather than the act of scheduling. Treat this as study material, not authoritative guidance.",
+  "tags": [
+    "persistence",
+    "scheduled task",
+    "cron",
+    "windows",
+    "linux"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Cross-Platform Behavioral Detection of Scheduled Task/Job Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0094/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Cross-Platform Behavioral Detection of Scheduled Task/Job Abuse - EASY",
+      "path": "exercises/det0094/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of Scheduled Task/Job Abuse - MEDIUM",
+      "path": "exercises/det0094/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of Scheduled Task/Job Abuse - HARD",
+      "path": "exercises/det0094/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Cross-Platform Behavioral Detection of Scheduled Task/Job Abuse - EXTREMELY HARD",
+      "path": "exercises/det0094/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new scheduled jobs on Windows and Linux computers. A scheduled job is an action that the computer performs at a set time or on a trigger. Attackers add jobs so their code runs again later, sometimes as an administrator. The detection watches both the moment the job is created and the moment it runs.",
+    "whyItMatters": "Attackers want their access to survive a restart and a password change. A scheduled job can run as another account, which hides who really started it. On Linux the same idea appears as a time based job or a timer unit. Because real systems are full of scheduled jobs, a hostile one blends into the crowd. Careful detection turns that crowd into a searchable list.",
+    "howItWorks": [
+      "On Windows, the task scheduler records when a task is created, changed or deleted, with the task name and the account.",
+      "The endpoint agent records process creation, so the tool that registered the task and its command line are visible.",
+      "On Linux, file monitoring records changes to the time based job tables and to timer unit files.",
+      "The rule reads the action of the new job, which is the command or script that will actually run.",
+      "It compares the job name and action with the documented automation baseline for that host.",
+      "When a new job runs a scripting interpreter with encoded arguments or writes to a temporary folder, the alert is raised."
+    ],
+    "example": "Imagine a hospital that lets staff book a treatment room for later. A nurse booking a room for a patient is routine. A stranger booking the same room at three in the morning under a doctor's name is worth a call. The booking system is not the problem, and the person plus the time plus the name used decide the risk. Scheduled job detection reads the booking form in the same way.",
+    "takeaways": [
+      "Scheduled jobs give attackers persistence and the appearance of another user.",
+      "Read the job action and the account that registered it, not just the fact that a job exists.",
+      "Always compare new jobs against a baseline of real automation on the host."
+    ]
+  },
+  "objectives": [
+    "Describe how scheduled jobs provide persistence and execution as another user.",
+    "Name the Windows scheduling events and Linux audit records that reveal job changes.",
+    "Extract the action and the run as account from a new or changed job.",
+    "Build a baseline of legitimate automation for a host or asset group.",
+    "Triage a suspicious job by checking its action, trigger and registration account."
+  ],
+  "techniqueId": "t1053",
+  "detectsTechniques": [
+    "t1053"
+  ],
+  "dataSources": [
+    "Windows Security event 4698 scheduled task created, event 4702 task updated and event 4700 task enabled",
+    "Sysmon event 1 process creation for schtasks.exe, at.exe and the task scheduler service image",
+    "Windows Security event 4688 process creation with command line auditing showing the task action arguments",
+    "Linux auditd file watches on the system and per user crontab locations and on systemd timer unit files",
+    "Linux auditd execve records for processes started by the cron or systemd timer service"
+  ],
+  "logic": "The pattern is a new or modified scheduled job whose action does not match the automation baseline for that host, or a task registration made by an unexpected account or tool. The fields to correlate are the task or timer name, the action command line, the run as account, the registering process image and its parent, the trigger, and the user session that performed the change. Legitimate jobs are created by deployment tooling or administrators, have descriptive names, point to signed binaries under program files or to documented automation paths, and are often created in bulk. Malicious jobs tend to be created individually, outside change windows, with generic or system sounding names, actions that run a script interpreter from a user writable folder, and a run as account that is more privileged than the person who created the task. The action and the account, not the creation event itself, decide the verdict.",
+  "pseudoQuery": "# title: Scheduled Job With Script Interpreter Action\n# logsource:\n#   product: windows\n# detection:\n#   sel_task:\n#     EventID: [4698, 4702]\n#     TaskContent|contains: ['powershell', 'cmd.exe', 'wscript', 'AppData', 'Temp']\n#   sel_tool:\n#     EventID: 1\n#     Image|endswith: ['\\\\schtasks.exe', '\\\\at.exe']\n#     CommandLine|contains: ['/create', '/change']\n#   filter:\n#     User|endswith: 'svc_deployment'\n#   condition: (sel_task or sel_tool) and not filter\n# level: high",
+  "falsePositives": [
+    "Software deployment platforms that create or refresh maintenance tasks across the fleet every patch cycle",
+    "Backup and monitoring products that register their own scheduled jobs during installation",
+    "Administrators who create a short lived task to run a fix during an incident call",
+    "Linux automation such as configuration management that rewrites cron entries on every converge run",
+    "Application installers that add a time based job under the application service account"
+  ],
+  "tuningNotes": "Export the existing scheduled job list per asset group and treat it as the baseline, then alert on additions rather than on any modification, which removes most update churn. Allowlist the deployment and monitoring accounts by name and signer, and require the action to contain a script interpreter or a user writable path before raising severity. Scope the strict version to domain controllers, backup servers and hypervisors. The coverage you give up is a hostile job that reuses an existing task name or points at a trusted binary with attacker supplied arguments, so keep a lower severity rule for any change to a task whose action references a user profile path.",
+  "severity": "high"
+}

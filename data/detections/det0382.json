@@ -1,0 +1,107 @@
+{
+  "id": "det0382",
+  "type": "detection",
+  "title": "Detection Strategy for Process Hollowing on Windows",
+  "shortTitle": "Detection Strategy for Process Hollowing on Windows",
+  "externalId": "DET0382",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses process hollowing, where an adversary starts a legitimate executable in a suspended state, replaces its mapped memory with other code, and then resumes it so the running process keeps the trusted name and file path. Because the outer process is genuine, name based rules and file reputation checks do not fire; the reliable signal is a mismatch between what the image on disk contains and what the process actually executes. Useful telemetry includes process creation records with parent image and integrity level, image load events, and memory or thread telemetry from the operating system kernel providers. The strategy fails in practice where signature verification is not collected, where memory telemetry is unavailable, and where short lived processes end before any comparison can be made.",
+  "tags": [
+    "defense evasion",
+    "process injection",
+    "windows",
+    "memory",
+    "sysmon",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Process Hollowing on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0382/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Process Hollowing on Windows - EASY",
+      "path": "exercises/det0382/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Process Hollowing on Windows - MEDIUM",
+      "path": "exercises/det0382/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Process Hollowing on Windows - HARD",
+      "path": "exercises/det0382/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Process Hollowing on Windows - EXTREMELY HARD",
+      "path": "exercises/det0382/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Process hollowing is a way of hiding harmful code inside a normal program. The attacker starts a trusted program, removes its contents, puts other code in the same space, and lets it run. This detection looks for a running program whose behaviour does not match the file it claims to be.",
+    "whyItMatters": "The process list still shows a familiar, signed program name, so a quick check makes the machine look clean. The code that actually runs was never written to disk as a file, so file scanning alone finds nothing. Detection needs a memory view and a comparison, and that comparison is what turns a quiet machine into a clear alert.",
+    "howItWorks": [
+      "Process creation records show which program started and which program started it, including the full file path.",
+      "The rule keeps the signature status and publisher of the image file for each new process.",
+      "Memory telemetry shows the process image changing after startup, or memory being changed by another process.",
+      "The rule compares the signer of the running image with the signer recorded for the same program on other hosts.",
+      "When a trusted name shows an unexpected signer, or memory changes after start, the host is flagged for analyst review."
+    ],
+    "example": "Imagine a sealed parcel with a well known brand on the label. The courier never opens it, so the label is all they check. A careful inspector weighs the parcel and finds the weight does not match the label. The name is right but the contents are not, and that mismatch is the clue.",
+    "takeaways": [
+      "Process hollowing hides behind a real program name, so name matching is not enough.",
+      "The strongest signal is a difference between the file on disk and the code in memory.",
+      "Short lived processes are hard to catch, so collect memory and image load telemetry continuously."
+    ]
+  },
+  "objectives": [
+    "Describe how process hollowing keeps a trusted image name while running different code",
+    "Explain why file reputation checks alone cannot detect this technique",
+    "Identify the process, image load, and memory telemetry needed for a comparison based rule",
+    "Correlate parent and child process records to separate a suspicious start from routine software updates",
+    "Tune a rule that treats a signer mismatch on a system binary as a high priority alert",
+    "State which coverage gaps remain when memory telemetry is not collected"
+  ],
+  "techniqueId": "t1055-012",
+  "detectsTechniques": [
+    "t1055-012"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, image path, command line, and signature status",
+    "Windows Security event 4688 process creation with command line auditing and the creating process name recorded",
+    "Sysmon event 7 image loaded with signature and hash information for newly loaded modules",
+    "Operating system kernel process and thread telemetry that reports memory changes made to a running process",
+    "EDR agent memory integrity or process tamper alerts on a watched host"
+  ],
+  "logic": "The pattern is a trusted executable whose running code no longer matches its file. The rule takes each new process record, looks at the image path and the recorded signature status, and flags a mismatch such as an unsigned or unexpectedly signed process that carries the name of a signed system binary, or an image whose recorded hash does not match the hash of the file at that path. It then correlates that process with kernel level memory or thread telemetry showing another process changing the image or allocating executable memory inside it, and with the parent record to check whether the parent is a normal installer. The benign case is a software update or a developer tool that legitimately loads unsigned modules into its own process, which happens from a known update path and a consistent parent. The malicious case is a signed system name started by a document reader, a script host, or an office application, followed by memory changes inside that process.",
+  "pseudoQuery": "# title: System Binary Name With Unexpected Signature\n# logsource:\n#   product: windows\n#   service: process_creation\n# detection:\n#   selection_name:\n#     Image|endswith:\n#       - '\\\\svchost.exe'\n#       - '\\\\rundll32.exe'\n#   selection_bad_sig:\n#     Signed: 'false'\n#   selection_susp_parent:\n#     ParentImage|endswith:\n#       - '\\\\winword.exe'\n#       - '\\\\wscript.exe'\n#       - '\\\\powershell.exe'\n#   filter_update:\n#     ParentImage|endswith: '\\\\services.exe'\n#   condition: selection_name and selection_bad_sig and selection_susp_parent and not filter_update\n# level: high",
+  "falsePositives": [
+    "Software update services that restart a signed system binary from an unsigned temporary staging folder",
+    "Endpoint protection agents that load unsigned detection modules into their own process during a content update",
+    "Developer or debugging tools that start a system binary under a debugger with a modified image",
+    "Custom line of business applications that unpack a stub into a renamed copy of a system executable"
+  ],
+  "tuningNotes": "Baseline the parent and child pairs for your standard software deployment and endpoint agent update paths, then add those pairs as a filter so normal patching does not flood the queue. Scope the high priority tier of the rule to hosts that handle credentials or domain services, and keep a lower severity tier everywhere else. Signature status is only useful where the collection agent records it, so verify that the field is populated before you rely on it, otherwise the rule will silently match nothing. Narrowing to a small parent list reduces noise but loses coverage of hollowing started by unusual parents, so pair the rule with periodic memory scanning of long lived system processes.",
+  "severity": "high"
+}

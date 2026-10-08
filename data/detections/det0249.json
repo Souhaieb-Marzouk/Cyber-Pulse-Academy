@@ -1,0 +1,108 @@
+{
+  "id": "det0249",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1610 Deploy Container across Docker & Kubernetes control/node planes",
+  "shortTitle": "Behavior-chain detection for T1610 Deploy Container acros...",
+  "externalId": "DET0249",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the deployment of containers used as an execution platform, following the chain from image pull to container create and start, and then to the privileges and mounts the container receives across Docker hosts and Kubernetes clusters. The technique matters because deploying a container is equivalent to running a process on someone else's server, and the runtime often supplies the privileges, host path mounts and service account tokens that turn a simple deployment into cluster wide access. Detection depends on Kubernetes audit logs, container runtime daemon events, admission and policy decision records, and runtime process telemetry tagged with container identifiers. The main way it fails is volume, because orchestrators create containers constantly, so the rule must key on the deploying identity, its normal rate, the security context and the mounted host paths.",
+  "tags": [
+    "containers",
+    "kubernetes",
+    "docker",
+    "execution",
+    "cloud",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1610 Deploy Container across Docker & Kubernetes control/node planes",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0249/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1610 Deploy Container across Docker & Kubernetes control/node planes - EASY",
+      "path": "exercises/det0249/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1610 Deploy Container across Docker & Kubernetes control/node planes - MEDIUM",
+      "path": "exercises/det0249/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1610 Deploy Container across Docker & Kubernetes control/node planes - HARD",
+      "path": "exercises/det0249/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1610 Deploy Container across Docker & Kubernetes control/node planes - EXTREMELY HARD",
+      "path": "exercises/det0249/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new containers being deployed, especially ones with extra powers. A container is a small sealed box that runs one program on a server. Deploying means starting such a box, often through a tool like Docker or Kubernetes. Attackers deploy their own box to run code and to reach the rest of the cluster. The rule watches who deploys, how often, and with what permissions.",
+    "whyItMatters": "A container can be given access to the host file system or to keys that manage the whole cluster. That turns one small deployment into control of many servers. Companies start containers all day, so the act itself is not unusual. The clues are the account, the speed of the deployment and the powers attached to it.",
+    "howItWorks": [
+      "A user, a pipeline or an automated controller asks the platform to run a container.",
+      "The image is pulled and the platform records a create request with the image and settings.",
+      "The runtime starts the container and writes its own event with the container identifier.",
+      "Policy records show whether the request was allowed and which rules applied to it.",
+      "Runtime sensors report the processes started inside that container.",
+      "The rule joins these records and flags deployments with host mounts, extra powers or a new deploying account."
+    ],
+    "example": "Think of a large office where every team may book a meeting room. Booking a room is normal. Booking the server room, at midnight, with a key you were never issued, is not. The room is the container, and the key is the extra permission attached to it.",
+    "takeaways": [
+      "Deploying a container is running code, so identity and privilege matter most.",
+      "Join the platform record with the runtime event using the container identifier and image digest.",
+      "Host path mounts and extra powers turn a small deployment into a large one."
+    ]
+  },
+  "objectives": [
+    "Describe what deploying a container means from a security point of view.",
+    "Identify Kubernetes audit and container runtime records that record a deployment.",
+    "Explain the role of the container identifier and image digest when joining records.",
+    "List the privilege settings and mounts that increase the risk of a deployment.",
+    "Baseline the normal deployment rate for each service account and namespace.",
+    "Recognise controller driven deployments that should not raise alerts."
+  ],
+  "techniqueId": "t1610",
+  "detectsTechniques": [
+    "t1610"
+  ],
+  "dataSources": [
+    "Kubernetes audit logs recording pod, deployment and daemon set creation with the requesting identity and security context",
+    "Container runtime daemon events recording container create, start and stop with the image reference and container identifier",
+    "Container admission controller decision records showing whether a deployment was allowed, denied or mutated",
+    "Runtime security sensor process events tagged with the container identifier",
+    "Cloud provider container service logs recording task and service creation for managed orchestrators"
+  ],
+  "logic": "The pattern is a container deployment that differs from the normal deployment profile of the identity making it, especially when the container is created with host namespace access, host path mounts, added capabilities, a privileged security context or a mounted service account token of a more powerful account. The fields that must be correlated are the requesting user or service account, the namespace, the workload kind, the image reference and digest, the security context and volume definitions, the admission decision, and the container identifier that links the platform record to the runtime process events. The malicious case usually shows a deployment by an identity that has never deployed before, an interactive or long lived container rather than a scheduled workload, host path mounts such as the container runtime socket, privilege escalation flags, and a burst of deployments across namespaces within a few minutes. The benign case is a continuous delivery pipeline deploying on a schedule, a horizontal or cluster autoscaler creating replicas, a batch job created by a controller, or a platform engineer running a documented troubleshooting pod.",
+  "pseudoQuery": "# title: Container Deployed With Host Mount or Privileged Context\n# logsource:\n#   product: kubernetes\n# detection:\n#   selection_create:\n#     verb: 'create'\n#     objectRef.resource|in:\n#       - 'pods'\n#       - 'daemonsets'\n#   selection_risky:\n#     requestObject.spec.containers.volumeMounts.mountPath|contains: '/var/run/docker.sock'\n#   selection_priv:\n#     requestObject.spec.securityContext.privileged: true\n#   filter_ci:\n#     user.username|in: 'deployment_pipeline_accounts'\n#   condition: selection_create and (selection_risky or selection_priv) and not filter_ci\n# level: high",
+  "falsePositives": [
+    "A continuous delivery pipeline that deploys application containers on every merge with a standard security context",
+    "A cluster autoscaler or horizontal pod autoscaler that creates replicas during a normal traffic peak",
+    "A monitoring agent deployed as a daemon set that needs host path access to read system metrics",
+    "A platform engineer running a short lived debugging container inside a namespace with a change record"
+  ],
+  "tuningNotes": "Baseline deployment counts per service account, namespace and workload kind for at least thirty days, then allow the pipeline accounts and controller identities their normal patterns by namespace and image repository. Make the risky settings the trigger, not the deployment itself: host path mounts, host network and process namespaces, added capabilities, privileged contexts and mounts of the runtime socket. Keep an inventory of which human accounts are entitled to deploy at all and alert on any first time deployer. Scope the first version to production clusters and namespaces that hold secrets. The coverage you lose by allowing pipeline accounts is a compromised pipeline credential, so pair this rule with change review on the pipeline configuration and with alerts when a pipeline identity deploys an image digest it has never used.",
+  "severity": "high"
+}

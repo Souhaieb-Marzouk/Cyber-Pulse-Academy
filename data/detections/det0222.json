@@ -1,0 +1,105 @@
+{
+  "id": "det0222",
+  "type": "detection",
+  "title": "Detecting MMC (.msc) Proxy Execution and Malicious COM Activation",
+  "shortTitle": "Detecting MMC (.msc) Proxy Execution and Malicious COM Ac...",
+  "externalId": "DET0222",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1218.014, MMC, where an actor uses the Microsoft Management Console as a signed host to run their own logic, typically by loading a console file or snap-in from a network share, a web address, or a temporary folder. Detection depends on process creation telemetry for the console host with full command line auditing, plus the child processes and module loads that follow the start. The main problem is that console files are everyday tools for administrators, so the origin of the file and the parent process matter far more than the binary name itself.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "proxy execution",
+    "command line",
+    "living off the land"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting MMC (.msc) Proxy Execution and Malicious COM Activation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0222/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting MMC (.msc) Proxy Execution and Malicious COM Activation - EASY",
+      "path": "exercises/det0222/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting MMC (.msc) Proxy Execution and Malicious COM Activation - MEDIUM",
+      "path": "exercises/det0222/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting MMC (.msc) Proxy Execution and Malicious COM Activation - HARD",
+      "path": "exercises/det0222/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting MMC (.msc) Proxy Execution and Malicious COM Activation - EXTREMELY HARD",
+      "path": "exercises/det0222/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at a Windows tool that administrators use, called the Microsoft Management Console. The tool can load extra modules and console files. An attacker can give it a harmful module, or a file from a network share. The rule watches how the tool is started and what it loads.",
+    "whyItMatters": "The console tool is signed by Microsoft, so the system trusts it. When it starts, its actions can look legitimate. Attackers use trusted tools like this to avoid suspicion. A console file can also sit on a remote share, so one small file controls the loaded code. The start up details reveal the abuse.",
+    "howItWorks": [
+      "Process creation logs record each start of the console tool, together with its full command line.",
+      "The rule checks the command line for console files and for registered module identifiers.",
+      "It flags files that are loaded from network shares, web addresses, or temporary folders.",
+      "It then looks at the child processes that the console starts.",
+      "It compares the parent process with normal administrator behaviour on that host.",
+      "A remote console file that leads to a scripting host or a temporary binary raises the alert."
+    ],
+    "example": "Think of a master key that opens many doors in an office. It is trusted, so nobody questions it. If that key is copied and used by a stranger at midnight, the door log tells the story. The console tool is that master key.",
+    "takeaways": [
+      "Trusted system programs can run attacker code without looking strange.",
+      "The command line and the file path are the strongest clues here.",
+      "Child processes show whether the console did something useful or harmful."
+    ]
+  },
+  "objectives": [
+    "Explain what proxy execution means and why signed system tools are chosen for it.",
+    "Identify process creation telemetry that captures console tool command lines and child processes.",
+    "Recognise command line patterns that point to remote or temporary console files.",
+    "Distinguish routine administrator console use from suspicious invocation paths.",
+    "Describe how to combine parent and child process evidence into one rule."
+  ],
+  "techniqueId": "t1218-014",
+  "detectsTechniques": [
+    "t1218-014"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled, for the console host binary",
+    "Sysmon event 1 process creation including parent image, image, and full command line",
+    "Sysmon event 11 file create for console files written to temporary or user writable directories",
+    "File share or web server access records showing a console file being read from a remote location"
+  ],
+  "logic": "The pattern is a trusted console host started with arguments that point at a console file or module outside the local administrative set, particularly from a network share, a web address, or a temporary directory, followed by a child process that performs work the console itself would not normally do. The fields to correlate are the parent image, the full command line, the resolved file path, the loaded module path, and the child process that follows. Benign console use by administrators references local files under the system directory or a managed configuration share, and children stay within the console's own helper processes; the suspicious case mixes an unusual path with a scripting or binary child.",
+  "pseudoQuery": "# title: Console Host Loading Remote Or Temporary Console File\n# logsource:\n#   product: windows\n#   category: process_creation\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: '\\mmc.exe'\n#     CommandLine|contains:\n#       - '\\\\\\\\'\n#       - 'http'\n#       - '\\Temp\\'\n#       - '\\AppData\\'\n#   filter_admin:\n#     CommandLine|contains: '\\Windows\\System32\\'\n#   condition: selection and not filter_admin\n# level: high",
+  "falsePositives": [
+    "Administrators opening a shared console file from a team documentation or configuration share",
+    "Management platforms that launch the console with a vendor snap-in registered through a network path",
+    "Software installation or upgrade processes that open a console file from a temporary extraction folder",
+    "Remote management sessions that use a console file supplied by a support vendor during a troubleshooting call"
+  ],
+  "tuningNotes": "Baseline the console files that your administrators and management platforms legitimately open, and allowlist those by full path and by the signer of the loading module. Scope the rule to servers and to the administrator group first, because general users rarely start the console. Treat any console file loaded from a web address as high severity without exception. Narrowing to local administration loses coverage of an attacker who registers a malicious module on the endpoint and then starts it locally, so also alert on new module registrations that are not tied to a change record.",
+  "severity": "high"
+}

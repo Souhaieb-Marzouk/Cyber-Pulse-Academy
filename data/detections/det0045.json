@@ -1,0 +1,107 @@
+{
+  "id": "det0045",
+  "type": "detection",
+  "title": "Detection Strategy for Process Argument Spoofing on Windows",
+  "shortTitle": "Detection Strategy for Process Argument Spoofing on Windows",
+  "externalId": "DET0045",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1564.010, Process Argument Spoofing, where an adversary manipulates the command line that a process reports so that security logging records something harmless while the real work continues. It matters because many detections and analyst triage habits rest on the recorded command line, so a spoofed argument string can neutralize a whole rule set. The telemetry needed is event and image level rather than network level: process creation records with full command lines, image load events, script block logging, and registry reads of per process environment variables. The main practical failure is that a single record proves nothing, because the fake string looks perfectly normal, and empty command lines occur for reasons unrelated to attacks. Detection therefore depends on correlating the recorded arguments with what the same process identifier actually did.",
+  "tags": [
+    "mitre t1564.010",
+    "defense evasion",
+    "windows",
+    "process creation",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Process Argument Spoofing on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0045/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Process Argument Spoofing on Windows - EASY",
+      "path": "exercises/det0045/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Process Argument Spoofing on Windows - MEDIUM",
+      "path": "exercises/det0045/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Process Argument Spoofing on Windows - HARD",
+      "path": "exercises/det0045/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Process Argument Spoofing on Windows - EXTREMELY HARD",
+      "path": "exercises/det0045/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for processes that lie about the command line they report. A command line is the text that tells a program what to do. Some malware hides its real instructions and shows a harmless string instead. This rule hunts for that mismatch.",
+    "whyItMatters": "Many alerts and reports are based on the recorded command line. If that text is fake, a serious tool can look like a normal one. Analysts then close the ticket and miss the intrusion. This technique is tracked as T1564.010 in the public knowledge base. Detecting the mismatch protects every other rule you rely on.",
+    "howItWorks": [
+      "The agent records process creation, including the image path and the command line string.",
+      "The rule looks for processes with an empty command line when that program usually needs arguments.",
+      "It also looks for command lines containing hidden or unusual characters that defenders cannot read.",
+      "It compares what the process claimed with what the same process identifier did next.",
+      "Strong signals include loading libraries or opening network sockets that the claimed arguments never explain.",
+      "Two or more of these signals on one process identifier raise the alert for investigation."
+    ],
+    "example": "Imagine a courier who signs the building register as delivering flowers. The register looks normal and the guard waves them through. But the courier walks to the server room and stays for an hour. The register entry was not wrong, it was simply not the whole truth. Argument spoofing works like that. The recorded command line is the flower delivery. What the process actually touches afterwards is the server room.",
+    "takeaways": [
+      "A command line is a claim, not a fact, so it must be checked against real behaviour.",
+      "Empty or unreadable command lines are weak alone but strong when paired with suspicious follow-on activity.",
+      "Improving this detection protects the accuracy of many other rules that depend on command line text."
+    ]
+  },
+  "objectives": [
+    "Explain how process arguments are recorded and how they can be misrepresented in event data.",
+    "Identify the process creation, image load, and script logging telemetry needed for this detection.",
+    "Describe why empty command lines are ambiguous and how to baseline their normal rate.",
+    "Write a pseudo rule that correlates a suspicious process image with an empty command line.",
+    "Explain how to use process identifier level correlation instead of host level correlation.",
+    "Describe the risk of over filtering by image name when tuning this rule."
+  ],
+  "techniqueId": "t1564-010",
+  "detectsTechniques": [
+    "t1564-010"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image path, full command line, parent image, and process identifier",
+    "Windows Security event 4688 process creation with command line auditing enabled and the creating process name",
+    "Sysmon event 7 image load events correlated to the process identifier soon after creation",
+    "PowerShell script block logging that records the script text a hosting process actually executed",
+    "Windows Security event 4624 logon records used to tie the process to an interactive or service session"
+  ],
+  "logic": "This rule hunts for the gap between what a process reports and what it does. The primary evidence is a process creation event whose command line is empty or contains unreadable characters while the image is one that requires arguments, such as a script host or a command interpreter. The rule then correlates that process identifier with image load events, script block logging, and network connection events from the same process, because the malicious case shows a process doing work that the recorded arguments cannot explain. The benign case is a native system utility, a service launched by the service host that logs only the image path, or a legacy application that blanks its own command line for compatibility. Requiring at least two correlated signals on one process identifier, and never filtering globally by image name, is what keeps this rule useful.",
+  "pseudoQuery": "# title: Empty Or Unreadable Command Line On Script Host Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: \\powershell.exe, \\wscript.exe, \\cscript.exe, \\rundll32.exe\n#   suspicious:\n#     CommandLine: null\n#   condition: selection and suspicious\n# level: high",
+  "falsePositives": [
+    "Service and scheduled task processes that the service host starts with a recorded image path and no argument string",
+    "Legacy line of business applications that clear their own command line as part of their normal startup routine",
+    "Endpoint agents that launch short lived helper processes with arguments that the sensor cannot capture in time",
+    "Console utilities started by an interactive administrator where only the image path is written to the audit record"
+  ],
+  "tuningNotes": "Begin by scoping the rule to scripting hosts and binaries that attackers commonly abuse, and require a second correlated signal such as an image load from a temporary folder or a network connection to a public destination. Baseline the normal rate of empty command lines per image across your estate for at least two weeks, then exclude only the specific parent and image path pairs that the baseline proves are routine, never an entire image name. Alerting on short lived processes can be tuned with a minimum lifetime or a risk score instead of dropping them. Narrowing this way costs you coverage for a spoofed argument string on a binary that never triggers a second signal, so keep a low severity version of the widest rule for hunting.",
+  "severity": "high"
+}

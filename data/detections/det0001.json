@@ -1,0 +1,109 @@
+{
+  "id": "det0001",
+  "type": "detection",
+  "title": "Detect Access to Cloud Instance Metadata API (IaaS)",
+  "shortTitle": "Detect Access to Cloud Instance Metadata API (IaaS)",
+  "externalId": "DET0001",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the cloud instance metadata service, the built-in endpoint that hands temporary credentials to workloads (T1552.005, Unsecured Credentials: Cloud Instance Metadata API). The technique matters because it needs no stolen secret file: anything that can reach the link-local endpoint from inside the workload can borrow the identity of the compute role and move into the cloud control plane. Detection rests on joining network or web server telemetry that shows the request to the metadata address with control plane telemetry showing the API calls made moments later by the borrowed identity. It fails most often because agent software polls the same endpoint constantly, so the raw request alone carries almost no signal.",
+  "tags": [
+    "cloud",
+    "credential-access",
+    "metadata service",
+    "t1552.005",
+    "aws",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Access to Cloud Instance Metadata API (IaaS)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0001/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Access to Cloud Instance Metadata API (IaaS) - EASY",
+      "path": "exercises/det0001/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Access to Cloud Instance Metadata API (IaaS) - MEDIUM",
+      "path": "exercises/det0001/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Access to Cloud Instance Metadata API (IaaS) - HARD",
+      "path": "exercises/det0001/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Access to Cloud Instance Metadata API (IaaS) - EXTREMELY HARD",
+      "path": "exercises/det0001/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "An instance metadata API is a small web service that runs inside a cloud virtual machine. An application can ask it for basic facts about itself, such as its name and network address. It can also hand out temporary login keys for the cloud account. This detection looks for programs that read that service when they should not.",
+    "whyItMatters": "Those temporary keys can open the whole cloud account, and they are valid immediately. An attacker who takes them does not need a password and does not leave a stolen file behind. The keys expire after a short time, so the attacker must use them quickly. That hurry is what gives defenders a chance to notice. Only a few programs on a server have a real reason to read that service.",
+    "howItWorks": [
+      "Your cloud network logs record every connection made from inside a workload, including connections to the metadata address.",
+      "The logs also show which program or process made the connection.",
+      "Your cloud audit log records every call made with a set of temporary keys, and it names the identity those keys belong to.",
+      "The detection joins the two sources and looks for a metadata read followed closely by cloud API calls from that same identity.",
+      "A scoring rule compares those calls with what the workload normally does, so unusual actions score higher.",
+      "If the score passes your threshold, the tool raises an alert that names the workload, the identity and the time."
+    ],
+    "example": "Picture a hotel where every room key can open the manager office. The front desk gives a key to each guest. A guard watches the key machine. If a guest walks straight from the desk to the manager office, the guard notices at once. Reading the metadata service is that walk.",
+    "takeaways": [
+      "The metadata service gives temporary cloud keys to whatever runs inside the own workload.",
+      "A request on its own is normal, because monitoring agents use it too.",
+      "The real signal is a metadata read followed by unusual cloud API calls."
+    ]
+  },
+  "objectives": [
+    "Explain what the cloud instance metadata service is and why it can hand out account credentials.",
+    "Identify which network and cloud audit logs are needed to join a metadata request to later API use.",
+    "Describe why a metadata request alone is weak evidence and what must be correlated with it.",
+    "List the benign agents in your own environment that read the metadata endpoint on a schedule.",
+    "Decide which cloud API calls made by a compute role should be treated as high risk.",
+    "Choose a severity and a tuning approach for this detection in your environment."
+  ],
+  "techniqueId": "t1552-005",
+  "detectsTechniques": [
+    "t1552-005"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events including eventName, userIdentity and sourceIPAddress",
+    "VPC flow logs for connections to the link-local metadata address 169[.]254[.]169[.]254",
+    "Cloud load balancer or reverse proxy access logs showing server-side request forgery attempts against the metadata path",
+    "Endpoint process creation logs on cloud workloads recording commands that issue web requests",
+    "AWS CloudTrail AssumeRole events showing a compute role credential being used from a new source"
+  ],
+  "logic": "The detection has two halves that must be joined. First, network or proxy telemetry shows an HTTP request to the link-local metadata address, or to the metadata path, issued from inside a workload rather than from a management tool. Second, the cloud audit log shows API calls made seconds to minutes later by the compute role attached to that same workload. The fields that must correlate are the source address and port of the request in the network log, the workload instance identifier, the role identity name in the audit log, and the user agent or process name. The malicious case is a metadata read followed by API calls that the workload has never made before, especially identity, policy or storage actions; the benign case is a known agent reading the endpoint on a fixed schedule and then doing nothing in the control plane, or a management tool calling the endpoint from a fixed host.",
+  "pseudoQuery": "# title: Workload Reads Instance Metadata Then Calls Cloud APIs\n# logsource:\n#   product: aws\n# detection:\n#   selection_meta:\n#     destination.ip: '169.254.169.254'\n#     destination.port: 80\n#   selection_api:\n#     eventName:\n#       - GetCallerIdentity\n#       - ListBuckets\n#       - CreateAccessKey\n#       - AttachRolePolicy\n#   filter_agents:\n#     process.name:\n#       - amazon-ssm-agent\n#       - amazon-cloudwatch-agent\n#   condition: selection_meta and selection_api and not filter_agents\n# level: high",
+  "falsePositives": [
+    "Cloud monitoring and logging agents that read instance metadata on a fixed schedule to report host identity",
+    "Configuration management tooling that resolves the instance role at boot time before installing packages",
+    "Autoscaling or bootstrap scripts that read the metadata service once when a new instance starts",
+    "Container orchestration components that query the metadata endpoint to label nodes",
+    "Backup agents that read instance identity to name their snapshot objects"
+  ],
+  "tuningNotes": "Start by baselining which process names and user agents read the metadata endpoint in your environment and how often, then filter those exact identities rather than blocking the address wholesale. Scope the rule to compute workloads that hold privileged roles, because a workload with read-only access to one bucket carries little risk. Add a filter for management hosts and jump boxes that legitimately query metadata on behalf of other systems. If your platform supports it, require the hardened metadata option that demands a session token, and alert on requests without a token. Narrowing this way loses coverage of attackers who hide inside a legitimate agent name, so keep a low severity copy of the broad rule for hunting.",
+  "severity": "high"
+}

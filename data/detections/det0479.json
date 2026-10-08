@@ -1,0 +1,106 @@
+{
+  "id": "det0479",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow using the Windows COR_PROFILER.",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow using the Wi...",
+  "externalId": "DET0479",
+  "theme": "Detection Strategy",
+  "summary": "CorProfiler hijacking abuses the .NET profiling environment variables, COR_ENABLE_PROFILING and COR_PROFILER, so that the common language runtime loads an attacker chosen dynamic link library into every managed process on the host. This strategy correlates registry writes to the machine or user Environment key with the library image loads and process creations that follow, because the variables themselves are inert until a managed process starts. The technique is attractive because Windows performs the load inside an already trusted, signed program. Detection fails most often when image load auditing is disabled or when the environment baseline has never been captured, so profiler settings from monitoring agents cannot be separated from an injected library.",
+  "tags": [
+    "windows",
+    "persistence",
+    "defense evasion",
+    "registry",
+    "dll",
+    "dotnet"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow using the Windows COR_PROFILER.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0479/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using the Windows COR_PROFILER. - EASY",
+      "path": "exercises/det0479/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using the Windows COR_PROFILER. - MEDIUM",
+      "path": "exercises/det0479/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using the Windows COR_PROFILER. - HARD",
+      "path": "exercises/det0479/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow using the Windows COR_PROFILER. - EXTREMELY HARD",
+      "path": "exercises/det0479/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This is a plan for finding one attacker behaviour in your event logs. It looks for changes to two Windows environment variables, COR_ENABLE_PROFILING and COR_PROFILER. Those variables tell the .NET runtime to load a library of your choosing. The plan catches a rogue library that is loaded in this way.",
+    "whyItMatters": "Attackers like this trick because Windows itself loads the library for them. The library then runs inside a signed and trusted program. A simple file scan may not notice it. If you do not watch these two variables, you can miss a quiet attack. That attack keeps code running on a host. Watching them gives you an early warning.",
+    "howItWorks": [
+      "Windows keeps environment variables in the registry, so every change there can produce an event you can collect.",
+      "The detection watches the machine and user Environment registry keys for new or edited profiler values.",
+      "When a .NET program starts, the runtime reads those values and loads the library they name.",
+      "Image load telemetry shows that library arriving inside a managed process, which is the second signal.",
+      "Joining the registry change to the later load on the same host separates real abuse from a harmless setting.",
+      "An alert fires when the library sits outside trusted folders or the host never used a profiler before."
+    ],
+    "example": "Think of a hotel front desk that keeps a list of approved wake up calls. A guest quietly edits the list so that room service knocks on a door at any hour. The night manager trusts the list and never asks who wrote it. In the same way, Windows trusts the profiler setting and loads whatever library it names. If nobody reviews that list, the stranger at the door looks just like normal room service.",
+    "takeaways": [
+      "Two environment variables can make Windows load a library you did not choose.",
+      "The registry change is the first signal and the library load is the second.",
+      "Baseline the known profiler paths so that real alerts stand out."
+    ]
+  },
+  "objectives": [
+    "Explain why the .NET profiler environment variables are a useful hijack target.",
+    "Identify the registry keys that hold machine and user environment variables.",
+    "Correlate a profiler registry value change with a later image load on the same host.",
+    "Distinguish vendor monitoring agents from unexpected profiler libraries.",
+    "Write a tuning filter that keeps coverage of unusual library paths."
+  ],
+  "techniqueId": "t1574-012",
+  "detectsTechniques": [
+    "t1574-012"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set covering the machine and user Environment keys",
+    "Sysmon event 7 image load recording the library path, hash and signing status of the loaded module",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows Security event 4657 registry value modification when object access auditing is enabled"
+  ],
+  "logic": "CorProfiler hijacking produces two linked events rather than one. First a value named COR_PROFILER or COR_ENABLE_PROFILING appears or changes under the Environment key, and later a managed .NET process loads the library named in that value. Either event on its own is weak, because installers set profiler variables and monitoring agents load libraries constantly. The pattern becomes suspicious when the two events land close together, the library path sits outside Program Files or the Windows directory, the file is unsigned or was written minutes earlier, and the host had no profiler baseline. Field level correlation on host name, key path, library path and load time is what turns two noisy signals into one defensible alert.",
+  "pseudoQuery": "# title: .NET Profiler Environment Variable Set To Unusual Library\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|endswith:\n#       - '\\Environment\\COR_PROFILER'\n#       - '\\Environment\\COR_ENABLE_PROFILING'\n#   filter:\n#     Details|startswith:\n#       - 'C:\\Program Files\\'\n#       - 'C:\\Windows\\'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Application performance monitoring agents that point COR_PROFILER at their own agent library during installation",
+    "Developer workstations where profiling and debugging tools register a profiler for local testing",
+    "Build servers that configure profiling for a line of business .NET application before a release",
+    "Virtual desktop images that inherit a profiler setting from a shared base template"
+  ],
+  "tuningNotes": "Scope the rule to servers and workstations that never run profiling tools, and keep a baseline of the approved profiler library paths used by your monitoring agents. Add a filter for signed libraries under Program Files and ask for the file to have been written within the same hour. Correlating with the follow on image load removes most of the remaining noise, but it costs you visibility on hosts where image load auditing is switched off, so turn that audit setting on first and accept that detection quality depends on it.",
+  "severity": "high"
+}

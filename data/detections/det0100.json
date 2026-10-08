@@ -1,0 +1,106 @@
+{
+  "id": "det0100",
+  "type": "detection",
+  "title": "Behavioral Detection of Asynchronous Procedure Call (APC) Injection via Remote Thread Queuing",
+  "shortTitle": "Behavioral Detection of Asynchronous Procedure Call (APC)...",
+  "externalId": "DET0100",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses T1055.004 Asynchronous Procedure Call Injection, in which an adversary writes code into another process and then queues an asynchronous procedure call so that the target process runs that code inside its own trust context. It matters because the injected code inherits the target process identity, so application allowlisting, network controls and user context checks all see a trusted process. The telemetry that makes detection possible is kernel level call trace data for process memory operations, specifically cross process memory allocation with write access, memory protection changes to executable, and remote thread or APC queue operations attributed to a calling process, together with Sysmon event 1 process creation and Sysmon event 8 remote thread creation where available. It fails in practice because the API calls involved are also used by legitimate debuggers, profilers, accessibility tools and security products, so the rule has to weigh the calling process against the target rather than alert on the call alone.",
+  "tags": [
+    "process-injection",
+    "memory",
+    "endpoint",
+    "defense-evasion",
+    "apc"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Asynchronous Procedure Call (APC) Injection via Remote Thread Queuing",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0100/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Asynchronous Procedure Call (APC) Injection via Remote Thread Queuing - EASY",
+      "path": "exercises/det0100/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Asynchronous Procedure Call (APC) Injection via Remote Thread Queuing - MEDIUM",
+      "path": "exercises/det0100/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Asynchronous Procedure Call (APC) Injection via Remote Thread Queuing - HARD",
+      "path": "exercises/det0100/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Asynchronous Procedure Call (APC) Injection via Remote Thread Queuing - EXTREMELY HARD",
+      "path": "exercises/det0100/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for one running program quietly putting code inside another program. The second program then runs that code as if it were its own. The rule watches the system calls that make this possible.",
+    "whyItMatters": "When code runs inside a trusted program, it inherits that program's permissions and reputation. A security tool may allow it because the host process looks normal. Attackers use this to hide and to reach data that a plain program could not touch. Catching the memory operation is often the last clear moment before the code runs.",
+    "howItWorks": [
+      "The endpoint sensor records low level system activity, including calls that open another process and change its memory.",
+      "It notes which process made the call, which process was the target, and how much memory was involved.",
+      "It also notes when memory protection changes. After that change, the region can hold executable code.",
+      "These records go to the central log platform. That platform is often a SIEM, which means Security Information and Event Management.",
+      "A rule joins the records by process identifiers. It keeps pairs where the caller is not a known debugging tool.",
+      "The alert names both processes, so an analyst can decide in seconds whether the pair makes sense."
+    ],
+    "example": "Imagine a large office where staff enter rooms using their own badge. A visitor slips a written instruction into a manager's tray, and the manager signs and sends it without reading it. Every camera shows a trusted manager working normally. This detection is the clerk who logs who touched whose tray. You can then see that the manager never wrote the note, and someone else placed it there.",
+    "takeaways": [
+      "Injection hides the attacker inside a process that already has trust and permissions.",
+      "The reliable signal is a cross process memory write followed by executable memory and a new thread.",
+      "The caller and the target both matter, because benign tools inject into processes every day."
+    ]
+  },
+  "objectives": [
+    "Describe how code placed in another process inherits that process identity and permissions",
+    "List the system level operations that must occur for this injection to succeed",
+    "Identify which fields let you attribute the memory operation to a specific calling process",
+    "Explain why debuggers, accessibility tools and endpoint agents produce the same pattern",
+    "Correlate process creation and remote thread telemetry into a single investigation view",
+    "Decide when to filter a known tool by signature rather than disabling the rule entirely"
+  ],
+  "techniqueId": "t1055-004",
+  "detectsTechniques": [
+    "t1055-004"
+  ],
+  "dataSources": [
+    "Kernel level call trace telemetry capturing cross process memory allocation and write operations with caller and target process identifiers",
+    "Sysmon event 1 process creation including parent image and command line for the injecting process",
+    "Sysmon event 8 remote thread creation naming source and target process, where the sensor version supports it",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is a sequence of memory operations performed by one process against another: an allocation inside the target with write access, a write into that region, a protection change that makes the region executable, and finally a queued asynchronous procedure call or a new thread inside the target. The fields that must be correlated are caller image and signature status, target image, requested access rights, allocation size and protection flags, and the short time window between the allocation and the thread or queue operation. The benign case is a debugger or endpoint agent attaching to a process it names in advance and holding a valid signature on the calling image, so callers without a trusted signature, or callers that are office applications, script hosts or browsers writing into system processes, are what separate the malicious case.",
+  "pseudoQuery": "# title: Cross Process Memory Write Followed By Remote Thread Or APC Queue\n# logsource:\n#   product: windows\n# detection:\n#   selection_memory:\n#     EventType: 'process_memory_write'\n#     GrantedAccess|contains: ['0x1F0FFF', '0x1F3FFF', 'PROCESS_VM_WRITE']\n#   selection_thread:\n#     EventType|contains: ['remote_thread', 'apc_queue']\n#   filter_tools:\n#     SourceImage|endswith: ['\\\\MsMpEng.exe', '\\\\windbg.exe', '\\\\procexp64.exe']\n#     SourceImage|contains: '\\\\Program Files\\\\'\n#   condition: selection_memory and selection_thread and not filter_tools\n# level: high",
+  "falsePositives": [
+    "Endpoint protection agents that inject their scanning library into newly started processes to inspect behaviour",
+    "Application compatibility shims and accessibility tools that place helper code inside user session processes",
+    "Software deployment and monitoring agents that load instrumented modules into running business applications",
+    "Crash reporting tools that attach to a failing process to capture a memory dump for support tickets"
+  ],
+  "tuningNotes": "Baseline the calling images that legitimately write into other processes in your estate, and filter them by full path plus signature status rather than by file name, because names are easy to reuse. Add a filter for callers whose signature is valid and whose publisher is on your approved list, and keep the rule strict for callers running from user writable paths such as temporary or download folders. Scope a stricter version of the alert to high value targets like credential stores, browsers and server processes, since those are the most useful injection targets. Narrowing by signature means an attacker who steals a valid signing certificate will slip past the filter, so keep an unsigned caller variant active for hunting.",
+  "severity": "high"
+}

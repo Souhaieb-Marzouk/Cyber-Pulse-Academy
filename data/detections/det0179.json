@@ -1,0 +1,107 @@
+{
+  "id": "det0179",
+  "type": "detection",
+  "title": "Behavioral Detection of Permission Groups Discovery",
+  "shortTitle": "Behavioral Detection of Permission Groups Discovery",
+  "externalId": "DET0179",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects permission group discovery, where an adversary enumerates local, domain or cloud groups and their members to learn who holds privilege and where to escalate. It matters because the output of this step directs the rest of an intrusion: the accounts chosen for credential theft, the servers chosen for lateral movement, and the privilege path chosen for escalation. Detection depends on process creation records carrying directory and group query command lines, directory service access auditing on domain controllers, cloud identity audit logs for group and role membership listings, and command history on Unix hosts. The practical problem is volume, because inventory tools, access reviews, ticketing integrations and administrators all query group membership legitimately, so the rule must weigh the querying account, the breadth of the enumeration and its proximity to other suspicious behaviour.",
+  "tags": [
+    "discovery",
+    "identity",
+    "active directory",
+    "cloud",
+    "permissions"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Permission Groups Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0179/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Permission Groups Discovery - EASY",
+      "path": "exercises/det0179/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Permission Groups Discovery - MEDIUM",
+      "path": "exercises/det0179/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Permission Groups Discovery - HARD",
+      "path": "exercises/det0179/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Permission Groups Discovery - EXTREMELY HARD",
+      "path": "exercises/det0179/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Groups are lists of accounts that share access, such as the administrators group. This detection looks for someone listing many groups and their members. It catches the research step an attacker does before choosing targets.",
+    "whyItMatters": "Knowing who is powerful tells an attacker where to aim. One query can reveal every administrator account in a company. The activity itself is read only, so nothing breaks and no file changes. Catching the listing gives you a chance to act before any account is misused.",
+    "howItWorks": [
+      "Operating systems record each program that runs, including the full command and the account that ran it.",
+      "Directory servers can record when an account reads group objects and their membership.",
+      "Cloud identity services record when an account lists groups, roles or role assignments.",
+      "The detection counts how many distinct group or role queries one account makes in a short period.",
+      "It then compares that count with the normal pattern for that account and for that host.",
+      "Queries that fan out across many groups, or that come from an account which never does this, are raised for review."
+    ],
+    "example": "Think of a library where anyone may read the staff directory. Reading one name is normal. Photographing the entire directory, including who holds the master keys, is a different act. The librarian does not stop the reading. The librarian notes who was so interested.",
+    "takeaways": [
+      "Permission discovery is read only, so only logging can reveal it.",
+      "Count distinct group and role queries per account, not just the command used.",
+      "Baseline your inventory and access review tools before you tune thresholds."
+    ]
+  },
+  "objectives": [
+    "Explain how group and role enumeration guides later privilege escalation and lateral movement",
+    "Identify command line, directory service and cloud identity telemetry that records group queries",
+    "Measure enumeration breadth by distinct groups or roles queried per account over a window",
+    "Separate administrative tooling and access reviews from unusual enumeration by an ordinary account",
+    "Correlate discovery activity with subsequent authentication or privilege change events"
+  ],
+  "techniqueId": "t1069",
+  "detectsTechniques": [
+    "t1069"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with command lines for directory and group query utilities",
+    "Windows directory service access auditing on domain controllers recording object reads of group objects",
+    "Windows Security event 4688 process creation showing the account and command line of enumeration tools",
+    "Cloud identity provider audit logs recording group, role and role assignment list operations",
+    "Unix shell command history and audit records for group and permission enumeration commands"
+  ],
+  "logic": "The detection measures the breadth and novelty of permission queries rather than the presence of a single tool. The fields that must be correlated are the querying account, the host it queried from, the count of distinct groups or roles returned or requested within a short window, the process or client used, and the time of day relative to that account's normal activity. A benign case is a scheduled access review or an inventory agent that queries many groups from a dedicated host under a service account with a stable, repeating signature. The malicious case is an ordinary user or a newly compromised service account querying group membership broadly from a workstation, often shortly after an initial foothold, frequently followed by targeted authentication attempts or privilege changes against the accounts that were discovered.",
+  "pseudoQuery": "# title: Broad Permission Group Enumeration By Non Administrative Account\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'group /domain'\n#       - 'net localgroup'\n#       - 'Get-ADGroupMember'\n#       - 'Get-ADPrincipalGroupMembership'\n#   filter:\n#     User|endswith:\n#       - '$'\n#     ParentImage|endswith:\n#       - \\inventoryagent.exe\n#       - \\accessreview.exe\n#   condition: selection and not filter | count() by User > 20\n# level: medium",
+  "falsePositives": [
+    "An access review campaign in which reviewers export group membership for many groups in one session",
+    "An inventory or configuration management agent that collects local group membership from every managed host",
+    "A systems administrator troubleshooting a permission problem by listing groups and members on several servers",
+    "Onboarding automation that reads group membership to build a new starter's access profile",
+    "A security assessment or penetration test performed by an approved internal team during a scheduled window"
+  ],
+  "tuningNotes": "Begin by identifying the accounts and hosts responsible for scheduled inventory, access reviews and ticketing integrations, and filter them by service account and host rather than by tool name. Set the count threshold from a thirty day baseline of distinct groups queried per account, then scope real time alerting to accounts that hold or are near privileged roles, where discovery is most telling. The narrowing cost is that discovery by low privileged accounts on workstations becomes visible only in retrospective hunting, so keep the raw query events searchable and review them regularly against intrusion timelines.",
+  "severity": "low"
+}

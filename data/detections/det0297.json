@@ -1,0 +1,108 @@
+{
+  "id": "det0297",
+  "type": "detection",
+  "title": "Detection Strategy for Disk Structure Wipe via Boot/Partition Overwrite",
+  "shortTitle": "Detection Strategy for Disk Structure Wipe via Boot/Parti...",
+  "externalId": "DET0297",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers disk structure wipe, mapped to T1561.002, where an adversary destroys the boot record, partition table or filesystem metadata so that a host cannot start and its data becomes unreachable. Impact is severe and immediate: a single command can render a workstation or server unbootable, and in a destructive campaign this is the final action before the attacker leaves. Detection depends on endpoint telemetry that shows raw disk writes, changes to the boot sector or partition table, and the execution of disk administration utilities, plus the boot-time events that record a failed start. The common failure mode is timing: by the time the host reports anything, the operating system it would report from is gone, so the detection usually relies on a second system, such as a security agent that survives reboot or a hypervisor that still sees the virtual disk, and on knowing what normal disk administration looks like in your environment.",
+  "tags": [
+    "mitre t1561.002",
+    "disk wipe",
+    "partition table",
+    "impact detection",
+    "boot record"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Disk Structure Wipe via Boot/Partition Overwrite",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0297/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Disk Structure Wipe via Boot/Partition Overwrite - EASY",
+      "path": "exercises/det0297/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Disk Structure Wipe via Boot/Partition Overwrite - MEDIUM",
+      "path": "exercises/det0297/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Disk Structure Wipe via Boot/Partition Overwrite - HARD",
+      "path": "exercises/det0297/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Disk Structure Wipe via Boot/Partition Overwrite - EXTREMELY HARD",
+      "path": "exercises/det0297/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for signs that the hidden map of a disk is being destroyed. Every disk has a small area called the boot record. It tells the computer where the operating system lives. Another area, the partition table, lists the disk's sections. If someone overwrites those, the computer cannot start and the files become very hard to reach.",
+    "whyItMatters": "This kind of damage is fast and it is meant to hurt. One short command can make an entire server useless until you rebuild it from backups. Because the machine may not start again, you often lose the logs that would explain what happened. Watching the disk while the system still runs is your best chance to react in time.",
+    "howItWorks": [
+      "A security agent on the host records raw disk writes. These writes go to the disk itself, not to a normal file.",
+      "The rule checks whether those writes land in the first sectors of the disk. The boot record and partition table live there.",
+      "It also watches for disk administration tools being started, especially with arguments that clear or rewrite a disk.",
+      "The system notes which account and which parent program launched that tool.",
+      "If the write pattern and the tool match what the rule expects, it sends an alert straight away.",
+      "A second alert can come later from a management system when the host stops sending its normal heartbeat."
+    ],
+    "example": "Imagine the sign at the entrance of a large library that shows which shelf holds which subject. Someone rubs out the sign and shuffles the labels. Every book is still on the shelves, but no one can find anything, and the library cannot open. The rule watches for someone writing over that entrance sign, not for books being taken.",
+    "takeaways": [
+      "A boot record or partition table overwrite can make a machine unusable in seconds.",
+      "The clearest sign is a program writing raw sectors at the very start of a disk.",
+      "Because the host may not reboot, plan for monitoring that survives the reboot and for fast containment."
+    ]
+  },
+  "objectives": [
+    "Describe the difference between a boot record, a partition table and normal file storage on a disk.",
+    "Identify the raw disk write telemetry that can reveal an attempt to overwrite disk structure.",
+    "Recognise legitimate disk administration tooling in your environment so that only unusual use alerts.",
+    "Correlate a failed boot event or lost host heartbeat with a recent raw disk write on the same device.",
+    "Explain why disk wipe detection often depends on hypervisor or out-of-band monitoring rather than the host's own logs.",
+    "Plan containment and backup verification steps to run when this alert fires."
+  ],
+  "techniqueId": "t1561-002",
+  "detectsTechniques": [
+    "t1561-002"
+  ],
+  "dataSources": [
+    "Endpoint detection agent telemetry for raw disk device access and writes to the first sectors of a physical or virtual disk",
+    "Windows Security event 4688 process creation and Sysmon event 1 process creation showing disk administration utilities with their command lines and parent process",
+    "Windows System log boot and shutdown events that record an unclean shutdown or a failure to start",
+    "Hypervisor or storage platform events showing virtual disk configuration changes and guest heartbeat loss",
+    "Sysmon event 11 file creation for boot configuration files and new partition or volume metadata files"
+  ],
+  "logic": "The pattern is a process writing to a raw disk device, or to the very first sectors of a disk, outside of any normal filesystem operation, and doing so close in time to the execution of a disk administration utility. The fields that must be correlated are the target device path, the byte offset or sector range of the write, the image and command line of the writing process, the account that launched it, and the host identity. The benign case is an approved imaging, reinstallation or virtual machine provisioning job, which normally runs from a deployment account, on a schedule, on hosts that are already in a maintenance state. The malicious case usually involves an interactive or script-driven process, often with a short or obfuscated command line, writing to the system disk of a host that is in active production use, and it is often followed within minutes by a lost heartbeat or an unclean shutdown event.",
+  "pseudoQuery": "# title: Raw Disk Structure Overwrite or Disk Wipe Utility Execution\n# logsource:\n#   product: windows\n# detection:\n#   selection_raw:\n#     EventID: 9\n#     TargetFilename|endswith: '\\\\PhysicalDrive0'\n#   selection_tool:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\diskpart.exe'\n#       - '\\\\format.com'\n#     CommandLine|contains:\n#       - 'clean'\n#       - 'wipe'\n#   filter_admin:\n#     User|contains: 'svc-imaging'\n#   condition: (selection_raw or selection_tool) and not filter_admin\n# level: critical",
+  "falsePositives": [
+    "Operating system deployment tooling that repartitions and reimages laptops during a scheduled refresh cycle",
+    "Virtual machine provisioning that creates a new virtual disk and writes a partition table as part of the build",
+    "Backup or forensic imaging software that opens the raw disk for reading and records a write-like handle event",
+    "Storage array maintenance performed by a vendor engineer during a change window that reinitialises a volume",
+    "Test or lab automation that formats disposable virtual machines overnight"
+  ],
+  "tuningNotes": "Baseline every process that legitimately touches raw disks or disk administration utilities, then allowlist those image paths combined with the service accounts that run them, rather than allowlisting the tool alone. Scope the rule to production servers and user endpoints first, and treat lab, build and imaging subnets as a separate lower-severity tier. Require either a write to the boot area of the system disk or a disk utility command line containing a destructive verb, so that routine partition queries do not alert. Where the environment is large, add a filter for deployment windows from your change feed. Narrowing this way costs you visibility into an attacker who reuses an approved imaging account or hides the destructive action inside a signed management binary, so monitor those accounts for use outside their normal schedule.",
+  "severity": "critical"
+}

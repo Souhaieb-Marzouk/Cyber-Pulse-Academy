@@ -1,0 +1,104 @@
+{
+  "id": "det0843",
+  "type": "detection",
+  "title": "Detection of DNS",
+  "shortTitle": "Detection of DNS",
+  "externalId": "DET0843",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the reconnaissance technique of querying Domain Name System records to map an organization, including address records, name server delegation, and mail configuration. It matters because a full public record set shows an attacker which hosts and services to target, and the query pattern is often the first visible contact an adversary makes with your estate. The telemetry that makes detection possible is recursive resolver logs, authoritative name server query logs, and network flows to external resolvers. In practice it fails because a busy recursive resolver answers thousands of legitimate external queries, so a rule needs a rate baseline, a watchlist of sensitive record names, and allowance for resolvers that hide the original client.",
+  "tags": [
+    "dns",
+    "reconnaissance",
+    "enumeration",
+    "network",
+    "detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of DNS",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0843/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of DNS - EASY",
+      "path": "exercises/det0843/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of DNS - MEDIUM",
+      "path": "exercises/det0843/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of DNS - HARD",
+      "path": "exercises/det0843/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of DNS - EXTREMELY HARD",
+      "path": "exercises/det0843/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for people who look up your company name records on the internet. The Domain Name System, or DNS, is the phone book that turns a name like example into a number address. Attackers read your entries to find the hosts and mail servers to aim at. The rule looks for unusual or fast name lookups about your domains.",
+    "whyItMatters": "Public name records show which systems are exposed and which provider sends your mail. With that list, an attacker can pick the easiest target. Many of these lookups come from outside, so a resolver log is often your first and only view. Catching them early gives you time to check the exposed systems.",
+    "howItWorks": [
+      "Your recursive DNS resolver writes a log line for each query it answers.",
+      "Each line records the queried name, the record type, the answer, and the client address.",
+      "The rule watches for record types that are used for mapping, such as name server and mail records.",
+      "It also counts queries for many different host names under your domain from one source.",
+      "A second source watches external resolvers talking to your authoritative name servers.",
+      "When one source maps many of your names quickly, the rule raises an alert for the analyst."
+    ],
+    "example": "Think of a night watchman who walks past a row of shop doors with a clipboard. Walking past once and glancing is normal. Walking the whole row and writing down each lock type, then walking it again and again, is worth a call. The name records are the locks, and the repeated list is what the watchman notices.",
+    "takeaways": [
+      "Domain name lookups are a common first step and often leave a resolver log line.",
+      "The useful signal is a burst of mapping queries from one source, not a single lookup.",
+      "Attackers who use public resolvers hide the true source, so treat the resolver address with care."
+    ]
+  },
+  "objectives": [
+    "Explain how Domain Name System records expose an organization to an attacker.",
+    "Identify resolver and authoritative server logs that record name queries.",
+    "Write a rule that flags bursts of mapping record types for your domains.",
+    "Explain how attacker use of public resolvers limits source attribution.",
+    "Reduce noise by baselining internal scanners and approved security services."
+  ],
+  "techniqueId": "t1590-002",
+  "detectsTechniques": [
+    "t1590-002"
+  ],
+  "dataSources": [
+    "Recursive DNS resolver query logs recording queried name, record type, response code and client source address",
+    "Authoritative name server query logs recording requests for organization owned zones",
+    "Network flow records for outbound port 53 traffic to external resolvers from internal hosts",
+    "Certificate transparency query logs showing issuance for host names discovered under organization domains"
+  ],
+  "logic": "The pattern is a burst of queries for mapping record types and for many distinct host names under organization owned domains, from one source or one resolver over a short window. The fields to correlate are the queried name, the record type, the response code, the source address, and the count of distinct names per source. The malicious case is an outside source listing address, name server, and mail records in quick succession, or an internal host querying hundreds of internal host names it has never contacted. The benign case is a monitoring service that checks the same small set of records on a schedule, or an internal asset scanner that runs inside an approved change window.",
+  "pseudoQuery": "# title: Burst of Domain Name System Mapping Queries for Organization Domains\n# logsource:\n#   product: network\n#   service: dns\n# detection:\n#   selection:\n#     query_type:\n#       - 'NS'\n#       - 'SOA'\n#       - 'MX'\n#       - 'TXT'\n#     query|endswith: '.example[.]com'\n#   filter_internal:\n#     src_ip|contains: '10[.]0[.]'\n#   condition: selection and not filter_internal | count(query) by src_ip > 25 within 5m\n# level: low",
+  "falsePositives": [
+    "Managed security and monitoring services that check organization mail and name server records on a schedule",
+    "Internal vulnerability scanners that resolve every host name in an approved subnet during a change window",
+    "Mail hygiene tools that look up sender policy and domain key records for every inbound message"
+  ],
+  "tuningNotes": "Baseline resolver query volume by hour and by client group for at least two weeks, then set the burst threshold above the normal peak and add filters for known scanners, monitoring services, and mail gateway records. Scope the rule to queries that name your own domains and to record types that are rarely used in normal traffic, and keep internal host discovery in a separate rule. The coverage you lose is a slow mapping run spread over days, which never crosses the burst threshold, so review weekly lists of sources that query many distinct organization host names over longer windows.",
+  "severity": "low"
+}

@@ -1,0 +1,105 @@
+{
+  "id": "det0375",
+  "type": "detection",
+  "title": "Detection Strategy for T1546.017 - Udev Rules (Linux)",
+  "shortTitle": "Detection Strategy for T1546.017 - Udev Rules (Linux)",
+  "externalId": "DET0375",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence through udev rules on Linux, where an adversary drops a rule file that makes the system run a command whenever a matching device event occurs, such as a specific USB device being attached. The rule files live in fixed directories and are read by the device manager, so the behaviour survives reboots and is not tied to any user session. Detection uses file integrity monitoring on the udev rule directories, auditd records for writes to those paths, process creation showing the device manager starting an unexpected program, and the rule content itself where a RUN directive points at a writable or temporary location. The main failure is that legitimate packages install udev rules, so a path match alone is noisy and the rule content is what gives the alert its meaning.",
+  "tags": [
+    "linux",
+    "persistence",
+    "udev",
+    "file integrity",
+    "auditd"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1546.017 - Udev Rules (Linux)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0375/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1546.017 - Udev Rules (Linux) - EASY",
+      "path": "exercises/det0375/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1546.017 - Udev Rules (Linux) - MEDIUM",
+      "path": "exercises/det0375/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1546.017 - Udev Rules (Linux) - HARD",
+      "path": "exercises/det0375/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1546.017 - Udev Rules (Linux) - EXTREMELY HARD",
+      "path": "exercises/det0375/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Udev is the part of Linux that notices hardware. You can write a small rule file that tells it what to do when a device appears. This detection looks for new or changed rule files, and for the device manager starting programs it should not. It catches the persistence setup, not just the device.",
+    "whyItMatters": "A udev rule can run a command the moment someone plugs in a device, even a harmless looking one. It survives restarts and does not need the attacker to stay logged in. Rule files are plain text that few people read, which makes them a quiet hiding place. Watching those directories closes a gap that user session monitoring misses.",
+    "howItWorks": [
+      "Collect file integrity monitoring events for the system udev rule directories.",
+      "Collect audit records for writes to those paths, including the account and the process.",
+      "Read the new rule content and look for a RUN directive that points outside approved directories.",
+      "Collect process creation events where the device manager is the parent process.",
+      "Compare the started program with the binaries that your packages normally run from a rule.",
+      "Alert with the rule file, the command it runs, and the account that created it."
+    ],
+    "example": "Think of a door log again, but this time it is a note taped inside the door frame. It says that whenever a specific van arrives, the gate should open. Nobody watches the gate, but the note does the work. Checking the rule files is checking behind the door frame.",
+    "takeaways": [
+      "Udev rules are system level persistence that fire on hardware events rather than at logon.",
+      "The rule content, especially the RUN target path, is what makes the alert worth acting on.",
+      "Limited shell access plus a write to the rule directory is enough to install this."
+    ]
+  },
+  "objectives": [
+    "Explain what udev does and how a rule file can run a command.",
+    "Locate the directories where Linux distributions read device manager rules.",
+    "Write a detection that reads rule content and flags a suspicious RUN target.",
+    "Correlate a rule file change with a later process start by the device manager.",
+    "Decide what file integrity monitoring coverage is needed to see these paths."
+  ],
+  "techniqueId": "t1546-017",
+  "detectsTechniques": [
+    "t1546-017"
+  ],
+  "dataSources": [
+    "File integrity monitoring events for file creation and modification under the system udev rules directory",
+    "Linux auditd records for open and rename syscalls on rule file paths with the acting account and process",
+    "auditd execve records showing the device manager binary as the parent of a newly started program",
+    "Package manager transaction logs used to distinguish vendor supplied rule files from hand written ones",
+    "Endpoint agent process creation telemetry with parent process name and full command line on Linux hosts"
+  ],
+  "logic": "The pattern is a new or modified udev rule that launches a program from an unexpected location, or a process started by the device manager that no installed package owns. Telemetry shows a file write event under the rule directory and, at the next matching device event, a process creation whose parent is the device manager. The fields to correlate are the rule file path, the RUN target, the creating account and process, and the parent of the later execution. What separates malicious from benign is ownership and path: rules delivered by a signed package that run binaries under standard system directories are expected, while a hand written rule that runs a script from a home folder, a temporary directory, or a network share is not.",
+  "pseudoQuery": "# title: Udev Rule Added That Runs a Command From a Writable Path\n# logsource:\n#   product: linux\n# detection:\n#   selection_file:\n#     type: 'FILE_MODIFY'\n#     file|startswith: '/etc/udev/rules.d/'\n#   selection_content:\n#     content|contains: 'RUN+='\n#   filter_package:\n#     process|endswith:\n#       - '/dpkg'\n#       - '/rpm'\n#   condition: selection_file and selection_content and not filter_package\n# level: high",
+  "falsePositives": [
+    "Hardware vendor packages that install a rule to load a driver or set permissions when their device is attached",
+    "System administration scripts that add a rule to run a mount or backup action for a specific storage device",
+    "Configuration management runs that rewrite the rule directory from a central template during a patch cycle"
+  ],
+  "tuningNotes": "Allow list the package manager processes and the configuration management agent so that ordinary software installation stops alerting, then inspect only the rules that no package owns. Scope the rule to production servers and to laptops with full disk encryption keys on board, and baseline the contents of the rule directory once so that you can diff against it later. Filtering by owning package costs you the case where an attacker modifies an existing vendor rule instead of adding a new one, so keep a separate lower severity rule that alerts on content changes to known rule files.",
+  "severity": "high"
+}

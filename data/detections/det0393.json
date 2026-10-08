@@ -1,0 +1,107 @@
+{
+  "id": "det0393",
+  "type": "detection",
+  "title": "Detection Strategy for Temporary Elevated Cloud Access Abuse (T1548.005)",
+  "shortTitle": "Detection Strategy for Temporary Elevated Cloud Access Ab...",
+  "externalId": "DET0393",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the abuse of temporary elevated cloud access, where a principal activates a short lived higher privilege role, requests just in time access, or gains rights through an elevation workflow, and then uses that access for actions the identity would not normally perform. The activity is visible in control plane audit logs that record role assumption, privilege activation, temporary credential issuance, and the actions taken with the elevated session, plus the approval workflow records that show whether a request was justified. Detection depends on correlating the elevation event with what the session did afterwards and on how long the elevation lasted. The strategy fails in practice because break glass procedures, automation that assumes roles, and legitimate operations work are frequent, so a rule with no approval context produces a queue nobody can close.",
+  "tags": [
+    "privilege escalation",
+    "cloud",
+    "aws",
+    "azure",
+    "gcp",
+    "identity"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Temporary Elevated Cloud Access Abuse (T1548.005)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0393/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Temporary Elevated Cloud Access Abuse (T1548.005) - EASY",
+      "path": "exercises/det0393/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Temporary Elevated Cloud Access Abuse (T1548.005) - MEDIUM",
+      "path": "exercises/det0393/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Temporary Elevated Cloud Access Abuse (T1548.005) - HARD",
+      "path": "exercises/det0393/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Temporary Elevated Cloud Access Abuse (T1548.005) - EXTREMELY HARD",
+      "path": "exercises/det0393/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Cloud platforms let an account borrow more rights for a short time, often after a request or an approval. This is called temporary elevated access. This detection looks for that borrowed access and for what the account did with it.",
+    "whyItMatters": "Borrowed rights are meant to be used for one job and then given back. An attacker who steals a key can borrow the rights and act as an administrator for an hour. If nobody checks the reason for the request, the borrowed access looks like normal administration.",
+    "howItWorks": [
+      "The cloud audit log records the moment a role is activated or a temporary credential is issued.",
+      "The same log records every action the session performs while the elevated rights are active.",
+      "The rule links the activation to the actions that follow within the session lifetime.",
+      "It checks the approval or ticket record to see whether a reason was supplied in advance.",
+      "An elevation with no matching approval, or unusual actions inside it, raises an alert."
+    ],
+    "example": "Think of a hospital drug cupboard that needs two signatures. A nurse signs out a key at midnight with no patient on the ward and no second signature. The key was returned by one in the morning and the cupboard looks untouched. Only the sign out sheet shows that somebody had the key.",
+    "takeaways": [
+      "Watch the borrowed rights session, not only the standing permissions of the account.",
+      "Join the elevation event with the actions taken while it was active.",
+      "An elevation with no matching approval record is the finding worth chasing."
+    ]
+  },
+  "objectives": [
+    "Describe how just in time and temporary role activation works in a cloud tenant",
+    "Identify the audit events that record role assumption, activation, and temporary credential issuance",
+    "Correlate an elevation event with the actions performed inside the elevated session",
+    "Compare elevation events against approval tickets and change records to find unexplained ones",
+    "Set a duration and action threshold that fits normal administrative work in your tenant",
+    "Explain why an unreviewed elevation is more dangerous than a standing permission"
+  ],
+  "techniqueId": "t1548-005",
+  "detectsTechniques": [
+    "t1548-005"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for role assumption, temporary credential issuance, and session duration",
+    "Microsoft Entra ID audit logs and Azure activity logs for role activation and privileged access requests",
+    "Google Cloud audit logs for temporary role grants and service account token creation",
+    "Identity governance or privileged access management records that hold the approved request and its justification",
+    "Cloud provider activity logs for sensitive operations performed while an elevated session is active"
+  ],
+  "logic": "The pattern is an elevation that leads to sensitive action without a matching approval. The rule matches control plane events that activate a role, issue a temporary credential, or grant elevated rights, captures the principal, the target role, the source address, and the intended duration, and then gathers the sensitive actions performed by that principal while the elevation is live. It scores an elevation higher when no approved request exists for that principal at that time, when the session lasts much longer than the requested duration, when the source address is new for that principal, and when the actions inside the window include permission changes, key creation, or data access outside the principal's normal scope. The benign case is a documented break glass procedure, an operations engineer with an approved ticket, or an automation pipeline that assumes a deployment role on a schedule from a known address. The malicious case is an elevation with no ticket, outside working hours, from an unfamiliar address, followed by actions that grant further rights or read data the account never touched before.",
+  "pseudoQuery": "# title: Temporary Cloud Elevation Without Matching Approval\n# logsource:\n#   product: azure\n#   service: activity\n# detection:\n#   selection_elev:\n#     operationName|contains:\n#       - 'role assignment'\n#       - 'role activation'\n#       - 'elevate access'\n#       - 'list role assignment'\n#   filter_approved:\n#     properties.approvalState: 'Approved'\n#   condition: selection_elev and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Break glass administrators who activate a privileged role during a declared incident with a verbal approval",
+    "Operations engineers who activate a role for a scheduled change window and record the ticket afterwards",
+    "Deployment automation that assumes a temporary role from a pipeline identity on every release",
+    "Support staff using a just in time workflow to reproduce a customer issue in a test subscription"
+  ],
+  "tuningNotes": "First baseline which principals elevate, how often, and how long their sessions normally last, then set the duration and action thresholds from that baseline rather than from a vendor default. Join the elevation event with your approval system by principal and time, and treat a missing approval as an enrichment field rather than a hard filter, so you can see the unexplained cases without dropping the rest. Scope the high severity tier to roles that can change permissions or read production data. The coverage you lose is a long lived elevation that stays inside its stated duration, so keep a monthly report of all elevations per principal and look for slow changes in behaviour.",
+  "severity": "high"
+}

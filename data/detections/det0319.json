@@ -1,0 +1,109 @@
+{
+  "id": "det0319",
+  "type": "detection",
+  "title": "Detection Strategy for T1136.003 - Cloud Account Creation across IaaS, IdP, SaaS, Office",
+  "shortTitle": "Detection Strategy for T1136.003 - Cloud Account Creation...",
+  "externalId": "DET0319",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the creation of cloud and identity provider accounts, the account creation behaviour recorded in the assignment as t1136-003. Cloud accounts are attractive because they can be created without any endpoint change, they often inherit default permissions, and they survive password resets applied to the compromised human identity that created them. Detection depends on management plane audit records from each provider, which name the API action, the actor, the target principal and the source address, joined to later events where the new account receives credentials or privileged roles. The recurring failure is that provisioning automation creates accounts constantly, so the rule must weigh the creating identity, the provider's tenancy context and what happens to the account afterwards.",
+  "tags": [
+    "cloud account creation",
+    "identity",
+    "persistence",
+    "cloud audit",
+    "iam",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1136.003 - Cloud Account Creation across IaaS, IdP, SaaS, Office",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0319/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1136.003 - Cloud Account Creation across IaaS, IdP, SaaS, Office - EASY",
+      "path": "exercises/det0319/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1136.003 - Cloud Account Creation across IaaS, IdP, SaaS, Office - MEDIUM",
+      "path": "exercises/det0319/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1136.003 - Cloud Account Creation across IaaS, IdP, SaaS, Office - HARD",
+      "path": "exercises/det0319/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1136.003 - Cloud Account Creation across IaaS, IdP, SaaS, Office - EXTREMELY HARD",
+      "path": "exercises/det0319/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new accounts created in cloud platforms. It also covers identity services, such as a new user in a cloud tenant. Cloud accounts are often created through a programming interface rather than by a person clicking. Attackers create them so they keep access even after the first account is reset.",
+    "whyItMatters": "A new account may not appear on any staff list, so nobody expects it. It can be given permission to read data or to create more accounts. Because it is created in the cloud, there is no file or program to find on any laptop. Catching it early removes a quiet way to stay inside your environment.",
+    "howItWorks": [
+      "Each cloud provider writes an audit record for every management action, including account creation.",
+      "The record names the action, the account that performed it, the new account and the source address.",
+      "Your platform collects these records from every provider you use.",
+      "The rule filters for account creation actions on identity services and cloud tenancies.",
+      "It then checks who created the account and whether that identity normally does this work.",
+      "It also looks for follow up actions. Examples are a new access key, a privileged role or a first sign-in."
+    ],
+    "example": "Think of a members-only gym where the front desk issues key fobs. A manager's login can create a new fob without paperwork. The intruder makes a fob, uses it at quiet hours, and returns the manager's login. The member list still looks correct, but one extra fob works every night.",
+    "takeaways": [
+      "Cloud accounts leave management plane audit records, not endpoint files.",
+      "Compare the creating identity with your provisioning inventory before alerting.",
+      "What happens after creation, such as new credentials, is often the clearest signal."
+    ]
+  },
+  "objectives": [
+    "Describe why attackers create cloud accounts instead of modifying existing ones",
+    "Identify the audit events that record account creation in cloud and identity platforms",
+    "Correlate a created account with the credentials or roles it receives afterwards",
+    "Build a provisioning inventory of approved automation identities for comparison",
+    "Explain how default permissions on new accounts raise or lower severity",
+    "Test the rule with a harmless account created in a sandbox tenancy"
+  ],
+  "techniqueId": "t1136-003",
+  "detectsTechniques": [
+    "t1136-003"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for identity creation actions including user and access key creation with actor, source address and user agent",
+    "Microsoft Entra ID audit logs for user creation and directory role assignment with initiated by details",
+    "Google Cloud audit logs for service account creation and key generation with principal and caller address",
+    "Identity provider system log events such as Okta user lifecycle events recording the actor and the target user",
+    "SaaS administrative audit logs for new account provisioning and invitation acceptance in productivity suites"
+  ],
+  "logic": "The detection selects account creation and credential issuance actions across the providers you collect, then enriches each event with the creating identity, the source network and the resulting permissions. Malicious creation is distinguished from automation by three tests: the creating identity is not in the approved provisioning inventory, the source address is outside corporate ranges or is unfamiliar for that identity, and the created principal receives privileged roles, access keys or mailbox delegation within a short window. Automation normally clusters in known identities, uses predictable naming and does not immediately grant itself broad rights, so the combination of an unknown actor with an immediate privilege grant is what raises the alert rather than the creation event on its own.",
+  "pseudoQuery": "# title: Cloud Account Created Outside Provisioning Inventory\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     eventName:\n#       - CreateUser\n#       - CreateAccessKey\n#       - CreateServiceAccount\n#       - CreateLoginProfile\n#   filter_automation:\n#     userIdentity.arn|contains:\n#       - role/provisioning-pipeline\n#       - role/terraform-deployer\n#   filter_corp_net:\n#     sourceIPAddress|cidr: 10[.]0[.]0[.]0/8\n#   condition: selection and not filter_automation and not filter_corp_net\n# level: high",
+  "falsePositives": [
+    "Terraform or infrastructure as code pipelines that create service accounts during a normal deployment run",
+    "Help desk staff manually creating a cloud account for a new starter when the automated workflow fails",
+    "Break glass administrative accounts created and documented during an incident or disaster recovery test",
+    "Integration projects that create dedicated service identities when connecting a new SaaS application",
+    "Cloud migration batches that generate many accounts in one approved change window from a migration workstation"
+  ],
+  "tuningNotes": "Create the provisioning inventory first, listing the exact role names, service principal identifiers and user agents your automation uses, and allowlist on the full identity rather than on a name prefix that an attacker could imitate. Correlate each new account with its subsequent credential and role events for the first hour, because creation alone is common while immediate privileged access is not. Narrowing to non corporate source addresses removes noise from developers using the console at home, but you lose visibility of stolen administrator credentials used from an approved network, so keep a parallel medium severity rule on creation by human identities during unusual hours.",
+  "severity": "high"
+}

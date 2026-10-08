@@ -1,0 +1,108 @@
+{
+  "id": "det0424",
+  "type": "detection",
+  "title": "Detection Strategy for Disable or Modify Cloud Firewall",
+  "shortTitle": "Detection Strategy for Disable or Modify Cloud Firewall",
+  "externalId": "DET0424",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects changes that weaken a cloud firewall, such as deleting a network access control list entry, disabling a security group rule, or widening a rule to any address and any port. It matters because the cloud perimeter is enforced entirely in configuration, so one authenticated API call can expose a database or management interface to the internet without any host level signal. Detection rests on cloud control plane audit records that carry the before and after state of the rule, the identity of the caller, and the request parameters such as protocol, port range and source prefix. The main failure mode is a flood of legitimate change requests from infrastructure as code pipelines and autoscaling automation, which rewrite rules constantly, so the rule has to key on direction, port sensitivity and principal rather than on the change event alone.",
+  "tags": [
+    "cloud firewall",
+    "defense evasion",
+    "t1686-001",
+    "network security",
+    "change detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Disable or Modify Cloud Firewall",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0424/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Disable or Modify Cloud Firewall - EASY",
+      "path": "exercises/det0424/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Cloud Firewall - MEDIUM",
+      "path": "exercises/det0424/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Cloud Firewall - HARD",
+      "path": "exercises/det0424/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Disable or Modify Cloud Firewall - EXTREMELY HARD",
+      "path": "exercises/det0424/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes that make a cloud firewall weaker. A cloud firewall is a set of rules that decide which network traffic may reach your servers. The rule reports when a rule is removed or opened to the whole internet.",
+    "whyItMatters": "In a data centre, opening a firewall port needs a network engineer and a change ticket. In the cloud, one command can open a database to the world. That command looks like normal administration, so it is easy to miss. Attackers use it to create a path back into your network. Catching it quickly limits how long that path stays open.",
+    "howItWorks": [
+      "Someone or some automation calls a cloud interface to change a firewall rule.",
+      "The cloud provider records the change in an audit log with the old and new rule values.",
+      "Your platform sends those records to the security information and event management system.",
+      "The rule checks the new values for open source addresses, wide port ranges and missing denies.",
+      "It also checks whether the caller is a known pipeline identity inside a normal change window.",
+      "A sensitive port opened to the whole internet by an unexpected account raises an alert."
+    ],
+    "example": "Think of a hospital ward with locked medicine cabinets. Only certain nurses hold keys, and the key register records every opening. If someone removes a lock at three in the morning, the register shows who touched it. The register does not show what was taken. It shows that the protection was removed, which is enough for the night manager to act.",
+    "takeaways": [
+      "The cloud firewall lives in configuration, so weakening it needs no network hardware change.",
+      "Alert on direction, sensitive ports and the caller identity rather than on any rule change.",
+      "Logging that gets switched off alongside a firewall change is a strong warning sign."
+    ]
+  },
+  "objectives": [
+    "Explain why a cloud firewall rule change is a control plane action with immediate network impact.",
+    "Identify the audit fields that capture the old and new state of a firewall rule.",
+    "Recognise the hallmarks of a weakened rule, such as any source address or a wide port range.",
+    "Separate infrastructure as code pipeline changes from interactive changes by a person.",
+    "Correlate a firewall change with logging disablement and with new inbound connections to the opened port.",
+    "Describe the gap created by excluding automated pipeline identities from the rule."
+  ],
+  "techniqueId": "t1686-001",
+  "detectsTechniques": [
+    "t1686-001"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for AuthorizeSecurityGroupIngress and RevokeSecurityGroupIngress with request parameters",
+    "Cloud control plane audit records for network access control list entry replacement including old and new values",
+    "Cloud identity inventory showing which principals, roles and pipelines are approved to change network rules",
+    "VPC flow logs showing new inbound connections to the affected port after the rule change",
+    "CloudTrail events for StopLogging and DeleteTrail that occur close to a rule modification"
+  ],
+  "logic": "The pattern is a firewall rule becoming more permissive rather than less: a rule that adds source prefix 0.0.0.0/0, a rule that widens an existing port range, a revoked deny rule, or an entire rule group deleted. The fields that must be correlated are the caller identity and source address, the affected rule group or access control list, the protocol and port range before and after the change, and the network interface or subnet the rule applies to. The benign case is dominated by infrastructure as code pipelines that replace whole rule sets and by autoscaling automation, so the caller type and the presence of an approved change record separate it from the malicious case. Confidence rises sharply when a rule that protected a database, remote administration or directory service port becomes world reachable, and when the same session also disables flow logging or trail delivery, because that combination is aimed at keeping the new path unobserved.",
+  "pseudoQuery": "# title: Cloud Firewall Rule Opened to Any Address on a Sensitive Port\n# logsource:\n#   product: aws\n# detection:\n#   selection:\n#     eventName:\n#       - AuthorizeSecurityGroupIngress\n#       - RevokeSecurityGroupIngress\n#     requestParameters.ipPermissions.items.ipRanges.items.cidrIp: '0.0.0.0/0'\n#   filter_pipeline:\n#     userIdentity.sessionContext.sessionIssuer.userName|endswith: '-terraform'\n#   condition: selection and not filter_pipeline\n# level: critical",
+  "falsePositives": [
+    "Terraform or CloudFormation pipelines that replace an entire rule set and briefly record a wide ingress rule",
+    "Load balancer health check ranges that are legitimately broad and are added or refreshed by autoscaling",
+    "A temporary wide rule created during an incident bridge and removed once the fix is deployed",
+    "A new application being onboarded whose public web port is intentionally exposed on first deployment",
+    "Third party SaaS integrations that require a vendor address range to be allowed inbound"
+  ],
+  "tuningNotes": "Begin by exporting the last ninety days of rule changes and grouping them by caller identity, change window and affected port, then filter only the identity and port pairs that are genuinely routine and reviewed, leaving everything else in scope rather than filtering on the event type. Scope the first version to security groups and lists attached to internet facing subnets and to subnet tiers that hold databases or directory services, because that is where a single change has the highest impact. Enrich rather than exclude: attach the change ticket identifier, the pipeline run and the deployment record to each alert so an analyst can clear a planned change in seconds. You lose coverage for a change made by a compromised pipeline identity or by a service role that legitimately edits rules, so keep a lower severity variant that reports every rule widening without the pipeline filter, and alert separately on any logging disablement that occurs within minutes of a network change.",
+  "severity": "critical"
+}

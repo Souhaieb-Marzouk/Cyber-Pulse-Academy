@@ -1,0 +1,106 @@
+{
+  "id": "det0588",
+  "type": "detection",
+  "title": "Detection of Remote Service Session Hijacking for RDP.",
+  "shortTitle": "Detection of Remote Service Session Hijacking for RDP.",
+  "externalId": "DET0588",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects T1563.002, Remote Service Session Hijacking against Remote Desktop Protocol (RDP), where an adversary takes over an existing interactive session instead of authenticating normally. Because the session already exists, no failed logon appears and the account does not change, which is why hijacking defeats most credential-based detections. The evidence comes from session state change events in the terminal services operational log, the process that performed the redirect, and the sudden appearance of an interactive session identifier on a process that should not have one. The common failure is that administrators and support tools legitimately reconnect sessions, so the acting account context and the state transition sequence must be correlated.",
+  "tags": [
+    "lateral movement",
+    "rdp",
+    "windows",
+    "session hijacking",
+    "remote access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Remote Service Session Hijacking for RDP.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0588/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Remote Service Session Hijacking for RDP. - EASY",
+      "path": "exercises/det0588/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Remote Service Session Hijacking for RDP. - MEDIUM",
+      "path": "exercises/det0588/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Remote Service Session Hijacking for RDP. - HARD",
+      "path": "exercises/det0588/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Remote Service Session Hijacking for RDP. - EXTREMELY HARD",
+      "path": "exercises/det0588/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Remote Desktop Protocol (RDP) lets you use a computer from far away. A hijack means an intruder joins a session that is already open instead of logging in. This detection looks for a session that changes owner without a normal sign-in.",
+    "whyItMatters": "The victim is already signed in, so no password is needed and no failed login is recorded. Many alert rules watch for failed logins, so they see nothing at all. The intruder then acts as the real user, with that user's access. Catching the change of session is often the only signal available.",
+    "howItWorks": [
+      "Windows writes an event each time a remote session is created, connected, or disconnected.",
+      "A separate event records a session being redirected to another session.",
+      "The rule links those events to the process and account that requested the redirect.",
+      "It checks whether the account that owns the target session is the same as the requester.",
+      "It also looks for an interactive session identifier appearing on a service process.",
+      "Mismatches are sent to your security information and event management (SIEM) platform for triage."
+    ],
+    "example": "Think of a taxi rank where each driver keeps the engine running while they take a break. A stranger does not need a key, because the engine is already on. They simply get in and drive away in another driver's car. The log at the rank shows no theft and no broken lock, only that one car left with the wrong person at the wheel.",
+    "takeaways": [
+      "A hijacked session produces no authentication event, so watch session state changes instead.",
+      "The account that owns the session and the account that redirected it are the key fields.",
+      "Local administrator rights are usually required, so treat unexpected elevation as part of the same picture."
+    ]
+  },
+  "objectives": [
+    "Explain how a remote session can be taken over without authentication",
+    "Locate the terminal services operational events that record session state transitions",
+    "Correlate a session redirect with the process, account, and host that requested it",
+    "Recognise the privileges required and where those rights are normally held",
+    "Decide when a session change is routine support work rather than intrusion"
+  ],
+  "techniqueId": "t1563-002",
+  "detectsTechniques": [
+    "t1563-002"
+  ],
+  "dataSources": [
+    "Terminal services operational log events recording session creation, connection, disconnection, and session redirect",
+    "Windows Security event 4624 logon events of type ten including the session identifier and source address",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and the acting user account",
+    "Endpoint detection and response privilege use and token manipulation events on the affected host"
+  ],
+  "logic": "The pattern is a session changing state, owner, or attached desktop without a matching interactive logon. The rule joins the terminal services operational events for a session redirect or reconnect with process creation records for the utility or service that requested it, and with logon events carrying the session identifier. The malicious case shows a redirect requested by an account that does not own the target session, on a host where that account is not an approved support operator, usually within minutes of an administrative logon or a privilege escalation. The benign case shows a helpdesk account reconnecting its own disconnected session or a documented support action on a named workstation.",
+  "pseudoQuery": "# title: Remote Desktop Session Redirected by Non Owning Account\n# logsource:\n#   product: windows\n#   service: terminalservices\n# detection:\n#   selection:\n#     EventID: 4778\n#     SessionState: 'Redirected'\n#   filter_support:\n#     SubjectUserName|endswith: 'svc-rdpsupport'\n#   condition: selection and not filter_support\n# level: high",
+  "falsePositives": [
+    "Helpdesk and remote support staff reconnecting a disconnected user session to continue a scheduled maintenance task",
+    "Virtual desktop infrastructure brokers moving sessions between hosts during a planned host drain",
+    "Administrators using the built-in session control utility to recover their own session after a network drop",
+    "Automated patch orchestration that redirects console sessions so updates can complete without an active user"
+  ],
+  "tuningNotes": "Allowlist the specific support service accounts and jump host addresses that are permitted to redirect sessions, and require the target session owner to be different from the requester before alerting at high severity. Baseline how often redirects occur per host so that a busy virtual desktop broker does not swamp the queue, and split broker hosts into their own rule with a higher threshold. Scope the strict version to servers and privileged access workstations. The coverage you lose is an intruder reusing an approved support account, so monitor that account for use outside its documented shift hours.",
+  "severity": "high"
+}

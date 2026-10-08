@@ -1,0 +1,105 @@
+{
+  "id": "det0377",
+  "type": "detection",
+  "title": "Detection of Kernel/User-Level Rootkit Behavior Across Platforms",
+  "shortTitle": "Detection of Kernel/User-Level Rootkit Behavior Across Pl...",
+  "externalId": "DET0377",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects rootkit behaviour, where an adversary hides their presence by modifying the kernel, loading an unsigned driver, or intercepting system calls and hiding files, processes and network connections from ordinary tools. Reliable detection cannot come from the same view an attacker has tampered with, so it relies on independent sources: kernel module and driver load events, code integrity and signature enforcement failures, boot measurement values, cross view comparison between the operating system listing and an out of band inventory, and event log gaps that suggest tampering with the logging pipeline. The technique is hard because a successful rootkit removes its own traces, so most real detections fire on the loading step, on a kernel that is unsigned or unexpectedly patched, or on a mismatch that a hypervisor level sensor reports.",
+  "tags": [
+    "rootkit",
+    "kernel",
+    "defense evasion",
+    "integrity monitoring",
+    "linux"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Kernel/User-Level Rootkit Behavior Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0377/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Kernel/User-Level Rootkit Behavior Across Platforms - EASY",
+      "path": "exercises/det0377/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Kernel/User-Level Rootkit Behavior Across Platforms - MEDIUM",
+      "path": "exercises/det0377/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Kernel/User-Level Rootkit Behavior Across Platforms - HARD",
+      "path": "exercises/det0377/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Kernel/User-Level Rootkit Behavior Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0377/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A rootkit is software that hides other software. It can make a running malicious program invisible to the tools you normally use. This detection looks for the signs of hiding, such as unusual kernel code and changes in what the system reports. It also compares two different views of the same computer.",
+    "whyItMatters": "If the intruder can hide, then every clean scan result is meaningless. Your response may also be watched, so your actions become visible to the attacker. Independent sensors are the only way to see through the hiding. Finding a rootkit early tells you to rebuild a machine instead of trusting it.",
+    "howItWorks": [
+      "Collect kernel module and driver load events, including the signature status of each one.",
+      "Collect code integrity events that record a driver failing signature enforcement.",
+      "Collect boot measurement values and compare them with a stored baseline for that host.",
+      "Compare the list of running processes and open ports with an independent inventory source.",
+      "Look for gaps or restarts in the event log pipeline on the same host at the same time.",
+      "Alert with the loaded module path, its signature status, and the process that loaded it."
+    ],
+    "example": "Imagine a hotel sign in sheet where a guest can erase their own line. The book still looks neat, and the manager sees nothing wrong. You only catch it by comparing the book with the door camera. The camera is your independent sensor.",
+    "takeaways": [
+      "Never build rootkit detection only from the data the rootkit can edit.",
+      "An unsigned or unexpectedly patched kernel module is one of the few strong early signals.",
+      "A mismatch between two independent views is more convincing than either view alone."
+    ]
+  },
+  "objectives": [
+    "Explain what a rootkit does and why local tools may report a clean system.",
+    "List the kernel and driver load telemetry that is available on your platforms.",
+    "Design a cross view comparison between a host listing and an independent inventory.",
+    "Interpret code integrity events and decide when they justify a rebuild.",
+    "Judge how a logging gap changes your confidence in every other alert from that host."
+  ],
+  "techniqueId": "t1014",
+  "detectsTechniques": [
+    "t1014"
+  ],
+  "dataSources": [
+    "Linux auditd records for kernel module load operations with the module path and the acting account",
+    "Windows code integrity events recording driver signature enforcement failures at boot",
+    "Sysmon event 6 driver load events including the signature and signature status of each driver",
+    "Hypervisor or out of band asset inventory that lists processes and open ports independently of the guest operating system",
+    "Boot measurement values from the platform attestation service for the affected host"
+  ],
+  "logic": "The pattern is code entering the kernel that is unsigned, unexpectedly patched, or loaded from a location outside the driver store, together with a disagreement between two independent views of the same host. Telemetry shows a module or driver load event with a poor signature status, or a mismatch between the operating system process list and an out of band inventory, or a halt in log forwarding from that host. The fields to correlate are the host identity, the module path and hash, the signature status, the loading process, and the timestamps of the log gap. What separates malicious from benign is provenance: a signed vendor driver installed by a package or an approved update is expected, while an unsigned module loaded from a temporary directory by a user process is not.",
+  "pseudoQuery": "# title: Unsigned or Unexpected Kernel Module Loaded\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: 'KERNEL_MODULE'\n#     action: 'load'\n#   filter_signed:\n#     signature_status: 'valid'\n#     module|startswith: '/lib/modules/'\n#   condition: selection and not filter_signed\n# level: critical",
+  "falsePositives": [
+    "Third party storage or virtualisation drivers that are installed by an approved update but carry a weak or expired signature",
+    "Security agents with their own kernel components that load at boot before the signature database is ready",
+    "Engineers loading a development kernel module on a test machine to debug a hardware problem"
+  ],
+  "tuningNotes": "Build an inventory of every kernel module and driver your standard build loads, with its expected hash, and alert only on departures from that list, so patch cycles do not generate a queue of alerts. Scope the critical severity rule to servers and to hosts that hold regulated data. Do not filter by module directory alone, because attackers copy modules into standard paths. The coverage you lose by trusting signed modules is the case of a validly signed but vulnerable driver being abused, so track known vulnerable driver versions separately rather than relaxing this rule.",
+  "severity": "critical"
+}

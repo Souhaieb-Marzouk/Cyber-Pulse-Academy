@@ -1,0 +1,107 @@
+{
+  "id": "det0088",
+  "type": "detection",
+  "title": "Backup Software Discovery via CLI, Registry, and Process Inspection (T1518.002)",
+  "shortTitle": "Backup Software Discovery via CLI, Registry, and Process ...",
+  "externalId": "DET0088",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects enumeration of backup software on a host, which attackers perform to locate where copies of sensitive data live and how they are protected. The technique matters because backup servers often hold the fastest route to mass data access and are a favourite target for destruction before an extortion demand. Detection uses process creation with full command lines, registry access and service enumeration, correlated on a single host within a short window. The classic failure is that administrators, monitoring agents and asset inventory tools legitimately list services and read software keys, so the rule must weigh the asking account and the breadth of the sweep, not just the query text. This is study content, not an authoritative detection standard.",
+  "tags": [
+    "discovery",
+    "backup",
+    "windows",
+    "registry",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Backup Software Discovery via CLI, Registry, and Process Inspection (T1518.002)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0088/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Backup Software Discovery via CLI, Registry, and Process Inspection (T1518.002) - EASY",
+      "path": "exercises/det0088/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Backup Software Discovery via CLI, Registry, and Process Inspection (T1518.002) - MEDIUM",
+      "path": "exercises/det0088/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Backup Software Discovery via CLI, Registry, and Process Inspection (T1518.002) - HARD",
+      "path": "exercises/det0088/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Backup Software Discovery via CLI, Registry, and Process Inspection (T1518.002) - EXTREMELY HARD",
+      "path": "exercises/det0088/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone listing the backup software on a computer. Backup software keeps extra copies of important data, so it is a valuable target. Attackers check for it early so they know what to steal or destroy later. The detection watches the commands that list services, the registry keys that describe software, and how many things are checked at once.",
+    "whyItMatters": "Backups are the safety net for a company. If an attacker finds and removes them, recovery becomes far harder. Before that, they need to know which backup product and which server to attack. Enumeration commands are cheap and leave traces, which gives defenders a chance to act early. An alert here can interrupt an intrusion before any data is lost.",
+    "howItWorks": [
+      "The endpoint agent records process creation, and the rule keeps the full command line of each new process.",
+      "It looks for listing commands, such as service queries, that include a backup product name or a backup word.",
+      "It watches read access to registry keys where installed software and services are registered.",
+      "It counts how many different software or service names one process asks about in a short period.",
+      "It correlates all of this with the account that ran the commands, which is the field that decides most cases.",
+      "When a normal user account runs a broad software sweep on a server, the rule raises a high priority alert."
+    ],
+    "example": "Think of a thief who walks past a row of shops before choosing one. Looking at shopfronts is legal and everyone does it. But a stranger who photographs the alarm boxes, the delivery doors and the loading bay of one building in ten minutes draws attention. The photographs are not a crime by themselves, yet the pattern tells a story. Listing backup software is the same: the command is ordinary, and the sweep plus the person plus the target host make it meaningful.",
+    "takeaways": [
+      "Backup software discovery is an early step before data theft or sabotage.",
+      "Service and registry queries are normal for many tools, so never alert on the command alone.",
+      "Account type, host role and the number of queries in one session are your best filters."
+    ]
+  },
+  "objectives": [
+    "Explain why attackers map backup software and backup servers before acting.",
+    "Name the command line and registry fields that show software enumeration.",
+    "Distinguish an administrative software inventory from a hostile discovery sweep.",
+    "Tune the rule with an allowlist of management and monitoring accounts.",
+    "Describe the escalation path when discovery targets a backup server."
+  ],
+  "techniqueId": "t1518-002",
+  "detectsTechniques": [
+    "t1518-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including image, parent image and full command line",
+    "Sysmon event 13 registry value set and registry object access on installed software and services keys",
+    "Windows Security event 4657 registry value modification for software inventory related keys",
+    "Windows system service control manager events that record service state queries and starts"
+  ],
+  "logic": "The pattern is a burst of software and service enumeration aimed at backup products, run by an account that has no administrative reason to ask. The correlated fields are the calling process image and parent, the command line keywords such as a backup vendor name or the words backup, veeam, commvault or netbackup, the registry key paths touched under installed software and services, and the number of distinct queries inside one session. Enumerating services is normal for monitoring agents and inventory tools, so the differentiators are the account type, the host role and the scope of the sweep. A signed monitoring agent that runs the same query every hour on every host in the fleet is background noise. An interactive user session on an application server that asks about several backup products, and then opens a network share, is the case worth an investigation.",
+  "pseudoQuery": "# title: Backup Software and Service Discovery Sweep\n# logsource:\n#   product: windows\n# detection:\n#   sel_cmd:\n#     EventID: 1\n#     CommandLine|contains: ['backup', 'veeam', 'netbackup', 'commvault', 'wbadmin']\n#     Image|endswith: ['\\\\cmd.exe', '\\\\powershell.exe', '\\\\wmic.exe', '\\\\sc.exe']\n#   sel_reg:\n#     EventID: 13\n#     TargetObject|contains: ['\\\\Services\\\\', '\\\\Uninstall\\\\']\n#   filter:\n#     User|endswith: ['svc_inventory', 'svc_monitoring']\n#   condition: (sel_cmd or sel_reg) and not filter\n# level: medium",
+  "falsePositives": [
+    "Asset inventory agents that enumerate installed software on a schedule and include service names in the report",
+    "Monitoring platforms that poll service state for backup agents as part of a documented health check",
+    "Backup administrators who troubleshoot a failed job by listing services on the backup server itself",
+    "Patch management tooling that queries the uninstall registry keys to build a software baseline",
+    "Software licence auditors who run a scripted inventory during an approved review window"
+  ],
+  "tuningNotes": "Baseline which accounts and parent processes enumerate services on each asset group, then allowlist those specific pairs and add a count threshold so a single query stays quiet while a broad sweep fires. Scope the sensitive version of the rule to backup servers, hypervisors and file servers, where discovery has the highest impact. Exclude the scheduled inventory window after you confirm it in change records, and keep the keywords focused on backup products rather than the general word list. The coverage you give up is discovery that uses renamed tools or native interfaces your allowlist already trusts, so keep a monthly review of unmatched service enumeration on critical hosts.",
+  "severity": "medium"
+}

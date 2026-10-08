@@ -1,0 +1,106 @@
+{
+  "id": "det0461",
+  "type": "detection",
+  "title": "Detection Strategy for Hidden File System Abuse",
+  "shortTitle": "Detection Strategy for Hidden File System Abuse",
+  "externalId": "DET0461",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of hidden file system features, where an attacker stores tools or stolen data in ways that ordinary directory listings do not show, such as alternate data streams on Windows, hidden attribute flags, or directory names that the shell does not display. It matters because the content survives reboots, is invisible to a casual reviewer, and can hide a payload beside a legitimate file without changing its size. Detection depends on file system telemetry that records the stream name or the attribute change, on process creation records for the tools that set hidden flags, and on file integrity baselines that compare the visible and hidden content of important directories. It fails in practice because many applications use alternate data streams and hidden files for legitimate reasons, so the rule must be scoped and must focus on executable or script content.",
+  "tags": [
+    "defense evasion",
+    "file system",
+    "windows",
+    "hidden artifact",
+    "persistence"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hidden File System Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0461/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hidden File System Abuse - EASY",
+      "path": "exercises/det0461/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hidden File System Abuse - MEDIUM",
+      "path": "exercises/det0461/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hidden File System Abuse - HARD",
+      "path": "exercises/det0461/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hidden File System Abuse - EXTREMELY HARD",
+      "path": "exercises/det0461/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Some file systems let a file carry extra hidden content, or let files be marked so they do not appear in a normal listing. This detection looks for hidden content being created or used. Attackers hide tools and stolen data this way so a quick look shows nothing unusual.",
+    "whyItMatters": "A reviewer who lists a folder may see only normal files. The hidden content sits beside them and can still be executed or read. This makes both the attacker's tools and the data they collected hard to find.",
+    "howItWorks": [
+      "A file monitoring tool records new files and new content streams.",
+      "The rule looks for stream names attached to existing files.",
+      "It also watches for commands that set the hidden attribute.",
+      "It records which process created the content and which user owned it.",
+      "Baselines compare the visible content with what is really stored.",
+      "Hidden executable content in a user folder is raised for review."
+    ],
+    "example": "Think of a filing cabinet where each folder can hold a thin sleeve stuck to the inside cover. A quick check of the folder shows a normal report, but the sleeve holds a second document nobody sees unless they open the cover fully.",
+    "takeaways": [
+      "Not everything stored in a folder appears in a listing.",
+      "Compare stored content with visible content on key hosts.",
+      "Focus on executable or script content, not every hidden file."
+    ]
+  },
+  "objectives": [
+    "Explain how alternate data streams and hidden attributes conceal content",
+    "Identify file system telemetry that reveals hidden content creation",
+    "Recognise legitimate uses of streams and hidden files",
+    "Correlate hidden content with the process that created or read it",
+    "Guide collection and review of hidden artefacts on a suspect host"
+  ],
+  "techniqueId": "t1564-005",
+  "detectsTechniques": [
+    "t1564-005"
+  ],
+  "dataSources": [
+    "Sysmon event 15 file create stream hash records showing stream names on existing files",
+    "Sysmon event 11 file creation records with the full target path and creating process",
+    "Windows Security event 4688 process creation showing attribute change commands such as attrib or Set-ItemProperty",
+    "Linux auditd file watches on user home and temporary directories recording path creation and deletion",
+    "File integrity monitoring baselines that record hidden attribute and stream inventory per directory"
+  ],
+  "logic": "The pattern is content stored somewhere that the normal directory view does not show, created by a process that has no business writing there. Correlate the file path, the stream name or hidden attribute flag, the creating process image and parent, the account, and whether an executable or script is later read or launched from that path. The benign case is a known application that uses a named stream for caching, thumbnails, or zone information, or a backup tool that stores metadata in a hidden directory, where the writing process is signed and the same stream appears across the whole fleet. The malicious case is a stream attached to a document or system binary shortly before that content is executed, a hidden directory in a user or temporary path containing a script or executable, or a hidden file whose hash does not appear in any software inventory. The writer and the follow on execution are the deciding factors.",
+  "pseudoQuery": "# title: Hidden executable content in a user or temporary path\n# logsource:\n#   product: windows\n# detection:\n#   selection_stream:\n#     EventID: 15\n#     TargetFilename|contains:\n#       - '\\\\Temp\\\\'\n#       - '\\\\Users\\\\'\n#   selection_hidden:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'attrib +h'\n#       - 'Set-ItemProperty'\n#   filter_known:\n#     Image|endswith:\n#       - '\\\\explorer.exe'\n#       - '\\\\MsMpEng.exe'\n#   condition: (selection_stream or selection_hidden) and not filter_known\n# level: medium",
+  "falsePositives": [
+    "Web browsers and email clients that write zone identifier streams when downloading a file",
+    "Backup and synchronisation tools that use hidden metadata directories inside user folders",
+    "Application installers that set the hidden attribute on configuration or licence files",
+    "Disk cleanup and security scanning tools that mark quarantine folders as hidden and system"
+  ],
+  "tuningNotes": "Build an inventory of the streams and hidden directories that your standard applications create, and filter by the writing process signature rather than by the path alone. Raise severity when the hidden content is an executable or script, or when it is launched within a short time of creation, since that is what distinguishes concealment for malware from routine caching. Scope first to servers and administrator workstations. Ignoring all streams loses coverage of a common hiding place, so keep a report that lists new stream names per host for periodic review even where you do not alert.",
+  "severity": "medium"
+}

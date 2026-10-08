@@ -1,0 +1,105 @@
+{
+  "id": "det0494",
+  "type": "detection",
+  "title": "Detection Strategy for Weaken Encryption: Disable Crypto Hardware on Network Devices",
+  "shortTitle": "Detection Strategy for Weaken Encryption: Disable Crypto ...",
+  "externalId": "DET0494",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the disabling of hardware accelerated encryption on network devices, such as routers, switches and firewalls, so that traffic can be inspected, downgraded or moved onto a weaker path. An adversary with administrative access to the device changes the configuration, removes a crypto module from service or switches traffic to software encryption with weaker settings. Visibility depends on configuration change logs, syslog, configuration backups and administrator authentication records from the devices themselves, joined with network team change tickets. It fails in practice because many organisations never forward device configuration changes to a central collector, so the weakening is only noticed when performance drops or an audit asks.",
+  "tags": [
+    "network device",
+    "encryption downgrade",
+    "configuration change",
+    "syslog",
+    "change management"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Weaken Encryption: Disable Crypto Hardware on Network Devices",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0494/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Weaken Encryption: Disable Crypto Hardware on Network Devices - EASY",
+      "path": "exercises/det0494/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Weaken Encryption: Disable Crypto Hardware on Network Devices - MEDIUM",
+      "path": "exercises/det0494/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Weaken Encryption: Disable Crypto Hardware on Network Devices - HARD",
+      "path": "exercises/det0494/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Weaken Encryption: Disable Crypto Hardware on Network Devices - EXTREMELY HARD",
+      "path": "exercises/det0494/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Network devices can use special hardware to encrypt traffic quickly. This detection looks for an administrator turning that hardware off. It watches the device configuration for a change that weakens encryption. The aim is to catch the change while the device is still under your control.",
+    "whyItMatters": "Encryption keeps your traffic private and stops tampering in the middle of the network. If an attacker weakens it on a router or firewall, they can read or change data without touching a single endpoint. This is a quiet move, because the network still works and users notice nothing. Only your device logs show what happened, so you must collect them long before you need them.",
+    "howItWorks": [
+      "Each network device sends log messages to a central collector using syslog.",
+      "The collector stores configuration change records next to login events from the same device.",
+      "The rule looks for commands that disable a crypto engine or lower an encryption setting.",
+      "It checks whether the change matches an approved change ticket for that device.",
+      "A change with no ticket, or one outside the agreed window, raises an alert.",
+      "The alert lists the device, the account and the exact configuration lines."
+    ],
+    "example": "Think of a post office that seals every parcel with strong tape from a machine. A worker turns the machine off and starts using thin tape by hand instead. Parcels still arrive, so customers are happy and nobody complains. Only the workshop log shows that the machine was stopped at eleven at night. This detection is that log, read next to the work order for the day.",
+    "takeaways": [
+      "Configuration change logs from network devices are the main evidence for this technique.",
+      "Compare every crypto related change against an approved change ticket.",
+      "Turn on central logging for network devices before an incident, not during one."
+    ]
+  },
+  "objectives": [
+    "Describe what hardware encryption acceleration does on a network device.",
+    "Identify the log sources that record device configuration changes.",
+    "Explain how a change ticket reduces false alerts on this rule.",
+    "Write a pseudo-rule that flags crypto engine changes without approval.",
+    "Design a review process for out of band network device changes."
+  ],
+  "techniqueId": "t1600-002",
+  "detectsTechniques": [
+    "t1600-002"
+  ],
+  "dataSources": [
+    "Syslog messages from routers, switches and firewalls recording configuration commands and commit events",
+    "Network device authentication logs showing administrator logins and privilege level changes on the management interface",
+    "Scheduled configuration backups from network devices, compared to show what changed between two days",
+    "Change management tickets from the IT service management platform, with device name and approved time window",
+    "Simple Network Management Protocol (SNMP) trap messages reporting hardware module status changes"
+  ],
+  "logic": "The pattern is a configuration change on a network device that disables or bypasses hardware encryption offload, for example a command that turns off a crypto engine, removes a crypto map, or replaces a strong cipher suite with a weaker one. Analysts must correlate the device hostname and the local administrator account from the authentication log with the exact configuration lines from syslog or a nightly configuration diff, and then compare the timestamp with an approved change ticket. Normal operations change routing, access lists and interface descriptions, while crypto settings stay stable for months. The malicious or unmanaged case shows a crypto change made by a shared or recently created account, outside a maintenance window, with no matching ticket and no follow up work order.",
+  "pseudoQuery": "# title: Network Device Crypto Engine Disabled Outside Change Window\n# logsource:\n#   product: network\n# detection:\n#   selection:\n#     event_type: 'config_change'\n#     command|contains:\n#       - 'no crypto engine'\n#       - 'no crypto map'\n#       - 'crypto cipher default'\n#   filter_approved:\n#     change_ticket: 'approved'\n#   condition: selection and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Network team performing an approved firmware upgrade that resets crypto offload settings to default",
+    "Vendor remote support session that reloads a default configuration after a hardware crypto module fails",
+    "Disaster recovery test that fails traffic over to a backup path which offers software encryption only"
+  ],
+  "tuningNotes": "Collect at least one month of device configuration history first, then allow list the crypto command patterns only when they appear with a matching change ticket. Scope the rule to internet edge devices and virtual private network (VPN) concentrators, where weakening encryption matters most, and exclude lab and training devices entirely. Add a filter for the network automation service account that pushes approved templates at night. Excluding lab and backup devices removes most of the noise, but you then lose early warning if an attacker starts on a less important device before moving to the edge.",
+  "severity": "high"
+}

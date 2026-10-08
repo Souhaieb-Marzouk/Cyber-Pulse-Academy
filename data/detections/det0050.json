@@ -1,0 +1,107 @@
+{
+  "id": "det0050",
+  "type": "detection",
+  "title": "Detect Persistence via Malicious Office Add-ins",
+  "shortTitle": "Detect Persistence via Malicious Office Add-ins",
+  "externalId": "DET0050",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1137.006, Add-ins, where an adversary achieves persistence by registering a malicious add-in so that the Office applications load it automatically at startup. It matters because the code runs inside a trusted productivity application under the signed application name, which means application control lists and user habits rarely stop it, and the persistence survives reboots without a service or a scheduled task. The telemetry that makes it visible is file and registry level: the appearance of add-in files in the user Office folders, new entries under the Office add-in registry keys, and the image load of a non Microsoft library inside a Word or Excel process. The main failure is that every meeting client and document tool ships an add-in, so a rule that alerts on any add-in registration is unusable without knowing which add-ins are expected in your estate.",
+  "tags": [
+    "mitre t1137.006",
+    "persistence",
+    "office",
+    "registry",
+    "windows"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Persistence via Malicious Office Add-ins",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0050/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Persistence via Malicious Office Add-ins - EASY",
+      "path": "exercises/det0050/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Persistence via Malicious Office Add-ins - MEDIUM",
+      "path": "exercises/det0050/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Persistence via Malicious Office Add-ins - HARD",
+      "path": "exercises/det0050/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Persistence via Malicious Office Add-ins - EXTREMELY HARD",
+      "path": "exercises/det0050/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for add-ins that make Microsoft Office load extra code at startup. An add-in is a small program that runs inside Word, Excel, or Outlook. Attackers use add-ins because the office program is already trusted on the machine. This rule watches for new add-in files and the registry entries that load them.",
+    "whyItMatters": "Coders inside a trusted program often escape suspicion. Users click enable without reading, because the request looks routine. The persistence survives a reboot and needs no service or scheduled task. That combination makes add-ins attractive to attackers. Finding the registration entry is how you catch them.",
+    "howItWorks": [
+      "The agent records file creation events, including the folder and the file name.",
+      "The rule looks for add-in file types landing in the user Office folders.",
+      "It also watches the registry keys where Office records which add-ins to load at startup.",
+      "It links a new registry entry with the file that the entry points to.",
+      "Known vendor add-ins are filtered using their publisher signature and their install path.",
+      "When the linked file is unsigned and sits in a temporary or download folder, the alert is raised."
+    ],
+    "example": "Imagine a mailroom where every parcel is left on a desk inside the building. Nobody checks parcels again once they are inside. A person who wants to deliver something unnoticed becomes a mailroom worker. They leave one parcel a day on the same desk. An Office add-in works like that. The office program is the trusted mailroom. The add-in is the parcel that arrives again after every restart.",
+    "takeaways": [
+      "Office add-ins give an attacker persistence inside a trusted, signed application.",
+      "The registry entry that loads the add-in is the evidence, so watch registration and not just files.",
+      "Enterprise tools use add-ins constantly, so you need an inventory of expected add-ins before tuning."
+    ]
+  },
+  "objectives": [
+    "Explain how Office add-ins are registered and how they achieve persistence.",
+    "Identify the file creation, image load, and registry telemetry that reveals a new add-in.",
+    "List the add-in file types that Office loads automatically at startup.",
+    "Write a pseudo rule that links a new registry entry with an unsigned add-in file.",
+    "Build an inventory of approved add-ins from the registry before tuning the rule.",
+    "Describe a response that removes the persistence and preserves the evidence."
+  ],
+  "techniqueId": "t1137-006",
+  "detectsTechniques": [
+    "t1137-006"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation for add-in file types in the user Office add-in folders",
+    "Sysmon event 13 registry value set for the Office application add-in keys under the current user hive",
+    "Sysmon event 7 image load events showing a non Microsoft library loaded inside an Office process",
+    "Windows Security event 4688 process creation with command line auditing for Office applications started with add-in arguments",
+    "Windows Security event 4657 registry value modification auditing for the Office add-in keys"
+  ],
+  "logic": "The rule links a persistence registration to the file it points at. It joins registry value set events under the Office add-in keys with file creation events for add-in file types in the user profile Office folders, using the file path recorded in the registry value, and it confirms the link with an image load event inside the Office process. The malicious case is a new registry entry that references an unsigned library in a temporary, download, or public folder, often appearing shortly after a document was opened or a script ran. The benign case is a signed vendor add-in installed by its own installer from the program files tree, an enterprise deployment pushed by policy, or a developer building an add-in locally. Signer, install path, and whether the registration appeared through a signed installer are the fields that separate them.",
+  "pseudoQuery": "# title: Office Add-In Registered From User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains: \\Software\\Microsoft\\Office\\Word\\Addins\\, \\Software\\Microsoft\\Office\\Excel\\Addins\\, \\Software\\Microsoft\\Office\\Outlook\\Addins\\\n#   filter:\n#     Details|contains: \\Program Files\\, \\Program Files (x86)\\\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Meeting and collaboration clients that register their Outlook add-in on first launch under the user hive",
+    "Document management and electronic signature tools that install a Word or Excel add-in for each user profile",
+    "Developers building and testing an add-in from a source tree inside their own user profile",
+    "Add-in updates where the installer rewrites the registration entry with the same approved file path"
+  ],
+  "tuningNotes": "Export the Office add-in registry keys across a representative sample of endpoints first, then allowlist the approved paths, publishers, and value names so that the rule only fires on new registrations. Filter on the install path and the signature of the referenced file rather than on the value name, because attackers choose plausible names. Scope the high severity tier to non developer groups and keep a lower tier everywhere so a new add-in on an executive laptop still surfaces. This narrowing hides an attacker who registers a new add-in under an approved vendor path, so pair the rule with periodic integrity checks over the approved add-in folders.",
+  "severity": "high"
+}

@@ -1,0 +1,105 @@
+{
+  "id": "det0378",
+  "type": "detection",
+  "title": "Behavioral Detection of Obfuscated Files or Information",
+  "shortTitle": "Behavioral Detection of Obfuscated Files or Information",
+  "externalId": "DET0378",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects obfuscated files or information, where an adversary encodes, encrypts or packs content so that static inspection and string matching fail. Detection is behavioural rather than signature based: process creation showing interpreters invoked with encoded command parameters, script block logging capturing base64 decoding functions in interpreted code, file write events for documents whose internal structure hides a payload, and content inspection of archives or executables with unusually high entropy. The correlated fields are the process that performed the decoding, the decoded output size, the destination path and the account. It fails in practice because administrators and software packages legitimately use encoded commands, so the rule must weigh the decoded output, the destination, and the parent process rather than the encoded string alone.",
+  "tags": [
+    "defense evasion",
+    "obfuscation",
+    "powershell",
+    "scripting",
+    "content inspection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Obfuscated Files or Information",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0378/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Obfuscated Files or Information - EASY",
+      "path": "exercises/det0378/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Obfuscated Files or Information - MEDIUM",
+      "path": "exercises/det0378/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Obfuscated Files or Information - HARD",
+      "path": "exercises/det0378/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Obfuscated Files or Information - EXTREMELY HARD",
+      "path": "exercises/det0378/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Obfuscation means hiding what a file or command really does, often by turning it into a coded string. This detection looks for the decoding step, which the computer must perform before the hidden code can run. It watches for coding tools, encoded commands and strange file content.",
+    "whyItMatters": "Security tools compare files against known bad patterns. If the content is coded, those comparisons find nothing. The program still has to decode itself in order to run, and that moment is visible. Catching the decode step lets you see through the disguise without knowing the family name.",
+    "howItWorks": [
+      "Collect process creation events with full command lines from endpoints and servers.",
+      "Look for interpreter options that accept encoded input, and for calls to decoding functions in scripts.",
+      "Collect script block logging events that show the decoded output of such a call.",
+      "Collect file write events for the decoded output, including its path and size.",
+      "Score the event using the parent process, the destination path, and whether the output then executes.",
+      "Alert on the highest scoring cases and attach the decoded content for the analyst."
+    ],
+    "example": "Think of a parcel wrapped in three layers of plain brown paper with no label. The courier cannot tell what it is, but he can see that someone spent a long time hiding it. The decoding step is the moment the paper comes off at the door.",
+    "takeaways": [
+      "Obfuscation defeats content matching, so detect the decode step instead.",
+      "Encoded commands are common in real administration, so context decides the alert.",
+      "Decoded output that is written to disk and then executed is a strong signal."
+    ]
+  },
+  "objectives": [
+    "Explain what obfuscation is and why static signatures often miss it.",
+    "Name the interpreter options and script functions that indicate decoding activity.",
+    "Enable and use script block logging to capture decoded content.",
+    "Score an encoded command using parent process and destination path.",
+    "Safely review decoded content without executing it in your analysis environment."
+  ],
+  "techniqueId": "t1027",
+  "detectsTechniques": [
+    "t1027"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled showing interpreter encoded command options",
+    "PowerShell script block logging events recording decoding function calls and their output",
+    "Sysmon event 1 process creation including parent image and the full command line of the interpreter",
+    "Sysmon event 11 file create events for the decoded output path with size and hash",
+    "Endpoint agent content inspection results reporting high entropy or embedded executable content inside documents"
+  ],
+  "logic": "The pattern is a decoding operation that produces content which is then written or executed. Telemetry shows an interpreter process started with an encoded input option, or a script block that calls a decoding function, and then a file write or child process in the same process tree within a short window. The fields to correlate are the host, the parent process, the interpreter, the decoded output size, the destination path, and the account. What separates malicious from benign is the destination and the parent: management tools that decode a signed package into a program directory are expected, while an office application or a mail client parent that decodes content into a user temporary folder and then starts it is not.",
+  "pseudoQuery": "# title: Encoded Command Decoded and Written to a User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection_encode:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - ' -enc '\n#       - ' -EncodedCommand'\n#       - 'FromBase64String'\n#   selection_write:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - '\\AppData\\'\n#       - '\\Temp\\'\n#   filter_admin:\n#     ParentImage|endswith: '\\sccm.exe'\n#   condition: selection_encode and selection_write and not filter_admin\n# level: high",
+  "falsePositives": [
+    "Management platforms that run encoded commands to avoid quoting problems with complex installer arguments",
+    "Software deployment scripts that decode a packaged configuration blob into a program directory on first run",
+    "Password vault agents that decode an encrypted local store into memory and a temporary cache file"
+  ],
+  "tuningNotes": "Allow list the management and deployment tools that are permitted to use encoded commands, and require the decoded output to land in a user writable directory before alerting, which removes most administration noise. Baseline which parent processes in your estate use encoded commands at all, because that list is usually short. Filtering on destination path costs you the case where an attacker writes into an approved program directory, so pair the rule with file integrity monitoring there. Keep the severity high but route the alert to triage rather than to automatic isolation, because legitimate deployment activity can look identical at first glance.",
+  "severity": "high"
+}

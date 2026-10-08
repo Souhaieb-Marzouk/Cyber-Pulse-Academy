@@ -1,0 +1,107 @@
+{
+  "id": "det0891",
+  "type": "detection",
+  "title": "Detection of DNS Server",
+  "shortTitle": "Detection of DNS Server",
+  "externalId": "DET0891",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects adversary use of compromised or attacker controlled name resolution, mapped to MITRE ATT&CK T1584.002 (Compromise Infrastructure: DNS Server). An adversary who owns the name server for a domain decides where that domain points, which enables fast redirection of phishing pages, malware staging, and command and control, and also allows traffic filtering by victim. Detection is a mixture of internal and external evidence: clients changing their configured resolver, internal hosts sending domain name system queries to external servers that are not approved, anomalies in query and response patterns such as very low time to live values and inconsistent answers, and external monitoring that shows your own domains pointing at unexpected name servers. The strongest internal signal is a rogue or misconfigured resolver, because a workstation that starts querying an attacker chosen server can be redirected without any malicious file on disk. The strategy fails when resolver changes and passive domain name system data are not retained, since both are needed to reconstruct what a client was told.",
+  "tags": [
+    "mitre t1584.002",
+    "dns",
+    "network infrastructure",
+    "resource development",
+    "configuration"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of DNS Server",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0891/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of DNS Server - EASY",
+      "path": "exercises/det0891/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of DNS Server - MEDIUM",
+      "path": "exercises/det0891/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of DNS Server - HARD",
+      "path": "exercises/det0891/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of DNS Server - EXTREMELY HARD",
+      "path": "exercises/det0891/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A domain name system (DNS) server turns names such as example.com into internet addresses. If an attacker controls that server, they can send your users to a fake site. This detection looks for clients that use unknown DNS servers, and for your own domains that suddenly point somewhere new.",
+    "whyItMatters": "Name resolution is the first step of almost every connection. If it is wrong, every later check your users make still shows a familiar name. An attacker controlled resolver can also send different answers to different victims, so testing from your own laptop looks clean. Watching which resolver each client uses, and comparing that with the approved list, is one of the few reliable ways to see this.",
+    "howItWorks": [
+      "Clients and servers log their DNS queries, including which resolver answered each one.",
+      "Network devices and directory records show which resolver address was handed to each client.",
+      "The detection compares the resolver in use with your approved list for that network segment.",
+      "It checks for odd answers, such as very short cache times or repeated changes for one name.",
+      "External monitoring reports unexpected name server records on your own domains.",
+      "Matches raise an alert with the client, the resolver, the queried name, and the response."
+    ],
+    "example": "Think of a receptionist who tells visitors where each office is. If someone quietly replaces the receptionist with a stranger, visitors still ask politely and still get an answer, but the directions may lead to a different room. Watching who sits at the desk, not just where people walk, is the point.",
+    "takeaways": [
+      "A changed resolver can redirect a user with no malicious file on the device at all.",
+      "Compare the resolver in use against an approved list for each network segment.",
+      "Keep query and response logs long enough to reconstruct what a client was told."
+    ]
+  },
+  "objectives": [
+    "Explain how control of name resolution enables redirection without endpoint compromise",
+    "Identify client, resolver, and directory telemetry that shows which server answered a query",
+    "Detect resolver changes and anomalous response patterns such as very short cache lifetimes",
+    "Correlate external name server monitoring of your own domains with internal client behaviour",
+    "Recommend protections such as resolver allowlisting and response validation"
+  ],
+  "techniqueId": "t1584-002",
+  "detectsTechniques": [
+    "t1584-002"
+  ],
+  "dataSources": [
+    "DNS resolver query and response logs from internal recursive servers including client address, queried name, answer, and response code",
+    "Endpoint or network device telemetry recording the configured DNS server address per client or per network segment",
+    "Dynamic host configuration protocol and directory service records showing which resolver address was handed to clients",
+    "Domain registrar and authoritative name server audit logs plus passive DNS monitoring for your own domains",
+    "Firewall logs showing internal clients sending port 53 queries directly to external addresses instead of the internal resolver"
+  ],
+  "logic": "The detection looks for a mismatch between the resolver a client is expected to use and the resolver it actually uses, together with response characteristics that are unusual for legitimate authoritative servers. The fields that must be correlated are the client address, the configured or observed resolver address, the queried name, the returned answer, the response time to live, and the client process where available. On the external side, the detection watches registration and name server records for your domains and alerts on changes that no change request covers. What separates the malicious case from the benign one is authorisation and consistency: a new resolver in a lab or guest segment with a change ticket is normal, while a workstation or server that starts querying an external resolver it has never used, receiving answers with a very low time to live that change between requests, indicates deliberate interference or a malicious proxy configuration. Benign content delivery networks also return low time to live values, but they stay within the approved resolver path and return stable answer sets.",
+  "pseudoQuery": "# title: Client Using Unapproved DNS Resolver or Receiving Anomalous Answers\n# logsource:\n#   product: network\n#   category: dns\n# detection:\n#   selection_direct:\n#     destination.port: 53\n#     event.action: query\n#   selection_ttl:\n#     dns.answers.ttl: < 30\n#   filter_resolvers:\n#     destination.ip|in: approved_dns_resolver_list\n#   condition: (selection_direct or selection_ttl) and not filter_resolvers\n# level: medium",
+  "falsePositives": [
+    "Guest, lab, and bring your own device networks that intentionally use a public resolver",
+    "Content delivery networks and dynamic load balancing that return very short cache lifetimes by design",
+    "Virtual private network clients that use the resolver pushed by the remote network during a tunnel session",
+    "Internet of things devices with hard coded resolvers that query an external server directly",
+    "Security tools that perform their own resolution against multiple public resolvers for reputation checks"
+  ],
+  "tuningNotes": "Document the approved resolver set per network segment, including the resolver addresses used by guest and lab networks and by remote access clients, and filter those explicitly rather than by port. Alert on the first sighting of a new resolver per client, then suppress repeats for that client for seven days, and keep the very short time to live branch scoped to internal recursive servers and to names in your own domain space. Audit your own domain name server records weekly so that external changes are reviewed. The coverage you lose by filtering guest and lab segments is a rogue resolver planted inside those segments, so retain a summarised daily report of resolver use by segment and review changes rather than alerting on them.",
+  "severity": "medium"
+}

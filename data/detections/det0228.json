@@ -1,0 +1,108 @@
+{
+  "id": "det0228",
+  "type": "detection",
+  "title": "Detect Multi-Stage Command and Control Channels",
+  "shortTitle": "Detect Multi-Stage Command and Control Channels",
+  "externalId": "DET0228",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects multi-stage command and control channels, tracked as ATT&CK T1104, where an adversary splits remote control across more than one hop so that the endpoint talks to a disposable relay rather than to the final control server. The technique matters because each stage looks ordinary on its own: the visible destination is often a legitimate cloud service, a compromised website, or an internal host, and blocking it only forces the adversary to move to the next relay. The telemetry that makes it detectable is proxy and firewall logs showing the full destination chain, endpoint network events with the owning process and its parent, domain or TLS certificate metadata for the first hop, and file or script creation that immediately precedes the connection. The main failure mode is that a genuine two-hop pattern is hard to see from one log source, so the rule must weight correlation and repetition over any single session, and must avoid alerting on the many legitimate applications that use a content delivery network in front of an origin server.",
+  "tags": [
+    "network",
+    "command and control",
+    "proxy",
+    "beaconing",
+    "correlation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Multi-Stage Command and Control Channels",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0228/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Multi-Stage Command and Control Channels - EASY",
+      "path": "exercises/det0228/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Multi-Stage Command and Control Channels - MEDIUM",
+      "path": "exercises/det0228/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Multi-Stage Command and Control Channels - HARD",
+      "path": "exercises/det0228/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Multi-Stage Command and Control Channels - EXTREMELY HARD",
+      "path": "exercises/det0228/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for remote control traffic that passes through more than one computer. A command and control channel is the link an attacker uses to send orders to a machine they control. In a multi stage setup, the victim talks to a first machine. That machine then passes the orders to a second one. This detection watches for a victim that connects out and then behaves as if it received instructions from somewhere else.",
+    "whyItMatters": "Blocking one address does not help if the attacker has another one ready. Each stage can look harmless because it may sit on a normal cloud service. This makes the chain hard to break and hard to see. If you find the pattern early, you can cut the first link and stop the whole chain from working.",
+    "howItWorks": [
+      "Proxy logs record every web request, including the address, the page, and the amount of data.",
+      "Endpoint logs record which program made each connection and which program started it.",
+      "The rule looks for a short connection that repeats at a steady interval, which is typical of polling.",
+      "It checks whether the same program also wrote a script or file just before the connection.",
+      "It groups connections by destination so one relay contacted by many machines stands out.",
+      "You confirm by checking the destination reputation and the program that opened the link."
+    ],
+    "example": "Picture a relay race with an extra runner. The message is not handed straight to the last runner. A middle runner takes it, turns around, and passes it on. If you only watch the finish line, you never see who started the message or where it truly came from.",
+    "takeaways": [
+      "Multi stage control hides the real destination behind an ordinary looking first hop.",
+      "Steady, small, repeating connections are more suspicious than one large transfer.",
+      "Grouping by destination reveals a relay that many machines contact."
+    ]
+  },
+  "objectives": [
+    "Describe how a multi-stage channel differs from a single direct callback",
+    "Identify beacon shaped traffic using interval regularity, size, and duration",
+    "Correlate endpoint process telemetry with proxy or firewall destination records",
+    "Detect first hop relays that appear on many internal hosts at once",
+    "Assess destination reputation, domain age, and certificate details as supporting evidence",
+    "Prioritise response steps that break the chain at the first hop"
+  ],
+  "techniqueId": "t1104",
+  "detectsTechniques": [
+    "t1104"
+  ],
+  "dataSources": [
+    "Web proxy or secure web gateway logs with request URL, method, content type and response size",
+    "Sysmon event 3 network connection with destination host, port and owning process",
+    "Sysmon event 1 process creation capturing the parent image of the process that connects out",
+    "Sysmon event 11 file create recording scripts or payload files written just before a connection",
+    "DNS query logs with client address, queried name and record type"
+  ],
+  "logic": "The detection correlates three things over a short window: a process that makes repeated outbound sessions to the same destination at a regular interval, a file or script written by that same process or its parent immediately beforehand, and a destination that either has very low domain age, no business history in your environment, or is contacted by an unusually large number of internal hosts. The decisive fields are the process image and path, the parent image, the destination hostname or address, the session interval and byte counts, and the file creation events that precede the session. Benign cases show a signed application installed under Program Files, a destination already registered in your approved service catalogue, and either bulk transfer or user driven timing, while multi-stage malicious activity shows a scripting engine or a process running from a user directory, very regular small sessions, an initial file drop, and a first hop that proxies onward to a destination your egress controls never recorded directly.",
+  "pseudoQuery": "# title: Regular Beacons to One Host by a Script Interpreter\n# logsource:\n#   product: windows\n# detection:\n#   selection_conn:\n#     EventID: 3\n#     Initiated: 'true'\n#   selection_proc:\n#     Image|endswith:\n#       - '\\powershell.exe'\n#       - '\\rundll32.exe'\n#       - '\\regsvr32.exe'\n#   selection_drop:\n#     EventID: 11\n#     TargetFilename|endswith:\n#       - '.ps1'\n#       - '.dat'\n#   filter_vendor:\n#     DestinationHostname|endswith: '.microsoft.com'\n#   condition: selection_conn and selection_proc and not filter_vendor\n# level: high",
+  "falsePositives": [
+    "Software update agents that poll a vendor endpoint on a fixed interval with a small request each time",
+    "Monitoring agents that post short heartbeat messages to a cloud management platform every minute",
+    "Enterprise chat clients that keep a long lived connection with regular keepalive frames",
+    "Internal applications that use an application delivery controller as a reverse proxy in front of the real service",
+    "Browser extensions that repeatedly fetch configuration from a first party domain at a steady cadence"
+  ],
+  "tuningNotes": "Rather than alerting on a single session, count sessions per process and destination pair over an hour and alert only on pairs whose interval variance is very low and whose request size is consistently small, since bulk transfers and user driven browsing do not look like that. Seed the allowlist from your approved service catalogue and from a week of proxy data grouped by destination and owning process, and scope the rule to endpoints and servers where script interpreters have no business reason to reach the internet. Keep DNS logging enabled so you can see the first hop even when egress filtering hides the second, and review low severity matches by destination rather than by host. The coverage you lose when you set a strict interval threshold is a slow or jittered channel that deliberately varies its timing, so also keep a lower confidence rule on unusual process to destination pairings.",
+  "severity": "high"
+}

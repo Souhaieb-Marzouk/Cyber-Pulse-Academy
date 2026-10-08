@@ -1,0 +1,107 @@
+{
+  "id": "det0571",
+  "type": "detection",
+  "title": "Detection of System Process Creation or Modification Across Platforms",
+  "shortTitle": "Detection of System Process Creation or Modification Acro...",
+  "externalId": "DET0571",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the creation or modification of system level processes that run with high privilege on Windows, Linux and macOS, tracked under T1543. The adversary registers a new service, daemon or launch agent, or edits an existing one, so that code executes at start up and persists without a user logging in. Telemetry that supports it includes Windows service installation events and registry writes to service keys, process creation records for the service control manager, Linux audit records for writes to system unit and init directories followed by daemon execution, and macOS records of new launch agent and launch daemon property list files. The weakness is that installers, endpoint agents and monitoring tools legitimately create services constantly, so the rule is only useful when it is anchored to the executing user, the binary path and an inventory of approved services.",
+  "tags": [
+    "persistence",
+    "system-services",
+    "linux",
+    "macos",
+    "windows",
+    "t1543"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of System Process Creation or Modification Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0571/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of System Process Creation or Modification Across Platforms - EASY",
+      "path": "exercises/det0571/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of System Process Creation or Modification Across Platforms - MEDIUM",
+      "path": "exercises/det0571/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of System Process Creation or Modification Across Platforms - HARD",
+      "path": "exercises/det0571/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of System Process Creation or Modification Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0571/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for new or changed system services and background programs. A service is a program that starts with the computer and runs without a person opening it. The technique covers programs that persist this way on Windows, Linux and macOS.",
+    "whyItMatters": "A service starts again after every reboot, so access survives restarts. It usually runs with high rights, which lets the attacker do more. Most users never see services, so the change stays hidden. Watching service changes gives you a chance to remove access before it settles in.",
+    "howItWorks": [
+      "The agent records file and registry changes in the places where services and background programs are defined.",
+      "It also records process creation when the service manager or system start up launches a new program.",
+      "A filter keeps entries whose program file sits outside the normal software directories.",
+      "The platform checks who created the entry, and whether that account normally installs software.",
+      "It compares the new service name and file path with the approved service inventory.",
+      "An alert fires when the entry is new, unapproved and started by a non administrator account."
+    ],
+    "example": "Think of a building where every door has a key log. A stranger cannot take a key from the desk. But they can add a new door to the plan and give themselves a key to it. The building looks the same, yet one door now opens for them at any hour of the night.",
+    "takeaways": [
+      "Persistence through services survives reboots, so prevention needs detection.",
+      "The binary path and the creating account are the two most useful fields.",
+      "Keep an approved service inventory, or every alert will look the same."
+    ]
+  },
+  "objectives": [
+    "Explain why services and daemons are attractive for persistence.",
+    "Name the Windows events that record service installation and registry changes.",
+    "Identify the Linux and macOS files that define background programs.",
+    "Describe how an approved service inventory reduces false positives.",
+    "Correlate the creating account with the binary path before escalating."
+  ],
+  "techniqueId": "t1543",
+  "detectsTechniques": [
+    "t1543"
+  ],
+  "dataSources": [
+    "Windows Security event 4697 service installation records with service name, image path and account",
+    "Sysmon event 13 registry value set events for service keys under the control set",
+    "Linux auditd records for file creation and modification in system unit and init script directories",
+    "macOS unified log and endpoint file monitoring records for new launch agent and launch daemon property list files",
+    "Windows Security event 4688 process creation for service host processes with command line auditing enabled"
+  ],
+  "logic": "The pattern is a new or altered service definition whose executable lives outside the standard software directories, appearing together with the process that created it or with a subsequent start of that executable. You must correlate the service name, the binary path, the creating account and the parent process, because package managers, endpoint agents and installers register services legitimately while a service created by a normal user account or pointing at a temporary directory rarely is. The malicious case is distinguished by path and account: the binary sits in a user writable location, the creating account is not an installer account, and the service often starts within minutes of being written.",
+  "pseudoQuery": "# title: New System Service With Binary Outside Program Directories\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4697\n#   filter_standard:\n#     ServiceFileName|startswith:\n#       - 'C:\\\\Windows\\\\'\n#       - 'C:\\\\Program Files\\\\'\n#   condition: selection and not filter_standard\n# level: high",
+  "falsePositives": [
+    "Endpoint protection and monitoring agents that install or update a service during their own upgrade",
+    "Software deployment tooling that registers a temporary service while installing an application",
+    "Enterprise privileged access tools that create a short lived agent service for a remote support session",
+    "Administrators testing a new internal service on a development or staging host"
+  ],
+  "tuningNotes": "Build the approved service inventory first, ideally by exporting service definitions from a known good host group, then alert on the delta rather than on every creation, and allow list the deployment and endpoint management service accounts. Scope the rule to servers and to hosts in sensitive network segments before enabling it on user workstations, where installers create services daily. The coverage you lose is an attacker who modifies an existing approved service rather than creating a new one, so pair this rule with file integrity monitoring on the directories that hold service executables and alert on content changes there.",
+  "severity": "high"
+}

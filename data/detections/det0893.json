@@ -1,0 +1,107 @@
+{
+  "id": "det0893",
+  "type": "detection",
+  "title": "Detection of Link Target",
+  "shortTitle": "Detection of Link Target",
+  "externalId": "DET0893",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects adversary staging of link targets, mapped to MITRE ATT&CK T1608.005 (Stage Capabilities: Link Target). Before a phishing campaign, an adversary prepares the destination that a link will point to: a cloned login page, a file hosted on a legitimate service, a shortened uniform resource locator, or a redirect chain that hides the final site. Because the staging happens on infrastructure you do not own, detection is mostly external monitoring combined with the point of delivery and the point of click. Useful telemetry includes certificate transparency records for brand lookalikes, passive domain name system and reputation data, email gateway logs that capture message links, proxy logs that record the resolved destination and blocked categories, and secure web gateway detonation results. The practical failure mode is scale: thousands of links flow through a large organisation each day, so the rule has to prioritise by brand match, recency, and the gap between the link text and the real destination rather than by attempting to judge every uniform resource locator.",
+  "tags": [
+    "mitre t1608.005",
+    "phishing",
+    "url analysis",
+    "email security",
+    "brand protection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Link Target",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0893/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Link Target - EASY",
+      "path": "exercises/det0893/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Link Target - MEDIUM",
+      "path": "exercises/det0893/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Link Target - HARD",
+      "path": "exercises/det0893/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Link Target - EXTREMELY HARD",
+      "path": "exercises/det0893/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A link target is the page that a link really opens. Attackers build a fake page first, then send links to it. This detection looks for freshly built pages that copy your brand, and for links whose real destination does not match what the user sees.",
+    "whyItMatters": "The link is the moment a user decides whether to trust something. A short link or a link on a well known file service hides the real destination, so a careful person can still be fooled. Fake login pages are usually new and short lived, which means they will not be on any blocklist yet. Catching them at delivery gives you time to block them and warn staff.",
+    "howItWorks": [
+      "The email gateway keeps a copy of each message and the links inside it.",
+      "The detection compares the visible link text with the real destination address.",
+      "It adds outside context, such as how old the destination domain is and whether it copies your brand.",
+      "Links that pass through shorteners or redirect chains are followed in a safe sandbox.",
+      "A high score blocks the link, warns the user, and creates a case.",
+      "The analyst checks what the page asked for, such as a password, and resets any affected account."
+    ],
+    "example": "Think of a courier who writes the real address on the parcel but shows you a different label. The label looks right, so you accept the parcel. Only by comparing the label with the address written underneath would you notice the difference. This detection compares the two.",
+    "takeaways": [
+      "Most fake pages are new and short lived, so reputation lists alone are not enough.",
+      "Compare what the user sees with where the link really goes, because that gap is the trick.",
+      "Blocking at delivery is far cheaper than handling a stolen password afterwards."
+    ]
+  },
+  "objectives": [
+    "Explain how adversaries prepare link targets such as cloned pages and redirectors",
+    "Identify gateway, proxy, sandbox, and external intelligence telemetry that expose staged targets",
+    "Detect mismatches between visible link text and the resolved destination",
+    "Prioritise alerts using brand similarity, domain age, and credential capture behaviour",
+    "Design a block, warn, and credential reset response for a delivered malicious link"
+  ],
+  "techniqueId": "t1608-005",
+  "detectsTechniques": [
+    "t1608-005"
+  ],
+  "dataSources": [
+    "Email gateway logs including sender, recipient, visible link text, and embedded uniform resource locator",
+    "Web proxy or secure web gateway logs with requested destination, category, verdict, and user identity",
+    "Certificate transparency and newly registered domain monitoring filtered for brand lookalike names",
+    "Sandbox or detonation results for fetched pages including form fields, redirect chain, and downloaded content",
+    "External phishing and malware blocklists reporting domains and addresses associated with your brand"
+  ],
+  "logic": "The detection looks for a link delivered to or clicked by a user whose real destination is new, brand similar, or inconsistent with the text and context of the message, or whose redirect chain ends at a page that requests credentials. The fields that must be correlated are the message identifier, the recipient, the visible anchor text, the resolved destination host and path, the domain age, the certificate details, and the sandbox verdict for the final page. The benign version is a legitimate marketing or newsletter link on a well known provider that matches its text and has a long, stable history. The malicious version uses a domain registered within days, often on a free hosting or shortener service, with an anchor text that names your organisation while the destination host does not, and a landing page that asks only for a user name and password. The mismatch plus recency is what makes it worth alerting on.",
+  "pseudoQuery": "# title: Delivered Link With Brand Text Pointing to a New Mismatched Destination\n# logsource:\n#   product: network\n#   category: email_gateway\n# detection:\n#   selection:\n#     event.action: message_delivered\n#     email.url.clickable: true\n#   mismatch:\n#     email.url.text|contains: example-corp\n#     email.url.domain|not|endswith: example-corp.com\n#   new_dest:\n#     email.url.domain_age_days: < 14\n#   filter_approved:\n#     email.url.domain|in: approved_marketing_domains\n#   condition: selection and mismatch and new_dest and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Marketing automation and newsletter platforms that host branded pages on their own domains",
+    "Event, webinar, and survey services that use the company name in a subdomain of a third party host",
+    "Legitimate tracking and link wrapping services used by approved senders, which rewrite links by design",
+    "File sharing and e-signature notifications where the brand text is the sender name and the host is the provider",
+    "Internal campaigns and training simulations that deliberately use lookalike links to teach staff"
+  ],
+  "tuningNotes": "Build an allowlist of approved senders and their link wrapping domains, and filter at the sending domain plus path pattern level rather than allowing a whole hosting provider. Require a destination domain age under fourteen days or a credential capture form in the sandbox verdict, and suppress links that resolve to your own registered domains. Detonate only a sample of links per campaign to control sandbox cost, but always detonate the first sight of any new destination domain. The coverage you lose by allowlisting known senders is a compromised legitimate sender whose account now distributes malicious links, so keep a separate low severity rule for new destination domains from allowlisted senders and review those daily.",
+  "severity": "high"
+}

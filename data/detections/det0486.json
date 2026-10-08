@@ -1,0 +1,105 @@
+{
+  "id": "det0486",
+  "type": "detection",
+  "title": "Detecting Odbcconf Proxy Execution of Malicious DLLs",
+  "shortTitle": "Detecting Odbcconf Proxy Execution of Malicious DLLs",
+  "externalId": "DET0486",
+  "theme": "Detection Strategy",
+  "summary": "The Open Database Connectivity (ODBC) configuration utility, odbcconf.exe, is a signed Microsoft binary that can be told to register a dynamic link library, which makes it a convenient way to load code while the process image on disk looks trusted. The detection strategy pairs process creation telemetry that captures the command line with module load events for the process, because the arguments alone are noisy while the arguments plus a library loaded from a user writable folder are a strong signal. Coverage fails when command line auditing is off, since the utility name by itself appears in legitimate driver and application deployments on almost every managed endpoint.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "proxy execution",
+    "process creation",
+    "dll"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Odbcconf Proxy Execution of Malicious DLLs",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0486/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Odbcconf Proxy Execution of Malicious DLLs - EASY",
+      "path": "exercises/det0486/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Odbcconf Proxy Execution of Malicious DLLs - MEDIUM",
+      "path": "exercises/det0486/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Odbcconf Proxy Execution of Malicious DLLs - HARD",
+      "path": "exercises/det0486/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Odbcconf Proxy Execution of Malicious DLLs - EXTREMELY HARD",
+      "path": "exercises/det0486/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This plan looks at a Windows tool called odbcconf, which sets up database drivers. The tool can also load a library file when it is told to. Attackers use it because the program is signed and trusted. The detection watches for the tool loading a library from an unusual place.",
+    "whyItMatters": "Security tools often allow signed Microsoft programs to run. An attacker who abuses that trust can load code without a new file that looks obviously bad. The library can sit in a folder the user can write to. Mixing a trusted program with an untrusted library is the warning sign. Catching it stops a quiet way of running code.",
+    "howItWorks": [
+      "The endpoint agent records the start of each process with the full command line that launched it.",
+      "The rule selects the ODBC configuration utility and checks its arguments, such as a register or response file option.",
+      "A second event source records which libraries the new process loads, with the path and signature of each.",
+      "The detection keeps only cases where the library path is outside the system folders.",
+      "It also notes a short lived process, because the utility often exits as soon as the library is loaded.",
+      "The combination of the utility, a suspicious argument and an unusual library path raises the alert."
+    ],
+    "example": "Think of a courier van that is allowed through the factory gate without a search. A driver uses that trust to carry a parcel out of the loading bay. The gate guard only checks the van, not the parcel inside. In the same way, the ODBC utility is accepted because it is signed. The library it carries is the real problem.",
+    "takeaways": [
+      "A signed system utility can still be used to load unwanted code.",
+      "The command line arguments are what make the utility interesting.",
+      "Pair the process event with a library load to cut false alerts."
+    ]
+  },
+  "objectives": [
+    "Explain what the ODBC configuration utility does in normal administration.",
+    "Identify the arguments that cause it to load a library.",
+    "Correlate its process creation with a library load from a user writable path.",
+    "Recognise legitimate driver deployment behaviour that produces the same events.",
+    "Explain how missing command line auditing reduces detection quality."
+  ],
+  "techniqueId": "t1218-008",
+  "detectsTechniques": [
+    "t1218-008"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with image, parent image and full command line for odbcconf.exe",
+    "Sysmon event 7 image load showing the library path, hash and signing status inside the utility process",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows Security event 4657 registry value modification under the ODBC driver registry keys"
+  ],
+  "logic": "The detection looks for the ODBC configuration utility starting with arguments that make it register or load a library, then for that library appearing in the process module list. Legitimate use of this utility comes from software deployment tooling that registers database drivers from an installation share, and its libraries sit under Program Files with a valid signature. The malicious pattern is the same binary invoked with a register or response file argument pointing at a path under a user profile, a temporary folder, or a network share, loading a library that is unsigned or was written minutes earlier, often from a parent process such as a scripting host or an office application, and the process usually exits within seconds. Correlating the process command line with the loaded module path and the parent image is what separates a driver install from code execution, and it depends entirely on having command line and image load telemetry turned on.",
+  "pseudoQuery": "# title: Odbcconf Registering A Library From A User Writable Path\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     Image|endswith: '\\odbcconf.exe'\n#     CommandLine|contains:\n#       - '/A'\n#       - 'REGSVR'\n#       - '/F'\n#   filter:\n#     ParentImage|startswith: 'C:\\Program Files\\'\n#     CommandLine|contains: 'C:\\Program Files\\'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Software deployment tooling that registers database drivers with a response file from a management share",
+    "Database client installations that configure ODBC data sources during a normal application setup",
+    "Vendor support engineers running the utility interactively while troubleshooting a driver problem",
+    "Package management scripts that re-register drivers after an operating system update"
+  ],
+  "tuningNotes": "Filter the parent processes and installation shares your deployment platform uses, and require either an unsigned module or a module path outside Program Files before alerting. Baseline which hosts legitimately run the utility, because the same binary appears during patch cycles on database and application servers. Excluding those servers keeps the queue clean but leaves an intruder free to abuse the utility there, so on those hosts keep a narrower rule that alerts on any library load from a temporary folder or user profile.",
+  "severity": "high"
+}

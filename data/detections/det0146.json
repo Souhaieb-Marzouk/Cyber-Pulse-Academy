@@ -1,0 +1,106 @@
+{
+  "id": "det0146",
+  "type": "detection",
+  "title": "Detection of Data Destruction Across Platforms via Mass Overwrite and Deletion Patterns",
+  "shortTitle": "Detection of Data Destruction Across Platforms via Mass O...",
+  "externalId": "DET0146",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1485, data destruction, where an intruder or a destructive payload erases or overwrites large amounts of data to cause operational damage and to remove evidence. Detection is built on file integrity monitoring events, shadow copy and backup deletion records, storage level write volume, and application logs showing mass record deletion. No single deletion is meaningful, so the detection depends on rate, breadth, and irreversibility: how many files, how many directories or shares, how quickly, and whether recovery points were removed first. The practical failure mode is that cleanup jobs and ransomware can look similar in raw counts, so the destructive difference has to come from the recovery copy deletions and from writes that overwrite content rather than simply unlinking it.",
+  "tags": [
+    "t1485",
+    "data-destruction",
+    "impact",
+    "file-integrity",
+    "ransomware"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Data Destruction Across Platforms via Mass Overwrite and Deletion Patterns",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0146/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Data Destruction Across Platforms via Mass Overwrite and Deletion Patterns - EASY",
+      "path": "exercises/det0146/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Data Destruction Across Platforms via Mass Overwrite and Deletion Patterns - MEDIUM",
+      "path": "exercises/det0146/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Data Destruction Across Platforms via Mass Overwrite and Deletion Patterns - HARD",
+      "path": "exercises/det0146/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Data Destruction Across Platforms via Mass Overwrite and Deletion Patterns - EXTREMELY HARD",
+      "path": "exercises/det0146/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for programs that wipe or overwrite many files at once. It also watches for the deletion of backup copies that would allow recovery. The goal is to spot destruction while it is still happening.",
+    "whyItMatters": "Destroyed data can stop a business from working, and it removes the evidence investigators need. If recovery points are deleted as well, a bad day becomes a disaster. Warning early, even minutes early, can save a whole file share or a whole database.",
+    "howItWorks": [
+      "File monitoring agents report when files are deleted, renamed, or overwritten.",
+      "The detection counts these events per process and per host over a short window.",
+      "It gives extra weight to deletions that touch many folders or several network shares.",
+      "It watches separately for removal of shadow copies, snapshots, or backup catalogues.",
+      "When both patterns appear together, the alert is raised immediately with high severity."
+    ],
+    "example": "Picture a library where a reader normally borrows one or two books. Staff would notice at once if someone wheeled out entire shelves. Sorting the returned books from the reference section into the bin would be stranger still. Counting books per person per minute is exactly how this detection works for files.",
+    "takeaways": [
+      "Volume, spread, and speed separate destruction from routine cleanup.",
+      "Deleting recovery points is a strong signal on its own.",
+      "Alert fast, because destruction is measured in minutes."
+    ]
+  },
+  "objectives": [
+    "Recognise the behavioural pattern of mass file overwrite and deletion",
+    "Select telemetry that records deletion rate and breadth across hosts",
+    "Correlate recovery point removal with file destruction events",
+    "Tell a destructive tool apart from an ordinary cleanup or retention job",
+    "Rate the severity of a suspected destructive event",
+    "Describe how to preserve evidence once destruction is detected"
+  ],
+  "techniqueId": "t1485",
+  "detectsTechniques": [
+    "t1485"
+  ],
+  "dataSources": [
+    "Sysmon event 23 file delete events and event 26 file delete logged events including target filename and process image",
+    "File integrity monitoring or file server audit records showing file overwrite and rename operations with the acting account",
+    "Windows event log records for shadow copy or backup catalogue deletion and for backup service failures",
+    "Storage or hypervisor performance records showing a sudden write volume spike per virtual machine",
+    "Database audit logs reporting bulk delete or truncate statements with row counts and the issuing account"
+  ],
+  "logic": "The detection is looking for a destructive operation described by three dimensions at once: rate, breadth, and irreversibility. The fields that must be correlated are the process image and signature that performs the writes, the number of distinct files and directories touched per minute, the number of distinct shares or volumes involved, the write pattern showing existing content replaced rather than new content created, and any deletion of shadow copies, snapshots, or backup catalogues by the same host or account. Malicious destruction is typically a single unsigned process reaching across many directories and destroying recovery points, while a benign cleanup job is a signed scheduled task with a configured retention path and no interest in recovery data.",
+  "pseudoQuery": "# title: Mass File Overwrite With Recovery Point Deletion\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   deletion:\n#     EventID:\n#       - 23\n#       - 26\n#     DistinctDirectories|gt: 50\n#   recovery:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'delete shadows'\n#       - 'resize shadowstorage'\n#   condition: deletion or recovery\n# level: critical",
+  "falsePositives": [
+    "Backup rotation jobs that delete expired archive sets across many directories on a schedule",
+    "Disk cleanup or log retention tooling that removes old temporary files in bulk",
+    "Software uninstallers or migration scripts that remove previous application versions from many folders",
+    "Antivirus quarantine routines that delete or neutralise large numbers of detected files at once"
+  ],
+  "tuningNotes": "Baseline deletion rates per host role first, then set the breadth threshold well above the busiest legitimate cleanup job on that role, and allow list the known retention task accounts. Scope the highest severity branch to file servers, database servers, and backup infrastructure, where destruction has the largest impact, and keep a lower severity branch on user workstations. Give recovery point deletion its own alert with no thresholds, because there is almost no legitimate reason to remove all shadow copies outside a documented storage project. The coverage you lose is slow, quiet destruction that stays under the rate threshold, so also watch for steady deletion over hours and for large drops in file count per share.",
+  "severity": "critical"
+}

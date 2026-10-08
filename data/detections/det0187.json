@@ -1,0 +1,108 @@
+{
+  "id": "det0187",
+  "type": "detection",
+  "title": "Detect Disabled Windows Event Log",
+  "shortTitle": "Detect Disabled Windows Event Log",
+  "externalId": "DET0187",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects attempts to disable or degrade the Windows event log service and the audit policy that feeds it. It matters because the event log is the substrate almost every other Windows detection depends on, so silencing it blinds the rest of your monitoring without touching a single security product. Detection is possible through service state change records, registry writes to the service start value, audit policy change events and gaps in expected log volume. The main failure in practice is that service tuning for performance and legitimate log size management produce similar signals, and that once the service is disabled the affected host stops sending the very telemetry that would report it, so absence of data must itself be treated as an input.",
+  "tags": [
+    "event log",
+    "defense evasion",
+    "windows services",
+    "audit policy",
+    "telemetry gaps",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Disabled Windows Event Log",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0187/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Disabled Windows Event Log - EASY",
+      "path": "exercises/det0187/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Disabled Windows Event Log - MEDIUM",
+      "path": "exercises/det0187/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Disabled Windows Event Log - HARD",
+      "path": "exercises/det0187/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Disabled Windows Event Log - EXTREMELY HARD",
+      "path": "exercises/det0187/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection catches anyone turning off the Windows event log on a computer. The event log is the built in diary of what the computer did. When it stops, your security tools lose their main source of evidence. The rule watches for the service being stopped, disabled, or changed.",
+    "whyItMatters": "Almost every Windows alert you receive is built from event log records. Switch that off and the machine becomes invisible while it keeps running. Attackers often do this right before they act, so a disabled log is a strong warning. It is also easy to reverse, and you can restart logging quickly. Noticing it early protects every other detection you own.",
+    "howItWorks": [
+      "A user or script changes the event log service so it no longer runs or no longer starts.",
+      "Windows records the service change, or a registry write to the service start value.",
+      "The audit policy change event fires if the audit settings themselves were altered.",
+      "Your monitoring tool notices that the host has stopped sending normal log records.",
+      "A heartbeat check compares each host against the records it usually sends every hour.",
+      "A service change plus missing records produces one clear alert about that host."
+    ],
+    "example": "Think of a shop with a till that prints a receipt for every sale. A thief cannot easily stop the till, so instead they unplug it. The sales still happen, but the paper trail stops. The manager notices something faster than the missing money. The roll of paper has not moved all afternoon. Every other till in the shop is still printing.",
+    "takeaways": [
+      "Silencing the event log removes the evidence for nearly every other Windows detection.",
+      "A missing heartbeat from a host is itself an alert, not just a data problem.",
+      "Watch the service start value in the registry, because that change survives a reboot."
+    ]
+  },
+  "objectives": [
+    "Explain why the Windows event log is a shared dependency for most Windows detections.",
+    "Identify service state change, registry and audit policy records that reveal log tampering.",
+    "Configure a per host log heartbeat to detect missing telemetry as a signal.",
+    "Distinguish deliberate service disabling from performance tuning and log size management.",
+    "Correlate the account and process responsible for a service configuration change.",
+    "Describe how forwarding logs off host limits the impact of a local log shutdown."
+  ],
+  "techniqueId": "t1685-001",
+  "detectsTechniques": [
+    "t1685-001"
+  ],
+  "dataSources": [
+    "Windows System event 7040 recording a service start type change for the event log service",
+    "Sysmon event 13 registry value set for the EventLog service Start value under CurrentControlSet",
+    "Windows Security event 4719 recording a change to the system audit policy",
+    "Windows Security event 4688 process creation with command line auditing enabled for sc and auditpol usage",
+    "A per host log volume heartbeat comparing expected records per hour with records received"
+  ],
+  "logic": "The pattern is any modification that reduces or removes event log generation on a host, combined with a measurable drop in the records that host normally produces. The fields that must be correlated are the service name and new start type from the service control manager record, the registry key path and value name from the registry write, the account and originating process from process creation, and the record count per host per hour from the ingestion pipeline. The malicious case changes the start type to disabled, stops the service without a scheduled maintenance window, or narrows the audit policy, and it is usually performed by an interactive account or a script running from a temporary directory on a host that has no history of such changes. The benign case is a documented hardening baseline, a monitoring agent deployment that restarts the service, or a performance change applied across a whole server group at the same time by a configuration management tool.",
+  "pseudoQuery": "# title: Event Log Service Disabled\n# logsource:\n#   product: windows\n# detection:\n#   selection_service_change:\n#     EventID: 7040\n#     ServiceName: 'Windows Event Log'\n#     NewStartType: 'disabled'\n#   selection_registry:\n#     EventID: 13\n#     TargetObject|endswith: '\\\\Services\\\\EventLog\\\\Start'\n#     Details: '4'\n#   selection_audit:\n#     EventID: 4719\n#   filter_config_mgmt:\n#     User|endswith: '$'\n#     ParentImage|contains: '\\\\Program Files\\\\ConfigMgmt\\\\'\n#   condition: (selection_service_change or selection_registry or selection_audit) and not filter_config_mgmt\n# level: high",
+  "falsePositives": [
+    "Server hardening scripts that set the event log service start type as part of an approved baseline applied by configuration management",
+    "Monitoring agent upgrades that restart or reconfigure the event log service during a maintenance window",
+    "Performance tuning on high volume hosts where an administrator reduces logging to control disk usage",
+    "Audit policy changes made by a domain administrator to add new categories and captured as a policy change event"
+  ],
+  "tuningNotes": "Keep the service and registry selections broad but add a change management filter keyed on the configuration management service account and the deployed parent process, and require that a matching change ticket or maintenance window exists before you suppress anything. Scope the alert to domain controllers, servers holding the endpoint agent, and user workstations with privileged sessions, and baseline the audit policy hash for that group so any deviation is visible. Because the host stops reporting after the service is disabled, you must also alert on the heartbeat itself: track expected records per host per hour and open an alert when a host drops below a low threshold for two consecutive hours, which catches tampering that never generates a clean service change record. Narrowing to known configuration management accounts means an attacker using stolen administrator credentials inside a maintenance window will look legitimate, so keep the heartbeat and the baseline deviation checks enabled even when the change filter suppresses the primary rule.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0206",
+  "type": "detection",
+  "title": "Detection of Malicious Kubernetes CronJob Scheduling",
+  "shortTitle": "Detection of Malicious Kubernetes CronJob Scheduling",
+  "externalId": "DET0206",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects scheduled jobs created in a container orchestration platform, covering T1053.007 Container Orchestration Job. The technique matters because a scheduled job in a cluster runs with the permissions of the service account assigned to it, and it can mount secrets, reach internal services, and persist long after the original access method has been removed. The telemetry is the control plane audit log, which records the create and patch calls for job and cronjob objects together with the requesting identity and namespace. The main failure is that continuous integration and operations tooling create jobs constantly, so the rule must be anchored to who created the job, where it landed, and what image and mounts it requested, rather than to the creation event alone.",
+  "tags": [
+    "mitre t1053.007",
+    "persistence",
+    "kubernetes",
+    "container security",
+    "scheduled jobs"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Malicious Kubernetes CronJob Scheduling",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0206/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Malicious Kubernetes CronJob Scheduling - EASY",
+      "path": "exercises/det0206/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Malicious Kubernetes CronJob Scheduling - MEDIUM",
+      "path": "exercises/det0206/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Malicious Kubernetes CronJob Scheduling - HARD",
+      "path": "exercises/det0206/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Malicious Kubernetes CronJob Scheduling - EXTREMELY HARD",
+      "path": "exercises/det0206/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new scheduled jobs in a container platform. A container platform runs many small programs inside packages called containers. A scheduled job runs a package on a timer, again and again. Attackers create such jobs to keep a foothold and to run code with extra rights. The rule reads the platform audit log and checks who created the job and what it runs.",
+    "whyItMatters": "A scheduled job can return every hour without any user action at all. It can read secrets from the platform and reach other internal services. Deleting the original intrusion does not remove the job. The audit log records who asked for it and what it contains. With that record you can find the job and decide whether it belongs.",
+    "howItWorks": [
+      "The control plane writes an audit entry for every request made to its application programming interface, or API.",
+      "The detection filters those entries for the creation of job and cronjob objects.",
+      "Each entry names the requesting user or service account and the target namespace.",
+      "The rule then adds the container image, the mounted secrets, and the restart policy.",
+      "It compares the finding with the list of namespaces that the build pipeline uses.",
+      "A job in a production namespace from an unknown account raises a high alert."
+    ],
+    "example": "Think of a hotel that lets guests book a wake up call. The call itself is harmless, and the front desk happily takes the request. A guest books a wake up call for a room he does not rent. He does this every morning for a month, which is something else. He is arranging to be let in. A scheduled cluster job is that wake up call. It looks like a small service request, and it quietly arranges repeated access.",
+    "takeaways": [
+      "Scheduled cluster jobs persist beyond the first intrusion.",
+      "The audit log shows who created the job and what it runs.",
+      "Namespace and identity rules remove most of the pipeline noise."
+    ]
+  },
+  "objectives": [
+    "Explain how scheduled jobs provide persistence in a container platform.",
+    "Read control plane audit records for job creation requests.",
+    "Correlate the requesting identity, namespace, image, and mounted secrets.",
+    "Define which namespaces and service accounts may create jobs.",
+    "Prioritise jobs that mount credentials or request privileged settings."
+  ],
+  "techniqueId": "t1053-007",
+  "detectsTechniques": [
+    "t1053-007"
+  ],
+  "dataSources": [
+    "Kubernetes API server audit logs recording create and patch requests for CronJob and Job objects",
+    "Kubernetes audit records of the requesting user, service account, and source address",
+    "Container runtime logs showing the image pulled and the process started by the job pod",
+    "Cluster admission controller logs allowing or rejecting privileged pod specifications"
+  ],
+  "logic": "The pattern is the creation of a scheduled job by an identity that does not normally create workloads in that namespace, especially when the job mounts a secret or runs with elevated settings. The fields that must be correlated are the API verb and object type, the requesting user or service account, the target namespace, the container image, the volume mounts, and the security context of the pod template. The malicious case differs from the benign one mainly by identity and placement: build pipelines create jobs inside their own namespaces with images their registry already holds, whereas a job created in a production namespace by an application service account, or one that mounts a credential volume and runs with a privileged context, is outside normal operation. A job whose schedule is very frequent, or whose image comes from a public registry, strengthens the case.",
+  "pseudoQuery": "# title: Cluster Scheduled Job Created in Production Namespace\n# logsource:\n#   product: linux\n#   service: kubernetes\n# detection:\n#   selection:\n#     verb:\n#       - create\n#       - patch\n#     object: cronjob\n#   filter_pipeline:\n#     user|startswith: 'system:serviceaccount:ci:'\n#     namespace: 'ci-build'\n#   condition: selection and not filter_pipeline\n# level: medium",
+  "falsePositives": [
+    "Continuous integration pipelines that schedule build and test jobs in their own namespace",
+    "Backup operators that run a nightly snapshot job against a database namespace",
+    "Certificate renewal jobs created by the platform team on a fixed schedule",
+    "Batch data processing jobs created by an approved analytics service account",
+    "Reporting jobs that refresh a dashboard table every hour"
+  ],
+  "tuningNotes": "Start by recording every identity that creates jobs for two weeks, then allow the build and platform service accounts by name and namespace, which removes most of the volume. Keep the rule strict in production namespaces and always alert when a job mounts a secret or requests a privileged security context, whatever the identity. The narrowing costs you visibility into an abused but legitimate pipeline account, so add a second rule that alerts when such an account creates a job using an image it has never used before.",
+  "severity": "medium"
+}

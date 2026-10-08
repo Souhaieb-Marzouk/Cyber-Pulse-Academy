@@ -1,0 +1,105 @@
+{
+  "id": "det0489",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1134.004 Access Token Manipulation: Parent PID Spoofing (Windows)",
+  "shortTitle": "Behavior-chain detection for T1134.004 Access Token Manip...",
+  "externalId": "DET0489",
+  "theme": "Detection Strategy",
+  "summary": "Parent process identifier spoofing makes a new process appear to have been started by a trusted program such as a Windows service host or an office application, by supplying a forged parent identifier when the process is created, so the parent child relationship shown in process telemetry is false. This strategy detects the inconsistencies that the forgery leaves behind: a recorded parent identifier that no longer matches a live process, a parent whose start time is later than the child, a parent child pair that never appears in process access or handle telemetry, and a command line that does not match the parent's normal behaviour. The detection depends on having both process identifiers and start times available, so environments that log only the process name are effectively blind to it.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "process creation",
+    "parent process",
+    "telemetry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1134.004 Access Token Manipulation: Parent PID Spoofing (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0489/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1134.004 Access Token Manipulation: Parent PID Spoofing (Windows) - EASY",
+      "path": "exercises/det0489/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.004 Access Token Manipulation: Parent PID Spoofing (Windows) - MEDIUM",
+      "path": "exercises/det0489/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.004 Access Token Manipulation: Parent PID Spoofing (Windows) - HARD",
+      "path": "exercises/det0489/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.004 Access Token Manipulation: Parent PID Spoofing (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0489/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Every new Windows process records which process started it. This is called the parent process. Attackers can fake that record so an unwanted program looks like it came from a trusted one. This plan finds pairs that do not add up, such as a parent that is no longer running.",
+    "whyItMatters": "Analysts use the parent process to judge whether a command is normal. A word processor starting a scripting host looks wrong, while a service host doing so looks expected. Faking the parent breaks that judgement and hides the real source. The record also misleads automated tools that score behaviour. Detecting the mismatch restores your ability to trust the process tree.",
+    "howItWorks": [
+      "Process creation telemetry records the new process identifier and the identifier of its claimed parent.",
+      "The detection checks whether that parent identifier belongs to a process that is still running.",
+      "It compares start times, because a parent cannot start after its own child.",
+      "It verifies that the child command line matches behaviour you would expect from that parent program.",
+      "Server and agent inventories are used to confirm which parent child pairs are normal for that host.",
+      "Pairs that fail these checks are collected and reviewed as possible parent identifier spoofing."
+    ],
+    "example": "Think of a school trip form that asks which teacher gave permission. A pupil writes the head teacher's name to make the trip look approved. The office staff check the diary and see the head teacher was away that day. The signature looked fine, but the schedule did not match. In the same way, a forged parent process looks convincing until you compare it with the process start times.",
+    "takeaways": [
+      "The parent process is a trust signal that attackers can forge.",
+      "Start times and live process identifiers expose the forgery.",
+      "Without process identifiers and times in your logs, this technique stays invisible."
+    ]
+  },
+  "objectives": [
+    "Explain how a process records its parent and why that record is trusted.",
+    "Identify the telemetry fields needed to test a parent child relationship.",
+    "Detect a parent identifier that does not match a live process.",
+    "Compare parent and child start times to find impossible orderings.",
+    "Recognise legitimate parent child pairs that look unusual at first glance."
+  ],
+  "techniqueId": "t1134-004",
+  "detectsTechniques": [
+    "t1134-004"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with process GUID, parent process GUID, parent image and command line",
+    "Sysmon event 5 process termination used to check whether a claimed parent still exists",
+    "Windows Security event 4688 process creation including the creator process identifier and process identifier",
+    "Endpoint agent process tree inventory that records start time for each running process"
+  ],
+  "logic": "The detection tests the internal consistency of the process tree rather than matching a known bad binary. For each process creation it takes the claimed parent identifier and start time and compares them with the actual runtime state of the host: a parent identifier that points to no live process, a parent that started after the child, or a process identifier that was reused by an unrelated program shortly before all indicate that the parent field was supplied rather than inherited. The distinction from legitimate activity is the corroborating detail, because short lived launchers do create children and exit quickly, but they are recorded in the process creation stream and their own parent chain is consistent. Spoofed cases typically show a trusted looking parent image with no matching creation event, no process access or handle relationship between the two, and a child command line that the named parent would never issue, so parent image, parent command line, both process identifiers and both start times must be correlated.",
+  "pseudoQuery": "# title: Process Creation With A Parent That Does Not Match Runtime State\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\svchost.exe'\n#       - '\\explorer.exe'\n#     Image|endswith:\n#       - '\\powershell.exe'\n#       - '\\cmd.exe'\n#       - '\\rundll32.exe'\n#   filter:\n#     ParentCommandLine|contains: 'approved_service_arguments'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Short lived launcher processes that start a child and exit immediately, leaving no live parent",
+    "Software updaters that start installers from a temporary parent and then close themselves",
+    "Task schedulers and service hosts that legitimately spawn scripting hosts for maintenance jobs",
+    "Process identifiers reused quickly on busy servers, which can make a stale parent look absent"
+  ],
+  "tuningNotes": "Require the live process check to run within seconds of the creation event, because process identifiers are reused and a late check produces false positives on busy hosts. Baseline the parent child pairs that your management and monitoring agents produce, and exclude those combinations rather than excluding whole parent images. Narrowing to a short list of trusted parents that should never start a scripting host keeps noise low but misses spoofing that imitates a different parent, so also keep a general rule that flags any child whose parent has no recorded creation event.",
+  "severity": "high"
+}

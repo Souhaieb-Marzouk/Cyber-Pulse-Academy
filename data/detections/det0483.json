@@ -1,0 +1,105 @@
+{
+  "id": "det0483",
+  "type": "detection",
+  "title": "Detection of System Service Discovery Commands Across OS Platforms",
+  "shortTitle": "Detection of System Service Discovery Commands Across OS ...",
+  "externalId": "DET0483",
+  "theme": "Detection Strategy",
+  "summary": "System service discovery is the reconnaissance step in which an operator lists installed services and their state to learn what software runs on a host and which security products are present. Because the commands are built into every operating system and also appear in routine administration, the detection value comes from behaviour rather than from a single command name: unusual parent processes, short bursts of several enumeration commands in sequence, execution from a user session on a server, and the absence of a change management record. The strategy therefore collects process creation with full command lines across Windows and Linux and scores combinations, since blocking each command individually produces an unusable queue.",
+  "tags": [
+    "windows",
+    "linux",
+    "discovery",
+    "process creation",
+    "command line"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of System Service Discovery Commands Across OS Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0483/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of System Service Discovery Commands Across OS Platforms - EASY",
+      "path": "exercises/det0483/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of System Service Discovery Commands Across OS Platforms - MEDIUM",
+      "path": "exercises/det0483/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of System Service Discovery Commands Across OS Platforms - HARD",
+      "path": "exercises/det0483/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of System Service Discovery Commands Across OS Platforms - EXTREMELY HARD",
+      "path": "exercises/det0483/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Services are programs that run in the background, such as a print spooler or a security agent. This plan spots the commands that list those services. Attackers run these commands to learn what is installed on a computer. The detection watches who runs the list, when, and from which parent program.",
+    "whyItMatters": "Before an attacker acts, they usually look around. Listing services tells them which tools and which defences are present. These commands are normal for administrators, so you cannot alert on each one. Grouping the commands, the timing and the parent program gives you a signal you can act on. It also warns you that someone is mapping your environment.",
+    "howItWorks": [
+      "The agent or the operating system records each new process together with its full command line.",
+      "The rule matches the commands that list services, such as the service control tool or the system control tool.",
+      "It also looks at the parent process, because a service list started by a document reader is suspicious.",
+      "Related commands are grouped in a short window, since attackers run several discovery steps in a row.",
+      "Known administration accounts, change windows and management platforms are filtered out.",
+      "What remains is a small set of cases where a user or unfamiliar program enumerated services on a host."
+    ],
+    "example": "Think of a burglar who walks past a house and reads the labels on the electricity meter box. The labels reveal which alarm company is fitted and how old the wiring is. Reading the box is not a crime by itself, and engineers do it every day. The police take interest when the same person reads many boxes on the same street at night. In the same way, one service list is weak, but many lists in a short period tell a story.",
+    "takeaways": [
+      "The individual service listing command is normal, so context decides whether it matters.",
+      "The parent program and the account are often more telling than the command itself.",
+      "Several discovery commands in a short window deserve a second look."
+    ]
+  },
+  "objectives": [
+    "Name the common commands that list services on Windows and Linux.",
+    "Explain why a parent process check improves this detection.",
+    "Correlate several discovery commands that occur in a short window.",
+    "Identify the administration accounts and tools that must be filtered.",
+    "Describe how to score discovery activity instead of blocking single commands."
+  ],
+  "techniqueId": "t1007",
+  "detectsTechniques": [
+    "t1007"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, user and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Linux auditd execve records with the executing user, parent process and argument list",
+    "PowerShell script block logging event 4104 capturing the service related cmdlets that were run"
+  ],
+  "logic": "The rule looks for the service enumeration commands themselves, then decides how much they matter from their surroundings. On Windows these are the service control utility with a query or configuration argument, the network start command, the task list with the service switch, and the PowerShell service cmdlets; on Linux they are the system control tool with a list argument, the service wrapper with a status argument, and the older init listing tools. A single call from an interactive administrator session during working hours is noise. The pattern worth alerting on is several different enumeration commands executed in sequence within a few minutes by the same account, especially when the parent process is an office document, a scripting host, a web service account, or a scheduled task that no one owns, and when the host is a server where that account has no administrative role. Correlating account, parent image, command line and host role separates discovery from routine support work.",
+  "pseudoQuery": "# title: Service Enumeration Command Chain From An Unusual Parent\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     CommandLine|contains:\n#       - 'sc query'\n#       - 'net start'\n#       - 'tasklist /svc'\n#       - 'Get-Service'\n#   filter:\n#     ParentImage|endswith:\n#       - '\\services.exe'\n#       - '\\svchost.exe'\n#     User|endswith: '$'\n#   condition: selection and not filter\n# level: low",
+  "falsePositives": [
+    "Help desk staff running service queries while troubleshooting a reported problem",
+    "Software inventory and configuration management agents that enumerate services on a schedule",
+    "Monitoring plugins that check whether a specific service is running and report its state",
+    "Application installers and support scripts that verify dependent services before a patch"
+  ],
+  "tuningNotes": "Filter the service accounts and management agents you know, then scope the rule to servers and to accounts without an administrative role, which removes most help desk traffic. Baseline which service queries your patching and inventory tools issue each day before you start alerting. Narrowing this way keeps the queue short but hides an intruder who copies an allowed tool and runs it under an approved service account, so add a companion rule that alerts when an allowed binary runs from a folder outside its usual installation path.",
+  "severity": "low"
+}

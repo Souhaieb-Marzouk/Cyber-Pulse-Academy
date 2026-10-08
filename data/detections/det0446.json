@@ -1,0 +1,107 @@
+{
+  "id": "det0446",
+  "type": "detection",
+  "title": "Credential Access via /etc/passwd and /etc/shadow Parsing",
+  "shortTitle": "Credential Access via /etc/passwd and /etc/shadow Parsing",
+  "externalId": "DET0446",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects attempts to read and parse the local account and password files on a Unix like system. The account file lists users, while the shadow file holds the password hashes, so any read of the second file by a process that is not a system authentication service is worth investigation. Detection depends on file access auditing for those paths, on process execution telemetry that shows the reader command, and on command line arguments that suggest the content is being copied or reformatted rather than used for a lookup. The typical failure is volume and ambiguity: many legitimate programs touch the account file for name lookups, so the rule must target the shadow file and unusual readers, and full command line capture must be confirmed before the rule can distinguish a hash extraction from a routine query.",
+  "tags": [
+    "credential access",
+    "linux",
+    "password hashes",
+    "auditd",
+    "file access",
+    "t1003.008"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Credential Access via /etc/passwd and /etc/shadow Parsing",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0446/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Credential Access via /etc/passwd and /etc/shadow Parsing - EASY",
+      "path": "exercises/det0446/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Credential Access via /etc/passwd and /etc/shadow Parsing - MEDIUM",
+      "path": "exercises/det0446/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Credential Access via /etc/passwd and /etc/shadow Parsing - HARD",
+      "path": "exercises/det0446/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Credential Access via /etc/passwd and /etc/shadow Parsing - EXTREMELY HARD",
+      "path": "exercises/det0446/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches two important files on Linux and similar systems. One lists the user accounts. The other holds the scrambled passwords. Reading the first file is normal. Reading the second file from a normal program is not.",
+    "whyItMatters": "Password hashes can be attacked offline until they crack. A copied hash file leaves the protected system behind. Attackers also like these files because the read is quiet. File access auditing is often the only record. That record tells you which program read the file and when.",
+    "howItWorks": [
+      "The system is configured to record reads of the account and shadow files.",
+      "Each record names the file, the program, the user and the time.",
+      "The rule keeps reads of the shadow file that come from unusual programs.",
+      "It looks for copy or display commands used on the same file.",
+      "It also flags reads by a service account that normally only does name lookups."
+    ],
+    "example": "Think of a hospital sign in sheet by the pharmacy door. Nurses sign in all day, which is normal. A visitor signs in at three in the morning and photographs the shelf behind the door. That entry is the one you review.",
+    "takeaways": [
+      "The shadow file holds hashes and should have few readers.",
+      "Audit rules must exist before the event happens.",
+      "Watch the reader program, not only the file."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between the account file and the shadow file.",
+    "Write and verify an audit rule that records reads of both files.",
+    "Identify the reader process, account and target file in an access record.",
+    "Recognise copy, encode and display commands applied to the shadow file.",
+    "Filter routine authentication service lookups without losing coverage.",
+    "Describe the risk created by an offline password hash copy."
+  ],
+  "techniqueId": "t1003-008",
+  "detectsTechniques": [
+    "t1003-008"
+  ],
+  "dataSources": [
+    "Linux auditd file watch records for reads of the password and shadow files with the process name and account",
+    "Linux auditd process execution records with the full argv command line for cat, grep and copy utilities",
+    "Endpoint process creation records including parent process for shells spawned by a web service",
+    "Command history files or shell audit logs showing reads of the shadow file by an interactive user",
+    "Privileged access management session recordings for commands run through a break glass account"
+  ],
+  "logic": "The pattern is a read of the shadow password file by a process that is not the authentication stack, or a read of either file followed by a copy, encode or network transfer command in the same shell session. The fields to correlate are the file path, the reading process name and parent, the effective account, the terminal or session identifier and the following command line. A benign case is the password utility or a directory service daemon reading the file with the expected parent and a stable process name, while the malicious case shows an interactive shell, a web server account or a temporary script reading the file, often followed by an archive or an outbound connection.",
+  "pseudoQuery": "# title: Shadow Password File Read By Unexpected Process\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: PATH\n#     name: '/etc/shadow'\n#     nametype: NORMAL\n#   filter:\n#     exe|endswith: ['/usr/sbin/sshd', '/usr/bin/passwd', '/usr/sbin/pam_timestamp_check']\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Configuration management runs that read the shadow file to compare password aging settings.",
+    "Backup agents that include the system configuration directories in a nightly copy.",
+    "Security scanners that check file permissions on the shadow file as part of a baseline audit.",
+    "Administrators who inspect the file during a documented account review."
+  ],
+  "tuningNotes": "Confirm that the audit watch is actually loaded on each host class, because a missing rule produces silence rather than a clean result. Build a list of the binaries that legitimately read the shadow file on your images, keyed by full path and parent process, and allow those pairs only. Raise the severity when the parent process is a web server, a database or a scheduled job running under a service account, and keep interactive administrator reads at low severity with a weekly review. Narrowing to the shadow file protects the rule from the heavy traffic on the account file, but you lose early warning of an enumeration step that reads only the account file, so keep a separate count based report for that.",
+  "severity": "critical"
+}

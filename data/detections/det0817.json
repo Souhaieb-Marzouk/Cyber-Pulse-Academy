@@ -1,0 +1,106 @@
+{
+  "id": "det0817",
+  "type": "detection",
+  "title": "Detection of Scanning IP Blocks",
+  "shortTitle": "Detection of Scanning IP Blocks",
+  "externalId": "DET0817",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers scanning IP blocks, the technique where an adversary probes a range of internet facing addresses to find live hosts, open services and software versions before choosing an entry point. It matters because the victim rarely sees an exploit attempt without a scan in front of it, and the scan is the moment when defenders can still block a source cheaply, before any credential is used. The telemetry that makes it possible is firewall deny logs, network flow records with byte and packet counters, intrusion detection sensor sweep signatures, and service logs that record version grabbing, such as web server requests for common administrative paths. Detection fails in practice because the public internet is scanned continuously, so a rule that alerts on every sweep drowns the analyst, and a rule tuned only to large sweeps misses the slow low rate scan that an experienced adversary prefers.",
+  "tags": [
+    "reconnaissance",
+    "scanning",
+    "mitre t1595.001",
+    "network monitoring",
+    "firewall logs"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Scanning IP Blocks",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0817/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Scanning IP Blocks - EASY",
+      "path": "exercises/det0817/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Scanning IP Blocks - MEDIUM",
+      "path": "exercises/det0817/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Scanning IP Blocks - HARD",
+      "path": "exercises/det0817/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Scanning IP Blocks - EXTREMELY HARD",
+      "path": "exercises/det0817/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone testing many addresses in your internet range. The attacker checks which addresses answer and which services are open. The rule counts how many addresses one source touched in a short time. It also looks at how many ports were tried.",
+    "whyItMatters": "A scan is the first real step of many attacks. It is noisy and cheap for the attacker, but it is also easy for you to block. If you miss it, the next step may be a login attempt with a stolen password. Noticing the scan gives you a free warning.",
+    "howItWorks": [
+      "Firewall and routing devices write a record for each connection attempt. The record holds the source, the destination and the port.",
+      "Those records are sent to the security monitoring platform, called a security information and event management system.",
+      "The rule groups attempts by source address and counts the distinct destination addresses and ports.",
+      "It adds the timing pattern, because a scanner often uses the same small delay between attempts.",
+      "Sources that cover many addresses or many ports in one short window are scored as a sweep.",
+      "The alert shows the source, the count and the addresses that replied, so you can block and investigate."
+    ],
+    "example": "Think of a night watchman on a street of fifty houses. He tries the handle of every front door in ten minutes. Nothing is stolen and no window is broken. However, the walk tells him which doors are unlocked. This detection watches the walk down the street.",
+    "takeaways": [
+      "A scan is the cheapest warning you will get before an attack.",
+      "Count distinct addresses and ports from one source, not the number of packets.",
+      "Slow scanners stay under simple thresholds, so review weekly totals too."
+    ]
+  },
+  "objectives": [
+    "Define scanning of IP blocks and explain its place in the attack sequence.",
+    "Identify the firewall, flow and sensor fields that reveal a sweep.",
+    "Write a rule that counts distinct destination addresses and ports per source.",
+    "Describe the difference between a fast sweep and a slow low rate scan.",
+    "Explain how to confirm which hosts answered and what services they expose."
+  ],
+  "techniqueId": "t1595-001",
+  "detectsTechniques": [
+    "t1595-001"
+  ],
+  "dataSources": [
+    "Firewall and router deny logs with source address, destination address, destination port, protocol and rule name",
+    "Network flow exports from border devices with packet and byte counters per source and destination pair",
+    "Intrusion detection sensor alerts for horizontal port sweeps and vertical port scans",
+    "Web server and remote access logs recording requests for common administrative and version check paths",
+    "Vulnerability management scan records used to separate your own approved scans from external ones"
+  ],
+  "logic": "The pattern is one external source address producing connection attempts across many distinct destination addresses inside the corporate range, or many distinct destination ports on a few addresses, within a short window, with a large share of resets or denies and a regular interval between attempts. The fields that must be correlated are the source address and its reputation, the distinct destination addresses and ports, the protocol, the deny or reset decision, the attempt spacing, and the list of hosts that returned a response. The benign case is search engine crawlers, monitoring and vulnerability scanning services contracted by the business, which scan from documented ranges on a schedule and often identify themselves in a user agent or reverse lookup; the malicious case is a broad sweep from a hosting or proxy range that does not identify itself, covers a dense block of the corporate range quickly, and is followed within hours by exploitation or authentication attempts on the hosts that answered.",
+  "pseudoQuery": "# title: Horizontal Port Sweep From External Source\n# logsource:\n#   product: network\n#   service: firewall\n# detection:\n#   selection:\n#     action: 'deny'\n#     direction: 'inbound'\n#   filter_known:\n#     src_ip|cidr:\n#       - '198[.]51[.]100[.]0/24'\n#   condition: selection and not filter_known | count(distinct dst_port) by src_ip > 50 within 5m\n# level: medium",
+  "falsePositives": [
+    "Contracted penetration test teams that sweep the external range during an agreed testing window",
+    "Internet search engine and certificate transparency crawlers that index every address on a schedule",
+    "A cloud load balancer health checker that probes many back end addresses after a configuration change",
+    "A monitoring provider that performs reachability checks against every published service address"
+  ],
+  "tuningNotes": "Measure the denied inbound session rate per source and destination for two weeks and record the top talkers, then allow list the documented ranges of search engines, monitoring providers and approved testers by name. Raise the distinct port threshold for each service group so a mail server sweep and a web server sweep use separate numbers. Scope the high severity rule to addresses that host remote access or mail, and keep a lower severity version for the whole range. Because a slow scanner stays below the window threshold, add a weekly rule that flags any source that contacted more than two hundred distinct addresses in the range, and keep a watchlist of sources that later appear in authentication logs.",
+  "severity": "medium"
+}

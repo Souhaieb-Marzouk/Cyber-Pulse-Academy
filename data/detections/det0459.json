@@ -1,0 +1,106 @@
+{
+  "id": "det0459",
+  "type": "detection",
+  "title": "Detection Strategy for Build Image on Host",
+  "shortTitle": "Detection Strategy for Build Image on Host",
+  "externalId": "DET0459",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects building a container image directly on a host, where an attacker uses a local container runtime or build tool inside a compromised system to prepare an image that carries their tools and then push it to a registry or run it elsewhere. It matters because the build happens inside the victim environment with the victim's credentials, so the resulting image inherits trusted identity and can move across clusters without looking like external malware. Detection depends on process creation records for container runtime and build clients, on runtime daemon and orchestration audit logs for image build and push operations, and on registry access logs that show who pushed what. It fails in practice because continuous integration runners legitimately build images all day, so the rule must be scoped by host role and by build context.",
+  "tags": [
+    "execution",
+    "containers",
+    "defense evasion",
+    "cloud",
+    "image build"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Build Image on Host",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0459/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Build Image on Host - EASY",
+      "path": "exercises/det0459/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Build Image on Host - MEDIUM",
+      "path": "exercises/det0459/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Build Image on Host - HARD",
+      "path": "exercises/det0459/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Build Image on Host - EXTREMELY HARD",
+      "path": "exercises/det0459/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A container image is a packaged bundle of software that can run on many computers. This detection looks for an image being built on a normal server instead of on an approved build system. Attackers do this to hide their tools inside a bundle that others trust.",
+    "whyItMatters": "Images are copied between systems without much inspection. If an attacker builds one inside your network, the tools inside it travel with your own credentials. This can spread the problem far beyond the first computer.",
+    "howItWorks": [
+      "An endpoint sensor records each command that starts a container or build tool.",
+      "The rule checks the host role to see whether building is expected there.",
+      "Container runtime logs record image build, tag and push operations.",
+      "Registry access logs show which account pushed which image and when.",
+      "The analyst looks for images pushed to registries outside the approved list.",
+      "A build on a host that never builds images is raised for review."
+    ],
+    "example": "Think of a repair shop that has an official parts department. A mechanic quietly assembles a new part in the back room and labels it with the company stamp. Every other shop then trusts that part without testing it.",
+    "takeaways": [
+      "Building an image inside your network uses your own trusted identity.",
+      "Host role is the key question, not the tool name.",
+      "Watch image pushes to registries that are not approved."
+    ]
+  },
+  "objectives": [
+    "Describe what a container image build produces and why trust follows it",
+    "Identify process and runtime telemetry for local image builds",
+    "Separate approved build hosts from general purpose servers",
+    "Correlate a local build with an image push to an external registry",
+    "Plan a response that inspects the image and revokes its credentials"
+  ],
+  "techniqueId": "t1612",
+  "detectsTechniques": [
+    "t1612"
+  ],
+  "dataSources": [
+    "Sysmon event 1 or Linux auditd execve records showing container build client and runtime commands with arguments",
+    "Container runtime daemon logs recording image build, tag and push operations with the requesting user",
+    "Kubernetes audit logs for image related admissions, pod creation and registry credential use",
+    "Container registry access logs showing the pushing identity, image name, tag and source address",
+    "Cloud provider container registry management events for image upload and repository policy changes"
+  ],
+  "logic": "The pattern is an image build or push that happens on a host or with an identity that is not part of the approved build pipeline. Correlate the host name and its role, the build client process and command line, the container runtime or orchestrator audit entry for the build or push, the registry destination, and the identity used for authentication. The benign case is a continuous integration runner that builds during pipeline runs, uses a scoped robot account, writes to the company registry, and has an image tag that matches a recent code change. The malicious case is a build started from a shell on an application server or a developer laptop, a push to a public or unknown registry, an image that contains a shell or tunnelling binary, or a runtime socket mounted into a container that has no reason to touch it. The host role and the registry destination are the fields that usually settle the question.",
+  "pseudoQuery": "# title: Container image built on a host that is not a build runner\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     type: EXECVE\n#     a0|endswith:\n#       - '/usr/bin/docker'\n#       - '/usr/bin/podman'\n#       - '/usr/local/bin/kaniko'\n#       - '/usr/bin/buildah'\n#     a1:\n#       - 'build'\n#       - 'commit'\n#       - 'push'\n#   filter_builders:\n#     host_role:\n#       - 'ci-runner'\n#       - 'build-agent'\n#   condition: selection and not filter_builders\n# level: medium",
+  "falsePositives": [
+    "Continuous integration runners and build agents that produce images on every pipeline run",
+    "Developers building images locally on approved engineering workstations for testing",
+    "Platform teams running an emergency hotfix build during an incident",
+    "Backup or migration tooling that snapshots a running container into an image for archival"
+  ],
+  "tuningNotes": "Tag hosts with a role and allow image builds only on the runner group, which removes most of the noise without weakening the rule elsewhere. Collect registry access logs and alert on pushes to destinations outside the approved registry list, and require that pushes from build runners use the pipeline robot account rather than a human one. Scope to production clusters and their nodes first, where a local build has the greatest impact. Excluding the build hosts entirely loses visibility if one of them is compromised, so keep a lightweight rule that reports new registry destinations and unusual image names seen from the runner group.",
+  "severity": "medium"
+}

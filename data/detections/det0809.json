@@ -1,0 +1,108 @@
+{
+  "id": "det0809",
+  "type": "detection",
+  "title": "Detection of CDNs",
+  "shortTitle": "Detection of CDNs",
+  "externalId": "DET0809",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the identification of content delivery networks used by the victim, ATT&CK sub technique T1596.004. An adversary wants to know which content delivery network fronts a target service, because that knowledge supports both evasion and origin discovery: it explains which address ranges belong to a third party, helps the attacker recognise where protective filtering sits, and encourages a hunt for an origin server that answers directly and bypasses the delivery layer. Detectable telemetry is indirect. Recursive domain name system resolver logs show repeated lookups of the same hostname resolving to rotating delivery infrastructure, certificate transparency and passive domain name system sources show the delivery hostnames associated with the target, and origin side logs show requests that arrive with the delivery network's addressing but without its normal headers. Detection depends on a baseline of which hostnames are expected to be delivered through a content delivery network and which of your services are meant to be reachable only through it. The strategy fails because delivery infrastructure is shared and noisy, because most organisations never record that baseline, and because a single lookup proves nothing without context.",
+  "tags": [
+    "t1596.004",
+    "reconnaissance",
+    "content delivery network",
+    "dns",
+    "origin exposure",
+    "passive dns"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of CDNs",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0809/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of CDNs - EASY",
+      "path": "exercises/det0809/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of CDNs - MEDIUM",
+      "path": "exercises/det0809/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of CDNs - HARD",
+      "path": "exercises/det0809/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of CDNs - EXTREMELY HARD",
+      "path": "exercises/det0809/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Many companies put a content delivery network in front of their websites. This is a worldwide set of servers that keeps copies of a site close to visitors. Attackers want to know which delivery network you use. This detection looks for patterns that reveal it. One pattern is many address lookups for the same name. Another is a request that reaches your server while skipping the delivery layer.",
+    "whyItMatters": "Your delivery network also acts as a shield. It hides your real server address. It also filters some hostile traffic. An attacker may learn your provider and then find the real server behind it. They can then aim straight at the unprotected machine. That bypasses protections you paid for and believed were working. Knowing this is happening lets you test your own exposure first. It also tells you when to lock down direct access.",
+    "howItWorks": [
+      "Your domain name system resolver logs record every name lookup made from inside the network.",
+      "The rule collects lookups for your own public hostnames and looks at how the answers change.",
+      "Answers that rotate between many addresses belonging to known delivery providers point to a delivery network.",
+      "It also looks at requests that reach your origin server while bypassing the delivery layer.",
+      "Each finding is compared with a baseline of which services are supposed to be delivered through a content delivery network.",
+      "Lookups or direct requests that disagree with the baseline are grouped by source and raised for review."
+    ],
+    "example": "Picture a shop that uses a national warehouse. Every customer gets goods fast, and the real stockroom address stays secret. Now someone walks around the neighbourhood. They ask which warehouse serves this shop. Later they knock on a back door of the stockroom itself. The questions are legal. The pattern is not. This detection watches the asking and the knocking. It then compares that with what the shop says it does.",
+    "takeaways": [
+      "A content delivery network hides your real server and filters traffic, so learning it helps an attacker.",
+      "You must record which of your services are meant to be delivered through one, or the rule has no baseline.",
+      "Direct to origin traffic is the most useful finding, because it shows a bypass path worth closing."
+    ]
+  },
+  "objectives": [
+    "Explain what a content delivery network does and why an adversary profiles it",
+    "Identify resolver, passive domain name system and certificate transparency telemetry that reveals delivery infrastructure",
+    "Baseline which of your public services are intended to be delivered through a content delivery network",
+    "Detect direct to origin requests that bypass the delivery layer",
+    "Describe how origin discovery defeats filtering and address hiding protections",
+    "Turn a finding into an origin lock down and exposure validation task"
+  ],
+  "techniqueId": "t1596-004",
+  "detectsTechniques": [
+    "t1596-004"
+  ],
+  "dataSources": [
+    "Recursive domain name system resolver logs showing queried name, response addresses, record type and internal client",
+    "Passive domain name system or threat intelligence data correlating public hostnames with delivery network address ranges",
+    "Web server and reverse proxy access logs on origin infrastructure recording client address, host header and forwarded address headers",
+    "Certificate transparency monitoring records for new certificates issued for organisation owned hostnames",
+    "Service inventory documenting which public hostnames are intended to be delivered through a content delivery network"
+  ],
+  "logic": "The detection looks for two related patterns. The first is name resolution behaviour: repeated lookups of the organisation's own public hostnames from a small set of internal clients, or lookups whose answers rotate across many addresses in ranges attributed to delivery providers, which indicates someone mapping the delivery topology. The second and stronger pattern is on the origin side: a request that reaches the origin server carrying a delivery network address but missing the headers that network normally adds, or a request sent straight to an origin address that should never receive public traffic. The fields to correlate are the queried or requested hostname, the resolved or client address, the host header, the presence or absence of forwarded address headers, and the service inventory entry that says whether a delivery layer is expected. The benign case is ordinary resolution by browsers and monitoring probes, or a legitimate delivery network forwarding traffic with correct headers. The malicious case is a client that resolves a hostname many times in a short window, or an origin request from outside the delivery provider that reveals a bypass route.",
+  "pseudoQuery": "# title: Origin Server Contacted Directly Without Expected Content Delivery Network Headers\n# logsource:\n#   product: network\n#   service: webserver\n# detection:\n#   selection_origin:\n#     host|endswith: 'acme-corp.com'\n#     c_ip|notstartswith:\n#       - '10[.]0[.]0[.]'\n#   filter_cdn:\n#     cs_host_header|endswith: 'cdn-edge.net'\n#   filter_expected_headers:\n#     cs_forwarded_for|contains: 'cdn'\n#   condition: selection_origin and not filter_cdn and not filter_expected_headers\n# level: low",
+  "falsePositives": [
+    "Search engine crawlers and uptime monitoring services that reach the origin hostname directly as part of normal indexing or availability checks",
+    "Legitimate requests from the content delivery network that arrive without the expected forwarded headers because of a proxy or rewrite configuration",
+    "Internal integration tests and load balancer health checks that address the origin hostname on purpose during deployment",
+    "Security assessment tools run by the organisation itself to confirm that direct to origin access is blocked"
+  ],
+  "tuningNotes": "Build the baseline first: record every public hostname, whether a content delivery network fronts it, and which address ranges or headers that provider uses, then review it whenever a service is added. Restrict the origin side rule to services that are supposed to be delivered, because an origin that is intentionally public will otherwise alert constantly. On the resolution side, count lookups per client per hour and exclude your own monitoring and scanner ranges rather than excluding whole query names. Narrowing to expected headers costs you visibility into a provider configuration change that silently removes that protection, so keep a separate check that alerts when the expected headers disappear across all requests for a hostname.",
+  "severity": "low"
+}

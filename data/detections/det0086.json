@@ -1,0 +1,107 @@
+{
+  "id": "det0086",
+  "type": "detection",
+  "title": "Detect WMI Event Subscription for Persistence via WmiPrvSE Process and MOF Compilation",
+  "shortTitle": "Detect WMI Event Subscription for Persistence via WmiPrvS...",
+  "externalId": "DET0086",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers persistence through WMI event subscriptions, where an attacker registers a filter and a consumer so that code runs on a schedule or at system start. The subscription survives reboots, rarely appears in startup folders or services, and executes as a managed host process, which is why it is worth dedicated detection. The telemetry that makes it visible is the WMI activity recorded by endpoint sensors plus process creation and file writes from the managed object format compiler. The common failure mode is treating every subscription as malicious, because management and monitoring platforms create many, so the rule must score the consumer action rather than the mere existence of a subscription. This is independent study material and not an authoritative source.",
+  "tags": [
+    "persistence",
+    "windows",
+    "wmi",
+    "event subscription",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect WMI Event Subscription for Persistence via WmiPrvSE Process and MOF Compilation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0086/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect WMI Event Subscription for Persistence via WmiPrvSE Process and MOF Compilation - EASY",
+      "path": "exercises/det0086/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect WMI Event Subscription for Persistence via WmiPrvSE Process and MOF Compilation - MEDIUM",
+      "path": "exercises/det0086/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect WMI Event Subscription for Persistence via WmiPrvSE Process and MOF Compilation - HARD",
+      "path": "exercises/det0086/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect WMI Event Subscription for Persistence via WmiPrvSE Process and MOF Compilation - EXTREMELY HARD",
+      "path": "exercises/det0086/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new automatic actions that someone adds to the Windows management service, called WMI. An attacker can add one of these actions so their program runs again after every restart. The detection watches both the moment the action is created and the program that the action starts. It is a persistence check, which means it hunts for ways an intruder keeps access.",
+    "whyItMatters": "Most persistence tricks leave traces in services, startup folders or scheduled tasks, so defenders check those places often. WMI subscriptions are quieter and easy to forget, yet they still run code on a schedule. Because the code runs inside a trusted Windows process, simple blocklists often miss it. If you never look at this telemetry, an attacker can keep returning after every reboot.",
+    "howItWorks": [
+      "The sensor on the endpoint logs WMI activity, including the creation of a filter and a consumer.",
+      "A filter is the condition, and a consumer is the action that runs when the condition is met.",
+      "The rule reviews each new consumer and reads the command line or script text it will run.",
+      "It also watches for the managed object format compiler, which is a tool that loads WMI definitions from a file.",
+      "The rule links the creation events to any process that the WMI host spawns soon afterwards.",
+      "If the consumer command points to a script in a temporary folder or hides its arguments, the alert is raised."
+    ],
+    "example": "Picture an office building with a maintenance board. Anyone who writes a job on the board can make a cleaner enter a room at six each morning. Staff jobs are fine and expected. If a stranger adds a note that makes an unknown person enter a locked server room every morning, that note is the problem, not the board itself. The filter is the note and the consumer is the person who walks in. Your job as an analyst is to read what the note actually says.",
+    "takeaways": [
+      "WMI subscriptions are a quiet way to keep running after a restart.",
+      "Never alert on a subscription alone, because management tools create them by design.",
+      "The consumer command and any process the WMI host starts are what tell you if it is hostile."
+    ]
+  },
+  "objectives": [
+    "Describe a WMI event subscription as a filter, a consumer and the binding between them.",
+    "Identify the endpoint telemetry that records subscription creation and the compiler tool.",
+    "Explain what parts of a consumer command should raise your suspicion.",
+    "Baseline legitimate subscriptions from management platforms in your own estate.",
+    "Triage a subscription alert by checking the command, the author and the host role."
+  ],
+  "techniqueId": "t1546-003",
+  "detectsTechniques": [
+    "t1546-003"
+  ],
+  "dataSources": [
+    "Sysmon event 19 WMI event filter registered, including the filter name and query",
+    "Sysmon event 20 WMI event consumer registered, including the consumer name and destination",
+    "Sysmon event 21 WMI consumer to filter binding, including both names in one record",
+    "Sysmon event 1 and Windows Security event 4688 process creation for mofcomp.exe and for children of the WMI provider host process",
+    "Sysmon event 11 file creation for newly written managed object format files under system management folders"
+  ],
+  "logic": "The pattern is the creation or modification of a WMI event subscription whose consumer runs something other than approved management code. The chain to correlate is filter registration, consumer registration and the binding record inside a short window on the same host, then any process spawned by the WMI provider host shortly after. Fields that decide the case are the consumer destination text, the filter query, the account that made the change, and the image path of anything the host process starts. Benign subscriptions belong to inventory, patching, monitoring or antivirus platforms; they have stable names, are created in bulk during deployment, and their consumers point to signed vendor binaries under program files. Malicious ones are usually a single new subscription created outside a change window, with a consumer that launches a script interpreter, uses encoded arguments, or writes to a temporary folder.",
+  "pseudoQuery": "# title: Suspicious WMI Event Consumer or MOF Compilation\n# logsource:\n#   product: windows\n# detection:\n#   sel:\n#     EventID: [1, 20, 21]\n#     Destination|contains: ['powershell', 'cmd.exe', 'mshta', 'rundll32', 'AppData', 'Temp']\n#   sel_mof:\n#     EventID: 1\n#     Image|endswith: '\\\\mofcomp.exe'\n#   filter:\n#     Destination|contains: ['Program Files', 'ProgramData\\\\VendorAgent']\n#   condition: (sel or sel_mof) and not filter\n# level: high",
+  "falsePositives": [
+    "Endpoint management platforms that deploy monitoring subscriptions pointing to signed vendor binaries",
+    "Software packaging teams that compile managed object format files during an approved application rollout",
+    "Administrators troubleshooting a host who temporarily register a consumer that runs a diagnostic script",
+    "Backup or antivirus products that register scheduled WMI consumers under their own program folder",
+    "Server build automation that creates inventory subscriptions as part of a documented standard image"
+  ],
+  "tuningNotes": "Collect all consumer and filter records for at least a month and build an allowlist keyed on the consumer name, the destination path and the creating account, because deployment tooling keeps the same names across the fleet. Scope the rule to servers and to identity or finance workstations first, where a subscription has little legitimate use. Exclude the documented change window for patching and add a filter for signed destinations under program files, then re-enable full logging monthly to catch drift. Narrowing this way loses visibility of an attacker who reuses an existing vendor consumer name or hides inside the change window, so keep a low severity rule for new bindings that map an old consumer to a new filter.",
+  "severity": "high"
+}

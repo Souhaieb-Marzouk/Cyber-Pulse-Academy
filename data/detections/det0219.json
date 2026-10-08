@@ -1,0 +1,105 @@
+{
+  "id": "det0219",
+  "type": "detection",
+  "title": "Detection Strategy for Escape to Host",
+  "shortTitle": "Detection Strategy for Escape to Host",
+  "externalId": "DET0219",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1611, Escape to Host, where an actor who already controls a container or guest virtual machine breaks out and acts on the host. Detection is built from container runtime and host audit telemetry: privileged container creation, host device or runtime socket mounts, namespace changes, and host processes appearing with container-origin parentage. It is difficult to keep clean because infrastructure tooling performs many of the same actions by design, so the workload owner, the namespace, and the exact host resource touched carry most of the detection weight.",
+  "tags": [
+    "containers",
+    "kubernetes",
+    "privilege escalation",
+    "escape to host",
+    "linux"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Escape to Host",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0219/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Escape to Host - EASY",
+      "path": "exercises/det0219/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Escape to Host - MEDIUM",
+      "path": "exercises/det0219/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Escape to Host - HARD",
+      "path": "exercises/det0219/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Escape to Host - EXTREMELY HARD",
+      "path": "exercises/det0219/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for somebody escaping from a container to the computer that runs it. A container is a sealed box for one application. Breaking out means reaching the host. The rule watches the settings and the actions that make an escape possible.",
+    "whyItMatters": "Containers exist to limit damage. If an attacker escapes, those limits disappear. One host runs many containers, so a single escape can expose all of them. The escape often needs only a few unusual settings. Watching those settings gives you a chance to react before the host is lost.",
+    "howItWorks": [
+      "Container runtime logs record when a container starts with extra privileges or mounts a host path.",
+      "Host audit logs record process starts, device access, and namespace operations on the host itself.",
+      "The rule links a host process back to the container that started it.",
+      "It checks whether the workload and its owner are allowed to run with those settings.",
+      "A host process with a container parent, or a container mounting the host file system, raises the alert.",
+      "An analyst confirms with the platform team before treating the event as an incident."
+    ],
+    "example": "Think of a hotel room with its own key card. The card opens your room and nothing else. If the same card also opens the staff office, the front desk needs to know at once. Something is wrong when that card opens the boiler room too. Escaping a container is using that card on the wrong doors.",
+    "takeaways": [
+      "Privileged settings and host mounts are the usual way out of a container.",
+      "Host audit logs prove the escape; container logs alone cannot.",
+      "Every elevated setting should have an owner and a stated purpose."
+    ]
+  },
+  "objectives": [
+    "Describe the common ways a container can reach its host and the settings that enable them.",
+    "Identify runtime and host telemetry that records privileged containers, host mounts, and namespace changes.",
+    "Correlate a host process start with the container that spawned it.",
+    "Build an inventory of containers that are allowed elevated settings, and record why.",
+    "Explain why container-only logs are not enough to confirm an escape."
+  ],
+  "techniqueId": "t1611",
+  "detectsTechniques": [
+    "t1611"
+  ],
+  "dataSources": [
+    "Container runtime audit logs recording container start options such as privileged mode, host network, and host path mounts",
+    "Linux auditd process execution events on the host with the parent container identifier and namespace details",
+    "Kubernetes API server audit logs for pod creation, security context changes, and privileged pod admission",
+    "Host file integrity monitoring for sensitive paths such as the container runtime socket and kernel parameter files"
+  ],
+  "logic": "The pattern is a container or guest gaining host level reach and then using it. The fields to correlate are the workload identity, the runtime flags or security context, the host mount path, and the host process that starts afterwards with a container origin parent. A benign case is a documented infrastructure agent, owned by the platform team, that repeats the same flags on every node. A malicious case shows a newly created or unfamiliar workload requesting privileged mode, mounting the container runtime socket or the host root file system, and then spawning a shell or writing to a host path.",
+  "pseudoQuery": "# title: Container Process Spawning Host Shell After Host Mount\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection:\n#     type: EXECVE\n#     exe|endswith:\n#       - '/bin/sh'\n#       - '/bin/bash'\n#     container_id|exists: true\n#   filter_runtime:\n#     exe|endswith:\n#       - '/usr/bin/runc'\n#       - '/usr/bin/containerd-shim'\n#   condition: selection and not filter_runtime\n# level: high",
+  "falsePositives": [
+    "Monitoring and logging agents deployed as privileged containers that mount host directories by design",
+    "Node maintenance jobs that need host network and host process namespace access to rotate logs or apply patches",
+    "Build agents running privileged because they perform container image builds directly on the host",
+    "Backup products that mount the host file system read-only in order to capture volume data"
+  ],
+  "tuningNotes": "Build an inventory of privileged workloads with an owning team and a review date, then filter those by namespace and service account rather than by image name alone. Baseline the host processes that normally appear with a container parent on each node pool. Alert at high severity only when a privileged workload touches the runtime socket, a kernel parameter file, or the host root file system. Narrowing to known namespaces loses coverage of an attacker who compromises a service account and launches a new privileged pod inside an allowed namespace, so watch for new workload identities separately.",
+  "severity": "critical"
+}

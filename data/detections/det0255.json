@@ -1,0 +1,106 @@
+{
+  "id": "det0255",
+  "type": "detection",
+  "title": "Detection Strategy for Log Enumeration",
+  "shortTitle": "Detection Strategy for Log Enumeration",
+  "externalId": "DET0255",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses log enumeration, tracked as T1654, where an adversary lists and reads the logging facilities on a host to learn what is recorded and where the records live. On Linux this means commands that query journal units, syslog configuration, and the audit daemon state; on Windows it means querying the event log service and its channels. The telemetry that makes it visible is process creation with command lines, plus shell history where available. It fails most often because administrators and monitoring agents run the same queries constantly, so the rule drowns in benign discovery unless it is baselined against the host's normal tooling.",
+  "tags": [
+    "log enumeration",
+    "t1654",
+    "discovery",
+    "process creation",
+    "defense evasion",
+    "baseline"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Log Enumeration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0255/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Log Enumeration - EASY",
+      "path": "exercises/det0255/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Log Enumeration - MEDIUM",
+      "path": "exercises/det0255/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Log Enumeration - HARD",
+      "path": "exercises/det0255/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Log Enumeration - EXTREMELY HARD",
+      "path": "exercises/det0255/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Log enumeration is when someone lists the log files and logging services on a computer. The person is looking, not changing anything. The goal is to learn what the machine records and what it does not record. This detection watches for the commands that do that listing.",
+    "whyItMatters": "An attacker who knows what you log also knows what you will never see. Before acting, many intruders quietly check which services collect records and how long they are kept. A machine with weak logging is a safer target for them. Seeing the lookup early gives you a warning before the harmful action starts. It also tells you which host the intruder cares about.",
+    "howItWorks": [
+      "The endpoint agent records every process start together with the full command line and the parent process.",
+      "A rule matches command lines that ask about logging services. Examples are reading the journal, the syslog settings, or the audit daemon status.",
+      "The rule groups matches by host and by the user account that ran them, over a short rolling window.",
+      "A score grows when several different log queries come from the same account in a short time.",
+      "An alert fires when the score passes a threshold that normal administration does not reach."
+    ],
+    "example": "Picture a hospital sign-in sheet at the front desk. A visitor who reads the sheet learns which doctors are on duty and when the night shift starts. Reading the sheet is not a crime, and most visitors ignore it. But the staff become suspicious if the same person keeps coming back. They watch closely when that person then walks toward the pharmacy. Log enumeration is that reading. It is suspicious only when it comes from the wrong person at the wrong moment.",
+    "takeaways": [
+      "Looking at logs is not the same as deleting logs, but it often comes first.",
+      "The same commands are used by real administrators, so baselines matter more than the command list.",
+      "Volume and timing separate normal checks from hostile discovery."
+    ]
+  },
+  "objectives": [
+    "Describe what an adversary learns from listing the logging services on a host",
+    "Identify the process creation fields that expose a log query",
+    "Build a baseline of legitimate administrative log queries for a server role",
+    "Set thresholds that use count, timing, and user context instead of a single match",
+    "Explain why this activity usually happens before defense evasion"
+  ],
+  "techniqueId": "t1654",
+  "detectsTechniques": [
+    "t1654"
+  ],
+  "dataSources": [
+    "Linux auditd execve records with the full command line for shell and binary execution",
+    "Sysmon event 1 process creation including parent image, user, and command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Linux shell history files for interactive accounts, collected by the endpoint agent",
+    "Journal or syslog configuration read activity recorded in the host audit trail"
+  ],
+  "logic": "The pattern is a user account or process asking which logging facilities exist and how they are configured, repeated enough to look like a survey rather than a single fix. The rule joins process creation records with command lines that query journal state, audit daemon status, or syslog configuration files, then aggregates them by host and account over a short window. The malicious case is typically several distinct queries in a few minutes, from an interactive session, by an account that does not own log management, and often shortly before an attempt to stop or clear a service. Benign cases come from management agents and administrators whose whole job is logging, so those process identities must be excluded by baseline rather than by the rule being weakened.",
+  "pseudoQuery": "# title: Enumeration of logging services and log directories\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     event_type: 'process_start'\n#     command_line|contains:\n#       - 'journalctl --list'\n#       - 'systemctl list-units'\n#       - 'auditctl -s'\n#       - 'rsyslog.conf'\n#   condition: selection\n# level: low",
+  "falsePositives": [
+    "Configuration management agents that read syslog or journal settings during a routine compliance check",
+    "Monitoring onboarding scripts that list available event channels on a newly built server",
+    "Administrators troubleshooting a missing log source during an incident bridge",
+    "Backup and log shipping software that enumerates log directories before collection"
+  ],
+  "tuningNotes": "Baseline each server role first and record which accounts and parent processes normally query logging state, then exclude those known management agents by process image or by automation account. Scope the rule to interactive user sessions on production hosts so that build pipelines and onboarding scripts do not fire it. Add a count condition, for example more than three distinct log queries in ten minutes by one account, to separate scanning from a single troubleshooting command. Narrowing to interactive sessions loses visibility into an intruder who uses a service account, so keep a lower severity copy of the rule running across all accounts.",
+  "severity": "low"
+}

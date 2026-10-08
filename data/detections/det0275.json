@@ -1,0 +1,106 @@
+{
+  "id": "det0275",
+  "type": "detection",
+  "title": "Detect Adversary Deobfuscation or Decoding of Files and Payloads",
+  "shortTitle": "Detect Adversary Deobfuscation or Decoding of Files and P...",
+  "externalId": "DET0275",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the deobfuscation and decoding step, where an adversary turns a protected or obfuscated file, script or payload back into something that can execute. T1140 matters because it consistently appears between delivery and execution, so catching it breaks the chain at a point where the tooling is still explicit and the decoded artefact often lands on disk. Detection relies on process creation with command line auditing, on file creation events that capture the decoded output, and on script block logging where script content is available, correlated by process identifier and a short time window. It fails most often because administrators and installers decode files legitimately, so the rule must weigh which interpreter performed the decoding, where the output was written, and what ran immediately afterwards.",
+  "tags": [
+    "defense evasion",
+    "deobfuscation",
+    "encoding",
+    "scripting",
+    "windows",
+    "t1140"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Adversary Deobfuscation or Decoding of Files and Payloads",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0275/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Adversary Deobfuscation or Decoding of Files and Payloads - EASY",
+      "path": "exercises/det0275/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Adversary Deobfuscation or Decoding of Files and Payloads - MEDIUM",
+      "path": "exercises/det0275/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Adversary Deobfuscation or Decoding of Files and Payloads - HARD",
+      "path": "exercises/det0275/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Adversary Deobfuscation or Decoding of Files and Payloads - EXTREMELY HARD",
+      "path": "exercises/det0275/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for the step where hidden or scrambled data is turned back into a normal file or program. Attackers hide their tools this way so that scanners do not recognise them. The decoding step is the moment the hidden item becomes usable.",
+    "whyItMatters": "Most attacks need a decoding step before anything can run. That step is harder to hide than the payload itself. It also happens at a known time, which gives your monitoring a clear moment to look at. If you can catch it, the attacker must rebuild their tooling. This detection also helps you understand what a suspicious file would have done.",
+    "howItWorks": [
+      "The operating system records each new process together with the full command line that started it.",
+      "The detection looks for command lines that decode data, such as arguments that mention a decoding routine or a certificate utility used to reverse an encoding.",
+      "It also watches for new files written by that process in the following seconds.",
+      "It pairs the reading of an encoded input file with the writing of a decoded output file in the same process.",
+      "Script block logging, where enabled, shows the actual decoding calls made inside a script.",
+      "When the decoder is a script interpreter and the output lands in a temporary or user folder, the alert is raised for review."
+    ],
+    "example": "Think of a locked toolbox delivered to a workshop. Nothing inside can be used until someone opens it. The moment a worker takes out the tools, the supervisor knows a job is about to start. Watching that moment is easier than guessing what was inside the box.",
+    "takeaways": [
+      "Decoding is a hinge point in the attack chain, not just a technical detail.",
+      "The decoder, the output location and what runs next together tell you whether the activity is benign.",
+      "Command line auditing and script block logging are the two settings that make this detection possible."
+    ]
+  },
+  "objectives": [
+    "Explain why adversaries encode or encrypt payloads and where the decoding step sits in the attack chain.",
+    "Recognise command line patterns that indicate decoding, including encoding routine calls and certificate utility decode usage.",
+    "Correlate an encoded input file read with a decoded output file write in the same process identifier.",
+    "Identify which logging settings, such as command line auditing and script block logging, must be enabled.",
+    "Assess a decoded artefact to decide whether follow-on containment is required."
+  ],
+  "techniqueId": "t1140",
+  "detectsTechniques": [
+    "t1140"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled, showing the decoding arguments and parent image",
+    "Sysmon event 1 process creation including image, parent image, command line and user for the interpreter performing the decode",
+    "Sysmon event 11 file create, capturing the decoded output artefact path and the process identifier that wrote it",
+    "PowerShell script block logging events that record the decoded script content and the decoding function calls used"
+  ],
+  "logic": "The pattern is a process whose command line contains a decoding operation, most commonly a script interpreter calling an encoding conversion routine or a certificate utility invoked to reverse an encoding, followed within seconds by the creation of a file that is a plausible decoded output. The fields that must be correlated are the image and parent image and command line of the decoding process, the process identifier, the file creation event written by that same process identifier, the destination directory, and the account. The benign case is standard administration: installers, backup scripts and monitoring tools decode small configuration snippets, and certificate utilities are used to convert formats, but they run as signed system binaries from program directories against files in application folders. The malicious case shows a script interpreter or an office application decoding content into a temporary, program data or user profile folder, especially when the decoded file is then executed by the same or a child process, or when the encoded input arrived from a browser or mail client.",
+  "pseudoQuery": "# title: Encoded Payload Decoded to File by Script Host\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_decoder:\n#     EventID: 1\n#     Image|endswith:\n#       - \\powershell.exe\n#       - \\wscript.exe\n#       - \\certutil.exe\n#     CommandLine|contains:\n#       - FromBase64String\n#       - -decode\n#   selection_output:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - \\Temp\\\n#       - \\AppData\\\n#   filter_installer:\n#     ParentImage|contains: program files\n#   condition: selection_decoder and selection_output and not filter_installer\n# level: medium",
+  "falsePositives": [
+    "Software deployment tooling that decodes embedded base64 configuration or a licence blob into a temporary file during installation",
+    "Certificate and key management scripts that routinely convert between encoded and binary certificate formats on servers",
+    "Monitoring agents that decode queued metric payloads into files before shipping them to a central collector",
+    "Developers and analysts decoding sample files from a malware repository in an isolated analysis environment"
+  ],
+  "tuningNotes": "Filter by the specific decoding command lines your environment actually uses, which are usually limited to a handful of management scripts, and by the destination directories that those scripts use. Keep the rule focused on script interpreters and living off the land utilities while excluding signed installer paths from program files. What you lose is an adversary who decodes in memory and never writes a file, or who uses a documented administration command that you have allowed; compensate with script block logging correlation on the same hosts and with a file creation rule that flags executables appearing in temporary and program data directories regardless of what created them.",
+  "severity": "medium"
+}

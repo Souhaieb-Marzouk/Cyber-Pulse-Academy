@@ -1,0 +1,107 @@
+{
+  "id": "det0385",
+  "type": "detection",
+  "title": "Detect Access and Parsing of .bash_history Files for Credential Harvesting",
+  "shortTitle": "Detect Access and Parsing of .bash_history Files for Cred...",
+  "externalId": "DET0385",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers the reading of shell history files, which adversaries search because a command history often contains passwords typed by mistake, connection strings, cloud keys, and the names of internal systems. The primary signal is a process whose command line or open file records name a history file such as the bash history, zsh history, or fish history for an account, especially when the reader is not the owner of that file or is a bulk collection tool. Contributing telemetry includes audit records for file opens, endpoint process creation, and file access reporting agents. In practice the strategy fails because history files are ordinary text that backup jobs, monitoring agents, and forensic scripts read constantly, and because many builds keep no audit rule on user home directories, so the read leaves no record at all.",
+  "tags": [
+    "credential access",
+    "linux",
+    "macos",
+    "shell history",
+    "file access",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Access and Parsing of .bash_history Files for Credential Harvesting",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0385/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Access and Parsing of .bash_history Files for Credential Harvesting - EASY",
+      "path": "exercises/det0385/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Access and Parsing of .bash_history Files for Credential Harvesting - MEDIUM",
+      "path": "exercises/det0385/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Access and Parsing of .bash_history Files for Credential Harvesting - HARD",
+      "path": "exercises/det0385/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Access and Parsing of .bash_history Files for Credential Harvesting - EXTREMELY HARD",
+      "path": "exercises/det0385/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A shell keeps a list of the commands you typed, stored in a file in your home folder. That file can hold passwords or server names by mistake. This detection looks for someone reading those history files, especially files that belong to other people.",
+    "whyItMatters": "A command list is a short guide to how a system is used, and it sometimes holds secrets. An attacker who reads history files quickly learns which tools exist and which servers matter. Reading another person's history is also unusual, so it is a strong sign that the account in use is not behaving normally.",
+    "howItWorks": [
+      "The audit service records each file open, with the user who opened it and the file path.",
+      "The rule matches paths that end in a known history file name in a home directory.",
+      "It then checks whether the reading user is the owner of that home directory.",
+      "A read by a different user, or a read by a file listing tool across many homes, scores higher.",
+      "The alert lists the file, the user, the process, and the parent process for the analyst."
+    ],
+    "example": "Imagine a shared office where each desk has a notepad of scribbled reminders. Reading your own notepad is normal. A visitor walking past every desk and photographing each notepad is not. The notes are the same, but the pattern of who reads what tells the guard everything.",
+    "takeaways": [
+      "History files often hold secrets, so treat a cross user read as a real finding.",
+      "Two events matter most: another user reading your history, and one process reading many histories.",
+      "If home directory auditing is off, this activity leaves no trace, so check that audit rule first."
+    ]
+  },
+  "objectives": [
+    "Name the shell history files that exist for common Unix shells",
+    "Explain why sensitive values commonly appear inside a command history",
+    "Configure audit rules that record file opens inside user home directories",
+    "Distinguish a user reading their own history from a cross user or bulk read",
+    "Correlate a history file read with the authentication session that preceded it",
+    "Describe the storage and retention limits that apply to audit file open records"
+  ],
+  "techniqueId": "t1552-003",
+  "detectsTechniques": [
+    "t1552-003"
+  ],
+  "dataSources": [
+    "Linux audit framework file open records with the path, the reading user, and the parent process for home directory files",
+    "Auditd or auditbeat process execution events showing a command line that names a history file for another account",
+    "Endpoint detection agent file read telemetry on Linux and macOS hosts including the target path",
+    "Windows Subsystem for Linux or developer workstation endpoint telemetry where Unix home directories are collected",
+    "Secure shell authentication logs that identify the session and source address behind the reading account"
+  ],
+  "logic": "The pattern is a read of a shell history file that is not a routine self read. The rule matches file open and process events whose path or command line names a known history file inside a home directory, then checks whether the effective user matches the owner of that home directory. Reads by a different account, reads that target several home directories in a short window, and reads performed by a file listing or archiving tool both score as suspicious and should alert. It also correlates the event with the secure shell session that started just before, so the analyst can see whether the session came from an unexpected source address. The benign case is a user reading their own history, a backup agent with a documented home directory path list, or a forensic script run by the incident response team on a host that is already under investigation. The malicious case is a single session reading the history of several accounts, or a service account reading a human account's history minutes after it first appears in the authentication log.",
+  "pseudoQuery": "# title: Shell History File Read By Another Account\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection_file:\n#     Key: 'history_access'\n#     Name|endswith:\n#       - '/.bash_history'\n#       - '/.zsh_history'\n#       - '/.sh_history'\n#   selection_tool:\n#     Exe|endswith:\n#       - '/bin/cat'\n#       - '/usr/bin/head'\n#       - '/usr/bin/strings'\n#   filter_backup:\n#     Exe|endswith: '/usr/bin/rsync'\n#   condition: selection_file and selection_tool and not filter_backup\n# level: medium",
+  "falsePositives": [
+    "Backup agents that archive every home directory on a fixed schedule with a documented path list",
+    "File integrity monitoring that reads home directories to compute hashes after a change window",
+    "Incident response scripts collecting artefacts from a host that is already under investigation",
+    "Helpdesk or developer support sessions where an administrator reads a user history to troubleshoot a broken script"
+  ],
+  "tuningNotes": "Baseline which accounts and processes read home directories in your fleet, then filter the known backup, integrity monitoring, and configuration management paths by executable and by target scope rather than by account name alone. Scope the alert to reads that cross an account boundary, since a self read is the expected case and will drown the queue otherwise. Add a count condition so that one process touching several home directories in a short window escalates, because bulk reads are the clearest malicious shape. Narrowing this way loses detection of an attacker who reads only their own history file after stealing a service account, so pair the rule with a check for interactive sessions from service accounts and keep a weekly report of first time home directory readers.",
+  "severity": "medium"
+}

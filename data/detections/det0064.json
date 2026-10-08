@@ -1,0 +1,106 @@
+{
+  "id": "det0064",
+  "type": "detection",
+  "title": "Detection Strategy for Hijack Execution Flow through Path Interception by Unquoted Path",
+  "shortTitle": "Detection Strategy for Hijack Execution Flow through Path...",
+  "externalId": "DET0064",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects execution flow hijacking through path interception on an unquoted service path, the step where an attacker actually places a program in one of the directories Windows probes before the intended binary. It is distinct from simply knowing the weakness exists: the detection needs an execution or persistence proof, such as a new file at the derived path, a service process whose image sits in an intermediate directory, or a service starting from a path that changed since the last baseline. The telemetry that carries this is process creation with parent image, file creation events, service installation records and the service configuration values themselves. Coverage fails in practice because old vendor packages register malformed paths that never change, so alerting on the configuration alone produces constant noise and hides the one path where a file was really planted.",
+  "tags": [
+    "windows",
+    "privilege-escalation",
+    "persistence",
+    "service-paths",
+    "execution-flow"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hijack Execution Flow through Path Interception by Unquoted Path",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0064/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Path Interception by Unquoted Path - EASY",
+      "path": "exercises/det0064/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Path Interception by Unquoted Path - MEDIUM",
+      "path": "exercises/det0064/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Path Interception by Unquoted Path - HARD",
+      "path": "exercises/det0064/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hijack Execution Flow through Path Interception by Unquoted Path - EXTREMELY HARD",
+      "path": "exercises/det0064/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a specific Windows trick. A service path with spaces and no quotation marks makes Windows try several shorter paths first. An attacker who can write to one of those folders puts a program there and it runs instead. The detection watches for a planted program at one of those paths.",
+    "whyItMatters": "The planted program can run as a powerful service account whenever the service starts. That gives an attacker rights they did not have before, and often keeps working after a reboot. No download is needed and no file is obviously malicious in name. Only the path and the timing give it away.",
+    "howItWorks": [
+      "The detection first reads service paths and finds the ones that are unquoted and contain a space.",
+      "For each weak path it calculates the shorter paths that Windows would try first.",
+      "File creation events are then watched for a program appearing at one of those paths.",
+      "Process creation events are checked for a service child running out of an intermediate folder.",
+      "Service installation events show new services added since the last baseline.",
+      "A weak path together with a new file or a new service launch raises the alert."
+    ],
+    "example": "Imagine a courier told to deliver to Flat 4 at Rose Court. Someone sets up a table outside the gate with a sign reading Flat 4. The courier may hand the parcel over there. The address was never wrong. The delivery simply went to the wrong hands.",
+    "takeaways": [
+      "The weakness is in the configuration, and the attack is a file placed at a probed path.",
+      "You need execution proof, because many old vendor paths are weak but harmless.",
+      "Writing rights on the intermediate folder decide whether the weakness really matters."
+    ]
+  },
+  "objectives": [
+    "Explain how Windows resolves an unquoted service path and which directories it probes.",
+    "Derive the candidate interception paths for a given service image path.",
+    "Correlate service configuration, file creation and process creation evidence on one host.",
+    "Assess folder permissions to decide whether a weak path is realistically exploitable.",
+    "Reduce alert volume by tracking path changes rather than re-reporting known bad configurations."
+  ],
+  "techniqueId": "t1574-009",
+  "detectsTechniques": [
+    "t1574-009"
+  ],
+  "dataSources": [
+    "Service configuration inventory capturing the image path, start type and account for every registered Windows service",
+    "Sysmon event 11 file creation recording a new executable inside an intermediate directory that matches the first segment of a service path",
+    "Sysmon event 1 process creation showing a service process image in an unexpected directory and its parent process identifier",
+    "Windows Security event 4697 service installation recorded when a new service is registered on the host",
+    "Windows Security event 4688 process creation with command line auditing enabled for hosts without a Sysmon deployment"
+  ],
+  "logic": "The rule first selects service image paths that contain a space and are not surrounded by quotes, then derives the shorter path Windows would try, for example treating a folder name combined with the first word of the executable as a candidate location. It then looks for evidence that something now lives or runs there: a file creation event for an executable in that derived directory, a process whose image path is that candidate and whose parent is the service control manager, or a change to the service image path itself. The correlation fields are the host, the service name, the candidate path and the creating or executing process identity. A benign case is a documented software installation writing its own files into the product directory while the service path has been unchanged for months. The malicious case is an executable appearing in a directory that had no writes in the previous quarter, written by an interactive account or a script interpreter rather than by a package installer, immediately before the service starts.",
+  "pseudoQuery": "# title: Executable Planted in Unquoted Service Path Directory\n# logsource:\n#   product: windows\n#   category: file_event\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|endswith: '.exe'\n#   filter_installer:\n#     Image|endswith:\n#       - '\\\\msiexec.exe'\n#       - '\\\\TrustedInstaller.exe'\n#   selection_susp_write:\n#     Image|endswith:\n#       - '\\\\cmd.exe'\n#       - '\\\\powershell.exe'\n#   condition: selection and selection_susp_write and not filter_installer\n# level: high",
+  "falsePositives": [
+    "Application installers that write supporting executables into the product directory tree as part of a normal upgrade from a vendor package",
+    "Administrators who copy a diagnostic or wrapper executable into a program folder to troubleshoot a service that will not start",
+    "Monitoring and backup agents that unpack a helper binary into a vendor subdirectory and later start it under the same service account",
+    "Automated build or deployment pipelines that publish a new build directory into a path that happens to match the first segment of a service path"
+  ],
+  "tuningNotes": "Keep a weekly inventory of unquoted service paths and alert only on new or changed entries plus file writes in the derived directories, which removes the long standing vendor noise. Restrict the rule to directories writable by non administrators, since a weak path inside a properly locked folder cannot be intercepted by a normal user. The coverage you lose is a case where the attacker already holds administrative rights and plants the file anyway, which is still worth an alert but of lower urgency, so retain a separate lower severity rule for file creation in those folders by non installer processes.",
+  "severity": "high"
+}

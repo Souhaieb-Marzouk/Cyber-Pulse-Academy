@@ -1,0 +1,106 @@
+{
+  "id": "det0177",
+  "type": "detection",
+  "title": "Detect Persistence via Outlook Home Page Exploitation",
+  "shortTitle": "Detect Persistence via Outlook Home Page Exploitation",
+  "externalId": "DET0177",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence through the Outlook home page feature, where an adversary sets the folder home page property of a mailbox folder so that a remote page is loaded inside Outlook whenever that folder is opened. It matters because the mechanism is a documented configuration value rather than a file or service, so file based autorun monitoring misses it, and the code runs inside a trusted signed application. Detection depends on registry change telemetry for the Outlook folder definitions, mail client and messaging server audit records for folder property changes, and network telemetry showing Outlook making web requests to non corporate destinations. The practical difficulty is that the home page value is also used legitimately by some organisations for dashboards and forms, so the rule must weigh the destination address and the folder involved, not just the presence of the value.",
+  "tags": [
+    "outlook",
+    "persistence",
+    "registry",
+    "windows",
+    "phishing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Persistence via Outlook Home Page Exploitation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0177/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Persistence via Outlook Home Page Exploitation - EASY",
+      "path": "exercises/det0177/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Persistence via Outlook Home Page Exploitation - MEDIUM",
+      "path": "exercises/det0177/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Persistence via Outlook Home Page Exploitation - HARD",
+      "path": "exercises/det0177/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Persistence via Outlook Home Page Exploitation - EXTREMELY HARD",
+      "path": "exercises/det0177/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Outlook can show a web page inside a mail folder, such as a team dashboard. An attacker can abuse this to load their own page each time you open the folder. This detection looks for that setting being added or changed.",
+    "whyItMatters": "The setting is stored as a configuration value, so it leaves no new file to find. The page runs inside Outlook, which staff already trust. It can survive restarts and keep coming back. Because few defenders watch this feature, it is often overlooked during clean up.",
+    "howItWorks": [
+      "Outlook stores each folder's settings in the Windows registry, including the address of any home page.",
+      "Endpoint monitoring records changes to registry values, together with the process that made the change.",
+      "The detection alerts when a folder home page value is created or edited on a mailbox profile.",
+      "It records the address in the value and checks whether it points outside your organisation.",
+      "It also reviews mail server and mail client audit records for folder property changes made by a user or an automated tool.",
+      "If the address is external and the change came from a script or an office macro, the alert is raised as suspected persistence."
+    ],
+    "example": "Think of a staff noticeboard in an office kitchen. Anyone may pin a notice. If someone pins a notice that tells staff to hand their keys to a stranger, the board itself is not broken. The problem is only visible when someone reads what was pinned and who pinned it.",
+    "takeaways": [
+      "Outlook home pages are configuration, not files, so file monitoring will miss them.",
+      "The address inside the setting is the most useful clue.",
+      "Confirm the change against mail server audit records to see who or what made it."
+    ]
+  },
+  "objectives": [
+    "Describe how a mail folder home page setting loads remote content inside a trusted mail client",
+    "Identify registry and audit telemetry that records mail folder property changes",
+    "Evaluate the destination address in a home page value for internal or external placement",
+    "Attribute the change to a user action, a script or an office macro by correlating process lineage",
+    "Remove the persistence and check for the same pattern across other mailboxes"
+  ],
+  "techniqueId": "t1137-004",
+  "detectsTechniques": [
+    "t1137-004"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set recording Outlook folder definition keys and the process that wrote them",
+    "Windows registry change auditing for the mail client profile keys under the user hive",
+    "Mail server mailbox audit records showing folder and folder property changes with the acting account",
+    "Sysmon event 3 network connection records for mail client processes connecting to external web addresses",
+    "Endpoint detection and response script and macro execution telemetry tied to office application parents"
+  ],
+  "logic": "The detection looks for a mail folder home page value being written or modified, then judges the destination it points to and the process that wrote it. The fields that must be correlated are the registry key path identifying the mailbox profile and folder, the value data containing the address, the writing process image and its parent, the account context, and any mail client connection to that address afterwards. A benign case is an administrator or an approved template setting an internal intranet dashboard address on a shared mailbox, usually from a deployment tool with a documented change. The malicious case shows an external address, an unusual or recently registered domain, a write performed by a script interpreter or an office macro rather than the mail client itself, and often the same value appearing across several mailboxes in a short time.",
+  "pseudoQuery": "# title: Outlook Folder Home Page Set To External Address\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains:\n#       - '\\Outlook\\'\n#       - '\\Folders\\'\n#     TargetObject|endswith: 'HomePage'\n#   filter:\n#     Details|contains:\n#       - 'https://intranet.'\n#       - 'https://portal.'\n#     Image|endswith: \\outlook.exe\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "A team that uses an internal intranet dashboard as the home page of a shared mail folder",
+    "Mailbox provisioning templates that set a standard home page for every new user mailbox",
+    "A migration tool rewriting folder properties while moving a mailbox between servers",
+    "Third party customer relationship management add ins that display a web view inside a mail folder"
+  ],
+  "tuningNotes": "Baseline the top registry paths and destination addresses used by your own templates, and allow the specific internal domains that appear in genuine dashboards rather than allowing the whole key path. Keep the rule unfiltered on executive, finance and administrator mailboxes, where a single instance is meaningful, and filter shared functional mailboxes that have a documented home page. Restricting the rule to external addresses reduces false alerts but misses an attacker who hosts a page on a compromised internal site, so also alert on any home page write performed by a script interpreter or an office application regardless of destination.",
+  "severity": "medium"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0342",
+  "type": "detection",
+  "title": "Detection of Suspicious Compiled HTML File Execution via hh.exe",
+  "shortTitle": "Detection of Suspicious Compiled HTML File Execution via ...",
+  "externalId": "DET0342",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Compiled HTML File (T1218.001), the abuse of the Windows HTML help viewer to run script content stored inside a compiled help file. The technique matters because the viewer is a signed Microsoft binary, so execution appears to come from a trusted component and can be used to fetch or run a second stage while bypassing application controls. Detection depends on process creation telemetry for the help viewer with its command line and parent process, file creation events for the help file itself, and child process or network activity that follows. The common failure is that help files are also opened for legitimate documentation, so the rule must weigh the file location, the parent process and the speed of the follow on activity.",
+  "tags": [
+    "signed binary abuse",
+    "compiled html",
+    "process creation",
+    "defense evasion",
+    "t1218.001"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Suspicious Compiled HTML File Execution via hh.exe",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0342/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Suspicious Compiled HTML File Execution via hh.exe - EASY",
+      "path": "exercises/det0342/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Suspicious Compiled HTML File Execution via hh.exe - MEDIUM",
+      "path": "exercises/det0342/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Suspicious Compiled HTML File Execution via hh.exe - HARD",
+      "path": "exercises/det0342/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Suspicious Compiled HTML File Execution via hh.exe - EXTREMELY HARD",
+      "path": "exercises/det0342/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a Windows help viewer that opens a compiled help file. A compiled help file is a single file that holds help pages and small programs. An attacker can hide harmful script inside one of those files.",
+    "whyItMatters": "The help viewer is a normal part of Windows, so security tools often trust it. That trust lets an attacker run script while the activity looks legitimate. The file that carries the script is small and easy to send by email or a download link. If you catch the viewer opening a file from a user folder, you can stop the next stage. Without this rule, the first step of the attack looks like somebody reading a manual.",
+    "howItWorks": [
+      "Windows records the start of the help viewer and the path of the file it opens.",
+      "The rule checks where that file lives, because documentation normally sits on a share or in a program folder.",
+      "A file in a downloads, temporary or user application folder is treated as suspicious.",
+      "The rule then looks for a child process or a network connection started by the help viewer.",
+      "Those events are joined by host, user and time so the analyst sees one chain of activity.",
+      "An alert is raised when a user folder path and follow on activity appear together."
+    ],
+    "example": "Think of a visitor who signs in with a staff badge that was reported lost last week. The badge opens the front door, so the door log looks ordinary. What makes it strange is that the badge should no longer work. Here, the signed help viewer is the badge, and the file path is the report that it was lost.",
+    "takeaways": [
+      "Trusted Windows binaries can still be misused, so watch what they open.",
+      "The file path is often the strongest signal in the whole alert.",
+      "Look for what happens after the viewer starts, not only the start itself."
+    ]
+  },
+  "objectives": [
+    "Explain why a signed Windows binary can be abused to run untrusted script content",
+    "Identify process creation, file creation and network telemetry produced by the help viewer",
+    "Distinguish help files opened from documentation shares from files opened in user folders",
+    "Write a rule that joins the viewer process with the path of the file it opened and its child activity",
+    "Triage a match by inspecting the help file source, its hash and any follow on process",
+    "Judge how much coverage is lost when the rule is limited to user writable directories"
+  ],
+  "techniqueId": "t1218-001",
+  "detectsTechniques": [
+    "t1218-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing the help viewer image, parent image and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 11 file creation recording where the compiled help file was written before it was opened",
+    "Sysmon event 3 network connection or child process creation started by the help viewer",
+    "Email gateway and web proxy logs showing how the compiled help file reached the host"
+  ],
+  "logic": "The pattern is the Windows HTML help viewer starting with a file located in a user writable folder, followed quickly by a child process or an outbound network connection. The fields that must be correlated are the viewer image path, its parent image, the file path in the command line, the user account, the host and the timing of the child or network event. The benign case is a help file opened from a program installation directory or a documentation share, usually by the user double clicking it in a file browser with no follow on activity. The malicious case is a mail client, browser or archiver spawning the viewer for a file in a downloads or temporary folder, with a script host, a remote fetch or a connection to an unknown host seconds later.",
+  "pseudoQuery": "# title: Compiled Help File Opened From User Writable Folder\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     Image|endswith: '\\\\hh.exe'\n#   selection_path:\n#     CommandLine|contains:\n#       - '\\\\Downloads\\\\'\n#       - '\\\\Temp\\\\'\n#       - '\\\\AppData\\\\'\n#   condition: selection and selection_path\n# level: high",
+  "falsePositives": [
+    "Software installers that open their own compiled help file from a temporary extraction folder during setup",
+    "Internal documentation packaged as a help file and downloaded from a company web portal into a downloads folder",
+    "Legacy line of business applications that open help files from a user profile directory by design",
+    "Support staff extracting a vendor help file to a temporary path before reading it during a troubleshooting call"
+  ],
+  "tuningNotes": "Baseline which help files are opened on your estate, then filter the documented program directories and the internal documentation share by path and by file hash. Keep the rule sensitive to the parent process, because a mail client or an archiver as the parent is far more interesting than a file browser, and add a correlated condition for a child process or an outbound connection so that a lone viewer start does not page anyone. Scope to user workstations and jump hosts first. The coverage you lose is a help file dropped into a program directory before it is opened, which is why you should keep file creation monitoring on the same hosts.",
+  "severity": "high"
+}

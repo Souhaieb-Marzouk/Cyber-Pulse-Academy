@@ -1,0 +1,105 @@
+{
+  "id": "det0282",
+  "type": "detection",
+  "title": "Detection Strategy for System Binary Proxy Execution: Regsvr32",
+  "shortTitle": "Detection Strategy for System Binary Proxy Execution: Reg...",
+  "externalId": "DET0282",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of the signed Microsoft component registration utility Regsvr32 to execute script content or fetch a remote scriptlet while the activity still looks like ordinary system maintenance. Because the image is a trusted, signed Windows binary, application control allowlists and naive parent process rules often pass it untouched, which is exactly why adversaries choose it for proxy execution. The telemetry that makes detection possible is process creation with full command line auditing, module load records for scriptlet hosts, and network connection events attributed to the same image. In practice the strategy fails when command line auditing is off, or when the rule ignores argument shape and fires on every installer repair that touches the binary.",
+  "tags": [
+    "regsvr32",
+    "proxy execution",
+    "windows",
+    "command line",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for System Binary Proxy Execution: Regsvr32",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0282/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for System Binary Proxy Execution: Regsvr32 - EASY",
+      "path": "exercises/det0282/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for System Binary Proxy Execution: Regsvr32 - MEDIUM",
+      "path": "exercises/det0282/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for System Binary Proxy Execution: Regsvr32 - HARD",
+      "path": "exercises/det0282/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for System Binary Proxy Execution: Regsvr32 - EXTREMELY HARD",
+      "path": "exercises/det0282/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Regsvr32 is a signed program that comes with Windows. Its normal job is to register software components. An attacker can call it in a strange way so it runs a script file instead of registering a component. This detection watches the way the program is called, not just the fact that it ran.",
+    "whyItMatters": "Windows trusts this program, so many security tools let it run without question. When an attacker hides a script inside such a call, the action can look ordinary at first glance. Network filters may also miss it, because the traffic leaves from a signed system program. This detection gives you an early sign of code running that application control did not stop.",
+    "howItWorks": [
+      "Your endpoint sensor records each new process, including the full command line that a user or a script supplied.",
+      "The rule keeps only events where the process image is Regsvr32, the signed Windows component registration tool.",
+      "It then reads the arguments and looks for remote addresses, script file paths, or the quiet registration flags.",
+      "A network event from the same process, showing a fetch of a script file, raises the confidence of the alert.",
+      "An analyst checks the parent process and the file path to decide if the call is normal repair or abuse.",
+      "Confirmed cases are blocked on the endpoint, and the destination address is added to a watchlist."
+    ],
+    "example": "Think of a night watchman who is allowed to sign visitors in at the front desk. Nothing is wrong with the watchman, and nothing is wrong with signing people in. The problem starts when somebody hands him a note. It says go to this address and copy what you find there. Your rule does not blame the watchman for existing. It looks at the note in his hand and at the trip he takes right after.",
+    "takeaways": [
+      "Regsvr32 is a normal Windows tool, so only the arguments and the network call make a case suspicious.",
+      "Command line logging must be switched on, or you will see the process and learn almost nothing about it.",
+      "Pair the process event with a network event to cut down false alarms."
+    ]
+  },
+  "objectives": [
+    "Explain what Regsvr32 does during normal Windows operation.",
+    "Recognise the command line patterns that point to remote script execution.",
+    "Correlate process creation with network connections made by the same signed binary.",
+    "Separate approved component registration from proxy execution during triage.",
+    "Tune the rule with parent process filters so deployment tools do not flood the queue."
+  ],
+  "techniqueId": "t1218-010",
+  "detectsTechniques": [
+    "t1218-010"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, image path and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 3 network connection showing image, destination host and destination port",
+    "Sysmon event 7 image load records for scriptlet and component object related modules"
+  ],
+  "logic": "The pattern is a signed system binary whose only normal job is to register local components, appearing with arguments that point at a script file or a remote address, and then opening a network connection of its own. The fields that must be correlated are the process image and its command line from process creation telemetry, the parent process that launched it, and the network connection event where the image is the same binary within a short time window. Benign use looks different in two ways: the arguments name a local library on disk, and the parent is an installer, a management agent, or a maintenance script that runs on a known schedule. When the command line carries a remote address, a script file name, or a silent flag, and a connection to that host follows within seconds, proxy execution explains the events better than component registration does.",
+  "pseudoQuery": "# title: Regsvr32 Remote Scriptlet Execution\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     Image|endswith: '\\\\regsvr32.exe'\n#     CommandLine|contains:\n#       - 'scrobj.dll'\n#       - 'http://'\n#       - 'https://'\n#       - '/i:'\n#   filter:\n#     ParentImage|endswith:\n#       - '\\\\msiexec.exe'\n#       - '\\\\trustedinstaller.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Software deployment tooling that registers components from a central management share using silent flags.",
+    "Installer repair actions that call Regsvr32 with a local wrapper file shipped by the software vendor.",
+    "A line of business application that registers a component from a mapped network drive on first run.",
+    "Administrator maintenance scripts that register legacy components across many workstations at once."
+  ],
+  "tuningNotes": "Baseline which parent processes call Regsvr32 across your estate for two weeks, then add a filter for the approved installer paths and management agents you actually see, such as your software deployment share and the trusted installer service. Scope the rule to user workstations first, because servers often register components during maintenance windows and will dominate the alert queue. Leave the remote address and script file conditions unfiltered, since those carry the real signal and rarely appear in approved flows. Narrowing this way costs you some visibility into legitimate remote registration on managed file shares, so keep filtered matches in a low severity index instead of discarding them.",
+  "severity": "high"
+}

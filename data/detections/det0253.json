@@ -1,0 +1,108 @@
+{
+  "id": "det0253",
+  "type": "detection",
+  "title": "Detection of Systemd Service Creation or Modification on Linux",
+  "shortTitle": "Detection of Systemd Service Creation or Modification on ...",
+  "externalId": "DET0253",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the creation or modification of systemd service units on Linux, the mechanism an adversary uses to make a program start at boot, restart after a crash and survive the removal of the process they came in through. The technique matters because a service unit runs as root by default, is managed by the init system rather than by a user session, and looks like ordinary daemon management to anyone reading the unit list. Detection depends on Linux auditd file watch and process execution records, endpoint file creation events for the system unit directories, and systemd journal entries for the service lifecycle. The main way it fails is that packages, configuration management and monitoring agents all install units, so the rule must key on which parent process wrote the unit, where it lives and what it runs.",
+  "tags": [
+    "linux",
+    "systemd",
+    "persistence",
+    "endpoint",
+    "privilege escalation",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Systemd Service Creation or Modification on Linux",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0253/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Systemd Service Creation or Modification on Linux - EASY",
+      "path": "exercises/det0253/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Systemd Service Creation or Modification on Linux - MEDIUM",
+      "path": "exercises/det0253/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Systemd Service Creation or Modification on Linux - HARD",
+      "path": "exercises/det0253/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Systemd Service Creation or Modification on Linux - EXTREMELY HARD",
+      "path": "exercises/det0253/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new or changed service files on Linux. A service file tells the system to start a program at boot and keep it running. Attackers write such a file so their program returns after a restart. The rule watches the folder where these files live and the commands that create them.",
+    "whyItMatters": "A service starts again by itself, so the attacker does not need to break in twice. It usually runs with full system rights, which is more than a normal user has. The file looks like any other service file in a long list. Finding the few that were added by hand is the hard part, and that is what this rule does.",
+    "howItWorks": [
+      "A program writes a new service file into a system service folder, or edits an existing one.",
+      "The kernel auditing service records the write when the folder is watched.",
+      "The system then reloads its service list, often after an enable command.",
+      "The journal records the new unit starting, with the program it runs.",
+      "The rule links the write to the process that made it and to the later start.",
+      "A unit written by a script or temporary directory, then started, raises an alert."
+    ],
+    "example": "Think of a building where every cleaner signs in at the front desk. One extra name appears on the list, written by hand, not by the agency. Now that person can enter every night without signing in again. A service file is that name on the list, and the desk never questions it.",
+    "takeaways": [
+      "A service file is persistence that starts itself after a reboot.",
+      "Check which process wrote the file and where it sits, not just that it exists.",
+      "The journal links the file to the program that actually runs."
+    ]
+  },
+  "objectives": [
+    "Describe what a systemd service unit does and when it runs.",
+    "Identify the file and process events that record a unit being written.",
+    "Explain why the parent process of a unit write is a strong discriminator.",
+    "Correlate a unit write with a later service start in the system journal.",
+    "List the unit directories and permissions that matter most.",
+    "Distinguish package installed units from units written by hand."
+  ],
+  "techniqueId": "t1543-002",
+  "detectsTechniques": [
+    "t1543-002"
+  ],
+  "dataSources": [
+    "Linux auditd file watch records for writes and renames in the systemd system unit directories",
+    "Linux auditd process execution records for systemctl enable, start and daemon reload commands with the parent process",
+    "Systemd journal entries recording a new unit being loaded and started, including the executable path and the unit name",
+    "Endpoint file creation events reporting the full path, owner and permissions of the new unit file",
+    "Configuration management run logs stating which units the tool is expected to deploy on each host"
+  ],
+  "logic": "The pattern is a service unit file appearing or changing in a system unit directory outside a package installation or configuration management run, especially when the process that wrote it was a shell, a temporary directory binary or a web application process, and when the unit is started shortly afterwards. The fields that must be correlated are the unit file path and its modification time, the process that wrote the file and its parent, the account context, the execute line inside the unit, and the journal entry showing the unit being loaded and started. The malicious case usually shows a unit written by a shell spawned from a service account, a unit whose executable sits in a temporary or user directory, a unit that sets restart behaviour to keep running, and a reload and start within seconds of the write outside any deployment window. The benign case is a package installation that ships its own unit, a configuration management agent applying a declared unit, an administrator creating a unit from a change record, or a monitoring agent upgrade that rewrites its own unit.",
+  "pseudoQuery": "# title: Systemd Unit Written by Shell Then Enabled and Started\n# logsource:\n#   product: linux\n# detection:\n#   selection_write:\n#     type: 'PATH'\n#     name|startswith|any:\n#       - '/etc/systemd/system/'\n#       - '/usr/lib/systemd/system/'\n#     nametype: 'CREATE'\n#   selection_enable:\n#     Image|endswith: '/systemctl'\n#     CommandLine|contains|any:\n#       - 'enable'\n#       - 'daemon-reload'\n#   filter_pkg:\n#     ParentImage|endswith|any:\n#       - '/dpkg'\n#       - '/rpm'\n#       - '/apt'\n#   condition: selection_write and selection_enable and not filter_pkg\n# level: medium",
+  "falsePositives": [
+    "Package installation and upgrade that ships its own service unit and enables it as part of the install",
+    "Configuration management runs that deploy declared units on a schedule from a central server",
+    "A system administrator creating or editing a unit while following a documented change record",
+    "Monitoring or backup agent upgrades that rewrite their own unit file and restart the service"
+  ],
+  "tuningNotes": "Baseline which parent processes and accounts write unit files on each host class, then allow list package managers, configuration management and the agents that own their own units, and alert on everything else. Add the execute path inside the unit as a second condition: a unit whose program sits in a temporary directory, a home directory or under a web root should alert even if the writer looks legitimate. Scope the first version to servers that expose services to the internet. The coverage you lose by allowing declared writers is a unit written by a compromised configuration management account, so pair this rule with the declared unit inventory and alert whenever a unit on disk differs from the declared content.",
+  "severity": "high"
+}

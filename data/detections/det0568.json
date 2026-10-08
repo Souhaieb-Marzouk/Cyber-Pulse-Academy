@@ -1,0 +1,107 @@
+{
+  "id": "det0568",
+  "type": "detection",
+  "title": "Detection Strategy for Input Injection",
+  "shortTitle": "Detection Strategy for Input Injection",
+  "externalId": "DET0568",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets input injection, tracked as T1674, where an adversary or a malicious program produces synthetic keyboard, mouse, touch or accessibility input instead of relying on a real human at the console. The behaviour underpins social engineering flows that trick a user into pasting a command, scripted abuse of remote sessions, and malware that drives a graphical interface to bypass controls that would block a direct command line. Usable telemetry includes process creation for programs that call input synthesis interfaces, loading of the accessibility framework that provides those interfaces, remote session clipboard activity, and sequence records showing input arriving faster or more regularly than a person can type. It fails in practice because automation, accessibility software and software testing tools use exactly the same interfaces, so the rule depends on context rather than on the call itself.",
+  "tags": [
+    "execution",
+    "defense-evasion",
+    "input-injection",
+    "windows",
+    "accessibility",
+    "t1674"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Input Injection",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0568/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Input Injection - EASY",
+      "path": "exercises/det0568/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Input Injection - MEDIUM",
+      "path": "exercises/det0568/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Input Injection - HARD",
+      "path": "exercises/det0568/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Input Injection - EXTREMELY HARD",
+      "path": "exercises/det0568/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for keyboard or mouse input that no human created. The computer receives keystrokes or clicks from a program instead of from a real hand. The technique is input injection because the input is pushed into the system.",
+    "whyItMatters": "A machine that can type can open programs and confirm dialogs without a person. That lets an attacker get past controls that only block ordinary commands. It can also make harmful activity look as if a real user did it. Detecting it separates real user actions from scripted ones.",
+    "howItWorks": [
+      "The agent records process creation, including the program that injects the input and its parent.",
+      "A filter selects programs that load the accessibility framework used to send keystrokes and clicks.",
+      "The platform measures how quickly the input arrives and how regular the gaps between events are.",
+      "It also watches remote session activity, such as the clipboard or the connection used to reach the desktop.",
+      "Each match is joined with the session type, so you know whether a person was present at the console.",
+      "An alert fires when scripted input appears in an interactive session with no signed automation tool in the chain."
+    ],
+    "example": "Think of a signature book at an office door. Real visitors sign it by hand, and the handwriting varies. One page has twenty signatures that are perfectly identical and spaced exactly the same distance apart. No human wrote those, and the neatness itself is the evidence.",
+    "takeaways": [
+      "Perfectly regular input is a strong sign that a program, not a person, is typing.",
+      "Accessibility interfaces are legitimate, so the parent process decides the meaning.",
+      "Always ask whether a person was even present in the session."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between real user input and synthetic input.",
+    "Name the Windows interfaces that programs use to inject input.",
+    "Describe how timing and regularity help separate humans from automation.",
+    "Correlate input injection with remote session and clipboard activity.",
+    "Identify legitimate automation that must be excluded from the rule."
+  ],
+  "techniqueId": "t1674",
+  "detectsTechniques": [
+    "t1674"
+  ],
+  "dataSources": [
+    "Sysmon event 7 image load events for the accessibility framework libraries used to send input",
+    "Windows Security event 4688 process creation with well known automation tool parent processes",
+    "Sysmon event 1 process creation including parent image and command line for scripting hosts",
+    "Remote desktop session host operational logs recording connection, clipboard and drive redirection activity",
+    "Endpoint agent user activity telemetry recording keystroke and click timing statistics"
+  ],
+  "logic": "The pattern is a process that loads the accessibility libraries used to generate input, or a sequence of keyboard and mouse events whose timing is mechanically uniform, occurring in a session where no interactive logon is recorded or where the input arrives far faster than human typing. You must correlate the process image, the loaded module, the parent process, the session identifier and the logon type, because a support engineer using a documented automation tool in a console session is normal while a script host in a non-interactive remote session driving the desktop is not. The malicious case also often pairs the injected input with clipboard writes, which is the classic trick of placing text on the clipboard and then pasting it into a run dialog or terminal.",
+  "pseudoQuery": "# title: Synthetic Input Via Accessibility Framework From Unusual Parent\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 7\n#     ImageLoaded|endswith:\n#       - '\\\\uiautomationcore.dll'\n#       - '\\\\oleacc.dll'\n#       - '\\\\user32.dll'\n#   filter_signed_automation:\n#     Image|startswith: 'C:\\\\Program Files\\\\AutomationSuite\\\\'\n#   condition: selection and not filter_signed_automation\n# level: medium",
+  "falsePositives": [
+    "Robotic process automation software that fills forms in business applications on a fixed schedule",
+    "Accessibility tools such as on screen keyboards and voice control products used by staff with disabilities",
+    "Quality assurance teams running user interface test suites against internal applications",
+    "Vendor support sessions where a technician uses a signed remote control utility to help a user"
+  ],
+  "tuningNotes": "Allow list the signed automation and accessibility products your organisation has approved, by publisher and file hash, and scope the rule to sessions reached over the network, because that is where injected input gives an attacker real value. Add a timing condition, for example a consistent interval between keystrokes with a very low variance, and require a parent process that is not a known scheduler. Baselining approved automation first avoids a flood of alerts, but the coverage you lose is injected input performed by an approved tool under stolen control, so keep an eye on those tools talking to new destinations.",
+  "severity": "high"
+}

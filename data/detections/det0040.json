@@ -1,0 +1,107 @@
+{
+  "id": "det0040",
+  "type": "detection",
+  "title": "Detection of Persistence Artifact Removal Across Host Platforms",
+  "shortTitle": "Detection of Persistence Artifact Removal Across Host Pla...",
+  "externalId": "DET0040",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects removal of the persistence artifacts an intruder previously created, the indicator removal behaviour tracked as T1070.009. Cleaning up is how an attacker avoids a second look: a scheduled task, a service, a start up entry, or a web shell left behind is evidence a responder will find, so removing it removes both the forensic trail and the easiest detection opportunity. The telemetry is deletion oriented: scheduled task deletion records, service uninstall records, file deletion events on web roots and temporary paths, registry value deletions in start up and run keys, and process creation showing the deletion command. It fails in practice because deletion is constant in normal operations and its volume is far larger than creation in most estates, so the rule must weigh the deleting process, the target, and whether the artifact was recently created.",
+  "tags": [
+    "indicator removal",
+    "t1070.009",
+    "persistence",
+    "endpoint",
+    "scheduled task",
+    "audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Persistence Artifact Removal Across Host Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0040/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Persistence Artifact Removal Across Host Platforms - EASY",
+      "path": "exercises/det0040/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Persistence Artifact Removal Across Host Platforms - MEDIUM",
+      "path": "exercises/det0040/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Persistence Artifact Removal Across Host Platforms - HARD",
+      "path": "exercises/det0040/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Persistence Artifact Removal Across Host Platforms - EXTREMELY HARD",
+      "path": "exercises/det0040/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "When an attacker finishes a task, they often remove the tool or task they used. This detection looks for that cleanup. It watches for scheduled tasks, services, start up entries, and files being deleted, along with the program that did it.",
+    "whyItMatters": "Cleanup removes the evidence a responder needs. It can also mean the attacker is preparing to hide again, for example before a fresh foothold. Spotting the removal can preserve other evidence before it is gone.",
+    "howItWorks": [
+      "Windows and the endpoint agent record task, service, file, and registry deletions.",
+      "The rule selects deletions of items that provide persistence.",
+      "It looks at the program and the account that performed the deletion.",
+      "It raises the score when the deleted item was created in the last day.",
+      "It also flags deletions of logging or task files themselves.",
+      "Related events on the same host in one hour are grouped into a single alert."
+    ],
+    "example": "Think of a hotel guest who books a room under a false name. At checkout the guest burns the register page. The missing page is the clue. Staff notice the gap in the book, not just the burnt paper.",
+    "takeaways": [
+      "Deletion is normal, so link the deletion to the deletion tool and to a recent creation.",
+      "Preserve evidence early, because this technique removes it quickly.",
+      "A burst of unrelated deletions in one hour is more telling than any single one."
+    ]
+  },
+  "objectives": [
+    "List the artifacts an attacker may remove at the end of an intrusion.",
+    "Select deletion telemetry for tasks, services, files, and registry values.",
+    "Correlate a deletion with the account and process that performed it.",
+    "Use recency of creation to separate cleanup from routine administration.",
+    "Explain why evidence preservation must happen before remediation.",
+    "Describe how deletion of log data changes the value of other alerts."
+  ],
+  "techniqueId": "t1070-009",
+  "detectsTechniques": [
+    "t1070-009"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with command line for scheduled task, service, or registry deletion commands",
+    "Sysmon event 13 registry value set or delete recording removal of a value under a start up or run key",
+    "Windows Security event 4697 service installation records used with service uninstall and configuration change events",
+    "Sysmon event 23 or file delete auditing records showing removal of files from web roots, temporary folders, and start up folders"
+  ],
+  "logic": "The pattern is the removal of an object that commonly provides persistence, performed by a process that is not a signed administration tool, close in time to the creation of a similar object on the same host. The fields that must be correlated are the deleted object type and path, the deleting process image and command line, the account, the host, and the timestamps of both the creation and the deletion. The malicious case shows a task, service, run key value, or web root file deleted by a script host or a command shell, especially when the same host created that artifact within the previous day, or when several unrelated artifacts are removed within minutes. The benign case is an uninstaller removing its own service and start up entry, a configuration management agent enforcing an absent state, or a help desk technician removing a task from a decommissioned host, all of which are stable in process identity and scope. Pairing creation and deletion events on the same host is the single most effective way to raise precision.",
+  "pseudoQuery": "# title: Persistence Artifact Deleted by Script Interpreter\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'schtasks /delete'\n#       - 'sc delete'\n#       - 'Remove-Item'\n#       - 'del /f'\n#   filter:\n#     Image|endswith:\n#       - '\\msiexec.exe'\n#       - '\\Uninstall.exe'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Application uninstallers and patch rollback tools that remove their own service, scheduled task, and start up entries as normal cleanup",
+    "Configuration management agents that enforce an absent state for a task or service in order to converge a host to the approved build",
+    "Help desk and server decommissioning scripts that remove legacy start up entries from hosts being retired",
+    "Backup and retention jobs that delete files from web roots and temporary directories on a scheduled cleanup run"
+  ],
+  "tuningNotes": "The strongest improvement is to join this rule with creation events, so that only deletions of artifacts created within the last twenty four hours alert, and to require that the deleting process hash is not one of your signed installers or management agents. Scope the enforced rule to servers, domain controllers, and hosts with public web services, where persistence artifacts are both rarer and more meaningful. Keep a separate low severity feed for deletions of log, task, and web root files so you still see evidence cleanup. The coverage you lose with a recency window is the patient attacker who removes an artifact weeks after creating it, so pair the rule with a periodic sweep that compares the current task and service inventory against a known good baseline.",
+  "severity": "medium"
+}

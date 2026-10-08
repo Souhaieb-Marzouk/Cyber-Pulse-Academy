@@ -1,0 +1,106 @@
+{
+  "id": "det0502",
+  "type": "detection",
+  "title": "Detection Strategy for Hidden Artifacts Across Platforms",
+  "shortTitle": "Detection Strategy for Hidden Artifacts Across Platforms",
+  "externalId": "DET0502",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects hidden artefacts, where an adversary conceals files, directories, data streams, accounts or services so that responders cannot find them during an investigation. Examples include the hidden file attribute on Windows, a leading dot or a dot dot name on Linux, alternate data streams on NTFS volumes, and hidden local accounts or unregistered services. Telemetry covers file creation and attribute change events, file system auditing, shell command records, alternate data stream creation and account management records. It fails in practice because operating systems, browsers and development tools create hidden files constantly, especially in user home and application data directories, so the rule must weigh the file location together with the process that created it.",
+  "tags": [
+    "hidden files",
+    "defense evasion",
+    "alternate data stream",
+    "file attribute",
+    "linux dotfile"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Hidden Artifacts Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0502/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Hidden Artifacts Across Platforms - EASY",
+      "path": "exercises/det0502/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Hidden Artifacts Across Platforms - MEDIUM",
+      "path": "exercises/det0502/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Hidden Artifacts Across Platforms - HARD",
+      "path": "exercises/det0502/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Hidden Artifacts Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0502/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A hidden artefact is a file, folder, account or process that the computer does not show by default. This detection looks for new hidden items that appear in unusual places. It catches an attacker who tries to keep evidence out of sight. The goal is to find the item while it is still on the host.",
+    "whyItMatters": "After an attacker gains access, they need somewhere to keep tools and stolen data. A hidden folder is a simple hiding place that needs no special software at all. Responders who use normal file listings will walk straight past it. Detecting the hiding step helps you find the intrusion and the files before they are used.",
+    "howItWorks": [
+      "The endpoint agent records file creation and file attribute changes.",
+      "The rule looks for the hidden attribute being set on a new file or folder.",
+      "It also looks for names that start with a dot in folders where that is unusual.",
+      "On Windows file systems it checks for extra data streams attached to a file.",
+      "Account and service records are checked for hidden or unexpected entries.",
+      "A hidden item in a temporary or public folder raises an alert with the creator."
+    ],
+    "example": "Think of a shared kitchen with a cupboard for each worker. Most people keep their mugs in plain sight on the shelf. One worker drills a small space behind the cupboard panel and keeps his things there instead. The kitchen looks normal to everyone else. This detection is the caretaker who notices fresh sawdust on the floor.",
+    "takeaways": [
+      "Hiding an artefact is a simple step that needs no special tool.",
+      "Always record which process created the hidden file.",
+      "Learn where hidden files are normal, such as user home directories."
+    ]
+  },
+  "objectives": [
+    "List common ways files and accounts are hidden on Windows and Linux.",
+    "Name the telemetry that records attribute and data stream changes.",
+    "Explain why the creating process matters more than the hidden flag alone.",
+    "Baseline legitimate hidden files in user and application directories.",
+    "Write a pseudo-rule that excludes known hidden file locations."
+  ],
+  "techniqueId": "t1564",
+  "detectsTechniques": [
+    "t1564"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation recording the target file name and the creating process image",
+    "Windows file system audit records for attribute changes on files and directories",
+    "Sysmon event 15 alternate data stream creation showing the stream name and the target file",
+    "Linux audit daemon (auditd) records showing permission, attribute and rename operations",
+    "Windows Security event 4720 user account creation with the account name and the creating user"
+  ],
+  "logic": "The pattern is a new file, directory, data stream or account that is deliberately made invisible in a location where hidden items are rare. Analysts correlate the file or account name and its parent directory from creation or attribute change records with the creating process image and the acting account, then compare that pair with a baseline of known hidden file activity. Operating systems, browsers and build tools create hidden files in home and application data directories, which explains most benign hits. The malicious case shows a hidden item in a public or temporary folder, a creating process such as a scripting host or a renamed binary, and often a matching hidden account or service created during the same session.",
+  "pseudoQuery": "# title: Hidden File or Extra Data Stream Created in Public Path\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection_path:\n#     TargetFilename|contains:\n#       - '\\Users\\Public\\'\n#       - '\\Windows\\Temp\\'\n#       - '\\ProgramData\\'\n#   selection_stream:\n#     EventID: 15\n#   filter_vendor:\n#     Image|endswith: '\\msiexec.exe'\n#   condition: (selection_path or selection_stream) and not filter_vendor\n# level: medium",
+  "falsePositives": [
+    "Installer packages that create hidden configuration files in ProgramData during setup",
+    "Version control client that writes hidden index and lock files inside a shared project folder",
+    "Cloud sync client that keeps a hidden cache directory beside the files it manages",
+    "Backup agent that marks its own state files as hidden to keep them out of user view"
+  ],
+  "tuningNotes": "Baseline hidden file creation for one month and allow list the directory and process pairs that repeat, such as installers writing into ProgramData or office suites writing temporary files. Scope the rule to servers and to endpoints in regulated data groups, and keep only public and temporary directories in the path selection. Run alternate data stream creation as a separate higher severity rule, because legitimate use of streams is much rarer. This removes the bulk of the noise, but you lose coverage of hidden files created inside a user's own profile, which is a very common attacker location.",
+  "severity": "medium"
+}

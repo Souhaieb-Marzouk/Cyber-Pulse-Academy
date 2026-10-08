@@ -1,0 +1,107 @@
+{
+  "id": "det0834",
+  "type": "detection",
+  "title": "Detection of Upload Tool",
+  "shortTitle": "Detection of Upload Tool",
+  "externalId": "DET0834",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects Upload Tool, the resource development technique in which an adversary uses a file transfer utility to publish or move capabilities to infrastructure they control, such as a staging server, cloud bucket, or content delivery location. It matters because the upload marks the point where a capability becomes reachable from the internet, and because the same utilities appear in legitimate operations, so context and destination reputation drive the detection. Detection relies on process creation for command line transfer tools, network flow and proxy records for large outbound transfers to newly seen destinations, cloud storage access logs for anonymous or public object writes, and file integrity monitoring at web roots. It fails most often because backup jobs, release pipelines, and content publishing systems move large files constantly, so allowlisting by account, destination, and schedule is essential.",
+  "tags": [
+    "resource development",
+    "mitre attack",
+    "file transfer",
+    "data movement",
+    "exfiltration",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Upload Tool",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0834/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Upload Tool - EASY",
+      "path": "exercises/det0834/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Upload Tool - MEDIUM",
+      "path": "exercises/det0834/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Upload Tool - HARD",
+      "path": "exercises/det0834/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Upload Tool - EXTREMELY HARD",
+      "path": "exercises/det0834/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for tools that move files to another computer. Upload tools include common command line programs that send files over the network. The detection looks for large or unusual uploads going to places you do not recognise.",
+    "whyItMatters": "Uploading a file is how an attacker puts a tool within reach of your network. It may be a payload, a script, or a fake page. If you see the upload, you see the preparation. Uploads also happen all day for normal business reasons, so the skill is in telling them apart. Good context, such as who uploaded and where it went, makes the alert useful.",
+    "howItWorks": [
+      "Endpoint agents record each process start together with the full command line.",
+      "The rule looks for command lines that use file transfer utilities with a remote destination.",
+      "Network logs add the size of the transfer and the reputation of the destination address.",
+      "Cloud storage logs show whether objects were written with public read access.",
+      "Records are grouped by user, host, destination, and time to find unusual combinations.",
+      "Transfers from known backup and release accounts are filtered before alerting."
+    ],
+    "example": "Think of a warehouse loading dock. Trucks leave all day with real orders, so one more truck is not suspicious. But a truck leaving at night, driven by someone not on the roster, heading to an address nobody recognises, deserves a check of the paperwork. The detection reads the paperwork: who sent it, what was on it, and where it went.",
+    "takeaways": [
+      "An upload is the point where an attacker's tool becomes reachable.",
+      "Command line transfer tools create clear evidence, but legitimate jobs use them too.",
+      "Destination reputation and public object permissions turn a weak signal into a strong one."
+    ]
+  },
+  "objectives": [
+    "Describe why adversaries upload tools and capabilities to staging infrastructure",
+    "List the telemetry that records command line transfers and large outbound data movement",
+    "Correlate transfer activity with destination reputation and cloud object permissions",
+    "Build allowlists for backup, release, and content publishing accounts",
+    "Choose severity based on destination exposure and whether the destination is attacker controlled"
+  ],
+  "techniqueId": "t1608-002",
+  "detectsTechniques": [
+    "t1608-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation showing curl, wget, scp, rsync, or ftp command lines with remote hosts",
+    "Proxy and firewall logs with bytes sent per connection and destination reputation categories",
+    "Cloud storage access logs for object writes with public or anonymous read permissions",
+    "File integrity monitoring events on web server document roots showing new executable content",
+    "Network flow records showing sustained outbound transfers well above the host baseline"
+  ],
+  "logic": "The pattern is a host or account moving files outward using a transfer utility, especially when the destination is newly seen, the transfer volume is far above the host baseline, or the uploaded object becomes publicly readable. The fields to correlate are the initiating user, the source host, the destination host or bucket, the transfer size, and the object permission setting from the storage log. Benign activity comes from backup agents, release pipelines, video and design teams moving large media, and cloud migration tools, all of which repeat the same destinations on a predictable schedule. The malicious case is an interactive user session, a destination registered days ago, a compressed archive, and a public read permission set on the object right after the write.",
+  "pseudoQuery": "# title: Command Line File Upload To New External Destination\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\curl.exe'\n#       - '\\wget.exe'\n#       - '\\ftp.exe'\n#     CommandLine|contains:\n#       - '-T '\n#       - '--upload-file'\n#       - 'put '\n#   filter:\n#     ParentImage|contains:\n#       - 'backup-agent'\n#       - 'release-pipeline'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Backup and disaster recovery agents uploading archives to object storage on a nightly schedule",
+    "Release pipelines publishing build artefacts to a distribution bucket or package repository",
+    "IT staff transferring large log bundles or disk images to a vendor support portal",
+    "Design and media teams uploading large project files to a shared cloud workspace"
+  ],
+  "tuningNotes": "Baseline normal upload destinations, transfer sizes, and the accounts that perform them, then allowlist by service account and destination pair rather than by tool name, because the same utilities appear everywhere. Raise severity when the destination has no history, when the object is set public, or when the source is a server that never uploads. Scope the high severity rule to servers and jump hosts and keep workstations at low. Restricting to known destinations removes most noise but hides a compromised release account uploading to an attacker bucket, so add integrity checks on published artefacts.",
+  "severity": "medium"
+}

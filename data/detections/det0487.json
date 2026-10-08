@@ -1,0 +1,106 @@
+{
+  "id": "det0487",
+  "type": "detection",
+  "title": "Distributed Password Spraying via Authentication Failures Across Multiple Accounts",
+  "shortTitle": "Distributed Password Spraying via Authentication Failures...",
+  "externalId": "DET0487",
+  "theme": "Detection Strategy",
+  "summary": "Password spraying trades depth for breadth: instead of many attempts against one account, the attacker tries a small number of common passwords against a large set of accounts, and often spreads the attempts across many source addresses so that per source rate limits never trip. The detection therefore aggregates failed authentication on the account dimension rather than the source dimension, looking for one password pattern hitting many distinct user names, a high ratio of failed to successful attempts, and a low failure count per account that stays under lockout thresholds. The usual failure is that the rule counts failures per source address, which distributed spraying defeats by design, and that legacy authentication paths are not included in the aggregation.",
+  "tags": [
+    "windows",
+    "azure",
+    "credential access",
+    "authentication",
+    "brute force"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Distributed Password Spraying via Authentication Failures Across Multiple Accounts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0487/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Distributed Password Spraying via Authentication Failures Across Multiple Accounts - EASY",
+      "path": "exercises/det0487/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Distributed Password Spraying via Authentication Failures Across Multiple Accounts - MEDIUM",
+      "path": "exercises/det0487/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Distributed Password Spraying via Authentication Failures Across Multiple Accounts - HARD",
+      "path": "exercises/det0487/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Distributed Password Spraying via Authentication Failures Across Multiple Accounts - EXTREMELY HARD",
+      "path": "exercises/det0487/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Password spraying means trying one common password against many accounts. The attacker hopes that one person uses it. This plan looks for many different accounts failing to sign in from a few places. It also looks for a very small number of failures per account, because that is how spraying avoids lockouts.",
+    "whyItMatters": "Lockout policies stop an attacker who guesses at one account. Spraying stays under those limits, so lockouts never trigger. Spreading the attempts over many addresses defeats simple rate limits too. The only reliable view is across all accounts at once. Without that view the activity looks like ordinary typing mistakes.",
+    "howItWorks": [
+      "Authentication sources record each failed sign in with the account name, the source address and the time.",
+      "The detection groups the failures by account, not by source address, over a window such as one hour.",
+      "It counts how many different accounts failed in that window and how many failures each account had.",
+      "Many accounts with one or two failures each is far more suspicious than one account with twenty.",
+      "The source addresses are then checked, because spraying often comes from several addresses.",
+      "Any later success for one of those accounts is escalated, because it may mean the guess worked."
+    ],
+    "example": "Think of a thief with a single key trying it in every front door on a street. Trying one door twenty times would attract attention and might jam the lock. Trying every door once is quiet, and only one door needs to open. Neighbours each see nothing odd. The pattern is only visible when you look at the whole street at once. The detection works the same way, by looking at all accounts together.",
+    "takeaways": [
+      "Count failures per account and per hour, not per source address.",
+      "One or two failures across many accounts is the signature of spraying.",
+      "A success after a spray is the event you must escalate."
+    ]
+  },
+  "objectives": [
+    "Explain why spraying defeats account lockout and per address rate limits.",
+    "Choose the correct aggregation key for a spraying detection.",
+    "Explain why any success after a spray window must be escalated.",
+    "Describe how legacy authentication paths hide spray attempts.",
+    "Set thresholds that separate spraying from ordinary user error."
+  ],
+  "techniqueId": "t1110-003",
+  "detectsTechniques": [
+    "t1110-003"
+  ],
+  "dataSources": [
+    "Windows Security event 4625 failed logon including target user name, source workstation and logon type",
+    "Windows Security event 4771 Kerberos pre-authentication failure for domain accounts",
+    "Azure Active Directory or Entra sign in logs with error code for invalid credentials and the source IP",
+    "VPN and remote access gateway authentication logs including assigned user and public source address"
+  ],
+  "logic": "The rule aggregates authentication failures by target account across the whole estate in a rolling window, because spraying is defined by breadth rather than depth. A benign mistyped password produces a small number of failures for one account from one familiar address. Spraying produces a distinct user name count that is high, a per account failure count that is very low, a failure to success ratio that is extreme, and typically several source addresses or autonomous systems that shift as attempts continue, with a mixture of interactive, network and legacy authentication logon types. The pattern must be scored on distinct accounts, per account attempts, distinct source addresses, the time window and whether any success follows for an account that failed, and it must include service accounts and legacy protocols, because attackers target exactly those paths where lockout and reporting are weakest.",
+  "pseudoQuery": "# title: Distributed Password Spray Across Many Accounts\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4625\n#     LogonType: 3\n#   aggregation:\n#     group_by: TargetUserName\n#     count: failures\n#     condition: distinct(TargetUserName) >= 20 and failures <= 3 within 1h\n#   filter:\n#     SourceWorkstation|in: 'approved_scanner_hosts'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Users returning from holiday who mistype a recently changed password on several devices",
+    "Vulnerability scanners and penetration testers running an approved credential audit from a known host",
+    "Misconfigured applications or scheduled tasks still using an old service account password",
+    "Shared kiosk or shop floor accounts where staff repeatedly sign in with a wrong password",
+    "Directory synchronisation tools that retry authentication many times after a password rotation"
+  ],
+  "tuningNotes": "Baseline the normal daily count of failed authentications per account and set the alert threshold above it, then exclude the approved scanner hosts and the known misconfigured service accounts by name. Always enrich with a check for a following success on any of the targeted accounts, because that converts a noisy low severity event into a real incident. Raising the distinct account threshold reduces noise noticeably but delays detection on smaller environments, so for those set the threshold from the size of the user population rather than copying a fixed number.",
+  "severity": "high"
+}

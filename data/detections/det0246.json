@@ -1,0 +1,108 @@
+{
+  "id": "det0246",
+  "type": "detection",
+  "title": "Detection Strategy for MFA Interception via Input Capture and Smart Card Proxying",
+  "shortTitle": "Detection Strategy for MFA Interception via Input Capture...",
+  "externalId": "DET0246",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects interception of multi factor authentication, covering one time code capture on an endpoint and relay of smart card or security key authentication through an attacker controlled host. The technique matters because it defeats the control that most organisations rely on to stop credential theft, and it does so while the real service sees a successful and correctly answered prompt. Detection depends on endpoint process access and input capture events, smart card service and credential provider usage, and identity records that show one factor used from two different devices or addresses. The main way it fails is that legitimate smart card middleware, remote support tools and accessibility features touch the same interfaces, so use of those interfaces is only suspicious when it comes from a process that has no business doing it.",
+  "tags": [
+    "mfa",
+    "credential access",
+    "smart card",
+    "endpoint",
+    "identity",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for MFA Interception via Input Capture and Smart Card Proxying",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0246/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for MFA Interception via Input Capture and Smart Card Proxying - EASY",
+      "path": "exercises/det0246/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for MFA Interception via Input Capture and Smart Card Proxying - MEDIUM",
+      "path": "exercises/det0246/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for MFA Interception via Input Capture and Smart Card Proxying - HARD",
+      "path": "exercises/det0246/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for MFA Interception via Input Capture and Smart Card Proxying - EXTREMELY HARD",
+      "path": "exercises/det0246/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for attempts to steal or relay the second step of a login. That second step may be a code from an app or a hardware key you touch. An attacker can grab the code on your machine, or pass your key press through their own computer. The rule watches which programs touch the security key service and how one code gets used.",
+    "whyItMatters": "The second step is what makes a stolen password less useful. If an attacker can capture or relay it, they can sign in as the real user. The service they sign in to sees nothing wrong, because the prompt really was answered. Only the way the answer travelled gives them away, so the rule must look at devices and programs.",
+    "howItWorks": [
+      "A user starts a sign in that needs a security key, a smart card or a code.",
+      "The operating system routes that request through the smart card service or the credential provider.",
+      "The rule records every program that opens or reads those interfaces, with its parent process.",
+      "It also records when a key press or input hook is installed by an unusual program.",
+      "Identity logs show the same factor used from two devices or two addresses at nearly the same time.",
+      "When an unknown program touches the interface and the login repeats elsewhere, an alert is raised."
+    ],
+    "example": "Think of a bank counter where the customer must read a code from a small device. A thief standing behind can copy the code and use it at another counter a minute later. The second counter sees a correct code, so nothing looks wrong. The only clue is that the same code was used in two places at once.",
+    "takeaways": [
+      "A relayed second factor looks completely normal to the service being accessed.",
+      "Watch which processes touch the smart card and credential interfaces, not just that they are used.",
+      "Two sign ins with the same factor from different devices in a short window is a strong signal."
+    ]
+  },
+  "objectives": [
+    "Explain how one time codes and hardware keys can be intercepted or relayed.",
+    "Identify the endpoint interfaces that a relay or capture tool must touch.",
+    "Describe how to baseline which processes normally use smart card services.",
+    "Correlate smart card or credential provider use with suspicious parent processes.",
+    "Recognise duplicate use of one factor from two devices or addresses.",
+    "Describe how input capture hooks are recorded on an endpoint."
+  ],
+  "techniqueId": "t1111",
+  "detectsTechniques": [
+    "t1111"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access records where the target process is the smart card service or a credential provider component",
+    "Windows security event 4688 process creation records with command line auditing enabled, showing smart card and certificate utility usage",
+    "Sysmon event 7 image load records showing unexpected modules loaded into the smart card or credential provider process",
+    "Identity provider sign in logs recording one authentication method used from two different devices or addresses close together",
+    "Endpoint detection records of keyboard input hook installation by processes outside the normal accessibility set"
+  ],
+  "logic": "The pattern is an unexpected process reading or relaying authentication material, combined with identity evidence that one factor was answered twice. The fields that must be correlated are the source process image and its parent, the target process that handles the smart card or credential interface, the granted access rights, the account holding the session, and the sign in records for the same factor showing two device identifiers or two addresses inside a short window. The malicious case usually shows a recently created or user directory process accessing the smart card service, an office document, script host or remote support binary as its parent, a new hardware device such as a reader or key added just before the sign in, and a matching authentication on a different device. The benign case is the vendor smart card middleware, a virtual private network or single sign on client that legitimately reads the card, an accessibility tool that installs an input hook, or a user who owns two devices and signs in on both.",
+  "pseudoQuery": "# title: Unexpected Process Access to Smart Card Service Plus Duplicate Factor Use\n# logsource:\n#   product: windows\n# detection:\n#   selection_card:\n#     EventID: 10\n#     TargetImage|endswith: '\\SCardSvr.exe'\n#   filter_middleware:\n#     SourceImage|endswith|any:\n#       - '\\scardsvr.exe'\n#       - '\\vpnagent.exe'\n#       - '\\Windows\\System32\\lsass.exe'\n#   selection_duplicate:\n#     event_type: 'sign_in'\n#     method|contains: 'hardware key'\n#     device_count|gt: 1\n#   condition: (selection_card and not filter_middleware) or selection_duplicate\n# level: high",
+  "falsePositives": [
+    "Vendor smart card middleware and certificate sign in clients that read the card for every user sign in",
+    "A virtual private network or corporate single sign on agent that touches the smart card service during token refresh",
+    "Remote support or virtual desktop software that legitimately presents a locally connected reader to a remote session",
+    "Accessibility and input method tools that install keyboard hooks as part of their normal function"
+  ],
+  "tuningNotes": "Build the allow list from what actually runs in your estate: collect smart card service access over two weeks and keep only executable paths with a valid signature from the smart card or identity vendor. Alert on any new source process, any unsigned binary and any process running from a user profile or temporary directory, since that is where relay tooling usually lives. Keep the duplicate factor rule separate and drive it from device identifiers and addresses rather than from user agents alone. The coverage you lose by allow listing signed middleware is a compromised or trojanised copy of that middleware, so pair this rule with file integrity monitoring on the middleware install directory and with alerts for new hardware device installation on privileged administrator workstations.",
+  "severity": "high"
+}

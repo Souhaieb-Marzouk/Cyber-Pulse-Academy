@@ -1,0 +1,105 @@
+{
+  "id": "det0374",
+  "type": "detection",
+  "title": "Detection Strategy for Serverless Execution (T1648)",
+  "shortTitle": "Detection Strategy for Serverless Execution (T1648)",
+  "externalId": "DET0374",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects serverless execution, where an adversary creates or modifies a function, container job, or scheduled cloud task to run their code inside the provider's infrastructure and blend in with normal platform activity. There is no host to instrument, so detection is built from control plane and data plane logs: function create and update events, identity or role changes that grant invoke rights, first time invocation of a function by a new principal, and outbound network connections from the function runtime. The pattern to alert on is a deployment or permission change followed closely by invocation from an unexpected principal, together with function code or environment variables that contain encoded content or external download references. It fails routinely because serverless work is highly automated, so deployment pipelines produce constant legitimate change that must be baselined first.",
+  "tags": [
+    "cloud",
+    "serverless",
+    "aws",
+    "azure",
+    "audit"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Serverless Execution (T1648)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0374/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Serverless Execution (T1648) - EASY",
+      "path": "exercises/det0374/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Serverless Execution (T1648) - MEDIUM",
+      "path": "exercises/det0374/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Serverless Execution (T1648) - HARD",
+      "path": "exercises/det0374/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Serverless Execution (T1648) - EXTREMELY HARD",
+      "path": "exercises/det0374/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Serverless means you give the cloud provider a small piece of code and the provider runs it when needed, with no server for you to manage. This detection looks for someone creating or changing such a function so that it runs their code. It uses the cloud provider's own logs, because there is no server to watch.",
+    "whyItMatters": "An attacker who deploys a function gets computing power inside your cloud account and often inherits its permissions. There is no file on a machine for your endpoint tool to inspect. Costs can also grow fast if the code is used to mine cryptocurrency. Because the provider logs every change, the evidence exists, but only if you collect it.",
+    "howItWorks": [
+      "Collect cloud audit records for function creation, update and delete operations.",
+      "Collect identity records for new roles or policies that allow a function to be invoked or to act on other services.",
+      "Collect function invocation records, including the calling principal and the source address.",
+      "Compare each invocation with the principals that normally call that function.",
+      "Inspect the function configuration for encoded content, external download links or unusual environment variables.",
+      "Alert on a create or update event that is quickly followed by an invocation from a new principal."
+    ],
+    "example": "Think of a self service laundry. You do not own the machines, you just pay and the machine runs your programme. If someone adds a new programme that also sends money to their own account, the shop owner only finds out from the machine's usage log. Cloud audit records are that log.",
+    "takeaways": [
+      "In serverless environments the cloud audit log is your only reliable sensor.",
+      "Control plane changes plus a first time caller is the core detection pattern.",
+      "Baseline your deployment pipelines first, or normal releases will bury the real alert."
+    ]
+  },
+  "objectives": [
+    "Describe why serverless computing removes the normal endpoint telemetry you rely on.",
+    "Identify the control plane and data plane events that reveal a new or changed function.",
+    "Build a rule that flags a first time invoking principal for an existing function.",
+    "Review function configuration for signs of embedded or downloaded payloads.",
+    "Explain how a function can inherit credentials and reach other cloud services."
+  ],
+  "techniqueId": "t1648",
+  "detectsTechniques": [
+    "t1648"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events for Lambda CreateFunction, UpdateFunctionCode and AddPermission calls",
+    "Azure activity log entries for function app create and update operations with the calling identity",
+    "Google Cloud audit logs for Cloud Functions deploy operations and for service account impersonation",
+    "AWS CloudWatch Logs for function invocation records including the request identity and runtime duration",
+    "Cloud identity logs for IAM policy attachments that grant invoke rights to a new principal"
+  ],
+  "logic": "The pattern is a new or altered serverless function that is then invoked by a principal it has never seen before. Telemetry shows a control plane event creating or updating the function, followed within a short window by invocation telemetry naming a caller that does not appear in that function's history, or by outbound connections to an address unrelated to the function's purpose. The fields to correlate are the account or subscription, the function name, the deploying identity, the invoking principal, and the function configuration hash. What separates malicious from benign is that a normal release is deployed by a known pipeline identity and invoked by known front ends, while the malicious case uses an interactive user identity, changes environment variables, and is invoked once from an unfamiliar source.",
+  "pseudoQuery": "# title: Serverless Function Created or Updated Then Invoked by New Principal\n# logsource:\n#   product: aws\n# detection:\n#   selection_control:\n#     eventName:\n#       - 'CreateFunction'\n#       - 'UpdateFunctionCode'\n#       - 'AddPermission'\n#   selection_invoke:\n#     eventName: 'Invoke'\n#   filter_pipeline:\n#     userIdentity.arn|contains: 'role/deploy-pipeline'\n#   condition: selection_control and selection_invoke and not filter_pipeline\n# level: medium",
+  "falsePositives": [
+    "Continuous integration pipelines deploying a new function version several times per day under a build service account",
+    "Autoscaling or event driven workloads where a queue or storage notification invokes the function from a new source",
+    "Developer testing in a sandbox account where an engineer invokes a function manually from a laptop"
+  ],
+  "tuningNotes": "First inventory the identities your deployment pipelines and event sources legitimately use, and filter on those, because serverless environments change code far more often than traditional servers. Scope the high severity rule to production accounts and subscriptions and leave development accounts at a lower level. Baseline normal invocation counts per function so that a spike stands out without a hard coded threshold. Filtering out pipeline identities costs you the case of an attacker who compromises the pipeline itself, so alert separately on changes to the pipeline's own role and trust policy.",
+  "severity": "medium"
+}

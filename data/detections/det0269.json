@@ -1,0 +1,106 @@
+{
+  "id": "det0269",
+  "type": "detection",
+  "title": "Behavioral Detection Strategy for Remote Service Logins and Post-Access Activity",
+  "shortTitle": "Behavioral Detection Strategy for Remote Service Logins a...",
+  "externalId": "DET0269",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects remote service logons and the activity that immediately follows them, which is the practical way to cover remote services as a lateral movement path. The technique covers remote desktop, secure shell, remote management and remote procedure call style access to a host, and the detection value is not the logon itself but the combination of an inbound remote logon with unusual follow-on process creation from that session. Telemetry comes from authentication records such as Windows Security event 4624 with logon type 10 or 3, secure shell authentication logs, and process creation events linked to the session identifier. It fails in practice because administrators and automation use the same services legitimately, so the rule has to focus on first-seen source addresses, machine accounts used interactively, and short time windows between logon and process creation.",
+  "tags": [
+    "lateral movement",
+    "remote services",
+    "rdp",
+    "ssh",
+    "authentication",
+    "t1021"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection Strategy for Remote Service Logins and Post-Access Activity",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0269/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection Strategy for Remote Service Logins and Post-Access Activity - EASY",
+      "path": "exercises/det0269/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Remote Service Logins and Post-Access Activity - MEDIUM",
+      "path": "exercises/det0269/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Remote Service Logins and Post-Access Activity - HARD",
+      "path": "exercises/det0269/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection Strategy for Remote Service Logins and Post-Access Activity - EXTREMELY HARD",
+      "path": "exercises/det0269/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for people or programs logging in to a computer from somewhere else on the network. It then checks what they do in the first moments after that remote login. Remote login itself is normal, so the detection looks for the combination of a remote login and strange follow-up activity.",
+    "whyItMatters": "Once an attacker has one account, they often use remote login tools to move to other computers. This is called lateral movement. Each remote login looks harmless on its own, which is why many teams miss it. Watching what happens right after the login gives you a much stronger signal. It also helps you spot an account that is suddenly used from a machine it never touches.",
+    "howItWorks": [
+      "The operating system records each successful login in a security event. The logon type field says how the person connected.",
+      "The detection selects logon types that mean remote access, such as type 10 for remote desktop and type 3 for network access.",
+      "It ignores machine accounts, because computers log on to each other constantly for normal business.",
+      "It then looks for a new process started in that same session within a few minutes of the login.",
+      "It compares the source address and workstation name with a baseline of where that account normally connects from.",
+      "If the source is new and the follow-up process is a command interpreter or discovery tool, the system raises an alert."
+    ],
+    "example": "Think of a hospital sign-in sheet at the staff entrance. Nurses sign in every day, and that is normal. The night manager cares when someone signs in at an entrance they never use and then walks straight into the medicine store. The sign-in alone proves nothing. The sign-in plus the next action is the story.",
+    "takeaways": [
+      "A remote login is context, not guilt. The value comes from what happens next in the same session.",
+      "Machine accounts generate huge numbers of logons, so filter them or your alert queue will drown.",
+      "Baselines of normal source addresses per account turn a noisy rule into a useful one."
+    ]
+  },
+  "objectives": [
+    "Describe how remote services such as remote desktop and secure shell are abused for lateral movement after initial access.",
+    "Interpret the logon type field in Windows Security event 4624 and explain which values indicate remote access.",
+    "Correlate an authentication event with follow-on process creation using the session or logon identifier.",
+    "Differentiate routine administrative remote access from adversary lateral movement by source address and account baseline.",
+    "Assess the coverage gaps when remote management traffic is allowed between all hosts without segmentation."
+  ],
+  "techniqueId": "t1021",
+  "detectsTechniques": [
+    "t1021"
+  ],
+  "dataSources": [
+    "Windows Security event 4624 successful logon with logon type, target account name, source network address and workstation name",
+    "Windows Security event 4688 process creation including the logon identifier and parent image for the session that was opened",
+    "Linux secure shell authentication records from the system log or journal, showing accepted public key or password logins with source address",
+    "Virtual private network or remote access gateway authentication logs that map an external address to the internal address used for the session"
+  ],
+  "logic": "The pattern is an inbound remote logon that succeeds for an interactive or network logon type, followed closely by process creation in the same session by an image that is unexpected for that account. The fields that must be correlated are the logon type, the target account name, the source network address and workstation name from the authentication event, and the logon identifier, image and parent image from the process creation event. The benign case is predictable: service accounts log on from fixed jump hosts with machine style names, automation runs on a schedule, and helpdesk staff connect from a known management subnet. The malicious case shows an account authenticating from a workstation or subnet it has never used, or a machine account name appearing on an interactive logon type, or a first process that is a command interpreter, credential access tool or discovery utility rather than an administrative console.",
+  "pseudoQuery": "# title: Remote Logon Followed by Unusual Process Creation\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection_logon:\n#     EventID: 4624\n#     LogonType:\n#       - 10\n#       - 3\n#   filter_machine_account:\n#     TargetUserName|endswith: $\n#   condition: selection_logon and not filter_machine_account\n# level: medium",
+  "falsePositives": [
+    "Helpdesk and server administration staff connecting to many hosts from a documented management jump server during a maintenance window",
+    "Configuration management or patch distribution agents that open network logons as a service account from a fixed automation host",
+    "Backup software connecting to file servers with a service account on a nightly schedule and starting a helper process",
+    "Vulnerability scanning accounts that authenticate to many hosts to read configuration and then run a small discovery utility"
+  ],
+  "tuningNotes": "The fastest way to cut noise is to filter the known management subnets and jump hosts used by your administration teams, and to exclude logon type 3 from machine accounts entirely. Then baseline which source addresses and workstation names each privileged account uses over thirty days and alert only on deviations from that list. You lose coverage for an attacker who has already taken over a jump host or a service account, so keep a separate rule for authentication from a source address that is new for the whole environment. Do not disable the rule during change windows; instead route it to a lower severity queue so that lateral movement during those hours is still recorded.",
+  "severity": "medium"
+}

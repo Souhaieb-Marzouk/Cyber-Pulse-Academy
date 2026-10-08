@@ -1,0 +1,106 @@
+{
+  "id": "det0504",
+  "type": "detection",
+  "title": "Detect Abuse of Dynamic Data Exchange (T1559.002)",
+  "shortTitle": "Detect Abuse of Dynamic Data Exchange (T1559.002)",
+  "externalId": "DET0504",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of Dynamic Data Exchange (DDE), an old Windows feature that lets one application ask another to run commands, and which office documents can trigger without using macros at all. The signal is an office application process acting as the parent of a command shell, a scripting host or another binary it should never start, usually with a command line that points at a second document or remote content. Telemetry includes process creation with parent image and command line, office application event logs, and file or network events from the child process. It fails in practice because very few modern documents use DDE, so alerts are rare but must still be checked against line of business templates that rely on it for data refresh.",
+  "tags": [
+    "dde",
+    "office document",
+    "proxy execution",
+    "process creation",
+    "phishing"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Abuse of Dynamic Data Exchange (T1559.002)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0504/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Abuse of Dynamic Data Exchange (T1559.002) - EASY",
+      "path": "exercises/det0504/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Abuse of Dynamic Data Exchange (T1559.002) - MEDIUM",
+      "path": "exercises/det0504/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Abuse of Dynamic Data Exchange (T1559.002) - HARD",
+      "path": "exercises/det0504/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Abuse of Dynamic Data Exchange (T1559.002) - EXTREMELY HARD",
+      "path": "exercises/det0504/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Dynamic Data Exchange, or DDE, is an old Windows feature that lets programs send messages to each other. Office documents can use it to start another program. This detection looks for an office file that starts a command shell. The goal is to catch this without any macro being used.",
+    "whyItMatters": "Many companies block office macros, so attackers look for other ways to run code. DDE still works in some configurations and needs no macro at all. The user only has to accept one prompt on screen. Because the technique is rare today, the activity stands out clearly in your logs, which makes it a high value alert.",
+    "howItWorks": [
+      "Windows records each new process, including the program that started it.",
+      "The rule looks for an office application as the parent of a shell or scripting host.",
+      "It checks the command line for signs of a script, a remote address or an encoded string.",
+      "It also checks for the office document that started the chain.",
+      "A second stage looks for network connections or new files from the child process.",
+      "The alert shows the document, the user and the child command."
+    ],
+    "example": "Think of a hotel front desk that can call any service in the city. A guest cannot call out directly, so he asks the receptionist to order him a taxi. The call looks completely normal, because it comes from the desk phone. This detection checks who asked for the taxi, and whether that guest should be in the building at all.",
+    "takeaways": [
+      "DDE can run commands without macros, so macro controls do not stop it.",
+      "The parent image is the key field: look for office applications starting a shell.",
+      "Rare techniques deserve high severity, because they are rarely benign."
+    ]
+  },
+  "objectives": [
+    "Describe what Dynamic Data Exchange is normally used for.",
+    "Explain why DDE can run commands without using macros.",
+    "Name the process creation fields that reveal the chain.",
+    "Distinguish approved line of business DDE templates from malicious documents.",
+    "Write a pseudo-rule that matches office applications starting a shell."
+  ],
+  "techniqueId": "t1559-002",
+  "detectsTechniques": [
+    "t1559-002"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, image and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Microsoft Office application event logs recording document open, protected view and DDE prompts",
+    "Sysmon event 3 network connection from the child process with destination address and port",
+    "Sysmon event 11 file creation in temporary and startup folders after the document opens"
+  ],
+  "logic": "The pattern is an office application process acting as the parent of a command interpreter, a scripting host or another binary that it should never start. Analysts correlate the parent image and the child image from process creation records, inspect the command line for interpreters, remote content or encoded arguments, and then join the child process identifier to file creation and network connection events in the following minutes. Benign cases are limited to a few documented templates that use DDE for data refresh, and they start the same known binary every time. The malicious case shows a document received by email possibly from an external sender, a child such as a command shell or scripting host, and outbound network activity shortly afterwards.",
+  "pseudoQuery": "# title: Office Application Spawning Command Shell Through DDE\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     ParentImage|endswith:\n#       - '\\WINWORD.EXE'\n#       - '\\EXCEL.EXE'\n#     Image|endswith:\n#       - '\\cmd.exe'\n#       - '\\powershell.exe'\n#       - '\\mshta.exe'\n#   filter_templates:\n#     CommandLine|contains: '\\Templates\\Approved\\'\n#   condition: selection and not filter_templates\n# level: high",
+  "falsePositives": [
+    "Finance spreadsheet that refreshes data through a documented DDE link to a terminal emulator",
+    "Legacy reporting template that opens a helper program to export results to a shared folder",
+    "Vendor support tool that uses DDE to send data into an office application during a guided fix",
+    "Laboratory instrument software that pushes readings into a spreadsheet through a DDE conversation"
+  ],
+  "tuningNotes": "Inventory the documents and templates that legitimately use DDE, then filter them by the parent document path or by the exact child command line rather than by application name. Scope the rule to endpoints that receive email and browse the internet, because an office application starting a shell is almost never normal there. Add the network connection stage as a second rule with higher severity. Filtering by approved template removes the few remaining benign hits, but you lose coverage if an attacker manages to place a malicious document inside an approved template folder.",
+  "severity": "high"
+}

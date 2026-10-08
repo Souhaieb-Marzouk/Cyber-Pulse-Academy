@@ -1,0 +1,107 @@
+{
+  "id": "det0443",
+  "type": "detection",
+  "title": "Detection Strategy for Masquerading via Breaking Process Trees",
+  "shortTitle": "Detection Strategy for Masquerading via Breaking Process ...",
+  "externalId": "DET0443",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects masquerading that works by breaking the process tree, where an adversary makes a process look as if it was started by a trusted program so that analysts and tools see a benign lineage. The usual implementation selects an existing parent process and marks it as the creator, which means the recorded parent image does not match the process that really launched the child. Detection relies on process creation telemetry that records both the process identifier and the parent process identifier, on the ability to compare those identifiers against the live process table, and on knowledge of which parent and child pairs are normal. The main difficulty is that the identifiers are reused by Windows, so a mismatch alone can be harmless, which is why the rule must weigh the parent and child pairing and the time gap rather than the identifier comparison by itself.",
+  "tags": [
+    "defense evasion",
+    "masquerading",
+    "process tree",
+    "parent process",
+    "sysmon",
+    "t1036.009"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Masquerading via Breaking Process Trees",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0443/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Masquerading via Breaking Process Trees - EASY",
+      "path": "exercises/det0443/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via Breaking Process Trees - MEDIUM",
+      "path": "exercises/det0443/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via Breaking Process Trees - HARD",
+      "path": "exercises/det0443/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Masquerading via Breaking Process Trees - EXTREMELY HARD",
+      "path": "exercises/det0443/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a process that lies about who started it. Windows records a parent for every new process. An attacker can name a trusted program as the parent. The recorded family tree then looks normal even though it is false.",
+    "whyItMatters": "Analysts judge a process by its parent. An odd parent quickly looks suspicious. A spoofed parent hides that clue. Automated tools that score process trees are fooled too. Checking the identifiers against reality restores the lost clue.",
+    "howItWorks": [
+      "A sensor records each new process with its own identifier and parent identifier.",
+      "The rule keeps both values plus the parent image name and the creation time.",
+      "It compares the recorded parent with the process that really owns that identifier.",
+      "It scores pairs that should rarely appear, such as an office program parent.",
+      "The alert shows the claimed parent, the real parent and the short time gap."
+    ],
+    "example": "Think of a sign in sheet where someone writes a manager name as the person who let him in. The name looks fine on paper. But the manager was in another building that day. You compare the sheet with the door records to find the lie.",
+    "takeaways": [
+      "The parent process is a strong clue that can be faked.",
+      "You need both the process identifier and the parent identifier.",
+      "Rare parent and child pairs are the practical signal."
+    ]
+  },
+  "objectives": [
+    "Explain the difference between a process identifier and a parent process identifier.",
+    "Read process creation telemetry and extract the parent and child details.",
+    "Describe which parent and child pairs are plausible in your environment.",
+    "Recognise identifier reuse as a cause of harmless mismatches.",
+    "Build a scored rule that ranks rare parent and child combinations.",
+    "Document the claimed parent and the observed parent for each alert."
+  ],
+  "techniqueId": "t1036-009",
+  "detectsTechniques": [
+    "t1036-009"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with process identifier, parent process identifier, parent image and creation time",
+    "Windows Security event 4688 process creation with creator process identifier and new process identifier",
+    "EDR process lineage records that include the observed creator and the start time of the parent",
+    "Windows Security event 4689 process termination used to detect identifier reuse",
+    "WMI or remote management audit records showing the true launching service for the child process"
+  ],
+  "logic": "The pattern is a process whose recorded parent image does not match the process that genuinely owned the parent identifier at the time of creation, or a parent and child pair that almost never occurs in the environment. The fields to correlate are the child image, the parent process identifier, the parent image, the creation times of both processes and the account that owns each one. A benign case is a document viewer that starts a browser through a registered protocol handler, which produces an unusual but repeatable pair, while the malicious case shows an office or browser process named as the parent of a command interpreter on a host where that pair has never appeared and where the parent was started long before or after the child.",
+  "pseudoQuery": "# title: Process Parent Identifier Does Not Match Recorded Parent Image\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith: ['\\\\cmd.exe', '\\\\powershell.exe', '\\\\rundll32.exe', '\\\\regsvr32.exe']\n#     ParentImage|endswith: ['\\\\winword.exe', '\\\\excel.exe', '\\\\outlook.exe', '\\\\explorer.exe']\n#   filter:\n#     User|endswith: '$'\n#   condition: selection and not filter\n# level: medium",
+  "falsePositives": [
+    "Office documents that open a browser or a helper application through a registered protocol handler.",
+    "Explorer starting a command interpreter because a user opened a shortcut or a script file.",
+    "Software updaters that relaunch a helper through a service host, giving a different parent.",
+    "Identifier reuse on busy systems where the original parent exited before the child started."
+  ],
+  "tuningNotes": "Build the parent and child pair baseline from at least four weeks of data and treat any pair seen fewer than a handful of times as interesting rather than as automatically clean. Add a time check so the rule ignores cases where the parent exited long before the child started, which removes most identifier reuse noise. Scope the rule to endpoints that hold sensitive data and to servers, and allow list the exact update helper pairs you have confirmed. The coverage you lose by scoping is masquerading on general office endpoints, so keep a low severity version of the rule there and review its top pairs each month.",
+  "severity": "medium"
+}

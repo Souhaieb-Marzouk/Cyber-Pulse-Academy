@@ -1,0 +1,106 @@
+{
+  "id": "det0068",
+  "type": "detection",
+  "title": "Detection Strategy for T1505.004 - Malicious IIS Components",
+  "shortTitle": "Detection Strategy for T1505.004 - Malicious IIS Components",
+  "externalId": "DET0068",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects malicious Internet Information Services components, meaning managed modules, native handlers or worker process extensions loaded by the web server so that attacker code runs inside the web server process itself. The technique matters because a component loaded this way inherits the identity and trust of the web server, survives application pool recycling, and often appears as ordinary server activity in network and file based monitoring. Detection depends on file integrity monitoring of the web server directory tree, change tracking on the server configuration files that register modules, and correlation with the worker process that loaded the new module. The usual failure is change volume: deployments legitimately place binaries and edit configuration constantly, so the rule must be anchored to deployment windows and to the identity of the process that made the change.",
+  "tags": [
+    "windows",
+    "iis",
+    "web-server",
+    "persistence",
+    "file-integrity-monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1505.004 - Malicious IIS Components",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0068/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1505.004 - Malicious IIS Components - EASY",
+      "path": "exercises/det0068/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1505.004 - Malicious IIS Components - MEDIUM",
+      "path": "exercises/det0068/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1505.004 - Malicious IIS Components - HARD",
+      "path": "exercises/det0068/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1505.004 - Malicious IIS Components - EXTREMELY HARD",
+      "path": "exercises/det0068/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for new code added to a Microsoft web server. The web server, called Internet Information Services, can load extra programs called modules. Attackers add their own module to gain a quiet foothold. The detection watches the module folders and the server settings that register them.",
+    "whyItMatters": "Code running inside the web server is trusted by everything around it. It can read configuration, reach internal services and hide among normal traffic. It also restarts with the site, so it lasts. Ordinary file or network monitoring may never look twice at it.",
+    "howItWorks": [
+      "A file monitoring tool takes a fingerprint of every file in the web server folders.",
+      "It reports any new or changed binary, especially in the module and script folders.",
+      "It also watches the server configuration files that list the loaded modules.",
+      "The host records which process wrote each file and when.",
+      "A SIEM (Security Information and Event Management system) stores these records together.",
+      "A new module or settings change outside a deployment window raises the alert."
+    ],
+    "example": "Think of a school adding a new member of staff to the gate list. A real hire goes through the office and signs the register. A name added to the list at night is different. No paperwork exists, and nobody knows that person. That is the entry you investigate.",
+    "takeaways": [
+      "A module loaded by the web server runs with the trust of the web server itself.",
+      "Watch both the binary folders and the settings that register the module.",
+      "Deployment windows and the writing process are what separate changes from incidents."
+    ]
+  },
+  "objectives": [
+    "Explain how the web server loads modules and why that gives an attacker durable execution.",
+    "Identify the directory and configuration locations that must be under integrity monitoring.",
+    "Correlate a new binary with the process that wrote it and the worker process that loads it.",
+    "Use deployment windows and build identifiers to separate releases from hostile changes.",
+    "Prioritise findings on internet facing servers over internal development instances."
+  ],
+  "techniqueId": "t1505-004",
+  "detectsTechniques": [
+    "t1505-004"
+  ],
+  "dataSources": [
+    "File integrity monitoring on the web server binary and module directories, reporting new files, hashes and the modifying account",
+    "File integrity monitoring on the web server configuration files that register modules and handlers, including the changed element",
+    "Windows Security event 4688 process creation with command line auditing enabled, used to identify the process that staged the file",
+    "Windows Security event 4663 object access auditing for write operations against the web server directories",
+    "Web server request logs correlating the first request served after the new module or configuration change"
+  ],
+  "logic": "The detection combines a change signal, a provenance signal and a loading signal for the same server. The change signal is a file integrity event for a new or modified binary in the web server module or script directory, or a modification to the configuration that declares modules and handlers. The provenance signal is the process and account responsible for the write. The loading signal is a worker process that restarts or serves requests after the change. Fields that must line up are the host, the changed path or configuration element, the writing process identity and the deployment context. A benign case is a release pipeline that copies signed assemblies and edits configuration from a build agent account during a scheduled window, with many similar files in one operation. The malicious case is a single unsigned binary dropped into the module directory by a shell, a script interpreter or a web server process itself, outside any release, frequently accompanied by a small configuration edit that registers it, followed by unusual outbound connections from the worker process.",
+  "pseudoQuery": "# title: New Module Written to Web Server Directory\n# logsource:\n#   product: windows\n#   category: file_event\n# detection:\n#   selection:\n#     TargetFilename|endswith: '.dll'\n#     TargetFilename|contains:\n#       - '\\\\inetpub\\\\'\n#       - '\\\\Microsoft.NET\\\\Framework64\\\\'\n#   filter_build:\n#     Image|endswith:\n#       - '\\\\msbuild.exe'\n#       - '\\\\deployagent.exe'\n#   selection_shell:\n#     Image|endswith:\n#       - '\\\\w3wp.exe'\n#       - '\\\\powershell.exe'\n#   condition: selection and selection_shell and not filter_build\n# level: high",
+  "falsePositives": [
+    "Release pipelines that deploy new managed assemblies and update the module registration during a scheduled application release",
+    "Vendor support engineers who install a diagnostic module or plugin into the web server directory while troubleshooting a support case",
+    "Third party security or monitoring products that add their own request filtering module to the web server on installation",
+    "Administrators who copy a hotfix binary into the framework directory to resolve a known application error"
+  ],
+  "tuningNotes": "Restrict the rule to internet facing web servers and to the module and script directories rather than the whole inetpub tree, and require evidence that the writing process is not an approved build agent acting inside a release window. Baseline the existing module list and configuration hashes so that any addition is compared against a known set, then alert on new entries and on binaries with an invalid signature. The coverage you lose is a malicious module that reuses an approved file name or overwrites an existing assembly, so pair this with periodic hash comparison of the module directory against a known good copy and with alerting on worker process connections to internal services it never normally reaches.",
+  "severity": "high"
+}

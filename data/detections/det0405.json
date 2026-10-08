@@ -1,0 +1,106 @@
+{
+  "id": "det0405",
+  "type": "detection",
+  "title": "Detection Strategy for LNK Icon Smuggling",
+  "shortTitle": "Detection Strategy for LNK Icon Smuggling",
+  "externalId": "DET0405",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers icon smuggling inside Windows shortcut files, matching the sub technique where hidden payload data is stored in the icon location field of a shortcut. The file still shows a normal looking icon, and analysis tools see a routine shortcut. It matters because users open shortcuts without hesitation, and the smuggled bytes are recovered later by a loader on the same host, so the payload never appears as its own file until execution begins. The telemetry that exposes it is file events for shortcut files with an unusual icon location, process creation for the programs that extract icon resources, and module load events for a library written to a user writable directory shortly before. It fails in practice because icon location is a free text field that legitimate installers fill in creative ways.",
+  "tags": [
+    "windows",
+    "defense evasion",
+    "mitre t1027.012",
+    "shortcut files",
+    "endpoint detection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for LNK Icon Smuggling",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0405/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for LNK Icon Smuggling - EASY",
+      "path": "exercises/det0405/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for LNK Icon Smuggling - MEDIUM",
+      "path": "exercises/det0405/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for LNK Icon Smuggling - HARD",
+      "path": "exercises/det0405/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for LNK Icon Smuggling - EXTREMELY HARD",
+      "path": "exercises/det0405/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for Windows shortcut files that hide extra data inside the part that stores their icon picture. A shortcut is the small arrow file that opens a program. The alert means a shortcut carries more than a normal icon, which is a common way to hide a payload.",
+    "whyItMatters": "People trust shortcuts. They click them all day without a second thought. An attacker who hides data inside one avoids the usual warning signs of an unknown file type. The hidden bytes are pulled out and run later by another program. Nothing looks unusual until the very last step, so watch the shortcut and the extraction together.",
+    "howItWorks": [
+      "An endpoint agent records file creation and writes, including the shortcut file and the strings inside it.",
+      "Those events are sent to the security monitoring platform with the account, the host and the file path.",
+      "The rule checks the icon location field of new shortcuts for unusual length, unusual characters or a remote path.",
+      "It then looks for a process that reads or extracts icon resources from that shortcut.",
+      "If a library is written to a user writable folder and loaded soon after, the score rises.",
+      "The alert lists the shortcut, the extracting process and the written file so an analyst can confirm the chain."
+    ],
+    "example": "Think of a labelled jam jar in a cupboard. The label looks normal, so nobody picks it up. Someone has hidden a key under the label itself. You only find it if you peel the label or notice that it is thicker than the others. This detection measures the label.",
+    "takeaways": [
+      "Shortcut files are trusted, which makes them a good hiding place.",
+      "The icon location field is free text and can hold far more than a picture path.",
+      "Look for the shortcut and the extraction step together, not either one alone."
+    ]
+  },
+  "objectives": [
+    "Explain how data can be hidden in the icon location field of a Windows shortcut.",
+    "Identify the telemetry sources that record shortcut creation and the extraction of icon resources.",
+    "Recognise anomalous icon location strings by length, path type and character set.",
+    "Correlate a suspicious shortcut with the process that recovers and runs its hidden content.",
+    "Describe why file type alone is not a reliable indicator for this technique."
+  ],
+  "techniqueId": "t1027-012",
+  "detectsTechniques": [
+    "t1027-012"
+  ],
+  "dataSources": [
+    "File creation and modification events for shortcut files recording the full icon location string and the writing process",
+    "Sysmon event 11 file create events for shortcut and icon files written to user profile download and temporary directories",
+    "Windows Security event 4688 process creation with command line auditing enabled for utilities that extract icon resources from a shortcut",
+    "Sysmon event 7 image load events for a dynamic link library loaded from a user writable directory shortly after a shortcut write",
+    "Windows Security process creation events showing a script host or command interpreter started from an archive or download folder with no user interaction"
+  ],
+  "logic": "The pattern is a shortcut file written to a user writable location whose icon location field is far longer than a normal path, contains a network path or unusual encoded characters, or points at a file that the shortcut does not display, combined with a process that reads icon resources from that shortcut and a library or script written to a user writable directory within the same short window. The fields that must be correlated are the shortcut path and its icon location string, the writing process and account, the extracting process and its parent, the path and signature of any file created next, and the elapsed time between the write and the load. The benign case is an installer or a document management tool that sets an icon path during normal packaging, where the icon field points to a local signed resource and no payload file follows; the malicious case is a very long or remote icon field plus an extraction step by a command line utility plus a module that did not exist before.",
+  "pseudoQuery": "# title: Shortcut File with Oversized or Remote Icon Location\n# logsource:\n#   product: windows\n#   service: file_event\n# detection:\n#   selection:\n#     file_extension: 'lnk'\n#     icon_location|contains: '\\\\\\\\'\n#   filter_installers:\n#     process_path|endswith:\n#       - '\\msiexec.exe'\n#       - '\\setup.exe'\n#   condition: selection and not filter_installers\n# level: medium",
+  "falsePositives": [
+    "Software packagers that set an icon location to a network share for internal applications",
+    "Document management systems that generate shortcuts with long icon paths on a mapped drive",
+    "Users who copy shortcuts from a file server and leave the remote icon reference in place",
+    "Deployment scripts that rewrite shortcuts to point at a newer published application version"
+  ],
+  "tuningNotes": "Measure the icon location field length and character set for shortcuts across your estate for three weeks, then set a threshold above the ninety ninth percentile instead of the raw maximum, because one line of business application often sets the record. Allow list writes whose parent process is a signed installer or your packaging tool, and filter shortcuts whose icon points at a local signed resource. Scope the rule to workstations in user facing groups and keep build and packaging servers out until you have their baseline. The coverage you lose is smuggling hidden inside a normal length icon field, so also alert when a shortcut is created and a new executable or script appears in the same folder within minutes.",
+  "severity": "medium"
+}

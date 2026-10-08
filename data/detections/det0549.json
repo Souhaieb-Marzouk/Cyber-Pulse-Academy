@@ -1,0 +1,108 @@
+{
+  "id": "det0549",
+  "type": "detection",
+  "title": "Detect Suspicious Access to Private Key Files and Export Attempts Across Platforms",
+  "shortTitle": "Detect Suspicious Access to Private Key Files and Export ...",
+  "externalId": "DET0549",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers Unsecured Credentials: Private Keys, the practice of hunting for private key material on disk or in cloud key stores so it can be stolen and reused to sign, decrypt or impersonate a trusted identity. It matters because a single stolen private key can bypass multi factor authentication entirely, since the key itself is the proof of identity. The telemetry that makes it possible is file access auditing on key directories, command line capture where tools read or export key material, cloud key management audit trails, and subsequent authentication events that use the recovered key. In practice this strategy fails for three reasons: most hosts do not enable object access auditing at all, legitimate administrators and backup agents read key files constantly and drown the signal, and an attacker who already has root or administrator rights can often read a key without leaving any useful event.",
+  "tags": [
+    "credential-access",
+    "private-keys",
+    "file-access-auditing",
+    "key-management",
+    "defense-evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Suspicious Access to Private Key Files and Export Attempts Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0549/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Suspicious Access to Private Key Files and Export Attempts Across Platforms - EASY",
+      "path": "exercises/det0549/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Suspicious Access to Private Key Files and Export Attempts Across Platforms - MEDIUM",
+      "path": "exercises/det0549/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Suspicious Access to Private Key Files and Export Attempts Across Platforms - HARD",
+      "path": "exercises/det0549/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Suspicious Access to Private Key Files and Export Attempts Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0549/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Private keys are secret files that prove who you are, like a written signature that nobody can copy. This detection looks for people or programs opening those secret files when they should not. It also watches for anyone trying to copy a key out of a cloud key store.",
+    "whyItMatters": "If an attacker steals a private key, they can log in as that identity without ever knowing the password. This is why a stolen key is more dangerous than a stolen password. Multi factor authentication may not stop them, because the key is accepted as proof on its own. Finding the theft early can stop the attacker from using it at all.",
+    "howItWorks": [
+      "Your systems record a small event every time a process opens a file, including the file path and the process name.",
+      "A SIEM, which is a central system that collects and searches log events, gathers these events from many hosts.",
+      "The rule keeps only events that touch a private key path, such as a hidden key folder or a certificate store file.",
+      "It then removes events from known good processes, like the backup agent or the local certificate service.",
+      "What remains is scored. A web server process reading a key file at midnight is far more interesting than an installer doing it at noon.",
+      "If the same process also opens a network connection or writes a copy of the file, the alert is raised with high confidence."
+    ],
+    "example": "Think of a hotel key cabinet at the front desk. Staff open it all day, so the cabinet being touched proves nothing. What you really want to know is when someone who is not on shift opens it, or when a key leaves the building. This detection is the log sheet on the cabinet door, plus a check on who is allowed to be in the room.",
+    "takeaways": [
+      "A private key is proof of identity, so stealing one can skip the password step completely.",
+      "The alert only becomes useful when you also know which process opened the key and where it went next.",
+      "Most sites miss this activity because object access auditing is switched off by default."
+    ]
+  },
+  "objectives": [
+    "Explain why private key theft bypasses multi factor authentication and why it is high impact.",
+    "Identify the telemetry sources that record file access to private key material on Windows, Linux and macOS hosts.",
+    "Correlate a key file read with the responsible process, its parent process and any later network connection.",
+    "Build a list of legitimate key reading processes so the rule can filter them out safely.",
+    "Recognise the cloud key management events that show a key being exported or used from a new location.",
+    "Describe how to tune the rule without losing coverage of interactive key theft."
+  ],
+  "techniqueId": "t1552-004",
+  "detectsTechniques": [
+    "t1552-004"
+  ],
+  "dataSources": [
+    "Windows Security event 4663 object access with the file path of the private key store or certificate file",
+    "Linux auditd file watch rules on key directories such as the certificate and ssh key folders, recording the syscall, process id and executable path",
+    "Sysmon event 11 file create, showing a copy of key material written to a new path such as a temporary folder",
+    "AWS CloudTrail key management events recording key export, key policy change and decrypt calls with the caller identity",
+    "Azure key vault audit events recording secret or key read operations with the calling application and source address"
+  ],
+  "logic": "The pattern to detect is a process that touches private key material and then behaves in a way that key owners never do. You correlate the file access event, which gives the key path and the accessing process, with process creation events for that same process id, which give the full command line and the parent image, and with network connection events from that process. The malicious case usually involves an unusual reader: a scripting host, a database process, a temporary binary in a user writable directory, or an archive tool, often followed by an outbound connection or a copy of the file. The benign case is a stable set of known processes, such as the certificate service, the backup agent or the web server, reading the same paths on a regular schedule, so baselining the reader set is what separates the two.",
+  "pseudoQuery": "# title: Private Key File Access by Unexpected Process\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 4663\n#     ObjectName|contains:\n#       - '\\\\Microsoft\\\\Crypto\\\\Keys'\n#       - '.pfx'\n#       - '.pem'\n#   filter:\n#     ProcessImage|endswith:\n#       - '\\\\svchost.exe'\n#       - '\\\\backupagent.exe'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Certificate lifecycle automation that renews and reads the same key file on a fixed schedule from a management server",
+    "Backup agents that read the whole key directory during a nightly full backup, producing thousands of file access events",
+    "Developers running local web servers or signing tools that load a development key from their own profile folder",
+    "Configuration management agents that re-read key material whenever a playbook changes",
+    "Antivirus or endpoint agents scanning key files as part of a routine file reputation check"
+  ],
+  "tuningNotes": "Start by baselining which processes read each key path over two weeks, then turn that list into a filter on process image, signer and parent, rather than filtering whole directories. Scope the rule to servers that hold production keys and to key store paths that matter, because including developer laptops will bury the signal under build tooling reads. Add a confidence threshold so the alert fires on a key read that is followed by a copy or an outbound connection, not on a read alone. The coverage you lose by narrowing is opportunistic theft on workstations and reads by a renamed version of an already trusted binary, so keep a lower severity copy of the rule on host categories where you cannot maintain a reader baseline.",
+  "severity": "high"
+}

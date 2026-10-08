@@ -1,0 +1,106 @@
+{
+  "id": "det0020",
+  "type": "detection",
+  "title": "Detect Shell Configuration Modification for Persistence via Event-Triggered Execution",
+  "shortTitle": "Detect Shell Configuration Modification for Persistence v...",
+  "externalId": "DET0020",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence through shell configuration modification, mapped to ATT&CK technique T1546.004 Event Triggered Execution: Unix Shell Configuration Modification. The attacker appends a command to a file such as a user shell profile or system wide profile script so that the command runs again every time a shell starts, which survives reboots and usually does not need a new service or scheduled task. Detection rests on file integrity monitoring or audit rules that watch shell profile paths for writes, combined with process creation telemetry showing a non interactive writer such as a web server account, a database process or a remote session appending text to those files, and a shell process subsequently launched with an unusual parent. The correlation that matters is who wrote the file, with what process, and what started a shell afterwards. The strategy most often fails because legitimate configuration management and user login scripts rewrite the same files, so the rule needs to allow known management tooling and focus on writer identity rather than file paths alone.",
+  "tags": [
+    "mitre t1546.004",
+    "shell profile",
+    "persistence",
+    "linux",
+    "file integrity monitoring",
+    "auditd"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Shell Configuration Modification for Persistence via Event-Triggered Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0020/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Shell Configuration Modification for Persistence via Event-Triggered Execution - EASY",
+      "path": "exercises/det0020/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Shell Configuration Modification for Persistence via Event-Triggered Execution - MEDIUM",
+      "path": "exercises/det0020/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Shell Configuration Modification for Persistence via Event-Triggered Execution - HARD",
+      "path": "exercises/det0020/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Shell Configuration Modification for Persistence via Event-Triggered Execution - EXTREMELY HARD",
+      "path": "exercises/det0020/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A shell is the text window where you type commands. It reads setup files each time it starts, to learn your shortcuts and settings. This detection watches those setup files for changes. It catches an intruder adding a command that runs again every time you open a shell.",
+    "whyItMatters": "This trick is small but lasts a long time. It needs no new service and no scheduled job, so it slips past checks that only look for those. The added command runs as the user who opens the shell, often a powerful account. It also spreads quietly to any session on the same host. Cleaning up requires knowing exactly which line was added.",
+    "howItWorks": [
+      "The sensor watches a short list of shell setup files. These include the per user profile files and the system wide scripts.",
+      "It writes an event whenever one of those files is modified, including which process made the change.",
+      "The rule checks whether the writing process is a shell, an editor or an approved management tool. Anything else is flagged.",
+      "It also reads the new content where the platform provides it, looking for download and execute patterns or hidden commands.",
+      "Process events are joined in, so the rule can see a shell starting soon after with an unusual parent process.",
+      "The combined facts go into one alert that names the file, the writer, the account and the added text."
+    ],
+    "example": "Think of a shop where the opening checklist hangs by the door. Someone adds one extra line to the checklist. Every morning the staff then unlock a back door as part of their routine. Nobody notices, because the checklist still looks like a checklist. Shell profile detection is the camera on that clipboard.",
+    "takeaways": [
+      "Persistence in a profile file runs again at every login, so removal is not enough without finding the writer.",
+      "The writer process and account are more useful than the file path.",
+      "Change management tooling edits these files too, so allow it by identity."
+    ]
+  },
+  "objectives": [
+    "Explain how shell startup files turn a one time command into lasting persistence",
+    "Identify the profile and login script paths worth monitoring on Linux and macOS hosts",
+    "Use writer process and account data to separate attacker changes from administration",
+    "Recognise suspicious content patterns inside profile file changes",
+    "Correlate a profile change with the shell session that follows it"
+  ],
+  "techniqueId": "t1546-004",
+  "detectsTechniques": [
+    "t1546-004"
+  ],
+  "dataSources": [
+    "Linux auditd file watches on shell profile paths recording write and attribute change events",
+    "Linux auditd execve records showing which process opened a profile file for writing",
+    "File integrity monitoring events with hash and content diff for user home directories",
+    "macOS unified log entries for shell startup file modification by non interactive processes"
+  ],
+  "logic": "The detection looks for a write to a shell startup file by a process that should not be writing there. The fields that must be correlated are the file path, the writing process image and its parent, the effective user, and the timestamp of any shell process that starts shortly afterwards. Legitimate activity has a clear shape: an interactive shell written by the user themselves or by an editor, a provisioning tool running from a package managed path under a known automation account, or a login script executed at session start. The malicious shape is a write from a service account such as a web server or database process, from a remote session tool, or from an interpreter whose parent is an unusual binary, usually appending a download and execute line or a command referencing a temporary directory. A change that arrives outside the change window, without a matching configuration management run, is the strongest single indicator.",
+  "pseudoQuery": "# title: Shell Profile Modified by Non Shell Process\n# logsource:\n#   product: linux\n# detection:\n#   selection_file:\n#     type: PATH\n#     name|endswith:\n#       - '/.bashrc'\n#       - '/.bash_profile'\n#       - '/.profile'\n#   selection_write:\n#     nametype: CREATE\n#     perm|contains: 'w'\n#   filter_admin:\n#     exe|startswith:\n#       - '/usr/bin/vi'\n#       - '/usr/bin/ansible'\n#       - '/usr/bin/ssh'\n#   condition: selection_file and selection_write and not filter_admin\n# level: high",
+  "falsePositives": [
+    "Configuration management runs that deploy a managed block of environment variables into user profile files",
+    "Software installers that add a path entry to the system wide profile script during package installation",
+    "Users customising their own prompt or aliases from an interactive editor session",
+    "Terminal multiplexer or version manager tools that add their initialisation line to a profile file on first run"
+  ],
+  "tuningNotes": "Allow list the specific automation accounts and configuration management binaries that legitimately touch profile files on each host group, and require any other writer to be a member of the local administrators group before you suppress it. Restrict the system wide profile script to a change controlled path and alert on any edit outside a change window. If the platform cannot report file content, keep the rule but treat it as a lead generator rather than an alert. Narrowing to system wide scripts reduces noise a lot, but you then lose visibility of user level persistence, which is the more common variant.",
+  "severity": "high"
+}

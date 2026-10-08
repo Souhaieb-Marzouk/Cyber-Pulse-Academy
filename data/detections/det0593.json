@@ -1,0 +1,108 @@
+{
+  "id": "det0593",
+  "type": "detection",
+  "title": "Detecting OS Credential Dumping via /proc Filesystem Access on Linux",
+  "shortTitle": "Detecting OS Credential Dumping via /proc Filesystem Acce...",
+  "externalId": "DET0593",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects operating system credential dumping on Linux through abnormal access to the process information pseudo filesystem, tracked as ATT&CK sub technique T1003.007. Linux exposes running process memory and kernel state through paths under the proc filesystem, and the memory of authentication daemons and single sign on services is a well known place to look for cached secrets. Detection relies on kernel level audit records for opens and reads of sensitive proc paths, process and command line telemetry that shows which binary initiated the access, and optional integrity monitoring on privilege and authentication binaries. The distinguishing feature is almost always the process context: legitimate system utilities and monitoring agents read small parts of proc, while dumping behaviour reads large memory backed ranges or the kernel memory device. The strategy fails most often because audit rules are not deployed, because the audit volume is too high to keep, or because a signed administration tool performs the same read.",
+  "tags": [
+    "t1003.007",
+    "credential dumping",
+    "linux",
+    "auditd",
+    "proc filesystem",
+    "privilege escalation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting OS Credential Dumping via /proc Filesystem Access on Linux",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0593/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting OS Credential Dumping via /proc Filesystem Access on Linux - EASY",
+      "path": "exercises/det0593/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting OS Credential Dumping via /proc Filesystem Access on Linux - MEDIUM",
+      "path": "exercises/det0593/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting OS Credential Dumping via /proc Filesystem Access on Linux - HARD",
+      "path": "exercises/det0593/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting OS Credential Dumping via /proc Filesystem Access on Linux - EXTREMELY HARD",
+      "path": "exercises/det0593/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "On Linux, a special folder called proc shows what every running program is doing. It also exposes the memory of those programs. Some parts of proc hold secrets, such as cached login details. This detection looks for software that reads those sensitive parts instead of the harmless ones.",
+    "whyItMatters": "An attacker who steals cached login details can move to other systems as a trusted account. They do not need to break in twice. The theft can happen in a second and leave almost no trace on screen. Without kernel level logging, you would only see the result. Strange logins would appear from a server that should not log in anywhere. This detection catches the theft step, which is far earlier and much more useful.",
+    "howItWorks": [
+      "The Linux audit service watches specific sensitive paths and records every attempt to open or read them.",
+      "Each audit record names the program, the user, the target path and the result of the action.",
+      "The rule keeps records for paths that expose process or kernel memory.",
+      "It checks whether the program that touched those paths is a known system tool or monitoring agent.",
+      "It also looks for the same program reading several processes in a very short time.",
+      "Records that fail these checks are grouped per host and raised as a single alert for review."
+    ],
+    "example": "Imagine a night watchman with a master key ring. Most doors are fine to open: the canteen, the corridors, the store room. One small room holds the staff lockers with spare keys. A good watchman might glance inside during a round. Someone who empties every locker into a bag at two in the morning is doing something else entirely. The audit log is the key ring record. It shows which door was opened, by whom and when. This detection watches for the locker room, not the canteen.",
+    "takeaways": [
+      "Attackers prefer to steal credentials already in memory instead of guessing them.",
+      "You need kernel level audit records, because the read itself changes nothing on disk.",
+      "Judge the program context. Reading sensitive proc paths from an unknown binary is the real signal."
+    ]
+  },
+  "objectives": [
+    "Explain why process memory on Linux is a target for credential theft",
+    "Identify which proc filesystem paths are sensitive and should be audited",
+    "Read Linux audit records and extract the acting program, user and target path",
+    "Distinguish legitimate system and monitoring reads from dumping behaviour",
+    "Correlate a single sensitive read with repeated reads across many processes",
+    "Write audit rules that capture the behaviour without generating unmanageable volume"
+  ],
+  "techniqueId": "t1003-007",
+  "detectsTechniques": [
+    "t1003-007"
+  ],
+  "dataSources": [
+    "Linux auditd records for open and openat system calls against paths under the proc process information filesystem",
+    "Linux auditd process execution records including the executable path, uid, parent process and command line arguments",
+    "Endpoint detection agent process monitoring with command line capture for the same host",
+    "File integrity monitoring alerts for changes to authentication, privilege and single sign on related binaries",
+    "Configuration management inventory used as a baseline of approved system and monitoring agents per host group"
+  ],
+  "logic": "The pattern is a read of memory backed proc filesystem paths by a process that has no business doing so. The audit record supplies the system call, the target path, the acting process identifier, the effective user and the outcome, while process execution records supply the executable path and parent chain. Correlating the two on host and process identifier tells you which binary performed the read rather than which user was logged in. Sensitive paths include per process memory files, the kernel memory device and the environment files of other processes, all of which are read by few legitimate programs. The benign case is a known agent such as a system monitor or security collector reading one process with a documented owner and a stable command line. The malicious case is an unsigned or recently written binary, often with a suspicious parent such as a web server or a script interpreter, reading many processes in sequence or targeting the parent process identifier of an authentication daemon.",
+  "pseudoQuery": "# title: Sensitive Proc Filesystem Memory Read By Unexpected Process\n# logsource:\n#   product: linux\n#   service: auditd\n# detection:\n#   selection:\n#     type: SYSCALL\n#     syscall|contains:\n#       - 'openat'\n#       - 'open'\n#     name|startswith:\n#       - '/proc/'\n#     name|contains:\n#       - '/mem'\n#       - '/environ'\n#   filter_agents:\n#     exe|endswith:\n#       - '/usr/bin/ps'\n#       - '/usr/bin/top'\n#       - '/opt/monitoring/agent'\n#   condition: selection and not filter_agents\n# level: critical",
+  "falsePositives": [
+    "Performance and system monitoring agents that read process status and memory statistics under the proc filesystem as designed",
+    "Container runtimes and cluster agents inspecting process metadata for the workloads they manage",
+    "Backup or checkpoint tooling that captures process state before a planned application restart",
+    "Troubleshooting sessions in which a system administrator deliberately inspects process memory with a documented change ticket"
+  ],
+  "tuningNotes": "Audit rules on the proc filesystem generate heavy volume, so restrict the watch list to the memory and environment style paths rather than the whole tree, and exclude the read only status files that every monitoring tool touches. Build the allow list from an inventory of approved agents per host group and key it on the executable path plus its cryptographic hash, because an attacker can copy a tool name. Baseline which processes normally appear on application servers and domain controllers before enabling the rule in alert mode. Excluding known agents does cost you visibility into an attacker who abuses one of those binaries, so pair this rule with a check for that agent appearing on a host where it is not installed.",
+  "severity": "critical"
+}

@@ -1,0 +1,108 @@
+{
+  "id": "det0310",
+  "type": "detection",
+  "title": "Suspicious Addition to Local or Domain Groups",
+  "shortTitle": "Suspicious Addition to Local or Domain Groups",
+  "externalId": "DET0310",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the addition of accounts to privileged local or domain groups, the behaviour described as account manipulation under the account manipulation technique area. Attackers use group membership rather than direct password theft because a single group object grants standing access to many systems, survives password resets, and is easy to overlook during incident review. The telemetry that makes it possible is account management auditing on domain controllers and endpoints, where each membership change records the actor, the target account and the group. The common failure mode is noise: bulk membership changes made by provisioning tools, help desk scripts and synchronisation jobs look identical to abuse unless the rule correlates actor, group and change volume.",
+  "tags": [
+    "account manipulation",
+    "group membership",
+    "privilege escalation",
+    "windows security",
+    "persistence",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Suspicious Addition to Local or Domain Groups",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0310/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Suspicious Addition to Local or Domain Groups - EASY",
+      "path": "exercises/det0310/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Suspicious Addition to Local or Domain Groups - MEDIUM",
+      "path": "exercises/det0310/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Suspicious Addition to Local or Domain Groups - HARD",
+      "path": "exercises/det0310/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Suspicious Addition to Local or Domain Groups - EXTREMELY HARD",
+      "path": "exercises/det0310/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for accounts being added to powerful groups, such as local administrators or domain administrators. A group is simply a list of accounts that share the same permissions. Adding a user to a powerful group gives that user the permissions of the whole group.",
+    "whyItMatters": "Attackers rarely need to break a password when they can simply add their own account to a powerful group. One change can give them control of many computers at once. That change often looks like normal administration, so nobody notices it. This detection gives you an early warning before the new access is used.",
+    "howItWorks": [
+      "Windows records a security event whenever a group member is added or removed, if account management auditing is switched on.",
+      "The event names the account that made the change, the account that was added, and the group that was changed.",
+      "A collection tool sends these events to your central logging platform, called a security information and event management system.",
+      "The rule looks only at changes to sensitive groups, such as administrators, backup operators or remote desktop users.",
+      "It then checks how often the actor makes these changes. It also checks whether the actor is a person or a known tool.",
+      "If the pattern is unusual, the platform raises an alert for an analyst to review."
+    ],
+    "example": "Think of a hospital ward where only senior nurses carry the key to the medicine cupboard. The sign-in sheet records who collected that key and when. A new name appears on the sheet at three in the morning. Nobody requested a shift change, so that entry is worth a phone call. The group membership event is that sign-in sheet, and a quiet addition to administrators is that unexpected name.",
+    "takeaways": [
+      "A group membership change can grant more access than stealing one password.",
+      "You need account management auditing switched on, or these events never reach you.",
+      "The alert is most useful when it names both the actor and the group."
+    ]
+  },
+  "objectives": [
+    "Explain why group membership changes are a preferred attacker action for gaining access",
+    "Identify which Windows security events record additions to local and domain groups",
+    "List the privileged groups in your environment that warrant alerting",
+    "Correlate the actor account, the target account and the group in a single detection",
+    "Tune membership change alerting against known provisioning and synchronisation tools",
+    "Describe how to validate the detection by reviewing recent administrative group changes"
+  ],
+  "techniqueId": "t1098-007",
+  "detectsTechniques": [
+    "t1098-007"
+  ],
+  "dataSources": [
+    "Windows Security event 4728 for a member added to a security-enabled global group on domain controllers",
+    "Windows Security event 4732 for a member added to a security-enabled local group on member servers and workstations",
+    "Windows Security event 4720 for user account creation correlated with a later group addition by the same actor",
+    "Directory service change logs from the identity platform recording the actor, target and group object identifiers"
+  ],
+  "logic": "The detection watches for account management events that add a member to a privileged group and then enriches each event with the actor, the target account and the group name. The malicious case is distinguished from administration by three correlations: the actor is not a known provisioning or synchronisation identity, the target account was created recently or has no prior sign-in history, and the change happens outside the normal administrative window or in a burst across several groups. Group name alone is a weak signal because local administrator additions happen constantly through software deployment, so the rule pairs the group with the actor reputation and the timing of the change before it fires.",
+  "pseudoQuery": "# title: Member Added to Privileged Local or Domain Group\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID:\n#       - 4728\n#       - 4732\n#     GroupName|contains:\n#       - Administrators\n#       - Domain Admins\n#       - Backup Operators\n#       - Remote Desktop Users\n#   filter_known_actors:\n#     SubjectUserName|endswith:\n#       - $\n#   condition: selection and not filter_known_actors\n# level: medium",
+  "falsePositives": [
+    "Software deployment tooling that adds a service account to the local administrators group during installation on a new build",
+    "Help desk staff adding a user to the remote desktop users group to resolve a support ticket outside change hours",
+    "Directory synchronisation jobs that re-add expected members after a bulk cleanup of stale group membership",
+    "Onboarding automation that creates an account and grants group membership in one scripted sequence",
+    "Emergency break-glass administration performed by a named engineer during a declared incident"
+  ],
+  "tuningNotes": "Start by baselining which actors perform group membership changes over a thirty day window and how many they perform per day, then allowlist machine accounts and your known provisioning identity while keeping every human actor in scope. Scope the rule to a tier zero group list and to domain controllers first, because those groups carry the most impact, and keep local administrator additions at a lower severity. Narrowing to a fixed group list costs you coverage of custom application groups that attackers also abuse, so review that list quarterly and add newly created privileged groups from the directory.",
+  "severity": "high"
+}

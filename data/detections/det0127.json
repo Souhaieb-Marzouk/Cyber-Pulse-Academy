@@ -1,0 +1,106 @@
+{
+  "id": "det0127",
+  "type": "detection",
+  "title": "Behavioral Detection of Masquerading Across Platforms via Metadata and Execution Discrepancy",
+  "shortTitle": "Behavioral Detection of Masquerading Across Platforms via...",
+  "externalId": "DET0127",
+  "theme": "Detection Strategy",
+  "summary": "Masquerading (T1036) covers adversaries naming, renaming, or relocating files and processes so they look like trusted software. This detection strategy does not hunt for one specific tool; it hunts for disagreement between what an artifact claims to be and what the operating system and the network observed it doing. Useful telemetry includes process creation with full image paths and command lines, file creation events carrying the original file name and digital signature status, loaded module records, and network connections attributed to the process. Correlation is the hard part, because a signed binary running from a temporary directory is weak evidence on its own, while an unsigned binary named after a system utility and started by a document reader is strong. The strategy fails most often because signature and version metadata are not collected at scale, because administrators rename utilities for legitimate reasons, and because very short lived processes are missed when process auditing is off.",
+  "tags": [
+    "masquerading",
+    "t1036",
+    "process creation",
+    "file metadata",
+    "digital signature",
+    "defense evasion"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Masquerading Across Platforms via Metadata and Execution Discrepancy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0127/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Masquerading Across Platforms via Metadata and Execution Discrepancy - EASY",
+      "path": "exercises/det0127/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Masquerading Across Platforms via Metadata and Execution Discrepancy - MEDIUM",
+      "path": "exercises/det0127/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Masquerading Across Platforms via Metadata and Execution Discrepancy - HARD",
+      "path": "exercises/det0127/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Masquerading Across Platforms via Metadata and Execution Discrepancy - EXTREMELY HARD",
+      "path": "exercises/det0127/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Masquerading means an attacker gives a file or a program a trusted name. The file may be called svchost.exe, or it may sit in a system folder. This detection compares what a file claims to be with what it really does. It catches programs that hide behind a familiar name.",
+    "whyItMatters": "When a program wears a trusted name, people stop looking at it. Analysts and tools may skip it because it looks like part of the system. That gives an attacker more time to work inside your network. A name is easy to fake, so you need other evidence. This detection helps you trust behaviour instead of names.",
+    "howItWorks": [
+      "Your endpoint agent records every new process with its full path and its command line.",
+      "The same record shows the parent process, which is the program that started it.",
+      "A file event adds details such as the original file name and the digital signature.",
+      "A digital signature is a cryptographic mark that shows who published the file.",
+      "The rule compares these facts and flags the cases where name and evidence disagree.",
+      "An analyst then checks the file hash, the signer, and the network connections before closing the alert."
+    ],
+    "example": "Think of a night watchman at an office building. He knows the cleaners by their uniforms. So he lets them pass without a second look. One night a stranger buys the same uniform online. The uniform says cleaner, but the stranger has no key card. He has no work order and no name on the staff list. A good watchman checks those other things. This detection works in the same way. It does not trust the uniform, which is the file name. It checks the key card and the staff list. Those are the file path, the signature, and the parent process.",
+    "takeaways": [
+      "A trusted file name is not proof that a program is trustworthy.",
+      "Compare the name with the path, the signer, and the parent process.",
+      "Renamed admin tools are common, so treat every alert as a question, not a verdict."
+    ]
+  },
+  "objectives": [
+    "Explain how masquerading abuses trusted file and process names to avoid review.",
+    "List the metadata fields that let you test whether a name matches an artifact.",
+    "Correlate process creation, file creation, and network telemetry into one evidence chain.",
+    "Separate benign renamed administration utilities from deliberate impersonation of system binaries.",
+    "Describe how to baseline signed software so that signature gaps stand out quickly."
+  ],
+  "techniqueId": "t1036",
+  "detectsTechniques": [
+    "t1036"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including image path, original file name, parent image, and command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 7 image loaded records showing modules loaded from unusual paths or without a valid signature",
+    "Endpoint file creation telemetry with digital signature status, publisher, and file hash"
+  ],
+  "logic": "Masquerading appears as a mismatch between an artifact's claimed identity and its observable properties. The strongest pattern combines a process image whose base name matches a known system or vendor binary with at least one contradiction: the image sits outside its expected installation directory, the file is unsigned or signed by an unexpected publisher, the original file name stored in the version resource does not match the file name on disk, or the parent process is an unusual launcher such as an office application or a script host. Any single contradiction is weak, so the rule should score combinations and require at least two before alerting. Fields that must be correlated are the process identifier, the image path, the embedded original file name, the signature publisher, and the parent image. The benign case looks similar but keeps an anchor: a managed deployment path and an approved publisher certificate. Administrators who rename utilities remain the main source of noise, which is why path and publisher baselines matter more than the name itself.",
+  "pseudoQuery": "# title: Process name does not match its file metadata\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\svchost.exe'\n#       - '\\lsass.exe'\n#       - '\\explorer.exe'\n#   filter_trusted:\n#     Image|startswith:\n#       - 'C:\\Windows\\System32\\'\n#       - 'C:\\Windows\\SysWOW64\\'\n#     Signed: 'true'\n#   condition: selection and not filter_trusted\n# level: medium",
+  "falsePositives": [
+    "Software deployment tooling that installs renamed vendor executables into a staging folder before moving them into place",
+    "Portable application launchers that keep a familiar binary name outside its normal installation directory",
+    "Administrators who rename built-in administration utilities to avoid a name conflict with a second copy on the same host",
+    "Endpoint agents that copy a correctly signed helper binary into a per-user directory before running it"
+  ],
+  "tuningNotes": "Baseline the publisher certificates and installation directories that are normal in your estate first, then scope the rule to servers and administrative workstations where masquerading has real impact. You can filter signed binaries from your approved publisher list, but only when the signature validates and the path sits inside a managed directory, and keep the original file name comparison enabled because attackers rarely correct the version resource. Narrowing this way will miss masquerading that reuses a validly signed vendor binary from a legitimate location, so cover that gap with parent process and network correlation rather than by widening the name list again.",
+  "severity": "medium"
+}

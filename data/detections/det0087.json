@@ -1,0 +1,107 @@
+{
+  "id": "det0087",
+  "type": "detection",
+  "title": "Encrypted or Encoded File Payload Detection Strategy",
+  "shortTitle": "Encrypted or Encoded File Payload Detection Strategy",
+  "externalId": "DET0087",
+  "theme": "Detection Strategy",
+  "summary": "This strategy targets payloads that are hidden inside encrypted or encoded files, where the content is unreadable until a password or decoder is applied. The technique matters because it defeats signature and string based inspection of the payload and lets an attacker stage tooling on disk without exposing a readable artifact. Detection rests on file creation telemetry that carries the new file path and size, plus process creation that shows the encoding or archiving utility and its arguments. The main practical failure is that encryption is normal business activity, so the rule must weigh the file location, the creating process and the file name against each other rather than alerting on any archive. Use this as learning material, not as an authoritative control.",
+  "tags": [
+    "defense evasion",
+    "obfuscation",
+    "file analysis",
+    "windows",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Encrypted or Encoded File Payload Detection Strategy",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0087/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Encrypted or Encoded File Payload Detection Strategy - EASY",
+      "path": "exercises/det0087/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Encrypted or Encoded File Payload Detection Strategy - MEDIUM",
+      "path": "exercises/det0087/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Encrypted or Encoded File Payload Detection Strategy - HARD",
+      "path": "exercises/det0087/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Encrypted or Encoded File Payload Detection Strategy - EXTREMELY HARD",
+      "path": "exercises/det0087/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for files that hide their contents by scrambling or coding them. The hidden content could be a program, a script or stolen data. Because the file looks like random noise, a simple text search finds nothing. The detection watches where the file appears, what created it, and how the file is named.",
+    "whyItMatters": "Antivirus tools often look for known patterns inside files. When a file is scrambled, those patterns disappear. Attackers use this to carry tools past inspection and to hold data that only they can open. If you only scan file contents, you will miss these files completely. Watching how the file was made gives you a second chance to catch it.",
+    "howItWorks": [
+      "The endpoint sensor records every new file, along with its full path, size and the process that created it.",
+      "The rule checks whether the file lands in a download, temporary or user profile folder.",
+      "It reads the file extension and the file name to see whether an archive or document format is claimed.",
+      "It then looks at the creating process to find archiving, compression or cryptography tools.",
+      "Command line arguments are inspected, because a password option or an encoded output flag is a strong signal.",
+      "A file that is both created by a scripting interpreter and named like a document or archive is the highest priority case."
+    ],
+    "example": "Imagine a postal room where every parcel is opened and checked against a list of banned items. A sender who wraps the parcel in several sealed layers slows the check and often gets through. The wrapper is not illegal, and many honest businesses use it. What matters is who sent the parcel, where it is going and whether the contents match the label. Encrypted file detection works the same way: the wrapping is a signal, and the sender plus the label give it meaning.",
+    "takeaways": [
+      "Encrypted and encoded files hide content from pattern based scanning.",
+      "A single archive file means little, so combine the location, the tool and the name.",
+      "A script interpreter that writes a file named like a document deserves a close look."
+    ]
+  },
+  "objectives": [
+    "Explain why encoded or encrypted payloads defeat content based inspection.",
+    "List the file level and process level fields that together identify a staged payload.",
+    "Write a rule that flags archive creation with password arguments in user writable paths.",
+    "Recognise the legitimate archiving and backup behaviour in your own environment.",
+    "Describe how to safely triage a suspicious encrypted file without running it."
+  ],
+  "techniqueId": "t1027-013",
+  "detectsTechniques": [
+    "t1027-013"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation including target filename, image and file size",
+    "Sysmon event 1 process creation including image, parent image and command line",
+    "Windows Security event 4688 process creation with command line auditing for archiving and cryptography utilities",
+    "Sysmon event 15 file create stream hash capturing the hash of a newly written file for later triage",
+    "Sysmon event 7 image load for archive and compression libraries loaded by an unexpected host process"
+  ],
+  "logic": "The pattern is a file whose content is deliberately unreadable being produced in a location where a payload has no business living. Two correlated shapes matter. First, a scripting interpreter or office application writes a file with an archive or document extension into a temporary, download or user profile path, and the sensor records a large file size in one write, which fits a packed payload. Second, a process runs an archiving or cryptography utility with a password argument or an encoded output flag, which fits data staging or tool packaging. The deciding fields are the creating process image and its parent, the target path, the extension, the size jump, and the command line. Benign activity comes from IT staff and scheduled backup jobs whose writing process is a known utility, whose paths are on managed shares, and whose file names follow a documented standard. Malicious activity usually shows an unusual parent, a user writable path, and a name that impersonates a document or an update package.",
+  "pseudoQuery": "# title: Encrypted or Encoded Payload Written by Script Host\n# logsource:\n#   product: windows\n# detection:\n#   sel_file:\n#     EventID: 11\n#     TargetFilename|endswith: ['.zip', '.7z', '.rar', '.iso', '.cab']\n#     TargetFilename|contains: ['\\\\Temp\\\\', '\\\\Downloads\\\\', '\\\\AppData\\\\']\n#   sel_tool:\n#     EventID: 1\n#     Image|endswith: ['\\\\powershell.exe', '\\\\cmd.exe', '\\\\wscript.exe']\n#     CommandLine|contains: ['-p ', '-password', 'Compress-Archive', '-EncodedCommand']\n#   filter:\n#     User|endswith: 'svc_backup'\n#   condition: (sel_file and sel_tool) and not filter\n# level: medium",
+  "falsePositives": [
+    "Help desk staff who package driver sets into a password protected archive for a user on a managed share",
+    "Software deployment tooling that stages signed installer archives inside a temporary folder before extraction",
+    "Developers who compress build output with a scripted command that also supports an output folder flag",
+    "Finance or legal users who protect a spreadsheet with a password before sending it by email",
+    "Backup agents that write compressed vault files to a local staging path during the nightly job"
+  ],
+  "tuningNotes": "Baseline the archiving and compression utilities that exist on each asset group, then allowlist the exact process and parent pairs plus the destination roots that those tools use, instead of excluding whole folders. Scope the strictest version of the rule to servers and to finance or engineering workstations where user driven archiving has a documented purpose. Add a filter for file sizes under a threshold you measure locally, because small encrypted config files are common, and keep the password argument check active everywhere. The trade off is losing detection of a low and slow staged payload that stays under the size threshold or hides in an allowed destination, so review weekly matches of a low severity copy without the allowlists.",
+  "severity": "medium"
+}

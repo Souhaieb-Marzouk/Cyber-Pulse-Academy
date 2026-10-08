@@ -1,0 +1,106 @@
+{
+  "id": "det0024",
+  "type": "detection",
+  "title": "Detect Kerberos Ccache File Theft or Abuse (T1558.005)",
+  "shortTitle": "Detect Kerberos Ccache File Theft or Abuse (T1558.005)",
+  "externalId": "DET0024",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects theft or abuse of Kerberos credential cache files, mapped to ATT&CK technique T1558.005 Steal or Forge Kerberos Tickets: Ccache Files. On Linux and macOS hosts a user who authenticates with Kerberos receives a cache file holding a ticket granting ticket, and any process that can read that file can act as the user until the ticket expires. Attackers therefore read or copy cache files belonging to other accounts, most often root reading a service account cache or a compromised web application touching caches in a temporary directory. Detection combines file access and read telemetry for cache paths, process creation showing tools that list or export tickets, and the authentication events that follow when a stolen ticket is used from an unusual source address. The correlation that gives confidence is a read of a cache file by a process or account that does not own it, immediately followed by a service ticket request for that identity. The strategy fails in practice because root and management automation legitimately read caches, so ownership comparison and host role are essential.",
+  "tags": [
+    "mitre t1558.005",
+    "kerberos",
+    "ccache",
+    "credential access",
+    "linux",
+    "macos"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Kerberos Ccache File Theft or Abuse (T1558.005)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0024/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Kerberos Ccache File Theft or Abuse (T1558.005) - EASY",
+      "path": "exercises/det0024/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Kerberos Ccache File Theft or Abuse (T1558.005) - MEDIUM",
+      "path": "exercises/det0024/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Kerberos Ccache File Theft or Abuse (T1558.005) - HARD",
+      "path": "exercises/det0024/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Kerberos Ccache File Theft or Abuse (T1558.005) - EXTREMELY HARD",
+      "path": "exercises/det0024/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Kerberos is a login system that gives you a ticket instead of a password prompt each time. The ticket is stored in a file on disk, called a cache file. This detection watches those files for reading or copying by the wrong account. It catches someone stealing a ticket to act as another user.",
+    "whyItMatters": "A ticket works like a temporary key to many services. If it is stolen, the thief can reach systems without knowing any password. The theft leaves a file access record instead of a login failure, so password alarms stay quiet. Tickets expire, so detecting the theft quickly is the only way to limit damage. It also helps you find which account was the real target.",
+    "howItWorks": [
+      "The sensor records file opens and reads, including which account performed the access and to which file.",
+      "The rule filters for the file paths where Kerberos keeps its credential caches on Linux and macOS.",
+      "It compares the owner of the cache file with the account doing the read, and flags mismatches.",
+      "It also watches for tools that list, copy or dump tickets, which is an unusual action for a normal session.",
+      "It then joins in authentication events to see whether a service ticket was requested for the stolen identity soon after.",
+      "The alert shows the reading process, the owner of the file and the following authentication. The analyst can judge it."
+    ],
+    "example": "Imagine a hotel cloakroom where each guest gets a numbered coat check tag. Someone photographs another guest's tag and then collects that coat. Nothing was broken and no password was guessed. Kerberos cache detection is the cloakroom log. It shows a tag being photographed by a person who does not own it.",
+    "takeaways": [
+      "The cache file is as valuable as a password while the ticket lasts.",
+      "Compare the file owner with the account doing the read, and treat a mismatch as the signal.",
+      "Pair the read with the authentication that follows, because that proves use."
+    ]
+  },
+  "objectives": [
+    "Describe what a Kerberos credential cache contains and how long it stays useful",
+    "Identify file read telemetry for cache paths on Linux and macOS hosts",
+    "Compare cache file ownership with the accessing account to detect theft",
+    "Recognise ticket listing and exporting tools as suspicious on ordinary hosts",
+    "Correlate a cache read with the following authentication to confirm misuse"
+  ],
+  "techniqueId": "t1558-005",
+  "detectsTechniques": [
+    "t1558-005"
+  ],
+  "dataSources": [
+    "Linux auditd records for open and openat syscalls on Kerberos cache paths including the requesting user",
+    "Linux auditd execve records for ticket listing and exporting utilities with their arguments",
+    "File integrity monitoring events showing copies of files with cache naming patterns in temporary directories",
+    "Kerberos key distribution centre or authentication service logs recording ticket requests with source address"
+  ],
+  "logic": "The pattern has a theft half and a use half. The theft half is a successful read or copy of a file matching a Kerberos cache naming pattern, performed by a process running as an account other than the file owner, or by a service account whose normal job never includes reading another user cache. The use half is a ticket request or service authentication for the same principal from a new source address, a new workstation name, or within a very short interval after the read. Fields that must line up are the cache file path and owner, the reading process and its effective user, and the client identity and address in the authentication record. Benign activity is a root owned administration script or a single sign on client reading the cache of the user it is serving on the same host and the same session; the malicious case crosses accounts, often reads several caches in sequence, and is followed by authentication from a host the user has never used.",
+  "pseudoQuery": "# title: Kerberos Cache Read by Non Owner Account\n# logsource:\n#   product: linux\n# detection:\n#   selection_cache:\n#     type: PATH\n#     name|contains: 'krb5cc'\n#   selection_read:\n#     syscall|startswith: 'open'\n#     success: 'yes'\n#   filter_owner:\n#     auid: 0\n#     uid: 0\n#   condition: selection_cache and selection_read and not filter_owner\n# level: high",
+  "falsePositives": [
+    "Single sign on tooling running as root that renews tickets on behalf of a logged in user during an interactive session",
+    "Backup or migration jobs that copy home directories, including credential cache files, as part of a nightly archive",
+    "Administrators troubleshooting a failed authentication by inspecting the cache contents of their own account",
+    "Application servers that hold a service cache under a shared runtime account where ownership metadata is inconsistent"
+  ],
+  "tuningNotes": "Baseline which accounts and processes read cache files on each host tier; on application servers the runtime account reading its own cache is normal and should be allow listed by process path. Keep the ownership mismatch as the primary condition and add a requirement that the read target belongs to a different user identifier than the reader. If you suppress root entirely you lose coverage of the most common real case, privilege escalation by an attacker who has become root, so instead allow list the specific renewal binaries and keep an alert for root reading more than two distinct caches in a short window.",
+  "severity": "high"
+}

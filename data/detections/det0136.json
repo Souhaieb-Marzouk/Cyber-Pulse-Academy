@@ -1,0 +1,107 @@
+{
+  "id": "det0136",
+  "type": "detection",
+  "title": "Behavior-chain detection for T1134.005 Access Token Manipulation: SID-History Injection (Windows)",
+  "shortTitle": "Behavior-chain detection for T1134.005 Access Token Manip...",
+  "externalId": "DET0136",
+  "theme": "Detection Strategy",
+  "summary": "SID history injection (T1134.005) is an access token manipulation technique in which an attacker adds a privileged security identifier to the SID history of a directory account, or injects extra identifiers into an existing token, so that the account gains rights that were never granted to it. Because it is a behaviour chain rather than a single action, this detection strategy links directory modification records on the account object, the logon that follows with those additional identifiers, and the privileged process activity that results on a specific host. The telemetry that makes it possible is directory service change auditing, account management records for SID history additions, special privilege assignment records, and process creation with command lines on the host that accepts the logon. The strategy fails because the deepest variant manipulates a token in memory and leaves no directory record at all, so the chain has to be caught from the logon and privilege side whenever the directory side stays silent.",
+  "tags": [
+    "privilege escalation",
+    "t1134.005",
+    "active directory",
+    "sid history",
+    "access token",
+    "logon monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain detection for T1134.005 Access Token Manipulation: SID-History Injection (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0136/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain detection for T1134.005 Access Token Manipulation: SID-History Injection (Windows) - EASY",
+      "path": "exercises/det0136/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.005 Access Token Manipulation: SID-History Injection (Windows) - MEDIUM",
+      "path": "exercises/det0136/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.005 Access Token Manipulation: SID-History Injection (Windows) - HARD",
+      "path": "exercises/det0136/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain detection for T1134.005 Access Token Manipulation: SID-History Injection (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0136/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A security identifier, or SID, is the unique number that Windows uses for each account. SID history is a field that lets an account keep the rights of an older account. Attackers can add a powerful SID to a weak account. This detection looks for that change and for the logon that follows it.",
+    "whyItMatters": "The change can turn a normal user into an administrator without any visible group membership. Auditors who check the group lists will see nothing wrong. The account still looks ordinary in the user interface. Only the hidden history field shows the extra rights. This detection helps you find a privilege change that most reports never show.",
+    "howItWorks": [
+      "Directory auditing records a change to an account, including its SID history field.",
+      "The rule looks for a SID history value that grants rights the account never had.",
+      "It then watches for a logon by that account from a new or unusual host.",
+      "Special privilege records show which powerful rights the new session received.",
+      "Process records on that host show what the session did after signing in.",
+      "An analyst reviews the whole chain, not a single event, before declaring an incident."
+    ],
+    "example": "Think of a library membership card. The card says visitor, and the printed member list agrees. Now imagine a clerk adds a small hidden note to the card saying this visitor may also enter the rare books room. The printer cannot show that note, so the card still looks like a visitor card. The visitor now walks into the rare books room whenever they like. SID history is that hidden note. It grants extra rights without changing what the card appears to say.",
+    "takeaways": [
+      "SID history is a hidden field, so group membership reports will not show the change.",
+      "Detect the chain: directory change, then logon, then privileged activity.",
+      "Token manipulation in memory leaves no directory record, so watch logons as well."
+    ]
+  },
+  "objectives": [
+    "Explain what a SID history field is and why adding to it grants hidden privilege.",
+    "Identify the directory service and account management records that capture SID history changes.",
+    "Correlate a directory change with the next logon by the affected account.",
+    "Interpret special privilege assignment records to confirm elevated access.",
+    "Explain why the in memory variant leaves no directory evidence and how to cover it."
+  ],
+  "techniqueId": "t1134-005",
+  "detectsTechniques": [
+    "t1134-005"
+  ],
+  "dataSources": [
+    "Windows Security event 4765 recording that SID history was added to an account, with the target account and the caller identity",
+    "Windows Security event 4672 recording special privileges assigned to a new logon",
+    "Windows Security event 4624 logon records including logon type, source address, and the account name that was modified",
+    "Sysmon event 1 process creation including parent image and command line on the host that accepted the logon",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The detection is a chain rather than a single event, and the confidence should come from how many links of the chain are present. Link one is a directory change to an account object that adds or alters SID history, especially when the caller is not an account administration service or does not normally modify account objects. Link two is a successful logon by the affected account from a new source address, a new host, or with a logon type that does not match the account's normal pattern. Link three is privileged activity in that session: special privileges assigned at logon followed by process creation of administrative utilities or credential access tooling on the same host. The fields to correlate are the target account name and its security identifier, the caller identity, the source host and address of the logon, the logon identifier, and the process identifiers created inside that session. The benign case is a planned directory migration where SID history is deliberately populated for many accounts in one change window, with a known caller and a matching change record.",
+  "pseudoQuery": "# title: SID history added to an account by an unexpected caller\n# logsource:\n#   product: windows\n# detection:\n#   selection_change:\n#     EventID: 4765\n#   filter_migration:\n#     CallerUserName: 'directory-migration-svc'\n#   condition: selection_change and not filter_migration\n# level: critical",
+  "falsePositives": [
+    "A planned directory migration in which SID history is populated for every migrated account inside one change window",
+    "Domain consolidation projects that add SID history so users keep access to resources in the retiring domain",
+    "A disaster recovery rehearsal that restores accounts together with their historical identifiers",
+    "An authorised privilege troubleshooting change signed off by the identity team, with a matching change record"
+  ],
+  "tuningNotes": "Baseline the caller accounts that are permitted to modify account objects, and allow the planned migration caller by name only for the duration of the change window, with an expiry date attached to the exception. Keep the logon and privilege half of the chain at full severity for every account regardless of caller, because that half proves whether the directory change was actually used. Scope the directory half to domain controllers and the logon half to servers and administrative workstations. Trusting the migration caller costs you coverage against an attacker who steals that account, so alert whenever it acts outside its normal hosts or hours, and add a second rule for elevated sessions by accounts that belong to no administrative group, because the in memory variant never touches the directory at all.",
+  "severity": "critical"
+}

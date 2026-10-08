@@ -1,0 +1,106 @@
+{
+  "id": "det0202",
+  "type": "detection",
+  "title": "Behavioral Detection of Windows Command Shell Execution",
+  "shortTitle": "Behavioral Detection of Windows Command Shell Execution",
+  "externalId": "DET0202",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects meaningful use of the Windows command shell rather than the mere presence of the shell binary, covering T1059.003 Windows Command Shell. The technique matters because the shell is the most common way an operator runs discovery, download, and lateral movement commands after gaining a foothold, and it is already installed on every host. The telemetry is process creation with full command lines plus the parent chain and acting account, gathered by the endpoint agent or by Windows Security process auditing. The strategy fails in practice because the shell is genuinely everywhere: login scripts, installers, and management agents spawn it constantly, so all of the value comes from weighting the parent, the arguments, and the timing rather than alerting on the binary name.",
+  "tags": [
+    "mitre t1059.003",
+    "execution",
+    "windows",
+    "command line",
+    "process creation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Windows Command Shell Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0202/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Windows Command Shell Execution - EASY",
+      "path": "exercises/det0202/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Windows Command Shell Execution - MEDIUM",
+      "path": "exercises/det0202/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Windows Command Shell Execution - HARD",
+      "path": "exercises/det0202/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Windows Command Shell Execution - EXTREMELY HARD",
+      "path": "exercises/det0202/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches how the Windows command shell is used. The shell is a text program that runs other commands for you. Attackers use it to explore a system and to start their tools. The shell itself is not bad, so the rule looks at the command text. It also looks at which program started the shell.",
+    "whyItMatters": "Almost every intrusion uses the command shell at some point. It needs no extra software and it is already installed. That also makes it hard to detect, because normal work uses it too. A rule that alerts on every shell will bury your team in noise. A rule that scores the command and the parent will find the real cases.",
+    "howItWorks": [
+      "The agent records every new process, including the shell and its arguments.",
+      "It records the parent process that started the shell and the account in use.",
+      "The detection scores the command line for risky patterns such as download or encode.",
+      "It adds weight when the parent is an office document reader or a web server process.",
+      "Low scores are counted, and a burst of unusual shells in a short time raises an alert.",
+      "Approved automation parents are filtered so that scheduled scripts stay quiet."
+    ],
+    "example": "Think of a shop till and its receipts. Every sale prints a receipt, and most receipts look the same. A manager does not read all of them. He looks for the odd ones instead. A refund with no customer, or ten refunds in a row at closing time, is worth a question. The command shell is the till, and the command line is the receipt. Watching one receipt tells you very little. Watching the pattern of receipts tells you a lot.",
+    "takeaways": [
+      "Alert on how the shell is used, not on the shell itself.",
+      "The parent process is often the strongest single signal.",
+      "Counting events over time beats rules that look at one event."
+    ]
+  },
+  "objectives": [
+    "Explain why the Windows command shell is a high value detection target.",
+    "Read process creation telemetry to reconstruct a shell command chain.",
+    "Rank command line patterns by risk instead of blocking the shell.",
+    "Use parent process context to separate automation from interactive abuse.",
+    "Set thresholds and counts that keep alert volume manageable."
+  ],
+  "techniqueId": "t1059-003",
+  "detectsTechniques": [
+    "t1059-003"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with image, parent image, and full command line",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Endpoint sensor process records including session identifier and integrity level for the shell",
+    "Script host operational logs that identify the script file which launched the shell"
+  ],
+  "logic": "The pattern is a command shell started in a context where a shell is not expected, or a shell whose command line references tools and paths that do not appear in the host baseline. The fields that must be correlated are the shell image and full command line, the parent image and its command line, the acting account, and the session identifier that shows whether a human is present. The malicious case differs from the benign one in two ways: the parent is a program that should not spawn a shell, such as a document reader, a database service, or a web server worker process, and the command line contains a combination that recurs across intrusions, such as a remote fetch followed by execution, an encoded argument, or a volume shadow copy command. Counting repeated occurrences per host and per account is what turns a weak single event signal into a usable alert.",
+  "pseudoQuery": "# title: Suspicious Windows Command Shell Usage\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     image|endswith: '\\cmd.exe'\n#   risky:\n#     command_line|contains:\n#       - 'certutil'\n#       - 'bitsadmin'\n#       - 'vssadmin'\n#       - 'http'\n#   filter_automation:\n#     parent_image|endswith:\n#       - '\\services.exe'\n#       - '\\msiexec.exe'\n#   condition: selection and risky and not filter_automation\n# level: medium",
+  "falsePositives": [
+    "Login scripts that run a batch file through the shell at user sign in",
+    "Software packaging tools that execute installers with shell arguments",
+    "Remote management agents that shell out to the command interpreter on a server",
+    "Line of business applications that call the shell directly from their launcher",
+    "Monitoring plug ins that check a service state with a short shell command"
+  ],
+  "tuningNotes": "Baseline the parent images that invoke the shell in your estate, then allow those parents by path and keep the command line scoring for everything else; this removes the largest noise source without blinding you to a shell started by a document reader or a web service account. Apply the strictest thresholds to server and domain controller groups, where an interactive shell is rare. Narrowing by parent means a compromised automation account is now quiet, so alert separately on changes to scheduled task definitions that call the shell.",
+  "severity": "medium"
+}

@@ -1,0 +1,107 @@
+{
+  "id": "det0260",
+  "type": "detection",
+  "title": "Detection Strategy for Forged Web Credentials",
+  "shortTitle": "Detection Strategy for Forged Web Credentials",
+  "externalId": "DET0260",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers forged web credentials, tracked as T1606, where an adversary creates or modifies a token that a web application will accept as proof of identity. The two well documented forms are forged session cookies and forged federation assertions, and both share one signature: the application accepts an identity that the identity provider never authenticated. Detection therefore works by reconciling identity provider sign-in records with application session records, keyed on the user, the token or session reference, and a tight time window. It fails when the application does not log token validation details, when session identifiers are missing from access logs, or when the cookie is replayed from the same network as the legitimate user.",
+  "tags": [
+    "web credentials",
+    "t1606",
+    "saml",
+    "session cookie",
+    "credential access",
+    "identity provider"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Forged Web Credentials",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0260/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Forged Web Credentials - EASY",
+      "path": "exercises/det0260/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Forged Web Credentials - MEDIUM",
+      "path": "exercises/det0260/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Forged Web Credentials - HARD",
+      "path": "exercises/det0260/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Forged Web Credentials - EXTREMELY HARD",
+      "path": "exercises/det0260/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A web credential is the proof a browser shows to a website so the site knows who you are. A cookie is a small piece of that proof, and a token is a larger one. Forging a credential means making a fake proof that the site accepts. This detection compares what the identity provider issued with what the website accepted.",
+    "whyItMatters": "When a forged credential is accepted, the attacker does not need a password or a second factor. The activity looks like a normal signed-in user, so most login alerts stay quiet. This often follows a key theft, and the damage can spread to every application that trusts the same identity provider. Reconciling both sides of the sign-in is one of the few ways to see it. It also tells you which applications are affected.",
+    "howItWorks": [
+      "The identity provider logs each successful sign-in and the token or assertion it issued.",
+      "The application logs each request, together with the cookie or token value it received.",
+      "The rule links the two records by user name, source address, and a short time window.",
+      "A valid session must have a matching sign-in record, so a request without one is suspicious.",
+      "The rule also flags a token whose signing certificate or issuer is not the expected one.",
+      "Repeated alerts from one account raise the severity for the analyst."
+    ],
+    "example": "Think of a concert wristband. Staff put it on your wrist at the gate, and it proves you paid. A forger can print a wristband that looks right, and the venue only checks the band at the door. A careful venue keeps a list of band numbers issued at the gate. Any band at the door that is not on that list is fake. Forged web credentials work in the same way.",
+    "takeaways": [
+      "A forged credential produces a session with no matching sign-in at the identity provider.",
+      "You need logs from both sides: the issuer and the application.",
+      "Certificate and issuer checks catch assertions that were modified in transit."
+    ]
+  },
+  "objectives": [
+    "Explain what a web credential is and how it can be forged",
+    "Identify the identity provider and application fields needed for reconciliation",
+    "Correlate issued tokens with accepted sessions using user, address, and time",
+    "Detect unexpected signing certificates on federation assertions",
+    "Describe the limits of detection when cookie values are not logged"
+  ],
+  "techniqueId": "t1606",
+  "detectsTechniques": [
+    "t1606"
+  ],
+  "dataSources": [
+    "Identity provider authentication logs recording sign-in events, session identifiers, and issued token references",
+    "Service provider or web application access logs containing session cookie identifiers, source addresses, and user agents",
+    "Federation token validation logs on the application showing issuer, signing certificate thumbprint, and assertion attributes",
+    "Reverse proxy logs correlating cookie reuse across different source addresses",
+    "Cloud identity audit logs for token issuance and for sign-ins that claim a federated identity"
+  ],
+  "logic": "The pattern is an authentication or session that the issuing authority cannot account for. The rule takes application access logs containing the session cookie or assertion reference and joins them to identity provider sign-in records on the user identifier and the token reference, with a window matched to the token lifetime. A request whose token has no corresponding issuance event, or whose issuer or signing certificate differs from the configured trust, is the malicious case. Benign mismatches come from cached sessions that outlive the retention of identity provider logs, from federated partner identities issued elsewhere, and from load balancers that re-encrypt cookies; each of those must be understood and filtered before the rule can be trusted.",
+  "pseudoQuery": "# title: Application session accepted without a matching identity provider sign-in\n# logsource:\n#   product: azure\n# detection:\n#   selection:\n#     event_type: 'token_validation'\n#     result: 'success'\n#     assertion_issuer: 'unknown'\n#   filter:\n#     issuer:\n#       - 'https://sts.example-tenant.invalid/'\n#       - 'https://idp.partner.example.invalid/'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Sessions that remain valid longer than the retention period of identity provider sign-in logs",
+    "Federated identities issued by a partner organization whose logs are not collected",
+    "A load balancer or reverse proxy that rewrites cookie values between the client and the application",
+    "Mobile applications that refresh tokens silently without producing a new interactive sign-in record"
+  ],
+  "tuningNotes": "Confirm that identity provider log retention covers the longest session lifetime in use, then align the correlation window to that value, because most false alerts come from this gap. Allowlist known federated issuers and the certificate thumbprints you trust, and alert separately on any new issuer so the allowlist cannot hide a real change. Baseline application session volume per user to spot tokens replayed at unusual rates. The narrowed rule will not see forgeries against applications that log neither cookie nor token details, so track those applications as a coverage gap rather than weakening the rule.",
+  "severity": "high"
+}

@@ -118,7 +118,7 @@ jobs:
           echo "are added to that set only as a deliberate, reviewed decision, because"
           echo "each one is a third-party dependency the site then loads or links to."
 
-      - name: Assert every topic has exactly three batch entries
+      - name: Assert every non-certification topic reserves the four difficulty tiers
         run: |
           python - <<'PY'
           import json
@@ -134,33 +134,35 @@ jobs:
               "detections",
               "groups",
           )
+          TIERS = ("easy", "medium", "hard", "extremely-hard")
 
           bad = []
           total = 0
           for dirname in TYPE_DIRS:
               for path in sorted((pathlib.Path("data") / dirname).glob("*.json")):
-                  total += 1
                   topic = json.loads(path.read_text(encoding="utf-8"))
-                  batches = topic.get("batches") or []
-                  paths_ok = all(
-                      batches[index].get("path") == f"exercises/{topic.get('id')}/batch-{index + 1}.html"
-                      for index in range(min(len(batches), 3))
-                  )
-                  if len(batches) != 3 or not paths_ok:
-                      bad.append((path.as_posix(), len(batches), paths_ok))
+                  # A certification is a syllabus: its exercises live inside its
+                  # chapters, so the difficulty ladder does not apply to it.
+                  if topic.get("type") == "certification":
+                      continue
+                  total += 1
+                  exercises = topic.get("exercises") or []
+                  found = [e.get("difficulty") for e in exercises]
+                  if len(exercises) != 4 or sorted(found) != sorted(TIERS):
+                      bad.append((path.as_posix(), len(exercises), found))
 
           if bad:
-              print("Topics that do not reserve exactly three canonical batches:")
-              for name, count, paths_ok in bad:
-                  detail = "paths are correct" if paths_ok else "batch paths are not the canonical ones"
-                  print(f"  {name}: {count} batch entr(y|ies), {detail}")
+              print("Topics that do not hold exactly the four difficulty tiers:")
+              for name, count, found in bad:
+                  print(f"  {name}: {count} exercise(s), difficulties={found}")
               print()
-              print("Every topic reserves exercises/<id>/batch-1.html, batch-2.html and")
-              print("batch-3.html in that order. Batch status is 'published', 'draft' or")
-              print("'missing'; the count itself is always three. See data/schema/topic.schema.json.")
+              print("Every non-certification topic carries exactly four exercises, one per tier:")
+              print("easy, medium, hard, extremely-hard. A tier whose file does not exist yet")
+              print("keeps status 'missing' and renders as 'Coming soon'. The tier itself is")
+              print("always present, so the gap is visible. See data/schema/topic.schema.json.")
               sys.exit(1)
 
-          print(f"All {total} topics reserve exactly three batches on canonical paths.")
+          print(f"All {total} non-certification topics hold exactly the four difficulty tiers.")
           PY
 
       - name: Prove the OG generator works without Pillow

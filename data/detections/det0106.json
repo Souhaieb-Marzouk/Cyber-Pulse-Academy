@@ -1,0 +1,107 @@
+{
+  "id": "det0106",
+  "type": "detection",
+  "title": "Behavioral Detection of PE Injection via Remote Memory Mapping",
+  "shortTitle": "Behavioral Detection of PE Injection via Remote Memory Ma...",
+  "externalId": "DET0106",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers T1055.002 Portable Executable Injection, where an adversary writes a full executable image into the memory of another running process and starts it there through memory section mapping. It matters because the injected image never touches the disk as a normal file, so file based allowlisting, hash reputation and disk forensics may never see it, while the hosting process supplies a trusted identity for network and file access. The telemetry that makes detection possible is kernel callback telemetry for memory section creation and mapping with executable protection, Sysmon event 1 process creation, Sysmon event 7 image load events, and Sysmon event 8 remote thread creation, plus the loaded module list from the endpoint agent. It fails in practice because many legitimate frameworks, including managed runtimes, installers and security agents, map images into processes, so the rule must compare the mapped image against the host process directory and signature expectations instead of flagging section mapping alone.",
+  "tags": [
+    "process-injection",
+    "memory",
+    "endpoint",
+    "defense-evasion",
+    "pe-injection"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of PE Injection via Remote Memory Mapping",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0106/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of PE Injection via Remote Memory Mapping - EASY",
+      "path": "exercises/det0106/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of PE Injection via Remote Memory Mapping - MEDIUM",
+      "path": "exercises/det0106/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of PE Injection via Remote Memory Mapping - HARD",
+      "path": "exercises/det0106/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of PE Injection via Remote Memory Mapping - EXTREMELY HARD",
+      "path": "exercises/det0106/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a complete program being copied into the memory of another running program. The second program then starts that copy. Nothing is saved to disk as a normal file.",
+    "whyItMatters": "Files on disk can be scanned, hashed and blocked. Code that lives only in memory can avoid all of that. It also inherits the identity of the program that hosts it, which often has more rights. Detecting the memory mapping is frequently the only technical evidence available.",
+    "howItWorks": [
+      "The endpoint sensor records when a memory section is created from a file and mapped into another process.",
+      "It records the protection settings, because the region usually must become executable for the code to run.",
+      "It links the event to the host process, the source file or unnamed section and the calling process.",
+      "Loaded module events show a module appearing inside a process without a normal load from disk.",
+      "All of this reaches the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule flags mapped executable sections whose source path does not match the host process folder or a trusted signer."
+    ],
+    "example": "Picture an office where only staff with a printed pass may enter. A visitor folds a copy of a staff pass inside a newspaper and walks in behind a real employee. The door log shows the employee entering, which is true. This detection is the guard who checks the pass in the visitor's hand. The door log looks fine, but the pass was made at home.",
+    "takeaways": [
+      "The injected program stays in memory, so disk based controls often miss it entirely.",
+      "The host process supplies trust that the attacker did not earn.",
+      "Mapping an executable section and loading a module from an unusual path are the key clues."
+    ]
+  },
+  "objectives": [
+    "Explain how running a full executable image inside another process avoids disk based detection",
+    "List the kernel and endpoint telemetry sources that record memory section mapping",
+    "Identify the fields that attribute a mapped image to a host process and a source file",
+    "Describe why managed runtimes, installers and security agents produce the same behaviour",
+    "Distinguish a module loaded from the host process folder from one loaded from elsewhere",
+    "Prioritise the process types whose memory is most valuable to an attacker"
+  ],
+  "techniqueId": "t1055-002",
+  "detectsTechniques": [
+    "t1055-002"
+  ],
+  "dataSources": [
+    "Kernel process and image callback telemetry recording memory section creation and mapping with protection flags",
+    "Sysmon event 1 process creation including parent image, image path and command line",
+    "Sysmon event 7 image load records naming the loaded module, its signature status and full path",
+    "Sysmon event 8 remote thread creation naming source and target process, where supported by the sensor",
+    "Endpoint detection and response loaded module inventory per process with hash and signer"
+  ],
+  "logic": "The pattern is an executable memory section mapped into an existing process where the source image does not live in that process folder and is not a known component of it, followed by module load or thread activity inside the host. The fields that must be correlated are the calling process, the target process, the section or module path, the requested memory protection, the signature and signer of the mapped image, and the loaded module list of the host process before and after. The benign case is a runtime or update mechanism that maps a component from its own installation directory under a valid signature, so a mapped image from a user writable path, from a network share, or with no signature at all inside a system process is what separates the malicious case.",
+  "pseudoQuery": "# title: Executable Memory Section Mapped Into Existing Process From Untrusted Path\n# logsource:\n#   product: windows\n# detection:\n#   selection_mapping:\n#     EventType: 'section_map'\n#     Protection|contains: ['PAGE_EXECUTE', '0x20', '0x40']\n#   selection_load:\n#     EventType: 'image_load'\n#     SignatureStatus: 'unavailable'\n#   filter_host_dir:\n#     ImageLoaded|contains: '\\\\Program Files\\\\'\n#   condition: selection_mapping and selection_load and not filter_host_dir\n# level: high",
+  "falsePositives": [
+    "Managed runtime hosts such as a common language runtime that maps assemblies from its own installation directory",
+    "Software update frameworks that map patched libraries into a running process instead of restarting it",
+    "Endpoint protection products that load scanning modules into other processes with a valid vendor signature",
+    "Just in time compilers and browser sandboxes that map generated executable pages inside their own process"
+  ],
+  "tuningNotes": "Baseline the module paths, signers and section sources that appear inside your standard process population for a week, then filter by signer and by path prefix rather than by process name alone. Keep the rule strict for host processes that should never map external images, such as credential related and server service processes. Add a filter for mapped sources inside signed program directories, and keep the alert for user writable and network paths. Excluding signed sources means an attacker who abuses a vulnerable signed component will pass, so pair this rule with a separate watch for suspicious child processes started by those hosts.",
+  "severity": "high"
+}

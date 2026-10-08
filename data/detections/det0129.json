@@ -1,0 +1,106 @@
+{
+  "id": "det0129",
+  "type": "detection",
+  "title": "Domain Account Enumeration Across Platforms",
+  "shortTitle": "Domain Account Enumeration Across Platforms",
+  "externalId": "DET0129",
+  "theme": "Detection Strategy",
+  "summary": "Domain account enumeration (T1087.002) is the discovery step where an adversary lists users, groups, and group membership in an Active Directory domain to choose targets and plan privilege escalation. The detection strategy watches three layers at once: the command line, where built-in utilities and directory query tools leave recognisable arguments; the directory service itself, where object reads from a single security context spike in volume; and the network, where workstations that never speak directory protocols suddenly open LDAP or global catalogue sessions. Correlating the account, the source host, and the volume of objects touched is what separates reconnaissance from routine administration. The strategy fails in practice because vulnerability scanners, inventory tools, backup software, and login scripts all enumerate accounts legitimately, and because a single careful query for one privileged group looks identical to an administrator checking group membership.",
+  "tags": [
+    "discovery",
+    "t1087.002",
+    "active directory",
+    "ldap",
+    "command line",
+    "identity monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Domain Account Enumeration Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0129/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Domain Account Enumeration Across Platforms - EASY",
+      "path": "exercises/det0129/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Domain Account Enumeration Across Platforms - MEDIUM",
+      "path": "exercises/det0129/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Domain Account Enumeration Across Platforms - HARD",
+      "path": "exercises/det0129/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Domain Account Enumeration Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0129/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Account enumeration means listing the user accounts in a network. An attacker does this to learn who exists and who has power, such as the domain administrators. This detection looks for that listing activity. It catches tools and commands that ask the domain for a list of accounts.",
+    "whyItMatters": "You cannot attack an account you do not know about. So attackers often start by learning the names of people and groups. A long list of accounts tells them who to target next. Normal staff rarely ask the domain for a full user list. This detection gives you an early warning before the attacker picks a victim.",
+    "howItWorks": [
+      "A command line record shows which tool ran and which arguments it used.",
+      "The rule looks for tools that list accounts, groups, or group membership.",
+      "It also counts how many accounts one user or host asked about in a short time.",
+      "Domain controller records show which account read which directory objects.",
+      "The rule links the reading account to the source computer and the object count.",
+      "An analyst then checks whether a known administrative task explains the activity."
+    ],
+    "example": "Picture a hospital reception desk with a sign-in sheet. Every visitor writes a name, and the desk staff know who is expected. Now imagine a stranger who stands at the desk and copies the whole patient list into a notebook. Nothing is broken and no door is forced. The stranger simply learns who is inside and which rooms matter. Account enumeration works like that. The attacker does not break into an account. They read the list of accounts first, so the next step is easier.",
+    "takeaways": [
+      "Account enumeration is a quiet first step that makes later attacks easier.",
+      "Look at the account, the source host, and the number of objects read together.",
+      "Administrators and scanners also enumerate, so context decides the outcome."
+    ]
+  },
+  "objectives": [
+    "Describe how domain account enumeration supports later targeting and privilege escalation.",
+    "Recognise the command line patterns left by built-in directory listing utilities.",
+    "Interpret directory service access records to see which account read which objects.",
+    "Distinguish a reconnaissance sweep from a legitimate inventory or scanner query.",
+    "Prioritise alerts where a non-administrative workstation performs broad enumeration."
+  ],
+  "techniqueId": "t1087-002",
+  "detectsTechniques": [
+    "t1087-002"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and full command line arguments",
+    "Windows Security event 4662 directory service access records showing object read operations and the requesting account",
+    "Domain controller network or LDAP query telemetry recording query counts per source host and account"
+  ],
+  "logic": "The detection has two independent halves that should be correlated rather than alerted on separately. The first half is process based: a directory listing utility starts on a host, and the command line asks for users, groups, or privileged group membership, or a scripting environment issues repeated directory queries from a short lived process. The second half is directory based: one security context reads a volume of user and group objects well above its own baseline, particularly when the source is a workstation rather than a domain controller or jump host. Fields that must be joined are the requesting account, the source host name, the object type read, and the count of objects in the observation window. The benign case is an inventory agent, a vulnerability scanner with domain credentials, or a login script that reads a small, stable set of objects every day; the malicious case is a new or low-privileged account reading far more objects than it needs, especially groups such as domain administrators.",
+  "pseudoQuery": "# title: Directory account listing from a workstation\n# logsource:\n#   product: windows\n# detection:\n#   selection_process:\n#     EventID: 4688\n#     NewProcessName|endswith:\n#       - '\\net.exe'\n#       - '\\net1.exe'\n#       - '\\dsquery.exe'\n#       - '\\nltest.exe'\n#     CommandLine|contains:\n#       - '/domain'\n#       - '/dclist'\n#       - 'group'\n#   selection_read:\n#     EventID: 4662\n#     ObjectType: 'user'\n#   condition: selection_process or selection_read\n# level: medium",
+  "falsePositives": [
+    "Inventory and asset discovery platforms that query domain accounts on a fixed daily schedule with a service account",
+    "Login scripts that read group membership to map network drives for the user signing in",
+    "Help desk staff using built-in directory utilities to confirm that a new starter account exists",
+    "Backup or identity synchronisation software that reads large numbers of directory objects from a server"
+  ],
+  "tuningNotes": "Baseline the service accounts and hosts that read directory objects in volume, then whitelist them by account and source host rather than by command line alone, because any listing tool can be scripted. Scope the process half of the rule to workstations and member servers, and keep it out of the domain controller and jump host groups where administrative tooling runs all day. Set the object read threshold from your own two week baseline instead of a guessed number. If you exclude the inventory and backup accounts you will lose visibility into an attacker who uses those credentials after stealing them, so monitor authentication for those accounts separately to close that gap.",
+  "severity": "medium"
+}

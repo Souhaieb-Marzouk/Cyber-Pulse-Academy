@@ -1,0 +1,105 @@
+{
+  "id": "det0402",
+  "type": "detection",
+  "title": "Detection Strategy for Cloud Service Discovery",
+  "shortTitle": "Detection Strategy for Cloud Service Discovery",
+  "externalId": "DET0402",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers cloud service discovery, matching the technique where an adversary with valid cloud credentials enumerates what exists in an account: compute instances, storage buckets, databases, functions, identity policies and network layout. It matters because discovery is almost entirely read only, so nothing is changed and no protective control reacts, yet the inventory an attacker builds determines which exfiltration or impact path they choose next. The telemetry that makes it visible is the cloud control plane audit log, for example management events in the provider activity log, which records the calling identity, the source address, the user agent and the specific list or describe operation. Detection is behavioural: a single identity calling many different describe and list operations across many services in a short window, especially from a new address or a scripted client, differs sharply from the narrow set of calls a normal application makes, but it fails when automation and infrastructure as code tools legitimately enumerate whole accounts.",
+  "tags": [
+    "cloud",
+    "discovery",
+    "mitre t1526",
+    "audit log",
+    "identity monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Cloud Service Discovery",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0402/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Cloud Service Discovery - EASY",
+      "path": "exercises/det0402/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Cloud Service Discovery - MEDIUM",
+      "path": "exercises/det0402/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Cloud Service Discovery - HARD",
+      "path": "exercises/det0402/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Cloud Service Discovery - EXTREMELY HARD",
+      "path": "exercises/det0402/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for someone listing what exists inside a cloud account. The assets include servers, storage and databases. These actions only read information, so nothing breaks. The alert means one identity asked about many different services in a short time.",
+    "whyItMatters": "Before an attacker steals data or shuts down systems, they need to know what is there. Reading that inventory leaves records in the cloud audit log. However, it changes nothing, so your protection tools stay quiet. A quick mapper can learn your whole layout in minutes. Spotting the mapping early gives you time to block the identity.",
+    "howItWorks": [
+      "The cloud provider writes every control plane action to an audit log.",
+      "Those records are shipped to your security monitoring platform through a storage bucket or a streaming feed.",
+      "The rule selects read only operations whose names start with describe, list or get.",
+      "It counts how many different services and operation names one identity touched within a short window.",
+      "Identities that span many services, or that come from a new address, are separated from normal application callers.",
+      "The alert shows the identity, the operation list and the source address so you can confirm with the account owner."
+    ],
+    "example": "Think of a new contractor walking through an office, opening every cupboard and reading every label. Nothing is taken and nothing is broken. Still, after ten minutes that person knows where everything is kept. The walk itself is the warning sign. This detection watches the walk.",
+    "takeaways": [
+      "Discovery changes nothing, so only the audit log will show it.",
+      "Count how many different services one identity reads, not just the number of calls.",
+      "Automation and deployment tools also enumerate, so know their normal call sets."
+    ]
+  },
+  "objectives": [
+    "Define cloud service discovery and explain why read only activity still matters.",
+    "Identify the audit log fields needed to attribute a discovery burst to an identity, address and client.",
+    "Build a count of distinct services and operations read by one identity in a window.",
+    "Describe how to profile legitimate automation before tuning thresholds.",
+    "Explain how discovery findings lead to later stages such as collection and exfiltration."
+  ],
+  "techniqueId": "t1526",
+  "detectsTechniques": [
+    "t1526"
+  ],
+  "dataSources": [
+    "Cloud control plane audit logs for management events including the calling identity, source address, user agent and operation name",
+    "Cloud identity provider sign in logs showing the session, the authentication method and the source address used for the discovery calls",
+    "Cloud service inventory configuration records used to compare what was read against what the identity normally touches",
+    "Cloud storage access logs recording reads of bucket listings and bucket policy documents by the same identity"
+  ],
+  "logic": "The pattern is one identity or one session issuing a high count of distinct read only operations across multiple cloud services within a short window, where the identity's normal profile is a narrow set of calls to one or two services, and where the source address, user agent or client application is new for that identity. The fields that must be correlated are the calling identity and session, the operation names and the services they belong to, the source address and user agent, the timestamp sequence, and the baseline call set for that identity from the previous thirty days. The benign case is infrastructure as code and security posture tooling that enumerate broadly but do so on a schedule with a stable user agent and from known automation addresses; the malicious case is broad enumeration by a human driven credential or by a scripted client with a default user agent, often immediately after a new sign in from an unusual address.",
+  "pseudoQuery": "# title: Broad Cloud Service Enumeration by Single Identity\n# logsource:\n#   product: aws\n#   service: cloudtrail\n# detection:\n#   selection:\n#     event_type: 'AwsApiCall'\n#     operation|startswith:\n#       - 'Describe'\n#       - 'List'\n#       - 'Get'\n#   filter_automation:\n#     user_agent|contains:\n#       - 'Terraform'\n#       - 'PostureScanner'\n#   condition: selection and not filter_automation | count(distinct service) by identity > 8 within 15m\n# level: medium",
+  "falsePositives": [
+    "Infrastructure as code pipelines that run a plan and refresh state across the whole account",
+    "Cloud security posture scanners and asset inventory services that enumerate every region and service",
+    "Break glass administrative sessions where an engineer reviews the estate during an incident",
+    "Cost reporting or backup tools that list resources across services on a nightly schedule"
+  ],
+  "tuningNotes": "Profile each non human identity for thirty days and record the set of operations it normally calls, its user agents and its source address ranges, then allow list that profile rather than individual operations, so a tool that adds a service call still alerts when it starts reading everywhere. For human identities, alert only when the discovery burst follows a sign in from a new address or a new device. Scope the high severity version to production accounts and keep a low severity version in sandbox accounts where enumeration is routine. Narrowing this way loses detection of slow discovery spread over days, so add a slower rule that compares the weekly distinct service count per identity against its own history.",
+  "severity": "medium"
+}

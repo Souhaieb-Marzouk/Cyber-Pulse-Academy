@@ -1,0 +1,107 @@
+{
+  "id": "det0172",
+  "type": "detection",
+  "title": "Behavior-chain, platform-aware detection strategy for T1127 Trusted Developer Utilities Proxy Execution (Windows)",
+  "shortTitle": "Behavior-chain, platform-aware detection strategy for T11...",
+  "externalId": "DET0172",
+  "theme": "Detection Strategy",
+  "summary": "This is a behavior chain strategy for trusted developer utility proxy execution on Windows, where an adversary runs code through a Microsoft signed developer tool such as MSBuild, InstallUtil, RegAsm or a related .NET utility so the running process is trusted and the original loader is hidden. The technique matters because allow listing by image signature or reputation alone will not stop it, and the parent process is a legitimate tool that belongs on the endpoint. Detection depends on Sysmon process creation with full command lines and parent image, Microsoft Defender or similar endpoint detection and response process lineage events, and module load or file creation events that show what the utility produced. The common failure mode is that many build servers and developer workstations run these utilities constantly, so the rule only works when the shape of the process tree, not the tool name, drives the alert.",
+  "tags": [
+    "windows",
+    "process creation",
+    "proxy execution",
+    "defense evasion",
+    "sysmon",
+    "developer tools"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavior-chain, platform-aware detection strategy for T1127 Trusted Developer Utilities Proxy Execution (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0172/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1127 Trusted Developer Utilities Proxy Execution (Windows) - EASY",
+      "path": "exercises/det0172/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1127 Trusted Developer Utilities Proxy Execution (Windows) - MEDIUM",
+      "path": "exercises/det0172/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1127 Trusted Developer Utilities Proxy Execution (Windows) - HARD",
+      "path": "exercises/det0172/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavior-chain, platform-aware detection strategy for T1127 Trusted Developer Utilities Proxy Execution (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0172/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Some Microsoft tools help developers build and install software, and Windows trusts them because Microsoft signed them. Attackers can misuse these tools to run their own code. This detection watches how those tools are used, not just that they ran.",
+    "whyItMatters": "Blocking tools that developers need would stop real work, so many companies allow them. An attacker who uses an allowed tool can slip past simple blocklists. The tool runs as a trusted program, so alarms that only check the file name stay quiet. Watching the process tree reveals the misuse even when the program itself is trusted.",
+    "howItWorks": [
+      "Windows writes an event each time a program starts. With command line auditing turned on, the event includes the exact command and the name of the program that started it.",
+      "The detection collects these events for a short list of signed developer tools, such as the build engine and the installer utility.",
+      "For each one, it checks the parent program. A build engine started by a command shell or by an office document is unusual.",
+      "It checks the command line for a local path, a temporary folder, or a project file in a user profile rather than a source code repository.",
+      "It also checks what the tool produced, such as a new executable in a temporary folder or an outbound network connection.",
+      "When the shape of the process tree looks like developer work but the context does not, the alert is raised for review."
+    ],
+    "example": "Think of a building where cleaners have a master key. The key is trusted and the cleaners are expected. But if a cleaner lets in a stranger at midnight and carries out boxes, the guard notices the pattern, not the key. The master key alone is never the alarm.",
+    "takeaways": [
+      "Signed developer tools can run attacker code without tripping signature based rules.",
+      "The useful signal is the process tree: parent program, command line and anything created afterwards.",
+      "Baseline your build servers first, or the alerts will be mostly legitimate developer work."
+    ]
+  },
+  "objectives": [
+    "Explain why signature based allow listing fails against trusted developer utility proxy execution",
+    "Read a process creation record and describe parent image, command line and integrity level",
+    "Recognise process tree shapes that separate developer builds from utility abuse",
+    "Correlate process creation with child process, module load and file creation events",
+    "Build a baseline of legitimate build activity so alerts stay actionable"
+  ],
+  "techniqueId": "t1127",
+  "detectsTechniques": [
+    "t1127"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image, command line and user",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 11 file creation for executables and dynamic link libraries in temporary folders",
+    "Sysmon event 7 image load recording dynamic link library loads by trusted developer utilities",
+    "Endpoint detection and response process lineage telemetry including parent and child relationships"
+  ],
+  "logic": "The pattern is a signed developer utility appearing in a context where development work does not happen. Detection keys on the parent image that launched the utility, the command line arguments it received, the working directory or referenced project path, and the child processes or files it produced. Correlating parent, command line and child is essential: the same utility name is benign when launched by an integrated development environment against a repository path and hostile when launched by a script interpreter or office application against a file in a temporary or user profile directory. The malicious case usually ends in a second stage process or an outbound network connection from the utility, while the benign case produces build output in a source tree and touches no unusual network destination.",
+  "pseudoQuery": "# title: Signed Developer Utility Executed by Script Interpreter or Office Parent\n# logsource:\n#   product: windows\n#   service: sysmon\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith:\n#       - \\MSBuild.exe\n#       - \\InstallUtil.exe\n#       - \\RegAsm.exe\n#       - \\RegSvcs.exe\n#     CommandLine|contains:\n#       - '\\Temp\\'\n#       - '\\AppData\\'\n#       - '\\Users\\Public\\'\n#   filter:\n#     ParentImage|endswith:\n#       - \\devenv.exe\n#       - \\MSBuild.exe\n#       - \\dotnet.exe\n#       - \\jenkins.exe\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Developer workstations where a scripted build step invokes the build engine from a command shell on files inside the user profile",
+    "Software deployment tooling that runs an install helper against a package staged in a temporary folder on managed endpoints",
+    "Continuous integration agents that execute installer utilities for third party components from a local build cache",
+    "Application packaging teams testing a build in a folder outside the version control working copy"
+  ],
+  "tuningNotes": "First exclude the hosts where this pattern is constant: build servers, packaging workstations and continuous integration agents, identified by asset group rather than by hostname patterns that change. On user endpoints, keep the rule and add filters for the specific parent processes that legitimately launch these utilities there, which are usually the integrated development environment and the package manager. Baseline thirty days of these process creations and record the command line argument shapes you see, so you can filter trusted project paths instead of filtering the tool name. Narrowing by asset group costs you coverage on build servers, which is acceptable because that is where the technique also blends in best, so supplement it there with child process and network connection monitoring on the same hosts.",
+  "severity": "high"
+}

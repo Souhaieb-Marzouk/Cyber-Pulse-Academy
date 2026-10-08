@@ -1,0 +1,107 @@
+{
+  "id": "det0109",
+  "type": "detection",
+  "title": "Detection Strategy for Plist File Modification (T1647)",
+  "shortTitle": "Detection Strategy for Plist File Modification (T1647)",
+  "externalId": "DET0109",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy addresses T1647, plist file modification, the macOS technique of editing a property list so that a launch agent or launch daemon, an application configuration or an authentication setting is changed. A property list is the standard macOS configuration file format, and because the operating system genuinely trusts these files, a single edit can create persistence or quietly disable a security control. The telemetry that makes detection possible is file system event monitoring for plist paths with the writing process recorded, launch service load events for new or changed agents and daemons, process execution showing configuration editors, and code signature data on the binary a plist points to. It fails in practice because every software install and update rewrites plists, and because the command line tools that manipulate them are built into the system, so the rule must be anchored to the path class, the parent process and the signature of the referenced program.",
+  "tags": [
+    "macos",
+    "persistence",
+    "configuration",
+    "endpoint",
+    "launch-agent"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Plist File Modification (T1647)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0109/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Plist File Modification (T1647) - EASY",
+      "path": "exercises/det0109/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Plist File Modification (T1647) - MEDIUM",
+      "path": "exercises/det0109/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Plist File Modification (T1647) - HARD",
+      "path": "exercises/det0109/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Plist File Modification (T1647) - EXTREMELY HARD",
+      "path": "exercises/det0109/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches configuration files on Mac computers. These files are called property lists, and they control how programs start and behave. The rule looks for changes to the ones that start software automatically.",
+    "whyItMatters": "A file that starts a program at login is a favourite place for an attacker to hide. The change is small and the system accepts it without complaint. It also survives restarts, so the attacker only needs one chance to write it. Because these files change during normal updates too, you need context, not just an alert.",
+    "howItWorks": [
+      "The endpoint records every file created or changed, including the full path and the program that did it.",
+      "Paths under the launch agents and launch daemons folders are singled out, because those control automatic starts.",
+      "The system also reports when a new launch item is registered or loaded for a user.",
+      "Process records show which program wrote the file, for example a shell, a script host or an installer.",
+      "All of this reaches the central log platform, often a SIEM, which means Security Information and Event Management.",
+      "A rule alerts when a trusted path is changed by an unusual process or points to an unsigned program."
+    ],
+    "example": "Think of a building where each tenant may add a name to the after hours entry list. A stranger signs in a name that looks like a cleaner. The guard then lets that person in every night without question. This detection is the manager who reads the list each morning. The manager checks who added the name and asks whether that person works there.",
+    "takeaways": [
+      "A modified configuration file can create lasting automatic execution on a Mac.",
+      "Watch the process that wrote the file and the signature of the program it points to.",
+      "Normal installers also write these files, so context decides whether it is an alert."
+    ]
+  },
+  "objectives": [
+    "Explain what a property list is and why macOS programs trust it",
+    "Name the plist locations that control automatic execution at login and at boot",
+    "Identify the telemetry that records who changed a plist and what it now runs",
+    "Describe how to verify the signature of the program a changed plist references",
+    "List the legitimate processes that write plists so you can filter them by path and signature",
+    "Explain why persistence through a plist survives restart and user password changes"
+  ],
+  "techniqueId": "t1647",
+  "detectsTechniques": [
+    "t1647"
+  ],
+  "dataSources": [
+    "macOS endpoint file system monitoring events for launch agent and launch daemon property list paths with the writing process",
+    "Process execution telemetry showing plutil, defaults or a script host writing a plist, with parent image and command line",
+    "Launch service registration and load events reporting a new or changed launch item and the program it references",
+    "Code signature and notarisation status of the executable referenced by a modified plist",
+    "Audit records for chmod and chown operations against plist files, where file integrity monitoring is deployed"
+  ],
+  "logic": "The pattern is a write or creation of a property list inside a launch agents or launch daemons directory, or a change to an application configuration plist, made by a process that is not the vendor installer of the program it configures, especially when the referenced program is unsigned or lives outside an applications directory. The fields that must be correlated are the plist path, the writing process image and its parent, the user account, the program path contained in the plist, and the signature status of that program. The benign case is a signed installer or an approved management profile writing its own plist to its own program during deployment or update, so a shell or script host authoring a launch item, a plist in a user library folder that references a binary in a temporary directory, or an unsigned target is what distinguishes the malicious case.",
+  "pseudoQuery": "# title: Launch Agent Plist Written By Script Host Or Referencing Unsigned Binary\n# logsource:\n#   product: macos\n# detection:\n#   selection_path:\n#     TargetFilename|contains: ['/Library/LaunchAgents/', '/Library/LaunchDaemons/', '/LaunchAgents/']\n#   selection_writer:\n#     Image|endswith: ['/bin/sh', '/bin/bash', '/usr/bin/osascript', '/usr/bin/plutil']\n#   filter_vendor:\n#     Image|contains: '/Library/Application Support/'\n#   condition: selection_path and (selection_writer or not filter_vendor)\n# level: high",
+  "falsePositives": [
+    "Managed software deployment using a mobile device management agent that writes launch items for approved tools",
+    "Developer tooling that installs a background helper launch agent during a package manager installation",
+    "Enterprise backup, virtual private network or endpoint agents that register a daemon during a version upgrade",
+    "An administrator manually adjusting a plist with the plutil command during approved troubleshooting"
+  ],
+  "tuningNotes": "Inventory the launch agents and daemons across a representative set of Macs, then allowlist them by label, program path and signing team identifier so that only new or changed items alert. Filter writes performed by your mobile device management agent and by signed vendor installers, but keep user library launch agents unfiltered because attackers commonly use the per user location. Scope the strict rule to Macs used by administrators and developers, where these tools and permissions exist. Narrowing to those groups means a plist planted on an ordinary user Mac may be missed, so keep a daily report of all new launch items for every Mac as a cheaper compensating control.",
+  "severity": "high"
+}

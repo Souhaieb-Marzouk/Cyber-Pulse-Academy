@@ -1,0 +1,108 @@
+{
+  "id": "det0243",
+  "type": "detection",
+  "title": "Detection Strategy for Weaken Encryption: Reduce Key Space on Network Devices",
+  "shortTitle": "Detection Strategy for Weaken Encryption: Reduce Key Spac...",
+  "externalId": "DET0243",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects deliberate weakening of encryption settings on network devices, where an adversary who already holds administrative access lowers key length, removes encryption, or relaxes certificate validation on a router, firewall or virtual private network gateway. The technique matters because weakened cryptography makes traffic interception and offline decryption cheap, and the change is made in configuration rather than in traffic, so it produces almost no noise. Detection depends on device configuration archive diffs, configuration change logging, and authentication records showing who reached the management interface. The main way it fails is that weak legacy settings already exist on old equipment, so a rule that matches key words such as des or md5 will fire constantly and must instead compare against the last known good configuration and an approved change record.",
+  "tags": [
+    "network device",
+    "encryption",
+    "configuration change",
+    "defense evasion",
+    "detection engineering",
+    "monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Weaken Encryption: Reduce Key Space on Network Devices",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0243/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Weaken Encryption: Reduce Key Space on Network Devices - EASY",
+      "path": "exercises/det0243/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Weaken Encryption: Reduce Key Space on Network Devices - MEDIUM",
+      "path": "exercises/det0243/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Weaken Encryption: Reduce Key Space on Network Devices - HARD",
+      "path": "exercises/det0243/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Weaken Encryption: Reduce Key Space on Network Devices - EXTREMELY HARD",
+      "path": "exercises/det0243/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for changes that make encryption on network equipment weaker. Encryption is the scrambling that keeps data private, and its strength depends on the key size and the method chosen. An attacker with device access can pick a weaker method so they can read or fake traffic later. The rule compares the new settings with the previous, trusted ones.",
+    "whyItMatters": "A weak cipher can be broken in hours, and stolen traffic can then be read. It also makes fake sessions easier, because identity checks can be turned off. The change is small and hidden in a long configuration file. Security teams rarely review those files line by line, so an alert is often the only sign.",
+    "howItWorks": [
+      "Someone logs in to a router, firewall or virtual private network gateway and changes settings.",
+      "The device records the login and, if configured, sends a configuration change message.",
+      "A nightly job saves a copy of each device configuration into a repository.",
+      "The rule compares today's copy with the last approved version.",
+      "It flags lines that reduce key size, remove encryption, or disable certificate checks.",
+      "It then checks whether a change ticket allowed that edit for that device at that time."
+    ],
+    "example": "Think of a hotel manager who lowers the standard for room door locks and writes the change in the maintenance book. Nothing is stolen that night. But now any staff member can open any door with a simple master key. A weaker cipher on your gateway is that lowered standard, and the attacker is the staff member who wants in.",
+    "takeaways": [
+      "Encryption strength lives in configuration, so a small edit can undo a lot of protection.",
+      "Compare against the last approved configuration, not against a list of banned words.",
+      "Always ask which account made the change and whether a ticket allowed it."
+    ]
+  },
+  "objectives": [
+    "Explain how encryption strength is decided by configuration choices.",
+    "Identify the records that show who accessed a network device management interface.",
+    "Describe a configuration archive and how to diff it against an approved baseline.",
+    "Recognise configuration lines that weaken ciphers, key exchange or validation.",
+    "Correlate a configuration change with an approved change record and its window.",
+    "Describe why legacy settings create persistent false positives for this rule."
+  ],
+  "techniqueId": "t1600-001",
+  "detectsTechniques": [
+    "t1600-001"
+  ],
+  "dataSources": [
+    "Network device syslog messages recording configuration change commits and the account that made them",
+    "Central configuration archive repository with scheduled device backups and per revision difference output",
+    "Authentication records for device management interfaces over secure shell and the web management console",
+    "Change management system records linking a device, a maintenance window and an approver",
+    "Network device logs recording virtual private network tunnel negotiation failures and cipher proposals"
+  ],
+  "logic": "The pattern is a configuration revision on a network device that reduces cryptographic strength, combined with access from an account or address that does not normally manage that device, and no matching approved change record. The fields to correlate are the device identity, the revision timestamp, the changed configuration lines, the account and source address that committed the change, and the change ticket identifier or window. The malicious case usually shows a tunnel proposal moved from a strong cipher to a weak or null cipher, key exchange dropped to a short group, certificate or peer validation disabled, or a management protocol replaced by a clear text one, all committed outside any approved window by an account that has not touched the device before. The benign case is a legacy device with a documented weak setting that was already present in the approved baseline, a vendor recommended migration performed inside a maintenance window, or a lab device outside the production estate.",
+  "pseudoQuery": "# title: Network Device Encryption Weakened Outside Approved Window\n# logsource:\n#   product: network\n# detection:\n#   selection_crypto:\n#     config_diff|contains|any:\n#       - 'encryption des'\n#       - 'hash md5'\n#       - 'dh-group 2'\n#       - 'no validate-certificate'\n#   selection_commit:\n#     action: 'config-commit'\n#   filter_lab:\n#     device_role: 'lab'\n#   filter_approved:\n#     change_ticket|exists: true\n#   condition: selection_crypto and selection_commit and not filter_lab and not filter_approved\n# level: high",
+  "falsePositives": [
+    "A legacy branch device that must keep an older cipher for an appliance the vendor no longer updates",
+    "A vendor recommended firmware upgrade that resets cipher proposals to older defaults until the template is reapplied",
+    "A lab or staging device inside the monitored address range where weak settings are used on purpose for testing",
+    "A scheduled maintenance window in which the network team temporarily relaxes validation while replacing an expired certificate"
+  ],
+  "tuningNotes": "Do not alert on weak key words alone; require a difference against the last approved configuration, then attach the change ticket lookup so an approved edit inside its window is suppressed. Build the baseline from a configuration archive with at least three months of history so pre-existing legacy settings are recorded as expected, and tag each device with a role and an owning team. Scope the first version to internet facing virtual private network gateways, firewalls and authentication proxies, where weakening has the clearest impact, and push branch switches to a weekly review. The coverage you give up is a change that weakens the device in a way the archive does not capture, such as a deleted certificate, so also watch for certificate expiry and tunnel renegotiation failures that follow an unexplained configuration commit.",
+  "severity": "high"
+}

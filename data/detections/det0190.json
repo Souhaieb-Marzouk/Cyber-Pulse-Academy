@@ -1,0 +1,108 @@
+{
+  "id": "det0190",
+  "type": "detection",
+  "title": "Detect MFA Modification or Disabling Across Platforms",
+  "shortTitle": "Detect MFA Modification or Disabling Across Platforms",
+  "externalId": "DET0190",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects changes to multi factor authentication settings that weaken an account, covering factor removal, factor re-registration to an attacker controlled device, per user MFA disablement and policy exclusions. It matters because MFA is the control that most often stops credential theft from becoming account takeover, so removing it is a high value step for an adversary who already holds a password. Detection relies on identity provider audit records for authentication method changes and policy edits, correlated with the actor, the target account and the source address. The main way it fails is context: self service factor resets, lost phone recovery and bulk policy maintenance all produce the same records, so the discriminator has to be who changed what for whom, not the change type alone.",
+  "tags": [
+    "identity",
+    "mfa",
+    "account takeover",
+    "cloud",
+    "persistence",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect MFA Modification or Disabling Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0190/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect MFA Modification or Disabling Across Platforms - EASY",
+      "path": "exercises/det0190/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect MFA Modification or Disabling Across Platforms - MEDIUM",
+      "path": "exercises/det0190/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect MFA Modification or Disabling Across Platforms - HARD",
+      "path": "exercises/det0190/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect MFA Modification or Disabling Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0190/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection watches for changes that turn off or weaken the second step of a login. That second step is often a code from a phone app or a text message. Attackers remove it so a stolen password is enough on its own. The rule looks at who made the change and which account was affected.",
+    "whyItMatters": "MFA is the reason a stolen password often fails to give access. Remove it and the password alone opens the door. Attackers who already have a password will try this quickly. The change is recorded in the identity system, so it can be caught. A fast alert here can prevent a full account takeover.",
+    "howItWorks": [
+      "An account holder or administrator changes an MFA setting in the identity system.",
+      "The identity provider writes an audit record with the actor, the target and the time.",
+      "The record shows what changed, such as a factor removed or a policy exclusion added.",
+      "The rule checks whether the actor is allowed to make that change for that target.",
+      "It also checks the source address and whether the actor is a helpdesk or an administrator.",
+      "Unusual combinations raise an alert with both accounts and the change listed."
+    ],
+    "example": "Think of a bank vault that needs a key card and a fingerprint. One morning the fingerprint reader is switched off for a single safe deposit box. The guard sees the change in the maintenance log. The request came from a staff member who does not manage that box. The vault was not opened, but the missing second check is the story.",
+    "takeaways": [
+      "Removing MFA converts a stolen password into full access.",
+      "Track the actor and the target account together, since both are needed for context.",
+      "Self service resets are normal, so bulk or helpdesk changes need their own rules."
+    ]
+  },
+  "objectives": [
+    "Explain how MFA removal converts credential theft into account takeover.",
+    "Identify the identity provider audit records for factor removal and policy changes.",
+    "Correlate the acting account with the target account and the source address.",
+    "Separate self service factor resets from administrative changes to other accounts.",
+    "Recognise conditional access policy exclusions as a quieter way to bypass MFA.",
+    "Describe how to alert on factor re-registration to a new device after a password reset."
+  ],
+  "techniqueId": "t1556-006",
+  "detectsTechniques": [
+    "t1556-006"
+  ],
+  "dataSources": [
+    "Azure Entra ID audit logs recording authentication method deletion and strong authentication state changes",
+    "Azure Entra ID audit logs recording conditional access policy updates and user group exclusions",
+    "AWS CloudTrail management events for DeactivateMFADevice and DeleteVirtualMFADevice",
+    "Identity provider sign in logs recording successful password authentication without a second factor",
+    "Helpdesk or service management system records of identity change requests and their approvers"
+  ],
+  "logic": "The pattern is an authentication method being removed, replaced or excluded for an account, especially when the actor is not the account owner, when several accounts are changed in one session, or when the change is followed by a successful sign in from a new address. The fields that must be correlated are the acting account, the target account, the operation name, the authentication method type, the source address of the actor, and the timestamp, joined with the sign in record for the target account. The malicious case usually shows a helpdesk or service account that does not normally manage the target, a burst of changes across unrelated accounts, a factor added from a hosting provider address, and a sign in without a second factor within minutes. The benign case is self service re-registration from a known corporate address after a documented device replacement, or a scheduled policy update made by the identity team with a matching change record.",
+  "pseudoQuery": "# title: MFA Factor Removed or Policy Exclusion Added\n# logsource:\n#   product: azure\n# detection:\n#   selection_method:\n#     OperationName|contains|any:\n#       - 'Delete authentication method'\n#       - 'Disable Strong Authentication'\n#       - 'Reset password'\n#   selection_policy:\n#     OperationName|contains: 'conditional access policy'\n#     ModifiedProperties|contains: 'excludeUsers'\n#   filter_self_service:\n#     Actor|equals_field: Target\n#     CorrelationIPAddress|cidr: 10[.]0[.]0[.]0/8\n#   condition: (selection_method or selection_policy) and not filter_self_service\n# level: high",
+  "falsePositives": [
+    "A user who lost their phone and re-registers a new authenticator device from a corporate address on the same day",
+    "Helpdesk identity verification workflow that resets a factor for a locked out employee with an approved ticket",
+    "A bulk identity hygiene project that removes legacy phone factors from dormant accounts during a migration",
+    "Conditional access policy updates that add a trusted network exclusion for an office address range"
+  ],
+  "tuningNotes": "Baseline which accounts legitimately perform authentication method changes, then filter on that narrow set of helpdesk and identity administrator identities rather than filtering on operation names, and require a matching approved request before suppression. Keep the exclusion path separate: any conditional access policy change that adds users or groups to an exclusion should alert with its own lower threshold, because it bypasses MFA without deleting anything and is easy to overlook. Scope the first version to privileged and executive accounts, where MFA removal carries the most risk, and leave standard user self service resets to a daily summary. The coverage you give up is a compromise of a legitimate helpdesk account, which will look approved, so pair this rule with volume anomaly detection on changes per actor per day and alert when a helpdesk account exceeds its normal rate even inside working hours.",
+  "severity": "critical"
+}

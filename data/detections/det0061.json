@@ -1,0 +1,106 @@
+{
+  "id": "det0061",
+  "type": "detection",
+  "title": "Detect Default File Association Hijack via Registry & Execution Correlation on Windows",
+  "shortTitle": "Detect Default File Association Hijack via Registry & Exe...",
+  "externalId": "DET0061",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects the abuse of an unquoted service path, where Windows resolves a service binary through a path containing spaces and an attacker can place a program earlier in the search order. The technique is valuable to an adversary because the resulting process is started by the Service Control Manager and can inherit the service account, so behaviour looks more legitimate than a normal user launch. Coverage relies on reading service configuration from the registry or service inventory, then correlating with file creation in the subdirectories that Windows would probe and process creation events whose parent is the service manager. The common failure is version churn: many packaged products register unquoted paths by accident, so the rule must distinguish newly created weaknesses and new files from a long standing configuration with no writes.",
+  "tags": [
+    "windows",
+    "privilege-escalation",
+    "persistence",
+    "service-configuration",
+    "registry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Default File Association Hijack via Registry & Execution Correlation on Windows",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0061/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Default File Association Hijack via Registry & Execution Correlation on Windows - EASY",
+      "path": "exercises/det0061/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Default File Association Hijack via Registry & Execution Correlation on Windows - MEDIUM",
+      "path": "exercises/det0061/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Default File Association Hijack via Registry & Execution Correlation on Windows - HARD",
+      "path": "exercises/det0061/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Default File Association Hijack via Registry & Execution Correlation on Windows - EXTREMELY HARD",
+      "path": "exercises/det0061/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection finds Windows services whose program path is not wrapped in quotation marks and contains a space. Windows then tries several shorter paths before the real one. An attacker can drop a file at one of those shorter paths and get it run. The detection looks for the weak setting and the planted file together.",
+    "whyItMatters": "Programs started this way can run under a powerful service account. It can also survive a reboot, so the attacker does not need to log in again. The weakness is a configuration mistake, not a bug in the software, so patching does not fix it. Finding it yourself is the only way to close it.",
+    "howItWorks": [
+      "The detection reads each service path from the system registry or a service inventory tool.",
+      "It flags any path that contains a space and is not wrapped in quotation marks.",
+      "It notes the shorter directory names that Windows would try before the real program.",
+      "It watches file creation events for a new program appearing at one of those names.",
+      "It watches process creation for a child of the service manager running from that path.",
+      "A weak path plus a new file or a new launch from it raises the alert."
+    ],
+    "example": "Think of a delivery driver told to leave a parcel at Flat 4, Rose Court. If a stranger builds a hut labelled Flat 4 near the gate, the driver may hand over the parcel there. Nothing is broken in the address, but the wrong person now holds the package.",
+    "takeaways": [
+      "An unquoted path with a space is a configuration weakness, not a software flaw.",
+      "The useful alert is a weak path combined with a new file or a new service launch.",
+      "Hunting the weakness before an attacker finds it is the real value of this rule."
+    ]
+  },
+  "objectives": [
+    "Explain how Windows resolves a service binary path that contains spaces and no quotes.",
+    "Read service configuration from the registry and identify paths that are vulnerable.",
+    "Derive the directories Windows would probe first from a given unquoted path.",
+    "Correlate a service configuration entry with file creation and process creation telemetry.",
+    "Separate newly introduced weaknesses from long standing vendor configurations with no activity."
+  ],
+  "techniqueId": "t1546-001",
+  "detectsTechniques": [
+    "t1546-001"
+  ],
+  "dataSources": [
+    "Windows registry service configuration under the service image path value, collected by a configuration baseline or host inventory agent",
+    "Sysmon event 11 file creation showing a new executable written into a directory named after the first part of a service path",
+    "Sysmon event 1 process creation recording the parent image, the executable path and the service related command line",
+    "Windows Security event 4688 process creation with command line auditing enabled as a second source for service launches",
+    "Windows Security event 4697 service installation recorded by the security log when a new service is registered"
+  ],
+  "logic": "The detection has two halves that must agree on the same host and path. The first half reads service image paths and selects those containing a space without surrounding quotes, which means Windows would try an executable named after the first path segment. The second half looks for a file created at that derived name, or a process whose image sits in the intermediate directory and whose parent is the service control manager. The fields to correlate are the service name, the full image path, the derived candidate path, and the creating or executing process identity. A benign case is a vendor product that has shipped the same unquoted path for years with no writes in the intermediate directories and no unusual process parent. The malicious case pairs a path that was only recently registered or modified with a fresh executable in a location the service account can write, and the process starts at boot or service restart rather than during a user session.",
+  "pseudoQuery": "# title: Unquoted Service Path With New Executable In Probed Directory\n# logsource:\n#   product: windows\n#   category: file_event\n# detection:\n#   selection_path:\n#     ServiceImagePath|re: '^[A-Za-z]:\\\\\\\\[^\"].* .*\\\\.exe'\n#   selection_file:\n#     EventID: 11\n#     TargetFilename|endswith: '.exe'\n#     TargetFilename|contains: '\\\\Program Files\\\\'\n#   condition: selection_path and selection_file\n# level: high",
+  "falsePositives": [
+    "Vendor applications that have registered an unquoted service path for years while their installers write files into the intermediate directory during upgrades",
+    "Software deployment tools that install applications into a folder whose name matches the first segment of the service path as part of a normal package",
+    "Administrators who create a helper script or tool inside a product directory to troubleshoot the service and launch it manually",
+    "Third party monitoring agents that place a wrapper executable in the vendor directory tree and start it under the same service account"
+  ],
+  "tuningNotes": "Build the vulnerable path inventory first and treat it as a baseline, then alert only when a service image path changes, when a new service appears with an unquoted path, or when a file appears in a probed directory that had no writes for the previous ninety days. Exclude directories that only administrators can write to, because the weakness is not exploitable there in practice. The coverage you lose is exploitation of a long standing weakness using a file that was planted before your baseline window, so re-scan the inventory weekly and keep the full list of vulnerable paths available for responders even when it does not alert.",
+  "severity": "high"
+}

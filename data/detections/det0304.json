@@ -1,0 +1,108 @@
+{
+  "id": "det0304",
+  "type": "detection",
+  "title": "Detection Strategy for Endpoint DoS via Application or System Exploitation",
+  "shortTitle": "Detection Strategy for Endpoint DoS via Application or Sy...",
+  "externalId": "DET0304",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers endpoint denial of service through application or system exploitation, mapped to T1499.004, where an adversary abuses a flaw or resource limit in a service to make it stop responding or crash, denying service to legitimate users. It matters because availability loss is immediate and visible to the business, and exploitation of a public facing service can be repeated or scripted, so a single vulnerable process can take a whole host offline. Detection is built from application crash and hang records, service control events showing an unexpected stop, error reporting records that name the faulting module, and the resource spikes that precede the failure. The main way it fails in practice is attribution and baseline: crashes happen in normal operations too, so the rule needs to know each service's normal restart cadence and error profile, and many hosted services crash into a container or supervisor that restarts them so quickly that no single event looks alarming.",
+  "tags": [
+    "mitre t1499.004",
+    "denial of service",
+    "availability",
+    "service crash",
+    "exploitation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Endpoint DoS via Application or System Exploitation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0304/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Endpoint DoS via Application or System Exploitation - EASY",
+      "path": "exercises/det0304/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Endpoint DoS via Application or System Exploitation - MEDIUM",
+      "path": "exercises/det0304/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Endpoint DoS via Application or System Exploitation - HARD",
+      "path": "exercises/det0304/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Endpoint DoS via Application or System Exploitation - EXTREMELY HARD",
+      "path": "exercises/det0304/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for services and applications that stop, hang or crash. The cause is someone abusing a weakness in them. The goal of that attack is not to steal data. It is to stop other people from using the service. The rule watches crash records, service stop records and resource use just before the failure.",
+    "whyItMatters": "A service that is down costs money and can stop safety critical work. If the cause is a flaw in a public facing program, the attacker can repeat the attack. Crashes also happen in normal operations. The value of this rule is noticing when they cluster, repeat or follow a strange request pattern.",
+    "howItWorks": [
+      "The operating system records when a program crashes or stops responding. It names the program and the module that failed.",
+      "The service manager records when a service stops without a planned shutdown.",
+      "The rule counts these records per service and per host over a short time window.",
+      "It compares that count with the normal rate for that service, so a routine restart does not alert.",
+      "It also looks at memory and processor use just before the failure, because exhaustion may cause the crash.",
+      "When the rate is far above normal, or several services fail together, the system alerts for investigation."
+    ],
+    "example": "Picture a shop with a single checkout till. The till jams once a month because of a worn part. The staff know this and expect it. If the till jams nine times in one hour, that is not wear. That is someone forcing it. The rule learns the normal jam rate and shouts when the rate changes.",
+    "takeaways": [
+      "This technique attacks availability, so the impact is downtime rather than data theft.",
+      "Crash and service stop records matter most, but only when compared with the normal rate for that service.",
+      "Rapid restarts by supervisors or containers can hide the failure, so check those logs too."
+    ]
+  },
+  "objectives": [
+    "Explain how exploitation of an application can cause a denial of service for the whole host.",
+    "Identify crash, hang, service stop and error reporting telemetry and the fields that name the failing component.",
+    "Establish a per-service baseline of restart and crash frequency before alerting on deviation.",
+    "Recognise how container supervisors and automatic recovery mask repeated failures.",
+    "Correlate a resource exhaustion spike with a crash on the same service and host.",
+    "Describe triage steps such as checking external request logs for the traffic that preceded the failure."
+  ],
+  "techniqueId": "t1499-004",
+  "detectsTechniques": [
+    "t1499-004"
+  ],
+  "dataSources": [
+    "Windows Application log events recording an unexpected process termination or a stopped responding condition, including the faulting application name and faulting module",
+    "Windows System log service control manager events recording a service that stopped unexpectedly, plus a service recovery record when the service manager restarts it, with the service name and exit behaviour",
+    "Endpoint detection agent telemetry for processor, memory and handle consumption per process, which shows exhaustion immediately before a failure",
+    "Linux kernel out of memory killer records and systemd unit failure records naming the killed or failed service",
+    "Web server, database or application access logs that show the request rate and request shape shortly before the failure"
+  ],
+  "logic": "The pattern is a service or application that terminates, hangs or is killed repeatedly within a short window, at a rate far above its normal baseline, optionally preceded by a sharp rise in memory, processor or connection use attributed to that process. The fields that must be correlated are the process or service name, the host, the faulting module where reported, the count and timing of failures, and the resource metrics in the minutes before them. The benign case is a known bad batch job, a nightly restart, a memory leak with a documented schedule, or a deployment that restarts a service, all of which occur at predictable times with predictable frequency. The malicious case shows a sudden change in failure rate for one service, often on a host that receives external traffic, sometimes affecting several related processes at once, and it is frequently accompanied by a surge of requests or malformed input visible in the application logs.",
+  "pseudoQuery": "# title: Repeated Service Crash or Unexpected Stop on Externally Reachable Host\n# logsource:\n#   product: windows\n# detection:\n#   selection_crash:\n#     EventID: 1000\n#     FaultingApplicationName|endswith: '.exe'\n#   selection_stop:\n#     EventID: 7034\n#     ServiceName: '*'\n#   selection_resource:\n#     metric: 'memory_usage_percent'\n#     value: '>95'\n#   filter_maintenance:\n#     ScheduledTask: 'patching-window'\n#   condition: (selection_crash or selection_stop) and selection_resource and not filter_maintenance\n# level: high",
+  "falsePositives": [
+    "A service with a known memory leak that is restarted on a documented schedule by monitoring automation",
+    "Application deployments and patching that intentionally stop and restart services during a change window",
+    "Cluster or load balancer failover that stops a service on one node as part of normal redundancy behaviour",
+    "A nightly batch job that drives a database to its memory limit, causing a predictable eviction or restart",
+    "A faulty vendor update that crashes a component on many hosts at once without any attacker involvement"
+  ],
+  "tuningNotes": "Build a per-service and per-host baseline of crash and restart frequency over at least a month, and alert on deviation from that baseline rather than on the raw presence of a crash event, which is the single change that removes most noise. Filter documented maintenance windows and the monitoring automation account that performs scheduled restarts, and suppress alerts for services in an approved restart loop while a known vendor defect is open. Raise severity for services that are externally reachable or business critical, and add the resource condition so that a crash without resource pressure, which is more likely to be a coding fault, is treated as a lower tier issue. This narrowing loses coverage of a carefully paced attack that crashes a service once per hour, below any threshold, so also watch for repeated error reporting from the same faulting module across hosts and review application logs for unusual request patterns during any availability incident.",
+  "severity": "high"
+}

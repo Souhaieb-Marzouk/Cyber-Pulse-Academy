@@ -1,0 +1,109 @@
+{
+  "id": "det0013",
+  "type": "detection",
+  "title": "Detection of Local Browser Artifact Access for Reconnaissance",
+  "shortTitle": "Detection of Local Browser Artifact Access for Reconnaiss...",
+  "externalId": "DET0013",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects local access to browser artifacts such as history, bookmarks, cookies and saved credential stores (T1217, Browser Information Discovery). This is classic post compromise reconnaissance and collection: the files sit in a predictable path inside the user profile, they are readable by the user's own session, and they reveal which internal systems the person uses, which sessions can be hijacked, and which credentials may be recyclable. Detection relies on file access telemetry, which is powerful but notoriously noisy, so the rule must be anchored to the process doing the reading rather than to the file path alone. It fails when object access auditing is disabled, when the endpoint agent only logs writes, and when analysts cannot separate the browser itself from everything else in the profile.",
+  "tags": [
+    "discovery",
+    "collection",
+    "browser artifacts",
+    "t1217",
+    "endpoint",
+    "file access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Local Browser Artifact Access for Reconnaissance",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0013/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Local Browser Artifact Access for Reconnaissance - EASY",
+      "path": "exercises/det0013/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Local Browser Artifact Access for Reconnaissance - MEDIUM",
+      "path": "exercises/det0013/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Local Browser Artifact Access for Reconnaissance - HARD",
+      "path": "exercises/det0013/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Local Browser Artifact Access for Reconnaissance - EXTREMELY HARD",
+      "path": "exercises/det0013/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A web browser keeps local files that record where you have been. They hold your history, your saved bookmarks, your cookies and sometimes saved passwords. Attackers read these files to learn about you and your network. This detection looks for programs other than the browser reading them.",
+    "whyItMatters": "The files are already on the machine and need no exploit to read. They show which internal websites a user can reach, which is useful for planning the next step. Cookies can sometimes let an attacker take over a live session without a password. The activity is quiet, quick and easy to script, which means it can be part of a wide sweep. Catching it early often reveals a broader compromise.",
+    "howItWorks": [
+      "Your endpoint agent and audit policy record when a process opens a file, along with the process image and the account.",
+      "The detection keeps a list of the browser file paths that carry useful information for an attacker.",
+      "It checks each access event and asks whether the process is the browser that owns those files.",
+      "Applications from other vendors, scripting hosts and tools running from temporary folders are treated as suspicious readers.",
+      "It counts how many different browser files one process reads, because a sweep across several files is stronger than one open.",
+      "A hit is enriched with the user account, the process chain and any network activity from the same process."
+    ],
+    "example": "Think of a hotel room safe that only holds the guest's notebook. The guest may read it at any time. The cleaner has a master key but no reason to open it. If the building log shows the cleaner opening a hundred safes in one night, the log matters more than the key.",
+    "takeaways": [
+      "Browser files sit in the user profile and need no exploit to read.",
+      "File path alone is noisy, so the process identity is what makes the rule useful.",
+      "Reading several different browser files in a short time is a strong signal."
+    ]
+  },
+  "objectives": [
+    "List the browser files that hold history, bookmarks, cookies and saved credentials.",
+    "Explain why these files are attractive for reconnaissance and session hijacking.",
+    "Identify the audit settings and endpoint events required to see file access.",
+    "Describe how to separate the browser process from other readers of the same files.",
+    "Use the count of distinct artifacts touched to rank alerts by severity.",
+    "Explain the privacy and legal considerations of monitoring browser data access."
+  ],
+  "techniqueId": "t1217",
+  "detectsTechniques": [
+    "t1217"
+  ],
+  "dataSources": [
+    "Windows Security event 4663 object access audit records for reads of browser profile files",
+    "Sysmon event 1 process creation identifying the reader process, its parent and its command line",
+    "Endpoint file access telemetry or endpoint detection and response file operation events with the accessing process",
+    "Sysmon event 11 file creation showing a copy of a browser database being written to a temporary directory",
+    "Linux audit records of open and read system calls against browser profile paths in the user home directory"
+  ],
+  "logic": "The rule watches reads of browser profile data files and filters by the identity of the reading process. The primary selection is any file access to a path inside a browser profile, including history databases, bookmark files, cookie stores and saved credential stores. Fields that must be correlated are the target file name and path, the accessing process image, its parent process, the command line, the account context, the host, and the number of distinct browser artifacts read by the same process inside a short window. The malicious case is a non browser process, especially a scripting host, a command line utility, an archive tool or a binary running from a temporary folder, reading several of these files, often followed by a copy into an archive or an outbound transfer. The benign case is the browser itself, a password manager that the user approved, a backup agent or a forensic collection tool, so readers must be allow listed by signer and by parent rather than by file path alone.",
+  "pseudoQuery": "# title: Non Browser Process Reads Browser Artifacts\n# logsource:\n#   product: windows\n# detection:\n#   selection_access:\n#     EventID: 4663\n#     ObjectName|contains:\n#       - '\\\\User Data\\\\Default\\\\History'\n#       - '\\\\User Data\\\\Default\\\\Login Data'\n#       - '\\\\User Data\\\\Default\\\\Cookies'\n#   filter_browser:\n#     ProcessName|endswith:\n#       - '\\\\chrome.exe'\n#       - '\\\\msedge.exe'\n#       - '\\\\firefox.exe'\n#   filter_backup:\n#     ProcessName|endswith: '\\\\backup-agent.exe'\n#   condition: selection_access and not filter_browser and not filter_backup\n# level: medium",
+  "falsePositives": [
+    "Enterprise backup agents that copy user profile data on a schedule",
+    "Corporate password managers that read the saved credential store after user consent",
+    "Browser synchronisation or migration tools that move a profile to a new computer",
+    "Security assessment scripts that inventory installed browser extensions",
+    "Digital forensics or electronic discovery tools run with a documented legal authorisation"
+  ],
+  "tuningNotes": "Turn on object access auditing only for the browser profile folders, not the whole disk, otherwise the volume makes the rule unusable. Build an allow list of legitimate reading processes by signing certificate and by parent process, and verify it on a sample of endpoints first. Require at least three distinct browser artifacts read by the same process within five minutes before raising severity. Keep a lower severity version that only watches for copies of the database files into temporary or archive paths, because that is the step that precedes exfiltration. The coverage you lose by allowing signed readers is abuse of a legitimate signed tool through a scripting interface, so pair this rule with command line monitoring on the same host.",
+  "severity": "medium"
+}

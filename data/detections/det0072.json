@@ -1,0 +1,108 @@
+{
+  "id": "det0072",
+  "type": "detection",
+  "title": "Detect Logon Script Modifications and Execution",
+  "shortTitle": "Detect Logon Script Modifications and Execution",
+  "externalId": "DET0072",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers persistence that hides in the logon process itself, where an operator edits the scripts and registry values that Windows or a directory service runs every time a user signs in. It matters because logon scripts execute with the user's own rights on every session, so a small edit produces durable, repeatable execution that survives reboots and password changes and leaves almost no process ancestry that looks unusual. The telemetry that makes it visible is file integrity monitoring on script directories, registry change events for the logon script and shell values under the current version key, and process creation showing a scripting host executing a file from a logon path. The strongest signal is the combination of a recent write to a logon script and execution of that same script at a logon minutes later, attributed to a user account rather than to a management platform. The practical failure mode is that logon scripts are legitimately edited by administrators and pushed by group policy, so rule quality depends almost entirely on knowing which accounts and change windows are allowed to touch them.",
+  "tags": [
+    "persistence",
+    "logon script",
+    "registry",
+    "windows",
+    "file integrity",
+    "sysmon"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Logon Script Modifications and Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0072/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Logon Script Modifications and Execution - EASY",
+      "path": "exercises/det0072/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Logon Script Modifications and Execution - MEDIUM",
+      "path": "exercises/det0072/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Logon Script Modifications and Execution - HARD",
+      "path": "exercises/det0072/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Logon Script Modifications and Execution - EXTREMELY HARD",
+      "path": "exercises/det0072/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A logon script is a small program that runs each time a user signs in. This detection watches the places where those scripts are stored. It also watches the settings that point to them. It raises an alert when they change outside the normal process.",
+    "whyItMatters": "A logon script runs again at every sign in, on every machine the user touches. An attacker who edits one gets repeat access without new tricks. The edit often looks tiny, such as one added line. Administrators change these files for real work. The change alone is not proof of an attack.",
+    "howItWorks": [
+      "A monitoring agent records a fingerprint for each file in the logon script folders.",
+      "When a file changes, the agent reports the new fingerprint and the account that wrote it.",
+      "A separate sensor watches the registry. It stores the script paths and the sign in shell.",
+      "Process creation records show which program started at the next sign in, and from which folder.",
+      "The detection joins the write and the later execution by file path and user name.",
+      "Writes made by the directory service or a management account are filtered out as expected."
+    ],
+    "example": "Think of a hotel that leaves a welcome card in every room. Housekeeping updates the card when the manager asks. Now imagine a stranger rewrites the card. It now tells guests to leave their key at a different desk. The card still looks like a card, and it is read every single day. Only the person who checks the print run notices the change.",
+    "takeaways": [
+      "Logon scripts are attractive because they run again at every sign in.",
+      "Watch both the script files and the registry values that point to them.",
+      "Track who may edit these files, or normal administration will bury the alert."
+    ]
+  },
+  "objectives": [
+    "Explain how logon scripts and logon shell settings provide persistence for an operator.",
+    "Identify the file locations and registry values that control what runs at user sign in.",
+    "Correlate a recent script modification with the process that later executed it at logon.",
+    "Build an allow list of accounts and change windows permitted to modify logon configuration.",
+    "Describe the triage steps that confirm whether a modified logon script is malicious."
+  ],
+  "techniqueId": "t1037-001",
+  "detectsTechniques": [
+    "t1037-001"
+  ],
+  "dataSources": [
+    "File integrity monitoring on the logon script directories, including the netlogon share and the per-user script folder",
+    "Sysmon event 11 file creation recording the image and user that wrote the script file",
+    "Sysmon event 13 registry value set covering the Userinit and Shell values under the Windows current version key",
+    "Windows Security event 4688 process creation showing a scripting host launched with a path under a logon script directory",
+    "Directory service change records identifying who modified the logon script attribute on a user or computer account"
+  ],
+  "logic": "Detect a write to a logon script or a change to a logon shell registry value, then look for execution of that same path within the same user session, which is the behaviour that separates persistence from routine administration. The fields that must line up are the target file path, the writing process, the writing account and the later process that executes the path. Benign changes are made by a small set of management accounts, arrive in bulk during a change window, and are usually accompanied by a group policy update on many hosts at once. The malicious case is a single host, a single user, an editor or shell process that is not part of the management toolchain, and a modification that rewrites or appends rather than replacing the whole file. A registry pointer change to a directory outside the default logon paths is especially telling, because legitimate administrators rarely relocate the script root.",
+  "pseudoQuery": "# title: Logon Script Modified Then Executed At Sign In\n# logsource:\n#   product: windows\n# detection:\n#   script_write:\n#     EventID: 11\n#     TargetFilename|contains: '\\\\Scripts\\\\'\n#   shell_change:\n#     EventID: 13\n#     TargetObject|endswith:\n#       - '\\\\Shell'\n#       - '\\\\Userinit'\n#   filter_admin:\n#     User|contains: 'svc-gpo'\n#   condition: (script_write or shell_change) and not filter_admin\n# level: medium",
+  "falsePositives": [
+    "Group policy administrators who bulk update logon scripts on a documented schedule",
+    "Software distribution platforms that drop a launcher script into a logon directory during an application rollout",
+    "Systems management agents that rewrite a logon script to refresh drive mappings or printer connections",
+    "Help desk staff editing one user logon script to fix a persistent mapping problem",
+    "Application installations that register a logon time helper script in a per-user script folder"
+  ],
+  "tuningNotes": "Build an allow list keyed on the writing account and the parent process, not on the file path alone, because the same path is edited by both attackers and administrators. Restrict the first version to the logon script directories and the well known shell registry values, and exclude managed endpoints where a configuration management tool owns the folder entirely. Establish which accounts legitimately touch these files by watching for two weeks before enabling alerts, then set the rule to fire only when the writing process is outside that set. Version the actual script content so triage can see what changed, which is what turns a weak modification alert into a confident finding. The coverage you give up by scoping tightly is a modification made by an already compromised management account, so keep that path covered by separate monitoring of the management platform itself.",
+  "severity": "medium"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0455",
+  "type": "detection",
+  "title": "Abuse of PowerShell for Arbitrary Execution",
+  "shortTitle": "Abuse of PowerShell for Arbitrary Execution",
+  "externalId": "DET0455",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects abuse of PowerShell for arbitrary code execution on Windows, covering encoded commands, download and run patterns, and script hosts that launch PowerShell with unusual arguments. It matters because PowerShell is present on every modern Windows system, so an attacker needs no tooling on disk and can hide intent inside encoded arguments. Detection depends on process creation records with command line auditing, PowerShell script block and module logging, and network events that show a script host reaching out to download content. It fails in practice because administration and software deployment use the same binaries and the same arguments, so the rule must lean on the parent process, the encoded argument content, and the egress that follows rather than on the binary name alone.",
+  "tags": [
+    "execution",
+    "powershell",
+    "windows",
+    "command line",
+    "scripting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Abuse of PowerShell for Arbitrary Execution",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0455/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Abuse of PowerShell for Arbitrary Execution - EASY",
+      "path": "exercises/det0455/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Abuse of PowerShell for Arbitrary Execution - MEDIUM",
+      "path": "exercises/det0455/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Abuse of PowerShell for Arbitrary Execution - HARD",
+      "path": "exercises/det0455/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Abuse of PowerShell for Arbitrary Execution - EXTREMELY HARD",
+      "path": "exercises/det0455/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "PowerShell is a scripting tool that comes with Windows and can run almost any task. This detection looks for signs that PowerShell is being used to run code that nobody approved. Common signs include long encoded arguments and scripts that fetch more code from the internet.",
+    "whyItMatters": "Attackers like PowerShell because it is already installed and trusted. It leaves few new files behind, and the operator can type commands instead of shipping a program. This makes a quiet intrusion hard to spot with file scanning alone.",
+    "howItWorks": [
+      "The sensor records each process start, including the full command line text.",
+      "The rule checks whether the command line contains encoded or hidden arguments.",
+      "It records the parent process, since the parent shows who asked for the run.",
+      "PowerShell logging stores the code blocks that were actually executed.",
+      "Network events show whether the process then downloaded content.",
+      "Encoding, an unusual parent and outbound traffic together produce an alert."
+    ],
+    "example": "Think of a kitchen where any staff member may use the oven. One person arrives with a sealed box and a note in code instead of a recipe. The oven works as usual, so nothing looks wrong, but nobody can say what is being cooked.",
+    "takeaways": [
+      "PowerShell is trusted software, so its name alone proves nothing.",
+      "Encoded arguments plus an odd parent process are the useful signals.",
+      "Read the script block logging to learn what the code did."
+    ]
+  },
+  "objectives": [
+    "Describe why PowerShell is a common execution choice for attackers",
+    "Identify logging that records command lines and executed script blocks",
+    "Recognise encoded and download based execution patterns in the logs",
+    "Weight the parent process when judging a PowerShell alert",
+    "Use script block content to write an accurate incident summary"
+  ],
+  "techniqueId": "t1059-001",
+  "detectsTechniques": [
+    "t1059-001"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image, user and full command line",
+    "PowerShell script block logging and module logging events recording executed code and loaded modules",
+    "Sysmon event 3 network connection records for powershell.exe destination address and port",
+    "Windows PowerShell operational log events that record engine startup and pipeline execution"
+  ],
+  "logic": "The detection scores a PowerShell execution by how it was launched, not by the fact that it ran. Correlate the process image and command line, the parent process, the user account, the logged script block content, and any network connection made by the same process identifier shortly afterwards. The benign case is an administrative script, a deployment agent, or a monitoring tool that passes a readable script path, has a known parent such as a management service, runs as a service account, and connects only to internal management endpoints. The malicious case is a long encoded argument, a command that decodes and runs base64 text, a parent such as an office application or a web server, or a script host that spawns PowerShell and immediately contacts an external address. The parent process and the destination of the first network connection are the fields that most often separate the two.",
+  "pseudoQuery": "# title: PowerShell executed with encoded arguments from an unusual parent\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\powershell.exe'\n#       - '\\\\pwsh.exe'\n#     CommandLine|contains:\n#       - '-EncodedCommand'\n#       - '-enc '\n#       - 'FromBase64String'\n#       - 'DownloadString'\n#       - 'IEX'\n#   filter_admin:\n#     ParentImage|endswith:\n#       - '\\\\sccmexec.exe'\n#       - '\\\\wsussvc.exe'\n#       - '\\\\explorer.exe'\n#   condition: selection and not filter_admin\n# level: high",
+  "falsePositives": [
+    "Software deployment and patch management products that run encoded installation commands",
+    "Monitoring and inventory agents that collect system state with base64 encoded payloads",
+    "Administrators using short encoded snippets to avoid quoting problems in scheduled tasks",
+    "Application installers that call PowerShell to configure a component during setup"
+  ],
+  "tuningNotes": "Start by baselining which parent processes and service accounts run encoded PowerShell in your estate, then filter those specific combinations rather than the technique. Add the script block logging join so analysts can see the decoded content, and prioritise alerts where the same process identifier connects to an external address. Scope to servers first, especially web and database servers where a script host parent is rare. Filtering all encoded commands removes coverage of a very common attacker step, so keep a lower severity rule for encoded runs that also write a file or change a service, and reserve the high severity alert for encoding combined with an abnormal parent or external egress.",
+  "severity": "high"
+}

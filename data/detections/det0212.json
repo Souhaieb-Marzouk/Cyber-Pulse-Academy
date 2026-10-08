@@ -1,0 +1,105 @@
+{
+  "id": "det0212",
+  "type": "detection",
+  "title": "Detection Strategy for T1505.005 – Terminal Services DLL Modification (Windows)",
+  "shortTitle": "Detection Strategy for T1505.005 – Terminal Services DLL ...",
+  "externalId": "DET0212",
+  "theme": "Detection Strategy",
+  "summary": "This strategy targets T1505.005, Terminal Services DLL modification, where an actor changes the library that the Remote Desktop service loads so their own code runs inside a trusted service at start-up. Detection depends on registry and file telemetry, because the modified library is typically written to an unusual directory before the service is restarted to load it. The usual failure is that this registry value is legitimate when Remote Desktop is redirected to a hardened vendor library, so a path comparison against a per-build baseline is what keeps the rule usable.",
+  "tags": [
+    "windows",
+    "persistence",
+    "remote desktop",
+    "registry",
+    "dll"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1505.005 – Terminal Services DLL Modification (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0212/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1505.005 – Terminal Services DLL Modification (Windows) - EASY",
+      "path": "exercises/det0212/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1505.005 – Terminal Services DLL Modification (Windows) - MEDIUM",
+      "path": "exercises/det0212/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1505.005 – Terminal Services DLL Modification (Windows) - HARD",
+      "path": "exercises/det0212/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1505.005 – Terminal Services DLL Modification (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0212/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks at one setting that tells the Remote Desktop service which library file to load. An attacker can point that setting at their own file. Their code then runs as a trusted service. The rule catches a change to that setting, or a library loaded from the wrong folder.",
+    "whyItMatters": "The Remote Desktop service starts early and runs with high privilege. Code loaded there is trusted by the operating system. It can survive a restart and is hard to notice. Very few teams check this single registry value. Watching it closes a quiet path to lasting access on a server.",
+    "howItWorks": [
+      "A registry watcher reports every change to the key that controls the Remote Desktop service library.",
+      "A file watcher reports when a library file with that name is written to a new folder.",
+      "The rule keeps only changes where the value points outside the normal system folder.",
+      "It then looks for the service starting or restarting shortly after the change.",
+      "Correlating the registry write, the file write, and the service start separates a real change from a stale value.",
+      "The alert names the account, the writing process, and the new path so you can inspect the file."
+    ],
+    "example": "Think of a building directory that tells the fire panel which alarm sound to play. If someone swaps that page, the panel plays a different sound. Nothing seems wrong until the alarm rings. This registry value is that page, and the alarm is the service starting.",
+    "takeaways": [
+      "One registry value decides which library the Remote Desktop service loads.",
+      "A library path outside the system folder is the strongest sign of tampering.",
+      "Watch for the service restart that makes the change take effect."
+    ]
+  },
+  "objectives": [
+    "Name the registry location that defines the Remote Desktop service library and explain what it controls.",
+    "Collect registry and file telemetry that can show a change to that value and the new file on disk.",
+    "Explain why a modified library needs a service restart before it runs.",
+    "Compare a suspicious library path against a baseline of legitimate paths for each server build.",
+    "Write a rule that joins the registry change with the service start event."
+  ],
+  "techniqueId": "t1505-005",
+  "detectsTechniques": [
+    "t1505-005"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set on the Terminal Services Parameters ServiceDll value",
+    "Sysmon event 11 file create for library files written outside the platform system directory",
+    "Service control manager records showing a service being installed or started, together with Windows Security event 4697",
+    "Windows Security event 4688 process creation showing the process that wrote the registry value"
+  ],
+  "logic": "The detection follows a chain rather than a single event: a write to the registry value that names the Remote Desktop service library, a library file appearing in a directory that is not the platform system directory, and a service start that loads it. The fields to correlate are the registry path, the new value, the writing process, the file path, and the service start time. Legitimate builds keep the value inside the system directory and change it only during imaging, while a suspicious case is an on-demand write by a scripting host, an office application, or a management utility followed by a restart within minutes.",
+  "pseudoQuery": "# title: Terminal Services ServiceDll Value Pointing Outside System Directory\n# logsource:\n#   product: windows\n#   category: registry_set\n# detection:\n#   selection_reg:\n#     EventID: 13\n#     TargetObject|endswith: '\\Services\\Terminal Services\\Parameters\\ServiceDll'\n#   filter_path:\n#     Details|startswith: 'C:\\Windows\\System32\\'\n#   condition: selection_reg and not filter_path\n# level: high",
+  "falsePositives": [
+    "Thin client or virtual desktop vendors that redirect the Remote Desktop service library to their own hardened build during installation",
+    "Server imaging and gold build scripts that rewrite the value before the machine is promoted to production",
+    "Backup or restore tools that replay the registry key from a snapshot and briefly write an unusual path",
+    "Endpoint protection repair routines that reset service library values after a failed upgrade"
+  ],
+  "tuningNotes": "Baseline the exact library path used by each server build, then allowlist those paths by full name and signer rather than by folder. Scope the rule to servers that host Remote Desktop, and exclude imaging windows where build scripts legitimately rewrite the value. Compare the writing process against a list of approved management tools. Narrowing to signed known paths drops coverage of an attacker who drops a malicious library into the system directory itself, so keep a second lower-severity rule that alerts on any change to this value at all.",
+  "severity": "high"
+}

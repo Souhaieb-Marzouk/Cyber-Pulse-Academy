@@ -1,0 +1,106 @@
+{
+  "id": "det0204",
+  "type": "detection",
+  "title": "Detection Strategy for T1547.010 – Port Monitor DLL Persistence via spoolsv.exe (Windows)",
+  "shortTitle": "Detection Strategy for T1547.010 – Port Monitor DLL Persi...",
+  "externalId": "DET0204",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects persistence through a Windows port monitor, covering T1547.010 Port Monitors. The technique matters because a port monitor runs inside the print spooler service and its library is loaded on every boot, so one registry change gives an attacker recurring code execution inside a long lived and highly privileged process. Detection is a correlation problem: the registry write that registers the monitor, the library file that appears on disk, and the module that the spooler loads on the next start. The common failure is that printer vendors install legitimate monitors, so the rule needs an approved baseline of monitor names, publishers, and file paths, and it must treat any edit made by a non administrative or unexpected process as the higher priority signal.",
+  "tags": [
+    "mitre t1547.010",
+    "persistence",
+    "windows",
+    "print spooler",
+    "registry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for T1547.010 – Port Monitor DLL Persistence via spoolsv.exe (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0204/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for T1547.010 – Port Monitor DLL Persistence via spoolsv.exe (Windows) - EASY",
+      "path": "exercises/det0204/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for T1547.010 – Port Monitor DLL Persistence via spoolsv.exe (Windows) - MEDIUM",
+      "path": "exercises/det0204/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for T1547.010 – Port Monitor DLL Persistence via spoolsv.exe (Windows) - HARD",
+      "path": "exercises/det0204/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for T1547.010 – Port Monitor DLL Persistence via spoolsv.exe (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0204/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a new print monitor on a Windows computer. A print monitor is a small program that helps the print service talk to a printer. Windows starts the print service every time the computer boots. An attacker adds a monitor so that their own code starts with it. The rule watches the registry key, the new file, and the loaded module.",
+    "whyItMatters": "Persistence means the attacker comes back after a reboot. A print monitor is a quiet way to arrange that. The print service runs with high rights on the system. The monitor library loads inside that service every time the computer starts. Few people ever check print settings, so this can survive for a very long time. The registry key and the module load together give you a clear signal.",
+    "howItWorks": [
+      "The endpoint agent records registry changes, including the key path and the value written.",
+      "It also records new files, so you can see the library that was just dropped on disk.",
+      "The detection watches the print monitor registry location for any new entry.",
+      "It compares the new entry with the list of monitors that your team has approved.",
+      "It then looks for the print service loading that library when it next starts.",
+      "A new monitor from a temporary folder or without a valid signature alerts immediately."
+    ],
+    "example": "Think of a factory gate that opens for one delivery van. The guard knows the van, so he raises the barrier without checking the cargo. An attacker paints his own van the same colour and adds it to the guard's list. From then on, the barrier opens for him every single morning. A print monitor is that van. Windows writes it onto the trusted list, and the print service opens the gate at every boot.",
+    "takeaways": [
+      "A port monitor gives an attacker code execution inside the print service.",
+      "The registry entry and the loaded library must be linked together.",
+      "Approved monitor baselines are essential, because vendors add monitors too."
+    ]
+  },
+  "objectives": [
+    "Describe how the Windows print spooler loads port monitor libraries.",
+    "Locate the registry location that registers a port monitor.",
+    "Correlate registry writes, dropped files, and spooler module loads.",
+    "Build an approved baseline of monitor names, publishers, and file paths.",
+    "Prioritise edits made by non administrative or unexpected processes."
+  ],
+  "techniqueId": "t1547-010",
+  "detectsTechniques": [
+    "t1547-010"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for the print monitor key under the Windows control set",
+    "Windows Security event 4657 registry value modification naming the acting account and process",
+    "Sysmon event 11 file create for new library files in spooler driver directories",
+    "Sysmon event 7 image load naming the library loaded into the print service process"
+  ],
+  "logic": "The pattern is a new port monitor registered in the print configuration and then loaded as a module by the print spooler process. The fields that must be correlated are the registry key path and the value data from the registry write, the acting account and process that performed it, the file created at the path named in that value, and the image load event inside the spooler process that maps the same file. The malicious case differs from the benign one by provenance: a printer driver package installed by a signed vendor installer during a change window is routine, while a registry value written by a script, a shell, or an office process that points to a library in a temporary or user writable folder has no legitimate explanation. The strongest confirmation is the pair, because the registry write alone is weak evidence and the module load alone has no attributable cause.",
+  "pseudoQuery": "# title: New Print Monitor Registered Outside Change Window\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     event_type: registry_value_set\n#     target_object|endswith: '\\Control\\Print\\Monitors'\n#   filter_approved:\n#     target_object|endswith:\n#       - '\\Monitors\\Local Port'\n#       - '\\Monitors\\Standard TCP/IP Port'\n#       - '\\Monitors\\WSD Port'\n#   condition: selection and not filter_approved\n# level: high",
+  "falsePositives": [
+    "Printer vendors installing a monitor during a driver update",
+    "Print management software adding a monitor for accounting or secure release",
+    "Virtual print to file tools that register their own port monitor",
+    "Imaging or label printing suites that add a monitor at install time",
+    "A print server rebuild that restores monitor entries from a configuration backup"
+  ],
+  "tuningNotes": "Allow the default Windows monitors and the vendor monitors that your print server baseline confirms, then alert on any new entry that appears outside a change window or from a process that is not a signed installer. Scope the strict tier to domain controllers, file servers, and hosts that have the print service running but no printers, because a monitor has no purpose there. Filtering by approved monitor names loses detection when an attacker reuses an approved name with a different library path, so always evaluate the registered library path and its signature alongside the name.",
+  "severity": "high"
+}

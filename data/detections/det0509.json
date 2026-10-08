@@ -1,0 +1,109 @@
+{
+  "id": "det0509",
+  "type": "detection",
+  "title": "Detection of Web Session Cookie Theft via File, Memory, and Network Artifacts",
+  "shortTitle": "Detection of Web Session Cookie Theft via File, Memory, a...",
+  "externalId": "DET0509",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers theft of web session cookies, the technique tracked as T1539. Cookies and stored session tokens are what keep a user signed in to mail, file sharing and business applications without re entering credentials, so copying them gives an attacker the account with no password prompt and no second factor challenge. The telemetry that makes this visible is file access to browser cookie stores and token files, reads of those files by processes that are not the browser itself, outbound network sessions that carry the copied data, and identity provider records that show the same token used from a new source. In practice the strategy fails because browsers and password managers touch these files constantly, so the detection is weak unless file access is correlated with a third party process and with a matching outbound transfer.",
+  "tags": [
+    "session cookie",
+    "t1539",
+    "credential access",
+    "browser",
+    "identity",
+    "file access"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Web Session Cookie Theft via File, Memory, and Network Artifacts",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0509/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Web Session Cookie Theft via File, Memory, and Network Artifacts - EASY",
+      "path": "exercises/det0509/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Web Session Cookie Theft via File, Memory, and Network Artifacts - MEDIUM",
+      "path": "exercises/det0509/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Web Session Cookie Theft via File, Memory, and Network Artifacts - HARD",
+      "path": "exercises/det0509/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Web Session Cookie Theft via File, Memory, and Network Artifacts - EXTREMELY HARD",
+      "path": "exercises/det0509/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for someone stealing the small files and memory tokens that keep you signed in to a website. These are called session cookies. With a copy of one, an attacker can act as you without knowing your password. The rule watches who opens those files and where the data is later sent.",
+    "whyItMatters": "Sessions let users skip the login screen, so stealing one skips every check at that screen. Multi factor authentication does not help, because the victim already passed it. The attacker looks like a normal signed in user, which makes the activity hard to separate from real work. Responding means ending the session, not only changing the password.",
+    "howItWorks": [
+      "The endpoint agent records when a process opens a file, and which file it opened.",
+      "The rule keeps only events where the file is a known browser cookie or session token store.",
+      "It then removes events from the browser itself, because the browser reads its own store all day.",
+      "A process that is not a browser, or that is a script host, does not get that exemption.",
+      "Network records are joined on the host to look for data leaving soon after the read.",
+      "The read plus the outbound transfer in one short window is what raises the alert."
+    ],
+    "example": "Picture a coat check room. You hand over your coat and you get a small ticket. Anyone holding the ticket can collect the coat, no questions asked. A session cookie is that ticket. This rule watches for someone copying tickets out of the drawer before the owner comes back.",
+    "takeaways": [
+      "A session token is a temporary key that works without your password.",
+      "File access alone is too common, so pair it with network evidence.",
+      "Passwords must be changed and sessions must be revoked after cookie theft."
+    ]
+  },
+  "objectives": [
+    "Explain what a session cookie is and why copying it allows account access without credentials.",
+    "Locate the browser and application files where session tokens are stored on each operating system.",
+    "Identify which processes legitimately read those files and why they need an allow list entry.",
+    "Correlate a suspicious file read with an outbound network session from the same host.",
+    "Describe how to revoke stolen sessions in the identity provider after an alert.",
+    "Decide which user groups, such as administrators, deserve immediate alerting."
+  ],
+  "techniqueId": "t1539",
+  "detectsTechniques": [
+    "t1539"
+  ],
+  "dataSources": [
+    "Sysmon event 11 file creation and event 23 file delete telemetry covering browser profile directories",
+    "Endpoint detection and response file read events including image path and target file path",
+    "Browser profile cookie store and leveldb paths recorded as file names without file contents",
+    "Proxy or firewall flow logs showing destination host, bytes sent and the account tied to the source address",
+    "Identity provider sign in and token use records showing source address and client application for each session"
+  ],
+  "logic": "The pattern is a process that is neither a browser nor a documented profile tool reading the session token store inside a user browser profile, followed within a short window by outbound traffic from the same host to an address that is not part of the normal application footprint. The fields that must be correlated are the accessing image path and its signer, the exact file path under the browser profile, the user account that owns the profile, and the destination host with bytes sent on the network side, all joined on host and a short time window. The malicious case usually shows an unsigned binary running from a temporary or download directory, or a document process such as a spreadsheet application spawning a script host that reads the store. The benign case is the browser itself, password managers that import saved logins on request, and backup agents that read profiles on a schedule from a signed management product.",
+  "pseudoQuery": "# title: Non Browser Process Reading Session Cookie Store Followed by Outbound Transfer\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - '\\User Data\\Default\\Network\\Cookies'\n#       - '\\User Data\\Default\\Local Storage\\leveldb'\n#       - '\\Login Data'\n#   filter_browser:\n#     Image|endswith:\n#       - '\\chrome.exe'\n#       - '\\msedge.exe'\n#       - '\\firefox.exe'\n#       - '\\brave.exe'\n#   condition: selection and not filter_browser\n# level: high",
+  "falsePositives": [
+    "Backup and profile migration tools that read the whole browser profile on a scheduled basis from a signed management agent",
+    "Endpoint antivirus scanning that opens cookie databases as part of a routine file scan",
+    "Password manager products that import saved logins from the browser at the user request",
+    "Web development or testing tools that read a profile copy to reproduce a reported application problem",
+    "Enterprise browser synchronisation agents that move profiles between devices for the same user"
+  ],
+  "tuningNotes": "Begin by allow listing the signed images that legitimately read browser profiles in your estate, naming them by full path rather than by product name, and scope the rule to user workstations instead of servers. Add a filter for the parent process so that only reads driven by an interactive user session, or by a suspicious parent such as a document application, are reported. Baseline the normal read frequency per profile so that a sudden read of many profiles on one host stands out. The coverage you lose is theft that copies the store with a tool you already trusted, and theft that happens entirely in memory and never touches the cookie file.",
+  "severity": "high"
+}

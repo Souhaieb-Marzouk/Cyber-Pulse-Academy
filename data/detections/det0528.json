@@ -1,0 +1,107 @@
+{
+  "id": "det0528",
+  "type": "detection",
+  "title": "Detecting Remote Script Proxy Execution via PubPrn.vbs",
+  "shortTitle": "Detecting Remote Script Proxy Execution via PubPrn.vbs",
+  "externalId": "DET0528",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy catches remote script proxy execution through the signed Windows printing script PubPrn.vbs. The script accepts a remote script path, so a trusted and digitally signed host process loads and runs script content that an attacker controls, while the command line still looks like routine printer administration. Parent and child process relationships around the script host, command line arguments that point at a remote address, and image load events for the script control library make the behaviour visible. The rule fails when it alerts on the script name alone, because scheduled printer administration genuinely runs it, so the remote path and the script engine load must be part of the condition.",
+  "tags": [
+    "execution",
+    "defense evasion",
+    "windows",
+    "scripting",
+    "proxy execution"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detecting Remote Script Proxy Execution via PubPrn.vbs",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0528/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detecting Remote Script Proxy Execution via PubPrn.vbs - EASY",
+      "path": "exercises/det0528/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detecting Remote Script Proxy Execution via PubPrn.vbs - MEDIUM",
+      "path": "exercises/det0528/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detecting Remote Script Proxy Execution via PubPrn.vbs - HARD",
+      "path": "exercises/det0528/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detecting Remote Script Proxy Execution via PubPrn.vbs - EXTREMELY HARD",
+      "path": "exercises/det0528/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a special printing script that ships with Windows and can run another script from the network. The file is signed by the operating system vendor, so many security tools trust it. Attackers abuse that trust to run their own code. The alert fires when the script is started with a remote address.",
+    "whyItMatters": "Signed system files earn trust from security tools and from people. When a trusted file can be told to run code from elsewhere, that trust becomes a shield. The technique needs no software flaw, only a command line argument. It therefore works on fully patched machines. Simple process rules may allow it, because the file itself is legitimate. The argument and the script engine load are what separate abuse from normal printer work.",
+    "howItWorks": [
+      "Process creation telemetry records the script host, its parent process and the complete command line.",
+      "The rule matches a command line that names the printing script. It also requires an argument that looks like a remote address.",
+      "Image load events are checked for the script control library, which the host loads when it runs remote script content.",
+      "A network connection from the same script host process shortly after start makes the finding stronger.",
+      "The rule collects the full command line, the parent process and any downloaded file path for the analyst.",
+      "Analysts compare the alert with the print management schedule before deciding whether it is authorised."
+    ],
+    "example": "Think of a courier in uniform who is waved past the bag search every morning. One day someone hands the courier a sealed parcel at the door. The parcel must be left in the finance office. Security lets the courier in, because the uniform is trusted. The parcel was never checked. Here the trusted script host is the courier and the remote script is the parcel.",
+    "takeaways": [
+      "Living off a signed system script needs no exploit and works on patched machines.",
+      "The remote address in the argument and the script control library load are the real indicators.",
+      "The script name alone is normal printer administration, so never alert on it by itself."
+    ]
+  },
+  "objectives": [
+    "Explain what proxy execution through a signed system script means and why it evades trust based controls",
+    "Identify the process creation fields that reveal the script host, its parent and its arguments",
+    "Recognise the script control library load that shows remote script content is being processed",
+    "Explain why a remote path in the argument changes the meaning of an otherwise routine command",
+    "Build an allow list for the print publishing jobs that legitimately use this script",
+    "Write a triage step that checks any file downloaded after the script starts"
+  ],
+  "techniqueId": "t1216-001",
+  "detectsTechniques": [
+    "t1216-001"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation with parent image, image and full command line fields",
+    "Sysmon event 7 image load showing the script control library loaded by the script host process",
+    "Sysmon event 3 network connection from the script host process with destination address and port",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Script host logging records that capture the script path argument passed to the printing script"
+  ],
+  "logic": "The pattern is a script host starting the signed Windows printing script with an argument that resolves to a remote location, or loading the script control library while doing so. Correlate the image of the script host, the full command line, the parent process and the image load list for that process, then add any network connection from the same process identifier within a minute. The benign case is a scheduled printer publishing job that points at a local script or a trusted print server. The malicious case is a remote web or file share address in the argument, a parent process such as an office application or a mail client, and a script control library load followed by a new file in a temporary directory.",
+  "pseudoQuery": "# title: PubPrn Script Proxy Execution With Remote Script Path\n# logsource:\n#   product: windows\ndetection:\n  selection:\n    EventID: 1\n    Image|endswith:\n      - '\\cscript.exe'\n      - '\\wscript.exe'\n    CommandLine|contains: 'pubprn.vbs'\n  selection_remote:\n    CommandLine|contains:\n      - 'http://'\n      - 'https://'\n  selection_load:\n    EventID: 7\n    ImageLoaded|endswith: '\\scrobj.dll'\n  condition: selection and (selection_remote or selection_load)\nlevel: high",
+  "falsePositives": [
+    "Scheduled printer administration jobs that call the printing script to publish printers from a print server",
+    "Software deployment packages that map printers on new machines and use the script with a local path",
+    "Administrators who run the script by hand over a remote management session to fix a print queue",
+    "Login scripts that call the script for every user in a site"
+  ],
+  "tuningNotes": "Require both the script name and evidence of remote content, either a web address in the command line or a script control library load, and drop the plain script name condition. Allow the print management server that legitimately publishes printers, and allow the local drive paths your login scripts use. Scope the highest severity to servers and administrative workstations where printer publishing is not a daily task. These filters still leave coverage of an attacker who uses a file share path instead of a web address, so keep a lower severity alert for any use of the script whose parent is an office application.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0452",
+  "type": "detection",
+  "title": "Detect Subversion of Trust Controls via Certificate, Registry, and Attribute Manipulation",
+  "shortTitle": "Detect Subversion of Trust Controls via Certificate, Regi...",
+  "externalId": "DET0452",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects subversion of trust controls, meaning changes to the certificates, registry entries, or file attributes that Windows and other platforms use to decide whether code and connections are trustworthy. It matters because weakening one trust decision lets an attacker run unsigned code, intercept traffic, or bypass the checks that would otherwise stop them, and the change is usually small. Detection relies on registry modification telemetry for the certificate and trust store keys, file creation records inside the trusted root and publisher stores, and certificate installation events, joined with process creation to identify the tool that made the change. It fails when certificate services are managed by automation that edits the stores constantly, because the same write that is routine on a build server is suspicious on a user laptop.",
+  "tags": [
+    "defense evasion",
+    "windows",
+    "certificate",
+    "registry",
+    "trust"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Subversion of Trust Controls via Certificate, Registry, and Attribute Manipulation",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0452/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Subversion of Trust Controls via Certificate, Registry, and Attribute Manipulation - EASY",
+      "path": "exercises/det0452/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Subversion of Trust Controls via Certificate, Registry, and Attribute Manipulation - MEDIUM",
+      "path": "exercises/det0452/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Subversion of Trust Controls via Certificate, Registry, and Attribute Manipulation - HARD",
+      "path": "exercises/det0452/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Subversion of Trust Controls via Certificate, Registry, and Attribute Manipulation - EXTREMELY HARD",
+      "path": "exercises/det0452/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Computers keep lists of certificates, which are digital identity documents, and registry settings that say which software is trusted. This detection watches for changes to those lists and settings. An attacker who changes them can make harmful software look approved.",
+    "whyItMatters": "Trust settings decide what your computer will run and which secure connections it accepts. If an attacker weakens a trust setting, later checks pass when they should fail. The edit itself is often tiny, so it is easy to miss among normal activity.",
+    "howItWorks": [
+      "A sensor records every change to registry keys that hold trust and certificate settings.",
+      "The rule compares the changed key or file path with a list of trust related locations.",
+      "It records which process performed the write and which account it used.",
+      "It also collects certificate installation events and their thumbprints.",
+      "The analyst checks whether the certificate or setting is known and approved.",
+      "An unapproved certificate added by a script host raises an alert for review."
+    ],
+    "example": "Think of a building where the front desk keeps a book of approved delivery companies. Someone adds a new company to the book in pencil. The guards then wave through any van with that name, even a van nobody ordered.",
+    "takeaways": [
+      "Trust stores and trust registry keys decide what the system believes.",
+      "Small edits to those places can unlock much larger actions later.",
+      "Always check which process made the change and when it ran."
+    ]
+  },
+  "objectives": [
+    "Explain what a certificate store and trust registry key control",
+    "Identify telemetry that records trust store writes and certificate installs",
+    "Recognise the difference between a managed rollout and a local trust edit",
+    "Correlate a trust change with the tool and user that performed it",
+    "Escalate a review when an unknown certificate appears in a root store"
+  ],
+  "techniqueId": "t1553",
+  "detectsTechniques": [
+    "t1553"
+  ],
+  "dataSources": [
+    "Sysmon event 13 registry value set for certificate and trust related keys under the system certificate stores",
+    "Sysmon event 11 file creation records inside the trusted root and trusted publisher certificate store directories",
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Windows certificate services client lifecycle events that record installed and removed certificates",
+    "Linux auditd file watches on the system certificate bundle and update trust store directories"
+  ],
+  "logic": "The pattern is a write to a location that defines trust, made by a process that does not normally manage trust. Correlate the registry key or file path, the value written, the process image and its signature state, the parent process, and the user account, then match the certificate thumbprint against your approved inventory. The benign case is an enterprise certificate authority rollout driven by group policy or a mobile device management agent, where the parent process is the management service, the certificate matches a published thumbprint, and the write happens inside a change window. The malicious case is a local write to a trust store by an interactive shell or an unsigned tool, a certificate that is not in the inventory, or a value that disables a trust check, such as a registry setting that switches off signature or revocation checking.",
+  "pseudoQuery": "# title: Certificate store or trust registry key modified by unmanaged tool\n# logsource:\n#   product: windows\n# detection:\n#   selection:\n#     EventID: 13\n#     TargetObject|contains:\n#       - '\\\\Microsoft\\\\SystemCertificates\\\\Root\\\\Certificates'\n#       - '\\\\Microsoft\\\\SystemCertificates\\\\TrustedPublisher\\\\Certificates'\n#       - '\\\\Cryptography\\\\Configuration\\\\OID\\\\'\n#   filter_managed:\n#     Image|endswith:\n#       - '\\\\ccmexec.exe'\n#       - '\\\\certutil.exe'\n#       - '\\\\mdmagent.exe'\n#   condition: selection and not filter_managed\n# level: high",
+  "falsePositives": [
+    "Enterprise certificate authorities that push new root certificates through group policy or mobile device management",
+    "Internal development teams installing a self signed certificate for a test service on a lab machine",
+    "Backup or configuration management tooling that writes the certificate store as part of image deployment",
+    "Security products that add or refresh their own inspection certificate during an agent upgrade"
+  ],
+  "tuningNotes": "Filter by the signing state and parent process of the writing tool rather than by the tool name alone, because certificate utilities are also abused. Keep an inventory of approved certificate thumbprints and alert on anything new, especially in a root store. Scope the rule to user workstations and internet facing servers first, and exclude the build and certificate authority hosts where these writes are constant. If you filter certutil entirely you lose the very tool most often used for the download and install step, so keep a separate rule that alerts on certutil install actions that are not tied to a change record.",
+  "severity": "high"
+}

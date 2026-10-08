@@ -1,0 +1,106 @@
+{
+  "id": "det0256",
+  "type": "detection",
+  "title": "Detection Strategy for SSH Session Hijacking",
+  "shortTitle": "Detection Strategy for SSH Session Hijacking",
+  "externalId": "DET0256",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy covers SSH session hijacking, tracked as T1563.001, where an adversary takes control of an existing Secure Shell session instead of authenticating with stolen credentials. Because no new login appears in the authentication log, the usual brute force and impossible travel rules stay silent. Detection depends on correlating the accepted login record from the SSH daemon with the process ancestry and environment of everything that runs afterwards in that session. The approach fails when session accounting is disabled, when terminal multiplexers hide the process tree, or when the agent socket is reachable by unrelated processes with no audit rule in place.",
+  "tags": [
+    "ssh",
+    "session hijacking",
+    "t1563.001",
+    "lateral movement",
+    "linux audit",
+    "process ancestry"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for SSH Session Hijacking",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0256/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for SSH Session Hijacking - EASY",
+      "path": "exercises/det0256/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for SSH Session Hijacking - MEDIUM",
+      "path": "exercises/det0256/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for SSH Session Hijacking - HARD",
+      "path": "exercises/det0256/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for SSH Session Hijacking - EXTREMELY HARD",
+      "path": "exercises/det0256/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Secure Shell, usually shortened to SSH, is a way to log in to another computer safely over a network. Session hijacking means someone takes over a session that another person already opened. The thief does not need the password, because the door is already open. This detection looks for signs that a second person is using a session that belongs to someone else.",
+    "whyItMatters": "Most SSH alerts fire when someone logs in. Hijacking leaves the login record untouched, so those alerts never appear. The intruder inherits the victim's permissions and can move for as long as the session lasts. That makes the activity very hard to separate from normal work. Detection has to look at how the session behaves after the login, not at the login itself.",
+    "howItWorks": [
+      "The host records each accepted SSH login with the account name, the client address, and a session identifier.",
+      "Process monitoring captures every program started in that session, with its parent process and its terminal device.",
+      "The rule links each new process to the login record that owns the same terminal or session identifier.",
+      "It flags processes that touch the SSH agent socket but do not descend from the login process of that session.",
+      "It also flags one session showing two different client addresses, or one terminal identifier in use twice at once."
+    ],
+    "example": "Imagine a hotel room key card. The guest taps in, and the door stays unlocked while the guest is inside. A thief who slips in behind the guest never needs a key, so the front desk sees no new entry. The hotel only notices later, when the room bill shows charges the guest never made. Session hijacking is the thief slipping in behind the guest. Detection means watching what happens inside the room, not the door log.",
+    "takeaways": [
+      "Hijacking adds no login event, so login based rules cannot see it.",
+      "The process tree and the terminal device are the clues that link activity to a session.",
+      "An SSH agent socket that is readable by too many processes is the main enabler."
+    ]
+  },
+  "objectives": [
+    "Explain why SSH session hijacking produces no new authentication record",
+    "Correlate accepted SSH login entries with process ancestry on the same host",
+    "Identify environment fields such as the agent socket path that reveal agent use",
+    "Recognize terminal multiplexer activity that hides the true process owner",
+    "Describe why restricting agent socket permissions reduces the attack surface"
+  ],
+  "techniqueId": "t1563-001",
+  "detectsTechniques": [
+    "t1563-001"
+  ],
+  "dataSources": [
+    "Linux auditd execve records showing the SSH agent environment variable and process ancestry for remote logins",
+    "SSH daemon authentication log entries recording the accepted key, source address, and session identifier",
+    "Audit records of reads from the ssh agent socket path under the temporary agent directories",
+    "Endpoint process monitoring that captures parent process identifier and terminal device for each process",
+    "Network flow records for established TCP sessions on port 22 with source address and byte counters"
+  ],
+  "logic": "The pattern is an SSH session whose post-login activity cannot be tied back to the login that opened it. The rule joins the accepted authentication record, keyed by source address, account, and session or terminal identifier, with endpoint process creation records for the same host. Processes that read the SSH agent socket but sit outside the login process ancestry, or that appear on a terminal identifier already owned by another session, are the suspicious cases. Benign cases are tools that legitimately reconnect to the agent, such as a user starting a new shell with agent forwarding, or automation that reuses a terminal under a multiplexer; those keep a consistent ancestry and a single client address.",
+  "pseudoQuery": "# title: SSH agent socket used by a process outside the owning session\n# logsource:\n#   product: linux\n# detection:\n#   selection:\n#     event_type: 'process_start'\n#     file_accessed|contains: '/tmp/ssh-'\n#   filter:\n#     parent_process: 'sshd'\n#     client_address_match: 'true'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "A user who opens a second terminal with agent forwarding and starts a program that connects to the same agent socket",
+    "Automation run by a logged-in administrator, where the management process is reparented away from the login shell",
+    "A terminal multiplexer that reuses the same terminal identifier after a network drop",
+    "Development tooling that reads the agent socket from a container sharing the host network namespace"
+  ],
+  "tuningNotes": "Build a per-host baseline of which parent processes normally touch the agent socket, then allowlist those exact process images rather than whole directories. Require the mismatch to persist for several events instead of alerting on a single read, because one stray read is common. Restrict the rule to hosts in the privileged access tier, where a hijacked session has real impact, and keep a count based variant on other hosts. You lose visibility on lower tiers and you will miss short hijacks that produce fewer events than the threshold, so review the threshold after the first month of data.",
+  "severity": "high"
+}

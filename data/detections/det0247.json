@@ -1,0 +1,108 @@
+{
+  "id": "det0247",
+  "type": "detection",
+  "title": "Detection of Adversary Use of Unused or Unsupported Cloud Regions (IaaS)",
+  "shortTitle": "Detection of Adversary Use of Unused or Unsupported Cloud...",
+  "externalId": "DET0247",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects adversary activity in cloud regions the organisation has never used, focusing on infrastructure as a service providers where resources can be created in any region with a single API call. The technique matters because monitoring, log routing, guardrails and network controls are usually built only where the business operates, so a new region gives an intruder compute and storage that no one is watching. Detection depends on control plane audit records that carry the region of the endpoint, the caller identity and the operation name, joined with an inventory of regions where the account legitimately holds resources. The main way it fails is that many services report a global or adjacent region regardless of where the user acted, so the rule must separate read only discovery from resource creation and must be filtered by the account's own region history.",
+  "tags": [
+    "cloud",
+    "defense evasion",
+    "resource development",
+    "aws",
+    "detection engineering",
+    "monitoring"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Adversary Use of Unused or Unsupported Cloud Regions (IaaS)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0247/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Adversary Use of Unused or Unsupported Cloud Regions (IaaS) - EASY",
+      "path": "exercises/det0247/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Adversary Use of Unused or Unsupported Cloud Regions (IaaS) - MEDIUM",
+      "path": "exercises/det0247/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Adversary Use of Unused or Unsupported Cloud Regions (IaaS) - HARD",
+      "path": "exercises/det0247/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Adversary Use of Unused or Unsupported Cloud Regions (IaaS) - EXTREMELY HARD",
+      "path": "exercises/det0247/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for cloud work happening in a part of the world the company never uses. Cloud providers divide the world into regions, such as a data centre area in one country. An attacker who has keys can start a machine in any region. The rule watches which regions each account has used before, and alerts on new ones.",
+    "whyItMatters": "Teams set up their alarms and rules where their systems live. Regions they do not use have no alarms and often no logs sent home. That makes an unused region a quiet place to work. A single call can create a server there, so the risk can appear in seconds.",
+    "howItWorks": [
+      "Someone uses cloud keys to call the provider interface.",
+      "The provider writes an audit record with the caller, the action, the time and the endpoint region.",
+      "The rule keeps a list of the regions each account has used in the past.",
+      "It compares today's calls with that list and flags regions that are new.",
+      "It ignores actions that only read information, and keeps actions that create resources.",
+      "A new region plus a resource creating call raises an alert with the caller and the source address."
+    ],
+    "example": "Think of a company with offices in two cities. All staff badges work in those two buildings. If a badge is used at a warehouse the company does not own, in a third city, the alarm should ring. The badge was real, the door was real, but the place was never part of the business.",
+    "takeaways": [
+      "Unused regions often have no monitoring and no log shipping.",
+      "Track region history per identity before you judge a region as suspicious.",
+      "Keep resource creating calls and drop read only calls to cut the noise."
+    ]
+  },
+  "objectives": [
+    "Explain why cloud regions differ in visibility and control coverage.",
+    "Identify the audit fields that record the region of an API endpoint.",
+    "Describe how to build a per identity region history baseline.",
+    "Separate read only discovery calls from calls that create or modify resources.",
+    "Correlate a new region with the caller identity, source address and user agent.",
+    "Describe the log routing gaps that make an unused region attractive."
+  ],
+  "techniqueId": "t1535",
+  "detectsTechniques": [
+    "t1535"
+  ],
+  "dataSources": [
+    "AWS CloudTrail management events carrying the awsRegion field, the caller identity and the event name",
+    "Azure activity log entries carrying the resource location and the calling principal identifier",
+    "Google Cloud audit logs with the resource location field for compute and storage creation calls",
+    "Cloud asset inventory export listing every region where the account currently holds resources",
+    "Cloud log routing and organisation trail configuration showing which regions send logs to the central account"
+  ],
+  "logic": "The pattern is a caller identity performing a resource creating or modifying call in a region that the organisation does not use and that the identity has never touched. The fields to correlate are the endpoint region, the caller identity and its account, the operation or event name, whether the operation is read only or mutating, the source address and user agent, and the account's prior region history from the audit trail and asset inventory. The malicious case usually shows a first ever call in a new region, often a read only discovery call followed within minutes by instance, key pair, storage bucket or network creation, an unfamiliar address or command line user agent, and the caller having recently gained credentials through a different path. The benign case is a global service such as identity or domain name management reporting activity under another endpoint, a newly created account's first deployment, or a documented disaster recovery test performed by the platform team in a secondary region.",
+  "pseudoQuery": "# title: Cloud Resource Creation in a Previously Unused Region\n# logsource:\n#   product: aws\n# detection:\n#   selection_new_region:\n#     awsRegion|not_in: 'used_regions_baseline'\n#   selection_mutating:\n#     eventName|startswith|any:\n#       - 'RunInstances'\n#       - 'CreateBucket'\n#       - 'CreateKeyPair'\n#       - 'CreateVpc'\n#   filter_readonly:\n#     eventName|startswith|any:\n#       - 'Describe'\n#       - 'List'\n#       - 'Get'\n#   condition: selection_new_region and selection_mutating and not filter_readonly\n# level: high",
+  "falsePositives": [
+    "Global services such as identity, billing or domain name management that log activity under an unexpected endpoint region",
+    "A disaster recovery exercise in a secondary region with an approved change record and platform team credentials",
+    "A newly created sandbox account whose first deployment happens in a region chosen by the developer",
+    "Auto scaling or backup configuration that copies a resource into a second region as part of an approved resilience plan"
+  ],
+  "tuningNotes": "Generate the used region list per account and per identity from at least ninety days of audit history, and refresh it automatically so legitimate expansion does not fire alerts forever. Suppress read only discovery calls only after confirming your audit trail captures them everywhere, because dropping them removes early warning of an attacker mapping a new region. Maintain an override list for global services and for accounts that are expected to deploy anywhere, such as a sandbox or a training account. Scope the first version to the production organisation accounts and to identities that hold write permissions. The coverage you give up by filtering read only calls is the reconnaissance phase, so keep a low severity summary of first time region access per identity and review it weekly.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0145",
+  "type": "detection",
+  "title": "Detection of Disabled or Modified System Firewalls across OS Platforms.",
+  "shortTitle": "Detection of Disabled or Modified System Firewalls across...",
+  "externalId": "DET0145",
+  "theme": "Detection Strategy",
+  "summary": "This strategy covers T1686, disabling or modifying system firewalls, a step intruders take to open a path for tools, remote access, or later stages of an intrusion. Detection relies on host firewall configuration event logs on Windows, the equivalent configuration and service telemetry on Linux hosts, and cloud security group or network policy audit records. The pattern is a host or cloud network policy changing from a restrictive state to a permissive one outside a change window. The practical failure mode is that administrators and installers legitimately toggle firewall profiles, so the rule must capture the actor, the source process, and the scope of the change rather than alerting on any configuration event.",
+  "tags": [
+    "t1686",
+    "firewall",
+    "host-configuration",
+    "defense-evasion",
+    "cloud-networking"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Disabled or Modified System Firewalls across OS Platforms.",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0145/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Disabled or Modified System Firewalls across OS Platforms. - EASY",
+      "path": "exercises/det0145/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Disabled or Modified System Firewalls across OS Platforms. - MEDIUM",
+      "path": "exercises/det0145/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Disabled or Modified System Firewalls across OS Platforms. - HARD",
+      "path": "exercises/det0145/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Disabled or Modified System Firewalls across OS Platforms. - EXTREMELY HARD",
+      "path": "exercises/det0145/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A firewall is a filter that decides which network connections a computer accepts. Attackers often switch it off or loosen its rules. This detection watches for firewall settings that are turned off, opened up, or changed without a good reason.",
+    "whyItMatters": "Many computers block incoming connections by default. Turning the filter off makes remote tools work instantly. It also removes a layer that would normally slow an intruder down. Catching the change while it happens is far easier than tracing a breach later.",
+    "howItWorks": [
+      "Hosts record events whenever firewall settings are changed or a rule is added.",
+      "The detection collects those events along with the process that made the change.",
+      "It compares the new state with the previous state to see whether access became wider.",
+      "It checks whether the change came from an interactive user, a script, or a management tool.",
+      "Changes made outside a known maintenance window raise an alert for the analyst."
+    ],
+    "example": "Think of a shop that closes its shutters at night. The shutters are not a lock, but they stop casual entry. Suppose someone raises the shutters at two in the morning. The interesting question is not who owns the shop. It is who is standing there holding the handle. The firewall change event tells you the shutters went up and who did it.",
+    "takeaways": [
+      "Turning off a firewall is a deliberate act worth alerting on.",
+      "Record which program and which user made the change.",
+      "Compare old and new rules to see if access actually widened."
+    ]
+  },
+  "objectives": [
+    "Explain what a host firewall does and why intruders weaken it",
+    "Locate the audit events that record firewall configuration changes",
+    "Identify the actor and process behind a firewall change",
+    "Judge whether a change widened access or only reordered existing rules",
+    "Use change windows and asset groups to cut false positives",
+    "Include cloud network policy changes in the same detection strategy"
+  ],
+  "techniqueId": "t1686",
+  "detectsTechniques": [
+    "t1686"
+  ],
+  "dataSources": [
+    "Windows Defender Firewall operational event log entries for profile setting changes and rule additions",
+    "Windows Security event 4688 process creation showing netsh or PowerShell commands that alter firewall state",
+    "Sysmon event 13 registry value set events for firewall policy keys under the Windows policy firewall path",
+    "Linux host audit records for firewall service stop, flush, or rule insert operations including the invoking account",
+    "Cloud provider audit logs for security group, network access control list, or firewall policy updates"
+  ],
+  "logic": "The detection looks for a firewall state transition from restrictive to permissive, or for a firewall service being stopped, flushed, or replaced with broad allow rules. The fields that must be correlated are the host or cloud account, the changed profile or policy name, the specific rule values added or removed, the process image and parent process that made the change, and the interactive or service account behind it. A benign change is an approved management action from a configuration management server or a signed installer that adds a single application specific rule during a deployment window, while the malicious case is a firewall profile disabled entirely, an existing rule widened to any source address, or a firewall service stopped by a script that was launched from a user writable directory.",
+  "pseudoQuery": "# title: Host Firewall Profile Disabled Or Broad Allow Rule Added\n# logsource:\n#   product: windows\n#   service: security\n# detection:\n#   selection:\n#     EventID: 4688\n#     CommandLine|contains:\n#       - 'set currentprofile state off'\n#       - 'advfirewall firewall add rule'\n#       - 'Stop-Service MpsSvc'\n#   filter:\n#     ParentImage|startswith: 'C:\\\\Program Files\\\\Configuration Manager'\n#   condition: selection and not filter\n# level: high",
+  "falsePositives": [
+    "Software deployment tools that briefly open a port for an installer and then close it again",
+    "Help desk scripts that reset a workstation network profile after a connectivity fault",
+    "Third party endpoint protection installers that add their own allow rules during setup",
+    "Network engineers applying an approved security group change during a maintenance window"
+  ],
+  "tuningNotes": "Create a baseline of which processes change firewall state on each asset group, then allow list the signed configuration management and endpoint protection executables that do it routinely. Correlate with change records so approved maintenance is suppressed automatically rather than through manual allow lists. If noise remains, scope the rule to servers and to hosts holding sensitive data, and add a separate rule that fires only when a firewall profile stays disabled for more than a few minutes, which is much harder to trigger by accident. That duration filter would miss an attacker who disables the firewall, acts quickly, and re-enables it, so keep the raw event collected even when it does not alert.",
+  "severity": "high"
+}

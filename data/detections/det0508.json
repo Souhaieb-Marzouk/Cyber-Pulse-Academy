@@ -1,0 +1,109 @@
+{
+  "id": "det0508",
+  "type": "detection",
+  "title": "Behavioral Detection of Process Injection Across Platforms",
+  "shortTitle": "Behavioral Detection of Process Injection Across Platforms",
+  "externalId": "DET0508",
+  "theme": "Detection Strategy",
+  "summary": "This detection strategy targets process injection, the technique tracked as T1055 in its several variants for remote thread creation and memory writing. Injection runs an attacker payload inside a process that is already trusted, so the payload inherits the host process identity, its loaded modules and often its network permissions, and file based controls never see it execute. The telemetry that makes it visible is process access reporting with the requested rights, remote thread creation events that name both the source and target process, suspicious writes into another process address space, and memory protection changes such as private memory becoming executable. The main failure mode is that the direct signal, a process opening another process, is extremely common on modern systems, so the strategy depends on pairing the access event with a memory or thread follow up and on allow listing the security and debugging tools that legitimately do this all day.",
+  "tags": [
+    "process injection",
+    "t1055",
+    "defense evasion",
+    "memory",
+    "endpoint",
+    "cross platform"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Behavioral Detection of Process Injection Across Platforms",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0508/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Behavioral Detection of Process Injection Across Platforms - EASY",
+      "path": "exercises/det0508/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Behavioral Detection of Process Injection Across Platforms - MEDIUM",
+      "path": "exercises/det0508/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Behavioral Detection of Process Injection Across Platforms - HARD",
+      "path": "exercises/det0508/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Behavioral Detection of Process Injection Across Platforms - EXTREMELY HARD",
+      "path": "exercises/det0508/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This rule looks for one program hiding inside another running program. Attackers do this so their code looks like a normal trusted process. Nothing new is written to disk, so file scanning alone cannot find it. The rule watches the moments when one process reaches into another to read or change its memory.",
+    "whyItMatters": "When code runs inside a trusted program, its activity is credited to that program. A firewall or application control list that trusts the host process will also trust the hidden code. This gives the attacker a way to keep working without dropping obvious files. Because the signal is so common in normal system activity, the rule must be built carefully to stay useful.",
+    "howItWorks": [
+      "The agent records every attempt by one process to open another, and lists the rights that were requested.",
+      "It also records new threads that start inside a process, naming the process that created them.",
+      "The rule drops pairs where both processes belong to the same product family, such as two browser processes.",
+      "It then looks for memory operations that change protection flags so private memory becomes executable.",
+      "Each remaining event is scored by the source process reputation, its path and how often it does this.",
+      "Only a cluster of related events for one target process in a short window becomes an alert."
+    ],
+    "example": "Think of an office building where only staff with badges may enter. An intruder finds a staff member, copies the badge number and walks in behind them. The door log shows a valid badge, so nobody at the door is alarmed. This rule is the guard who also notices that one badge opened two doors at once.",
+    "takeaways": [
+      "Injection has no new file to scan, so detection must use behaviour and memory.",
+      "One process opening another is normal, so the alert needs a second signal such as a remote thread.",
+      "Cross platform coverage means watching process memory operations, not only Windows system calls."
+    ]
+  },
+  "objectives": [
+    "Describe how process injection lets code run under the identity of a trusted process.",
+    "Name the event fields that show which process opened which other process and with what rights.",
+    "Explain why a single process access event is weak evidence and what second signal strengthens a rule.",
+    "Compare injection detection on Windows, Linux and macOS using the telemetry each platform offers.",
+    "Allow list known security tooling so that the rule keeps meaningful volume.",
+    "Outline a containment step for a host where an unexpected process has written into another process."
+  ],
+  "techniqueId": "t1055",
+  "detectsTechniques": [
+    "t1055"
+  ],
+  "dataSources": [
+    "Sysmon event 10 process access with SourceImage, TargetImage and GrantedAccess fields",
+    "Sysmon event 8 create remote thread naming the source and target process",
+    "Endpoint detection and response memory protection change telemetry for remote address spaces",
+    "Linux auditd execve and ptrace records for process memory operations",
+    "macOS endpoint security framework process and task port access events"
+  ],
+  "logic": "The pattern is a chain rather than a single event: one process opens another with rights that allow memory operations or thread creation, then either creates a remote thread in the target or changes the protection of memory it wrote to, and the target soon performs activity that its normal role does not explain. The fields that must be correlated are SourceImage, TargetImage, GrantedAccess and the call trace on the access event, the thread start address on the thread event, and the parent and child relationship on later process creation from the target. Malicious cases usually show a source process that is unsigned, recently created, or running from a user writable directory, and the target is a system or browser process that has no reason to accept code from that source. Benign cases come from signed security agents, debuggers and build tools whose source image is a known product path and whose activity repeats on a predictable schedule.",
+  "pseudoQuery": "# title: Suspicious Cross Process Memory Access Followed by Remote Thread Creation\n# logsource:\n#   product: windows\n# detection:\n#   selection_access:\n#     EventID: 10\n#     GrantedAccess|contains:\n#       - '0x1F0FFF'\n#       - '0x1F2FFF'\n#       - '0x143A'\n#   filter_known:\n#     SourceImage|endswith:\n#       - '\\MsMpEng.exe'\n#       - '\\csrss.exe'\n#       - '\\procexp64.exe'\n#   condition: selection_access and not filter_known\n# level: high",
+  "falsePositives": [
+    "Endpoint security agents that inspect and scan memory of other processes as part of their normal protection",
+    "Developer debuggers and profiling tools attached to a build under test by an engineer with a change ticket",
+    "Application performance monitoring agents that inject a measurement library into application processes at startup",
+    "Accessibility and automation products that attach to application processes to drive the user interface",
+    "Backup and migration software that reads another process memory region to capture application state"
+  ],
+  "tuningNotes": "Keep a maintained allow list of signed security and management agents by full image path and signer, refreshed each quarter, because these produce most of the raw events. Require a second signal, a remote thread creation or a memory protection change, before an event becomes an alert, and narrow the target list to processes that hold credentials or network trust. Baseline which source processes touch which targets in a normal week so that new pairs stand out. The coverage you lose is injection that reuses an already allow listed agent, and low noise techniques that never allocate executable memory and therefore never break the pattern you tuned for.",
+  "severity": "high"
+}

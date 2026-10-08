@@ -1,0 +1,106 @@
+{
+  "id": "det0015",
+  "type": "detection",
+  "title": "Detection Strategy for Exclusive Control",
+  "shortTitle": "Detection Strategy for Exclusive Control",
+  "externalId": "DET0015",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects adversary attempts to deny or delay recovery of a host by taking exclusive control of a resource, mapped to ATT&CK technique T1668 Exclusive Control under Impact. The behaviour that matters is not data loss but lockout: a process holding an exclusive handle or lock on a file, device, or service so that backup, restore, or repair tooling fails, after which a ransomware or destructive payload can operate on its own schedule. Detection depends on correlating process creation with command lines that manipulate backup and recovery components, file access telemetry showing exclusive or delete-pending locks on backup artefacts, and the failure or cancellation of the recovery operations themselves. In practice the strategy fails in two ways: legitimate backup products take the same exclusive locks during every window, and many operating systems record lock ownership only in kernel structures that endpoint telemetry does not export, so teams end up alerting on the recovery failure rather than the cause.",
+  "tags": [
+    "mitre t1668",
+    "exclusive control",
+    "impact",
+    "windows",
+    "backup integrity",
+    "detection engineering"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Exclusive Control",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0015/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Exclusive Control - EASY",
+      "path": "exercises/det0015/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Exclusive Control - MEDIUM",
+      "path": "exercises/det0015/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Exclusive Control - HARD",
+      "path": "exercises/det0015/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Exclusive Control - EXTREMELY HARD",
+      "path": "exercises/det0015/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Exclusive control means one program locks a resource, such as a file or a device. No other program can then use it. This detection looks for signs that a program took such a lock to stop repair or restore tools from working. It catches the moment a machine is deliberately made hard to fix.",
+    "whyItMatters": "Most recovery plans depend on tools that need open access to files and services. If an attacker takes that access away, backups cannot run and repairs cannot start. The damage is not only lost data, it is lost time. Every minute spent fighting a lock is a minute the attacker keeps working. This detection gives you that time back.",
+    "howItWorks": [
+      "An endpoint agent records every new program that starts, together with the full command line used to start it.",
+      "The rule checks those command lines for known recovery, backup and repair programs, such as backup clients and repair utilities.",
+      "It then looks for file access events. These show the same program opening a backup or system file with an exclusive lock.",
+      "It also collects failures from backup and restore jobs. A lock often shows up as a job that cannot read its own files.",
+      "Events are joined on the same host in a short time window. Locking activity on other machines is ignored.",
+      "The platform raises one alert if a process starts recovery tooling and the job then fails. The alert holds all three facts."
+    ],
+    "example": "Think of a hotel where the night manager places a private lock on the records room. The cleaners cannot enter to tidy it and the repair crew cannot enter to fix a broken shelf. Nothing has been stolen yet, but nobody else can do their job. Exclusive control detection is the building log that shows who took the private lock and when.",
+    "takeaways": [
+      "This technique aims at your ability to recover, not at your data.",
+      "The strongest signal is a recovery or backup job that fails right after an unusual program starts.",
+      "Lock events alone are noisy, so join them with process and job failure data."
+    ]
+  },
+  "objectives": [
+    "Explain how exclusive control of a resource delays recovery after an intrusion",
+    "Identify which telemetry shows a process holding a lock on backup or system artefacts",
+    "Correlate process creation, file access and backup job failure within one host and time window",
+    "Distinguish legitimate backup locking from lockouts that target recovery tooling",
+    "Describe how to scope the rule to critical servers without losing coverage on workstations"
+  ],
+  "techniqueId": "t1668",
+  "detectsTechniques": [
+    "t1668"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing enabled",
+    "Sysmon event 1 process creation including parent image and command line",
+    "Sysmon event 11 file create and overwrite events for backup and recovery directories",
+    "Windows application event log entries from backup software reporting failed or cancelled restore jobs"
+  ],
+  "logic": "The pattern is a short sequence on a single host: a process starts from an unusual parent or path, its command line names defensive, backup or recovery components, and within the same window a file access or job record shows that backup or restore data was locked, renamed or deleted, followed by a failed recovery job. What separates malicious from benign is ownership and timing. Legitimate backup services hold locks during a scheduled window, run from a known service account, and their jobs succeed; here the locking process is unusual for the host, sits outside the backup window, and the dependent recovery job fails immediately afterwards. Correlating the process, the lock and the job failure is what turns three weak signals into one strong alert.",
+  "pseudoQuery": "# title: Recovery Tooling Locked Out by Unusual Process\n# logsource:\n#   product: windows\n# detection:\n#   selection_proc:\n#     EventID: 1\n#     Image|endswith:\n#       - '\\\\wbadmin.exe'\n#       - '\\\\vssadmin.exe'\n#       - '\\\\bcdedit.exe'\n#   selection_lock:\n#     EventID: 11\n#     TargetFilename|contains:\n#       - '\\\\WindowsImageBackup\\\\'\n#       - '\\\\System Volume Information\\\\'\n#   filter_backup_svc:\n#     User|endswith: '$'\n#     ParentImage|contains: '\\\\Program Files\\\\Backup'\n#   condition: selection_proc and selection_lock and not filter_backup_svc\n# level: high",
+  "falsePositives": [
+    "Backup software that runs an interactive recovery test and briefly locks the backup repository outside the normal schedule",
+    "Antivirus or endpoint protection quarantining a file inside the backup directory, which shows as an exclusive lock and a failed job",
+    "Storage migration tooling that moves volume shadow copies during a datacentre change window",
+    "A database administrator deleting and rebuilding a volume shadow copy set by hand during maintenance"
+  ],
+  "tuningNotes": "Start by baselining which accounts and parent processes normally run backup and shadow copy operations on each server tier, then exclude those service accounts with a filter rather than excluding the tools themselves, because an attacker can launch the same binary. Scope the rule to hosts that hold recovery data or domain services, which removes most workstation noise but also means you lose visibility of an attacker rehearsing lockouts on ordinary desktops. If job failure data is unavailable, lower the rule to medium and require the locking process to come from a user writable directory, accepting that some silent lockouts will be missed.",
+  "severity": "high"
+}

@@ -1,0 +1,106 @@
+{
+  "id": "det0017",
+  "type": "detection",
+  "title": "Detection Strategy for Application Shimming via sdbinst.exe and Registry Artifacts (Windows)",
+  "shortTitle": "Detection Strategy for Application Shimming via sdbinst.e...",
+  "externalId": "DET0017",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects application shimming, mapped to ATT&CK technique T1546.011, a Windows persistence and privilege escalation method that abuses the shim infrastructure the operating system uses to patch legacy programs at load time. Shims live in the registry under the Application Compatibility key and are installed either with the signed command line tool sdbinst.exe or by writing registry values directly, after which any process matching the shim target loads an attacker supplied DLL every time it starts. Detection therefore has three legs: process creation for sdbinst.exe or equivalent installer activity, registry modification events inside the compatibility database keys, and image load events showing a DLL from a non standard path being loaded by a common system binary. The strongest version of the rule correlates all three on one host and requires the loaded module to sit outside System32 and the program files tree. The strategy typically fails because compatibility tooling is genuinely rare on modern fleets yet not absent, so whole rule sets are frequently disabled after a single noisy software deployment.",
+  "tags": [
+    "mitre t1546.011",
+    "application shimming",
+    "persistence",
+    "windows",
+    "registry",
+    "privilege escalation"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Application Shimming via sdbinst.exe and Registry Artifacts (Windows)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0017/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Application Shimming via sdbinst.exe and Registry Artifacts (Windows) - EASY",
+      "path": "exercises/det0017/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Application Shimming via sdbinst.exe and Registry Artifacts (Windows) - MEDIUM",
+      "path": "exercises/det0017/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Application Shimming via sdbinst.exe and Registry Artifacts (Windows) - HARD",
+      "path": "exercises/det0017/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Application Shimming via sdbinst.exe and Registry Artifacts (Windows) - EXTREMELY HARD",
+      "path": "exercises/det0017/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Application shimming is a Windows feature that lets an older program run correctly on a newer system. A small file called a shim changes how that program behaves when it starts. This detection looks for new shims, or for shims that load files from strange places. It catches a lasting trick that runs again after every reboot.",
+    "whyItMatters": "A shim is quiet and it survives restarts, so it can keep an attacker present for a long time. It also runs inside trusted system programs, which makes it hard to notice. The change is written to the registry, which means your endpoint agent can see it. If you catch the shim while it is installed, you can remove it before it is used. This kind of persistence is often missed for months.",
+    "howItWorks": [
+      "The endpoint agent records every new process with its full command line. It also writes an event when a program changes the registry.",
+      "The rule watches for the signed shim installer, sdbinst.exe, being run. It looks for a database file outside the normal system directory.",
+      "It also watches for writes to the registry keys that hold the compatibility database entries.",
+      "A third source reports module loads. The rule can then see which file a trusted program pulls in when it starts.",
+      "The three facts are joined on the same host inside a short window. A shim install and its later use form one story.",
+      "The alert is raised when the loaded module sits in a temporary or user writable folder. It names the path and the account."
+    ],
+    "example": "Think of a building where a contractor adds a small note to the front door instructions. From then on, every visitor is quietly sent through a side entrance the contractor controls. The door and the rules look normal. Application shimming detection is the record of who added that note and which side entrance it opened.",
+    "takeaways": [
+      "Shims are persistence, so treat every unexpected one as an incident until proven otherwise.",
+      "The registry key and the loaded module path matter more than the installer name.",
+      "Document the shims your estate already uses, or the rule will be noisy on managed fleets."
+    ]
+  },
+  "objectives": [
+    "Explain how the Windows compatibility infrastructure can be abused for persistence",
+    "Identify process creation telemetry that shows a shim database being installed",
+    "Read registry modification events in the application compatibility keys and judge them",
+    "Correlate a shim installation with later module loads by trusted system binaries",
+    "Design filters for genuine legacy application compatibility without hiding malicious shims"
+  ],
+  "techniqueId": "t1546-011",
+  "detectsTechniques": [
+    "t1546-011"
+  ],
+  "dataSources": [
+    "Sysmon event 1 process creation including parent image and command line for sdbinst.exe executions",
+    "Sysmon event 13 registry value set events for application compatibility keys",
+    "Sysmon event 7 image load events recording module path and signing status",
+    "Windows Security event 4688 process creation with command line auditing enabled"
+  ],
+  "logic": "The pattern is an install step followed by a load step. First, a shim database is created or registered, seen either as the signed shim installer running with a database path outside the Windows system directories, or as a registry value being written under the application compatibility keys that reference such a database. Second, a normal system binary later loads a module from a directory that is not System32, not the program files tree and ideally is user writable or temporary. The fields that must line up are the host, the process image and the module path, and both events should sit close together in time on first occurrence. Benign shim activity on a managed estate is rare, attributable to a packaged application installer, and points at a database in a standard distribution folder; the malicious case points at a temporary or user profile path, is installed by an interactive or unusual account, and names a module that has no business being loaded into that process.",
+  "pseudoQuery": "# title: Application Shim Installed from Non Standard Path\n# logsource:\n#   product: windows\n# detection:\n#   selection_install:\n#     EventID: 1\n#     Image|endswith: '\\\\sdbinst.exe'\n#     CommandLine|contains: '\\\\Users\\\\'\n#   selection_registry:\n#     EventID: 13\n#     TargetObject|contains: '\\\\AppCompatFlags\\\\'\n#   filter_managed:\n#     CommandLine|contains: '\\\\Program Files\\\\'\n#   condition: (selection_install or selection_registry) and not filter_managed\n# level: high",
+  "falsePositives": [
+    "Enterprise packaging teams installing a signed compatibility database for a legacy line of business application during a deployment window",
+    "Application virtualisation platforms that register compatibility fixes automatically the first time a user launches an old program",
+    "Independent software vendors shipping a fix database alongside an installer, which appears as a shim install from a distribution share",
+    "Administrators applying a vendor supplied shim to resolve a known crash in a supported application"
+  ],
+  "tuningNotes": "Baseline the shim databases your estate already uses and allow list those specific database paths and hashes rather than allow listing sdbinst.exe as a whole, which keeps a legitimate binary unusable for attackers. Add a filter for the distribution server and the packaging service account. If you have module load telemetry, raise severity only when the shim is paired with a module load from a user writable directory, which removes most packaging noise while keeping coverage of the real abuse case. Narrowing to servers only would cut noise further but you would lose the workstations where this technique is most often used against high value users.",
+  "severity": "high"
+}

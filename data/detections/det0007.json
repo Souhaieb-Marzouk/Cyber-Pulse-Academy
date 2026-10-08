@@ -1,0 +1,109 @@
+{
+  "id": "det0007",
+  "type": "detection",
+  "title": "Detection of Domain Trust Discovery via API, Script, and CLI Enumeration",
+  "shortTitle": "Detection of Domain Trust Discovery via API, Script, and ...",
+  "externalId": "DET0007",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects domain trust discovery, the reconnaissance step where an adversary maps which domains trust each other and which rights flow across those trusts (T1482, Domain Trust Discovery). Trust relationships define the blast radius of a compromise, so this step usually signals that an operator is planning lateral movement rather than running opportunistic malware. Detection is achievable because trust enumeration is exposed through a small number of well known command line utilities, scripting interfaces and directory APIs, and because these calls happen from hosts that rarely perform them. The main failure is that some administrative tooling and directory health checks run the same queries on a schedule, so the rule must be scoped by host role and by the parent process.",
+  "tags": [
+    "discovery",
+    "active directory",
+    "trust enumeration",
+    "t1482",
+    "endpoint",
+    "scripting"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection of Domain Trust Discovery via API, Script, and CLI Enumeration",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0007/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection of Domain Trust Discovery via API, Script, and CLI Enumeration - EASY",
+      "path": "exercises/det0007/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection of Domain Trust Discovery via API, Script, and CLI Enumeration - MEDIUM",
+      "path": "exercises/det0007/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection of Domain Trust Discovery via API, Script, and CLI Enumeration - HARD",
+      "path": "exercises/det0007/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection of Domain Trust Discovery via API, Script, and CLI Enumeration - EXTREMELY HARD",
+      "path": "exercises/det0007/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "A trust is a link between two directories that lets accounts from one work in the other. Attackers look up these links to find an easier way into a bigger network. This detection watches for programs that list or describe those links. Such listing is not needed for normal daily work on most computers.",
+    "whyItMatters": "Trust information tells an attacker where to go next and which accounts are worth stealing. It is cheap to gather and hard to notice, because it uses built in tools that are already on the machine. Many intrusions pause at this stage, so catching it early can stop a breach before it spreads. Ordinary users never run these commands, which is what makes the behaviour stand out.",
+    "howItWorks": [
+      "The endpoint agent records each program that starts, together with its full command line and its parent process.",
+      "Your scripting logs record the same activity when a person runs a query through a scripting interface instead of a command.",
+      "The detection matches known trust query utilities and query interfaces against the recorded command lines and script blocks.",
+      "It checks the account that ran the query and the host role, because domain controllers and identity administrators are expected to run some of them.",
+      "It looks at how often the query ran, since a burst of different queries in a short time suggests a person exploring.",
+      "Matching events are grouped by host and account so that one alert shows the whole pattern of discovery."
+    ],
+    "example": "Imagine a courier studying the internal phone list of a large company. Reading the list is allowed for staff. A visitor who copies the whole directory, then studies the list of branch offices that share a mail room, is planning something. The list itself is not the crime. The interest is.",
+    "takeaways": [
+      "Trust discovery is planning activity, and it often comes before lateral movement.",
+      "The tools are built in and legitimate, so host role and parent process decide the verdict.",
+      "Group related queries into one alert to see the shape of the exploration."
+    ]
+  },
+  "objectives": [
+    "Explain what a directory trust is and why its details guide lateral movement.",
+    "Name the command line utilities and scripting interfaces commonly used to enumerate trusts.",
+    "Identify the endpoint and scripting log fields needed to detect trust queries.",
+    "Describe how to use host role and expected administrators to separate legitimate checks from reconnaissance.",
+    "Recognise a burst of varied discovery queries as a stronger signal than a single query.",
+    "Plan a hunting baseline of which hosts legitimately enumerate directory relationships."
+  ],
+  "techniqueId": "t1482",
+  "detectsTechniques": [
+    "t1482"
+  ],
+  "dataSources": [
+    "Windows Security event 4688 process creation with command line auditing showing directory query utilities",
+    "Sysmon event 1 process creation with Image, CommandLine and ParentImage fields",
+    "PowerShell script block logging and module logging capturing directory query commands and their results",
+    "Directory service access auditing or LDAP query logging on domain controllers",
+    "Lightweight directory access protocol traffic records showing query filters against the configuration naming context"
+  ],
+  "logic": "The rule looks for the enumeration of directory trust objects and for the accounts and hosts that perform it. The primary selection is a process or script that runs a trust query, covering command line utilities that list trusts and scripting interfaces that query the trust objects in the configuration container. Fields that must be correlated are the image or script name, the full command line or script block text, the parent image, the account, the host role, and the count of distinct query types per account per short window. The malicious case is a trust query running on a user workstation or member server, launched by an unusual parent such as a document reader or a scripting host started from a temporary folder, especially when several different discovery queries follow each other within minutes. The benign case is an identity administrator or a directory health tool on a management host running one known query on a schedule with a stable parent process.",
+  "pseudoQuery": "# title: Domain Trust Enumeration From Unexpected Host\n# logsource:\n#   product: windows\n# detection:\n#   selection_cli:\n#     EventID: 1\n#     CommandLine|contains:\n#       - 'trust' \n#       - 'Get-ADTrust'\n#       - 'nltest'\n#       - 'dsquery'\n#   filter_admin:\n#     ParentImage|endswith: '\\\\mmc.exe'\n#   filter_hosts:\n#     Computer|startswith: 'DC-'\n#   condition: selection_cli and not filter_admin and not filter_hosts\n# level: medium",
+  "falsePositives": [
+    "Directory health monitoring tools that verify trust status on a schedule",
+    "Identity administrators troubleshooting authentication problems between domains",
+    "Migration projects that map trust relationships before a domain consolidation",
+    "Endpoint agents that inventory domain membership during asset discovery scans",
+    "Backup or replication software that validates domain availability at service start"
+  ],
+  "tuningNotes": "Baseline which hosts and accounts run trust related queries in your environment for at least two weeks, then allow list the pairs rather than the whole utility name. Scope the high severity version to workstation subnets and member servers, and keep a separate summary rule for domain controllers. Distinguish a single scheduled query, which is usually a health check, from a burst of several different query types within minutes, and raise severity only for the burst. Add a filter for your vulnerability scanner and asset inventory tool by signer. The coverage you lose by allow listing known pairs is discovery performed through a legitimate tool on a host that already queries trusts, so keep the directory service access audit trail for domain controllers as a backstop.",
+  "severity": "medium"
+}

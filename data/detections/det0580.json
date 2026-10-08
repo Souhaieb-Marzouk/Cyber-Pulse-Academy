@@ -1,0 +1,106 @@
+{
+  "id": "det0580",
+  "type": "detection",
+  "title": "Detect Network Provider DLL Registration and Credential Capture",
+  "shortTitle": "Detect Network Provider DLL Registration and Credential C...",
+  "externalId": "DET0580",
+  "theme": "Detection Strategy",
+  "summary": "This strategy targets T1556.008, Network Provider DLL registration, where an adversary registers a rogue network provider so that the Windows logon process loads attacker code and captures credentials or one-time codes as users authenticate. Registration happens through a well-defined registry area under the authentication packages and credential provider keys, and the rogue library must be present in a trusted system directory to load. Detection therefore blends registry write auditing, file creation in protected directories, and unusual library loads inside the logon process. The main weakness of the rule is that legitimate single sign-on and smart card vendors use the same mechanism, so publisher and path allowlisting is essential before enforcement.",
+  "tags": [
+    "credential access",
+    "persistence",
+    "windows",
+    "registry",
+    "authentication"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detect Network Provider DLL Registration and Credential Capture",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0580/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detect Network Provider DLL Registration and Credential Capture - EASY",
+      "path": "exercises/det0580/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detect Network Provider DLL Registration and Credential Capture - MEDIUM",
+      "path": "exercises/det0580/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detect Network Provider DLL Registration and Credential Capture - HARD",
+      "path": "exercises/det0580/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detect Network Provider DLL Registration and Credential Capture - EXTREMELY HARD",
+      "path": "exercises/det0580/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "Windows supports plug-in libraries that help users sign in, for example with a smart card. This detection looks for a new plug-in being registered without approval. It catches an intruder installing a fake sign-in helper that quietly copies passwords.",
+    "whyItMatters": "The fake helper runs inside the logon process itself, so it sees the password before it is checked. Users notice nothing, because their normal sign-in still works. A single registration can compromise many accounts over time. Finding the registration early is far cheaper than resetting every credential in the domain.",
+    "howItWorks": [
+      "Windows keeps a list of approved sign-in plug-ins in the registry.",
+      "Audit settings record the event when someone writes to that list.",
+      "The rule checks whether a new library file also appeared in a system directory.",
+      "It compares the file signature and publisher against your approved vendor list.",
+      "Library load events confirm whether the logon process actually loaded the new code.",
+      "A registration with an unapproved publisher raises a high severity alert."
+    ],
+    "example": "Think of a hotel front desk where guests give their room number and a signature. A stranger in a staff jacket stands beside the real clerk. Every guest still gets a key and still reaches the right room. But the stranger writes each name and password on a pad and keeps it. The guests never suspect anything, because the service worked exactly as expected.",
+    "takeaways": [
+      "The rogue library loads inside the logon process, so it can read credentials in clear text.",
+      "Both the registry change and the new file on disk are needed to confirm this activity.",
+      "Vendor allowlisting is what keeps the rule usable, because real sign-in plug-ins look the same."
+    ]
+  },
+  "objectives": [
+    "Explain how a network provider or credential provider plug-in intercepts authentication",
+    "Locate the registry area where such providers are registered and how to audit writes to it",
+    "Correlate a registry change with a new library file in a protected directory",
+    "Verify a library publisher and signature before treating a registration as legitimate",
+    "Decide which vendor sign-in software should be permanently allowlisted"
+  ],
+  "techniqueId": "t1556-008",
+  "detectsTechniques": [
+    "t1556-008"
+  ],
+  "dataSources": [
+    "Windows registry auditing events for write operations under the authentication packages and credential provider registry keys",
+    "Sysmon event 11 file creation events for new dynamic link library files in system32 or syswow64",
+    "Sysmon event 7 image load events showing modules loaded into the logon process",
+    "Sysmon event 13 registry value set events recording new provider entries and their data",
+    "Windows Security event 4688 process creation for utilities used to install or register providers"
+  ],
+  "logic": "The pattern is a new authentication provider registered and then loaded by the logon process. Correlation is the core of the rule: a registry value set under the known provider keys, the appearance of the referenced library file in a trusted system directory, and an image load event for that same library inside the logon process, all within a short window. The malicious case shows a provider name and path that no approved vendor uses, often paired with a library that is unsigned or signed by an unexpected publisher. The benign case shows a signed vendor library registered by a deployment tool during a planned rollout, with a matching change record.",
+  "pseudoQuery": "# title: Rogue Network Provider DLL Registered and Loaded by Logon Process\n# logsource:\n#   product: windows\n#   service: registry\n# detection:\n#   selection_registry:\n#     EventType: 'RegistryValueSet'\n#     TargetObject|contains:\n#       - '\\Control\\NetworkProvider\\Order'\n#       - '\\Authentication\\Credential Providers'\n#   filter_vendor:\n#     Details|contains:\n#       - '\\Program Files\\ApprovedVendor\\'\n#   condition: selection_registry and not filter_vendor\n# level: critical",
+  "falsePositives": [
+    "Enterprise single sign-on or smart card vendor software deployed to all workstations during a planned rollout",
+    "Password filter libraries installed by identity management platforms as part of account policy enforcement",
+    "Virtual private network clients that register their own credential provider on first install",
+    "Windows feature updates that re-register built-in credential providers and rewrite existing registry values"
+  ],
+  "tuningNotes": "Maintain an allowlist keyed on the provider registry value data and the library publisher, not on the display name, because display names are trivial to imitate. Scope the rule to domain controllers, jump hosts, and privileged access workstations where any new provider is a genuine change, and route general workstations to a change-controlled ticket check instead. Require the file to be both newly created and loaded by the logon process before alerting, which removes most install-time noise. Accept that this narrowing lets a slow attacker who waits for a patch window go unnoticed, so pair it with a weekly report of all provider registrations.",
+  "severity": "critical"
+}

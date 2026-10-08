@@ -1,0 +1,106 @@
+{
+  "id": "det0160",
+  "type": "detection",
+  "title": "Detection Strategy for Multi-Factor Authentication Request Generation (T1621)",
+  "shortTitle": "Detection Strategy for Multi-Factor Authentication Reques...",
+  "externalId": "DET0160",
+  "theme": "Detection Strategy",
+  "summary": "This strategy detects multi factor authentication request generation, where an attacker who already has a valid password floods a user with push notifications, voice calls or passcode prompts until the user approves one out of fatigue or confusion. The covered technique matters because it defeats a control that organisations treat as a strong barrier, and it needs no vulnerability, only a working password and persistence. Identity provider sign in logs make it possible because every challenge, denial and timeout is recorded against the user with the source address, device and authentication method. The main failure mode is threshold selection: legitimate users sometimes reject a prompt by mistake or let it time out, so the rule must count denials in a short window and watch for the approval that follows them.",
+  "tags": [
+    "identity",
+    "multi factor authentication",
+    "credential access",
+    "sign in logs",
+    "cloud"
+  ],
+  "difficulty": "very-hard",
+  "relatedTopics": [],
+  "sources": [
+    {
+      "label": "MITRE ATT&CK: Detection Strategy for Multi-Factor Authentication Request Generation (T1621)",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0160/"
+    }
+  ],
+  "lastReviewed": "2026-10-08",
+  "exercises": [
+    {
+      "title": "Detection Strategy for Multi-Factor Authentication Request Generation (T1621) - EASY",
+      "path": "exercises/det0160/batch-easy.html",
+      "difficulty": "easy",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Recall and recognition: definitions, one clear answer, single-step questions."
+    },
+    {
+      "title": "Detection Strategy for Multi-Factor Authentication Request Generation (T1621) - MEDIUM",
+      "path": "exercises/det0160/batch-medium.html",
+      "difficulty": "medium",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Application: read a short log or alert and choose the correct next step."
+    },
+    {
+      "title": "Detection Strategy for Multi-Factor Authentication Request Generation (T1621) - HARD",
+      "path": "exercises/det0160/batch-hard.html",
+      "difficulty": "hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Analysis: a multi-step scenario with distractors, evidence to weigh, and a reason to give."
+    },
+    {
+      "title": "Detection Strategy for Multi-Factor Authentication Request Generation (T1621) - EXTREMELY HARD",
+      "path": "exercises/det0160/batch-extremely-hard.html",
+      "difficulty": "extremely-hard",
+      "kind": "exam",
+      "status": "missing",
+      "summary": "Synthesis under pressure: incomplete evidence, competing priorities, and a decision you must defend."
+    }
+  ],
+  "attributionNote": "This detection content is community-authored guidance created for training. It is NOT official MITRE ATT&CK content. ATT&CK is a registered trademark of The MITRE Corporation.",
+  "beginner": {
+    "definition": "This detection looks for a flood of login approval prompts sent to one person. The attacker already knows the password and needs the second factor. If the real user taps approve by mistake, the attacker gets in.",
+    "whyItMatters": "The second factor is the control most organisations rely on to stop stolen passwords. Repeated prompts are annoying, and tired or busy people approve them without reading. The prompts also arrive from the attacker's location, so the source address gives them away. The approval that closes the flood is the moment the account is lost.",
+    "howItWorks": [
+      "The identity provider writes a log record for every authentication challenge it sends.",
+      "Each record shows the user, the method used, the source address and the result.",
+      "The detection counts denied, timed out and repeated challenges for one user in a short window.",
+      "A high count means somebody is generating prompts faster than a human would.",
+      "The rule then looks for a successful sign in right after that burst.",
+      "An analyst contacts the user and resets the session if the approval was not theirs."
+    ],
+    "example": "Think of a doorbell that rings in your flat. A delivery driver leans on the button twenty times in a minute. You are busy, so eventually you press the buzzer to make it stop, and the person walks in.",
+    "takeaways": [
+      "Count denials and timeouts, not just sign in failures, because the prompts are the attack.",
+      "The successful sign in immediately after a burst is the strongest evidence of success.",
+      "Number matching and extra context in the prompt remove most of the value of this attack."
+    ]
+  },
+  "objectives": [
+    "Explain why repeated authentication prompts are an attack rather than a usability problem.",
+    "Identify the identity provider log fields that record a challenge, its result and its source.",
+    "Write a query that thresholds denied and timed out challenges per user in a short window.",
+    "Correlate a prompt burst with the authentication that follows it to find success or failure.",
+    "Recommend authentication methods that are resistant to prompt fatigue."
+  ],
+  "techniqueId": "t1621",
+  "detectsTechniques": [
+    "t1621"
+  ],
+  "dataSources": [
+    "Identity provider sign in logs recording each multi factor challenge with result, method, source IP address and device detail",
+    "Authentication application audit records showing push, voice or passcode prompt delivery and the user response",
+    "Windows Security event 4625 failed logon records on premises for the same account and time window",
+    "Service desk or user reported abuse tickets used as confirmation when the account owner denies the prompts"
+  ],
+  "logic": "The pattern is many authentication challenges for one account inside a window far shorter than normal human interaction, followed by an approval from a source that has never authenticated that account before. The telemetry is the identity provider sign in log and the authentication application audit trail, and the fields that must be correlated are the user principal name, the challenge result values that mean denied or timed out, the authentication method, the source IP address and its reputation, the device identifier, and the timestamp of the next successful authentication. Benign behaviour is one or two prompts during a normal sign in, occasional accidental denials, or a burst caused by a misconfigured client retrying because of a clock skew. Malicious behaviour is a high rate of denials or timeouts for a single user, often across multiple countries or hosting provider addresses in a short period, from a client the user has never used, followed by a success with the same source that produced the flood. Counting the burst alone produces useful volume but the combination with the subsequent approval is what proves the technique may have worked.",
+  "pseudoQuery": "# title: Multi factor prompt flood followed by successful authentication\n# logsource:\n#   product: azure\n#   service: signinlogs\n# detection:\n#   selection:\n#     authenticationResultDetail:\n#       - 'MFA denied; user declined the authentication'\n#       - 'User pressed the wrong number on the Authenticator app'\n#       - 'MFA timed out'\n#   condition: selection | count() by userPrincipalName, ipAddress > 10\n# level: high",
+  "falsePositives": [
+    "A user with two registered devices responding to prompts on the wrong phone and repeatedly cancelling",
+    "Mobile email clients with expired tokens that re prompt the user several times in a row",
+    "Network time or conditional access misconfiguration that causes legitimate sign ins to fail the challenge repeatedly",
+    "A user who forgets a password and generates several challenges while resetting it from a new laptop",
+    "Identity migration projects where staff re enrol devices and produce bursts of challenges on one day"
+  ],
+  "tuningNotes": "Baseline the number of challenges a normal user sees per day and set the threshold just above the busiest legitimate case, then split the rule so that denials, timeouts and repeated approvals are counted separately. Exclude the test tenant and any identity migration window, and add a filter for the corporate egress ranges so that prompts from those addresses are handled as low severity. Include the country and address reputation in the alert so the analyst can judge quickly. The coverage you lose by trusting corporate ranges is an attacker operating from inside the network, so keep a separate rule for a success that follows a denied prompt even from a trusted address, and always confirm with the user before closing the alert.",
+  "severity": "high"
+}
