@@ -55,8 +55,8 @@
     /* --- identity of the deployment ------------------------------------ */
     siteName: 'CyberPulseAcademy',
     siteTagline: 'Hands-on, extreme-difficulty cyber security study',
-    siteVersion: '1.0.0',
-    catalogVersion: '1.0.0',
+    siteVersion: '1.1.0',
+    catalogVersion: '1.1.0',
 
     /* --- owner values: edit these three -------------------------------- */
     repoUrl: 'https://github.com/Souhaieb-Marzouk/Cyber-Pulse-Academy',

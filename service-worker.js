@@ -28,7 +28,7 @@
 /* Bump this string whenever the shell changes. It is the only thing that
    invalidates already-installed clients, so forgetting it means users keep the
    old shell until the browser next updates it. */
-const SHELL_VERSION = '1.0.0';
+const SHELL_VERSION = '1.1.0';
 const SHELL_CACHE = 'cm-shell-v' + SHELL_VERSION;
 const DATA_CACHE = 'cm-data-v' + SHELL_VERSION;
 const PAGE_CACHE = 'cm-pages-v' + SHELL_VERSION;
