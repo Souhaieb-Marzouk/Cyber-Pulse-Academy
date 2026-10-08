@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  CYBER-EXAM CR-101 — Risk Analyst Certification · v2.0
+  Single-file, dependency-free certification exam (vanilla HTML/CSS/JS).
+  Open directly in any modern browser — no server, no build, no CDN.
+
+  v2.0 changelog (deep-check pass):
+   · Content: fixed ex7 brief (three treatments are reused, not two); added
+     grounding facts to ex9 (staff count + appetite line); B1 glosses at first
+     use (MFA, SQL injection, tokenize, exfiltration); replaced idioms
+     (watching brief, blast radius, lockout rules, "has a ruler"); grammar
+     polish (SIEM note).
+   · Mechanics: honest feedback when a retry is correct but the point was
+     already lost (first-attempt scoring); amber hint on first wrong answer;
+     shift clock resets instantly on retake; amber toast when a bin is full.
+   · Structure: this documentation header, version in title/status bar,
+     favicon (inline SVG, no 404), meta description + color-scheme,
+     aria-live feedback region, labelled name input.
+
+  Internal structure map:
+   [1] CSS (theme variables, screens, exercise components, results, responsive)
+   [2] Screens: intro (briefing + keywords panel) / exam (HUD + exercise area)
+       / results (certificate or fail panel)
+   [3] Data: THEMES, KEYWORDS, EXAMS[1..15] (15 assignments, 74 scored units)
+   [4] Engine: DOM helpers, state, scoring, HUD, shift clock, pointer drag&drop
+   [5] Renderers: steps (QCM/triage/branching), dnd, cloze, order, match, spot
+   [6] Results screen (pass certificate / fail review, retake)
+   [7] Boot (intro build, start, retake)
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="CYBER-EXAM CR-101 v2.0 — a hard, scenario-based risk-analyst certification exam: triage, drag & drop, log analysis, branching cases, ordering, matching, cloze and audit tasks. 80% to pass.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2322d3ee' d='M12 2 4 5v6c0 5.25 3.4 10.74 8 12 4.6-1.26 8-6.75 8-12V5l-8-3z'/%3E%3C/svg%3E">
+<title>CYBER-EXAM CR-101 — Risk Analyst Certification · v2.0</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060a12;--panel:#0c1421;--panel2:#111b2d;--line:#1d2c46;--line2:#26395c;--tx:#dbe6f5;--dim:#8fa4c2;--cy:#22d3ee;--gr:#34d399;--rd:#f87171;--am:#fbbf24;--pu:#a78bfa;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--tx);font:16px/1.55 system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.bggrid{position:fixed;inset:0;z-index:-1;background:radial-gradient(900px 500px at 85% -10%,rgba(34,211,238,.10),transparent 60%),radial-gradient(700px 420px at -10% 110%,rgba(52,211,153,.08),transparent 60%),linear-gradient(rgba(29,44,70,.30) 1px,transparent 1px),linear-gradient(90deg,rgba(29,44,70,.30) 1px,transparent 1px);background-size:auto,auto,44px 44px,44px 44px}
+#app{max-width:1080px;margin:0 auto;padding:22px 16px 80px}
+.hidden{display:none!important}
+.locked{pointer-events:none!important}
+h1{font-size:34px;line-height:1.15;letter-spacing:.5px}
+h2{font-size:20px;margin-bottom:10px}
+.dim{color:var(--dim)}
+.acc{color:var(--cy)}
+.card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.sysline{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--cy);border:1px solid rgba(34,211,238,.35);display:inline-block;padding:3px 10px;border-radius:99px;margin-bottom:14px;background:rgba(34,211,238,.06)}
+.hero h1 .sub{display:block;font-size:17px;color:var(--dim);font-weight:500;margin-top:8px;letter-spacing:0}
+.lead{margin:14px 0 6px;color:#c4d2e8;max-width:70ch}
+.statrow{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.stat{flex:1 1 150px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:rgba(17,27,45,.6)}
+.stat b{display:block;font-size:17px;color:var(--cy)}
+.stat span{font-size:12px;color:var(--dim)}
+.rules{margin:12px 0 16px;padding:12px 16px;border-left:3px solid var(--am);background:rgba(251,191,36,.05);border-radius:0 10px 10px 0;list-style:none}
+.rules li{margin:5px 0 5px 18px;font-size:14.5px;color:#c9d6ea;position:relative}
+.rules li:before{content:'▸';position:absolute;left:-14px;color:var(--am)}
+.namefield{margin:14px 0;font-size:14.5px}
+.namefield input{margin-left:8px;background:#0a111d;border:1px solid var(--line);border-radius:8px;color:var(--tx);padding:8px 12px;font-size:15px;width:min(320px,60vw)}
+.btn{border:1px solid var(--line2);background:var(--panel2);color:var(--tx);border-radius:10px;padding:10px 18px;font-size:15px;cursor:pointer;transition:.18s;font-weight:600;font-family:inherit}
+.btn:hover:not(:disabled){transform:translateY(-1px);border-color:var(--cy)}
+.btn.primary{background:linear-gradient(90deg,rgba(34,211,238,.18),rgba(52,211,153,.18));border-color:rgba(34,211,238,.5);color:#e9fbff}
+.btn.small{padding:8px 14px;font-size:14px;margin-top:12px}
+.btn.big{padding:13px 26px;font-size:17px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.typelist{list-style:none}
+.typelist li{padding:7px 0 7px 26px;position:relative;border-bottom:1px dashed rgba(29,44,70,.6);font-size:14.5px}
+.typelist li:before{content:'▸';position:absolute;left:6px;color:var(--cy)}
+.kwpanel{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:12px}
+.kwtitle{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--cy);margin-bottom:8px;font-weight:700}
+.kwrow{display:flex;flex-wrap:wrap;gap:6px}
+.kwchip{font-size:12.5px;background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.25);padding:3px 9px;border-radius:99px;color:#bfeaf5}
+#hud{position:sticky;top:0;z-index:20;background:rgba(6,10,18,.92);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:16px}
+.hrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{font-weight:800;letter-spacing:1px;font-size:15px}
+.brand .dim{font-weight:500;font-size:12.5px}
+.hstats{display:flex;gap:8px;flex-wrap:wrap}
+.hstat{font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:4px 9px;background:rgba(17,27,45,.7);color:#bcd3ee}
+.hstat#hScore{color:var(--gr);border-color:rgba(52,211,153,.4)}
+.hbar{height:8px;border-radius:99px;background:#0a111d;border:1px solid var(--line);margin:10px 0 8px;overflow:hidden}
+#hFill{height:100%;width:0;background:linear-gradient(90deg,var(--cy),var(--gr));transition:width .5s ease;border-radius:99px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:11px;letter-spacing:1px;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--dim);transition:.3s}
+.chip b{color:var(--tx)}
+.chip.part{border-color:rgba(251,191,36,.5);color:var(--am)}
+.chip.done{border-color:rgba(52,211,153,.6);color:var(--gr);background:rgba(52,211,153,.07)}
+.extop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.badge{font-size:11.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--am);border:1px solid rgba(251,191,36,.45);background:rgba(251,191,36,.06);padding:3px 10px;border-radius:99px}
+.ttag{font-size:11.5px;color:var(--cy);border:1px solid rgba(34,211,238,.35);padding:3px 10px;border-radius:99px}
+.num{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.brief{color:#c7d5ea;font-size:15px;margin-bottom:14px}
+.brief p{margin:6px 0}
+.log{font-family:var(--mono);font-size:12.8px;background:#050a12;border:1px solid var(--line);border-left:3px solid var(--cy);border-radius:8px;padding:12px 14px;white-space:pre;overflow-x:auto;line-height:1.6;margin:10px 0;color:#a8c6e8}
+.exbody{margin-bottom:6px}
+.stepprog{font-family:var(--mono);font-size:12px;color:var(--cy);letter-spacing:1px;margin-bottom:10px}
+.stepbox{border:1px solid var(--line);border-radius:12px;padding:14px;background:rgba(10,17,29,.55);margin-bottom:12px}
+.story{font-size:14.5px;color:#c7d5ea;border-left:3px solid var(--pu);padding:6px 12px;margin-bottom:10px;background:rgba(167,139,250,.05);border-radius:0 8px 8px 0}
+.q{font-weight:700;font-size:16px;margin:8px 0 12px}
+.opts{display:grid;gap:8px}
+.opt{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;background:rgba(13,20,33,.8);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--tx);cursor:pointer;font-size:14.5px;line-height:1.45;transition:.15s;font-family:inherit}
+.opt:hover:not(.dead){border-color:var(--cy);transform:translateX(2px)}
+.optk{font-family:var(--mono);font-weight:700;color:var(--cy);flex:0 0 auto}
+.optt{flex:1}
+.opt.sel{border-color:var(--pu);background:rgba(167,139,250,.08)}
+.opt.ok{border-color:var(--gr);background:rgba(52,211,153,.10)}
+.opt.bad{border-color:var(--rd);background:rgba(248,113,113,.10)}
+.opt.dim{opacity:.5}
+.opt.dead{cursor:default}
+.tbarwrap{display:flex;align-items:center;gap:10px;margin:14px 0 4px}
+.tbar{position:relative;flex:1;height:10px;border-radius:99px;background:#0a111d;border:1px solid rgba(248,113,113,.4);overflow:hidden}
+.tfill{position:absolute;inset:0;width:100%;background:linear-gradient(90deg,var(--am),var(--rd));transition:width 1s linear}
+.tsec{font-family:var(--mono);font-size:12px;color:#ffd9a8;min-width:34px;text-align:right}
+.exactions{display:flex;gap:12px;align-items:center;margin:12px 0;flex-wrap:wrap}
+.hint{font-size:12.5px}
+.nav{display:flex;justify-content:flex-end;margin-top:14px}
+.fbwrap{margin:6px 0}
+.fb{border-radius:10px;padding:12px 14px;font-size:14.5px;line-height:1.55;animation:pop .25s ease}
+.fb.good{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.45);border-left:4px solid var(--gr)}
+.fb.badr{background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.45);border-left:4px solid var(--rd)}
+.fbl{list-style:none;margin:6px 0 0}
+.fbl li{padding:5px 0 5px 2px;border-bottom:1px dashed rgba(29,44,70,.5);font-size:13.8px}
+.fbl li.lok{color:#b8ecd7}
+.fbl li.lbad{color:#f3c1c1}
+.flavor{margin-top:8px;font-family:var(--mono);font-size:12.5px;color:var(--am)}
+.fbdone{margin-top:10px;font-family:var(--mono);font-size:12.5px;color:var(--gr)}
+@keyframes pop{from{transform:scale(.985);opacity:.4}to{transform:scale(1);opacity:1}}
+.bankwrap{margin:12px 0}
+.banktitle{font-size:12.5px;color:var(--dim);margin-bottom:8px}
+.bank{display:flex;flex-wrap:wrap;gap:8px;min-height:46px;border:1px dashed var(--line2);border-radius:10px;padding:10px;background:rgba(10,17,29,.5)}
+.tile{display:inline-block;background:linear-gradient(180deg,#16233a,#111b2d);border:1px solid var(--line2);border-radius:9px;padding:8px 14px;font-size:14px;font-weight:600;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none;transition:box-shadow .15s}
+.tile.dragging{opacity:.35}
+.ghost{position:fixed;z-index:99;pointer-events:none;opacity:.92;transform:rotate(2deg) scale(1.03);box-shadow:0 14px 30px rgba(0,0,0,.5)}
+.rightmark{border-color:var(--gr)!important;box-shadow:0 0 0 1px rgba(52,211,153,.6) inset}
+.wrongmark{border-color:var(--rd)!important;box-shadow:0 0 0 1px rgba(248,113,113,.6) inset}
+.bins{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:6px 0 12px}
+.bucket{border:1.5px dashed var(--line2);border-radius:12px;padding:10px;min-height:96px;background:rgba(13,20,33,.45);transition:.15s}
+.bucket.over{border-color:var(--cy);background:rgba(34,211,238,.06)}
+.bhead{font-weight:700;font-size:14px;margin-bottom:8px}
+.bhint{font-weight:400;font-size:12.5px;color:var(--dim);margin-top:2px}
+.bbody{display:flex;flex-wrap:wrap;gap:6px;min-height:40px}
+.textblock{font-size:15.5px;line-height:2.1;background:rgba(10,17,29,.5);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.blank{display:inline-block;min-width:130px;border-bottom:2px dashed var(--cy);text-align:center;color:var(--cy);font-weight:700;cursor:pointer;touch-action:none;background:rgba(34,211,238,.05);border-radius:6px 6px 0 0;padding:0 6px;min-height:30px;vertical-align:middle}
+.blank.over{background:rgba(34,211,238,.15)}
+.blank .tile{padding:2px 10px;font-size:13.5px}
+.olist{display:grid;gap:8px;margin:12px 0}
+.ord-item{display:flex;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:rgba(13,20,33,.8);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.ord-item.lift{border-color:var(--cy);box-shadow:0 8px 22px rgba(0,0,0,.4)}
+.onum{font-family:var(--mono);font-weight:700;color:#06121a;background:var(--cy);border-radius:7px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:13px}
+.otext{flex:1;font-size:14.5px}
+.oarrs{display:flex;gap:4px}
+.arr{background:#0a111d;border:1px solid var(--line);color:var(--dim);border-radius:7px;width:28px;height:26px;cursor:pointer;font-size:11px}
+.arr:hover{color:var(--cy);border-color:var(--cy)}
+.mgrid{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;margin:12px 0}
+.mcoltitle{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--cy);margin-bottom:8px;font-weight:700}
+.mcol{display:grid;gap:8px;align-content:start}
+.mitem{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:rgba(13,20,33,.8);cursor:pointer;font-size:14px;transition:.15s}
+.mitem:hover{border-color:var(--cy)}
+.mitem.picked{border-color:var(--pu);background:rgba(167,139,250,.08)}
+.mitem .mp{display:block;font-size:12px;color:var(--dim);margin-top:4px;font-family:var(--mono)}
+.p0{border-color:#22d3ee!important}.p1{border-color:#34d399!important}.p2{border-color:#fbbf24!important}.p3{border-color:#a78bfa!important}.p4{border-color:#f87171!important}.p5{border-color:#60a5fa!important}.p6{border-color:#f472b6!important}
+.rpairs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.pchip{font-size:11.5px;font-family:var(--mono);border:1px solid var(--line2);border-radius:99px;padding:2px 8px}
+.spotcnt{font-family:var(--mono);font-size:12.5px;color:var(--am)}
+.spotwrap{margin:10px 0;display:grid;gap:8px}
+.spotline{border:1px solid var(--line);border-left:3px solid var(--line2);border-radius:8px;padding:9px 12px;font-size:14px;cursor:pointer;background:rgba(13,20,33,.7);transition:.15s}
+.spotline:hover{border-color:var(--cy)}
+.spotline.sel{border-color:var(--am);background:rgba(251,191,36,.07)}
+.spotline.okline{border-color:var(--gr);background:rgba(52,211,153,.09)}
+.spotline.badline{border-color:var(--rd);background:rgba(248,113,113,.09)}
+.spotline.missline{border-color:var(--am);background:rgba(251,191,36,.05);border-style:dashed}
+.lnum{font-family:var(--mono);font-size:11px;color:var(--cy);margin-right:8px}
+.rescard{text-align:center}
+.resbig{font-size:64px;font-weight:900;letter-spacing:2px}
+.rgood{color:var(--gr);text-shadow:0 0 30px rgba(52,211,153,.45)}
+.rbad{color:var(--rd);text-shadow:0 0 30px rgba(248,113,113,.4)}
+.ressub{color:var(--dim);margin:6px 0 16px;font-family:var(--mono)}
+.cert{border:2px solid rgba(52,211,153,.5);border-radius:14px;padding:26px;margin:16px auto;max-width:560px;background:radial-gradient(400px 200px at 50% 0,rgba(52,211,153,.08),transparent)}
+.certtop{font-family:var(--mono);letter-spacing:3px;font-size:12px;color:var(--gr)}
+.certname{font-size:26px;font-weight:800;margin:10px 0 2px}
+.certline{font-size:13.5px;color:#c7d5ea}
+.certdate{font-family:var(--mono);font-size:12px;color:var(--dim);margin-top:10px}
+.failnote{max-width:600px;margin:10px auto 4px;color:#f3c1c1;font-size:15px}
+.tbars{max-width:640px;margin:18px auto;text-align:left}
+.themebar{margin:10px 0}
+.tlabel{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+.ttrack{height:9px;background:#0a111d;border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.tfillr{height:100%;width:0;border-radius:99px;transition:width .8s ease}
+.tfillr.g{background:linear-gradient(90deg,#22d3ee,#34d399)}
+.tfillr.m{background:linear-gradient(90deg,#fbbf24,#f87171)}
+.tfillr.b{background:var(--rd)}
+.review{text-align:left;max-width:760px;margin:0 auto 18px}
+.revitem{border:1px solid var(--line);border-left:3px solid var(--rd);border-radius:8px;padding:9px 12px;margin:8px 0;font-size:13.5px;background:rgba(13,20,33,.6);text-align:left}
+.revitem b{color:var(--am)}
+.resbtns{display:flex;gap:10px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;pointer-events:none;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.55);color:#ffd9a8;font-size:13.5px;padding:9px 16px;border-radius:99px;box-shadow:0 10px 30px rgba(0,0,0,.5);animation:pop .2s ease}
+.amnote{color:var(--am);font-weight:600}
+@media(max-width:760px){
+ h1{font-size:26px}
+ .mgrid{grid-template-columns:1fr}
+ .bins{grid-template-columns:1fr}
+ .num{display:none}
+ .card{padding:16px}
+ .resbig{font-size:48px}
+}
+</style>
+</head>
+<body>
+<div class="bggrid"></div>
+<div id="app">
+
+<section id="scr-intro" class="screen">
+  <div class="hero card">
+    <div class="sysline">MERIDIAN-CS ACADEMY · SECURE LEARNING NODE · BUILD v2.0</div>
+    <h1>CYBER-EXAM <span class="acc">CR-101</span><span class="sub">Risk Analyst Certification — Threats, Vulnerabilities &amp; the Risk Management Program</span></h1>
+    <p class="lead">You are on shift as a risk analyst. This certification is built from the exact vocabulary of your source text: <b>risk, threat, vulnerability, exploit, risk appetite</b> and the full <b>risk management program</b>. Realistic tickets, logs, registers and meetings. Distractors are close. The obvious answer is sometimes the trap.</p>
+    <div class="statrow">
+      <div class="stat"><b id="statEx">15</b><span>assignments</span></div>
+      <div class="stat"><b id="statTotal2">74</b><span>scored challenges</span></div>
+      <div class="stat"><b>80%</b><span>to pass · hard mode</span></div>
+      <div class="stat"><b>~45 min</b><span>focus time</span></div>
+    </div>
+    <ul class="rules">
+      <li><b id="statUnits">74</b> scored challenges, 1 point each. Pass mark <b>80%</b> — the score tracks live in the header.</li>
+      <li>Feedback is instant after every answer. The explanation is the lesson — read it before moving on. For choice questions, your <b>first answer</b> is the one that scores.</li>
+      <li>Colors carry meaning: <b style="color:var(--gr)">green = correct</b>, <b style="color:var(--rd)">red = wrong</b>, <b style="color:var(--am)">amber = watch out</b>.</li>
+      <li>No going back. If you fail, use <b>Retake</b> — everything resets.</li>
+      <li>Drag &amp; drop works with mouse and touch. Ordering tasks also give ▲▼ buttons as a fallback.</li>
+    </ul>
+    <div class="namefield">Analyst name (printed on the certificate):<input id="aname" maxlength="40" placeholder="e.g. A. Moreau" aria-label="Analyst name, printed on the certificate"></div>
+    <button id="startBtn" class="btn primary big">▶ Start the certification</button>
+  </div>
+
+  <div class="card">
+    <h2>Assignment types you will face</h2>
+    <ul class="typelist">
+      <li><b>Timed triage queue</b> — tag live risk-desk items before the 30-second clock kills the escalation.</li>
+      <li><b>Drag &amp; drop classification</b> — pin terms to definitions, sort impact by asset, split appetite from tolerance.</li>
+      <li><b>Log analysis</b> — read vpn01 authentication logs, name the attack, pick the treatment.</li>
+      <li><b>Branching incident case</b> — CardVault Payments: your decisions unlock the next step.</li>
+      <li><b>Timeline ordering</b> — assemble the risk management program lifecycle in the right order.</li>
+      <li><b>Matching</b> — pair real manager requests with the correct risk treatment.</li>
+      <li><b>Fill-in-the-blank</b> — complete a risk register entry and a policy clause from a word bank.</li>
+      <li><b>Spot-the-mistake</b> — audit a junior’s risk assessment and flag exactly three flawed lines.</li>
+      <li><b>Priority ranking</b> — spend a limited budget where it protects the most.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Keywords covered</h2>
+    <p class="dim">Extracted from your source text and grouped by theme. Every keyword below is exercised at least once.</p>
+    <div id="kwpanel" class="kwpanel"></div>
+  </div>
+</section>
+
+<section id="scr-exam" class="screen hidden">
+  <header id="hud">
+    <div class="hrow">
+      <div class="brand">CR-101 <span class="dim">· Risk Analyst Certification</span></div>
+      <div class="hstats">
+        <span class="hstat" id="hClock">00:00</span>
+        <span class="hstat" id="hScore">0 pts</span>
+        <span class="hstat" id="hPct">0% so far</span>
+        <span class="hstat" id="hAns">0/0</span>
+      </div>
+    </div>
+    <div class="hbar"><div id="hFill"></div></div>
+    <div class="chips" id="hChips"></div>
+  </header>
+  <main id="exarea"></main>
+</section>
+
+<section id="scr-results" class="screen hidden">
+  <div id="resBox"></div>
+</section>
+
+</div>
+<script>
+'use strict';
+/* ==================== THEMES & KEYWORDS ==================== */
+var THEMES={
+ fund:'Risk Fundamentals',
+ harm:'Threats, Harm & Assets',
+ prog:'Risk Management Program',
+ app:'Risk Appetite & Resources',
+ treat:'Risk Treatment'
+};
+var SHORT={fund:'FUND',harm:'HARM',prog:'PROGRAM',app:'APPETITE',treat:'TREAT'};
+var KEYWORDS={
+ fund:['risk','threat','vulnerability','exploit','likelihood','impact','asset','possibility of harm'],
+ harm:['data breach','unauthorized access','attacker','target','data','systems','operations'],
+ prog:['risk identification','processes / technologies / activities','risk management program','risk evaluation','risk register','residual risk','monitor & review'],
+ app:['risk appetite','risk tolerance','limited resources','prioritization','maximum protection'],
+ treat:['recommend how to handle','mitigate','transfer','accept','avoid']
+};
+function logBlock(lines){return '<div class="log">'+lines.join('\n')+'</div>';}
+
+/* ==================== EXERCISE DATA ==================== */
+var EXAMS=[
+
+{
+ id:'ex1', theme:'fund', kind:'steps', label:'Multiple choice · hard',
+ title:'What makes a risk real?',
+ brief:'Monday risk meeting, Meridian Logistics. The security lead says: “We have a serious risk — the LockBit ransomware group is active again.” Junior analyst Ana answers: “A risk is only real for us if that threat can use a weakness we have, and if success would actually hurt us.”',
+ steps:[
+  {
+   q:'Who is right, and why?',
+   options:[
+    {t:'Ana is wrong. A known, active threat group is always enough to declare a high risk.', note:'A threat alone is only potential. With no weakness to use and no harm to suffer, there is no risk yet — only a scary headline.'},
+    {t:'Ana is right. A risk needs three linked parts: a threat, a vulnerability it can exploit, and impact.', ok:true, note:'Risk is the possibility that a threat exploits a vulnerability and causes harm. Ana names all three parts: threat (LockBit), vulnerability (a weakness it can use) and impact (harm to data, systems or operations).'},
+    {t:'Ana is right, but only while the weakness is unpatched. Once patched, the risk drops to zero forever.', note:'A patch lowers risk a lot, but never to zero forever. New weaknesses appear, and threats change all the time — that is why programs monitor continuously.'},
+    {t:'Both are wrong. Risk is only a money number for the insurance team.', note:'Risk is not only money. It covers harm to data (theft, change, loss), to systems, and to operations. Money is just one impact among others.'}
+   ]
+  }
+ ]
+},
+
+{
+ id:'ex2', theme:'fund', kind:'dnd', label:'Drag & drop',
+ title:'Pin the terms to the right definitions',
+ brief:'The new interns scrambled the risk whiteboard. Drag each term onto the definition it fits. Two tiles are decoys — they belong nowhere, leave them in the tray. Click a placed tile to send it back.',
+ tiles:[
+  {id:'tvuln', t:'Vulnerability', note:'A vulnerability is the weakness itself: old software, a weak process, a missing control.'},
+  {id:'tthreat', t:'Threat', note:'A threat is the who or what that could cause harm: an attacker, a flood, a failing disk.'},
+  {id:'tlike', t:'Likelihood', note:'Likelihood is the chance side of risk — how plausible the event is, here and now.'},
+  {id:'timp', t:'Impact', note:'Impact is the harm side: stolen data, broken systems, stopped operations.'},
+  {id:'tasset', t:'Asset', note:'Assets are what you protect: the organization’s data, systems and operations.'},
+  {id:'trisk', t:'Risk', note:'Risk connects everything: the possibility that a threat exploits a vulnerability and causes harm.'},
+  {id:'texp', t:'Exploit', note:'Exploit is the action verb — when a threat actually uses a weakness. That is why it felt different from the nouns.'},
+  {id:'tfw', t:'Firewall', decoy:true, note:'A firewall is a control — a defence you install. It is not one of the core risk terms.'},
+  {id:'tinc', t:'Incident', decoy:true, note:'An incident already happened. Risk terms describe what could happen.'}
+ ],
+ buckets:[
+  {id:'bvuln', label:'A weakness in a system, a process, or a behaviour that an attacker could use.', max:1, accept:['tvuln']},
+  {id:'bthreat', label:'Any person, group, or event that could cause harm to the organization.', max:1, accept:['tthreat']},
+  {id:'blike', label:'The chance that the bad event will actually happen.', max:1, accept:['tlike']},
+  {id:'bimp', label:'The damage or loss that happens when a threat succeeds.', max:1, accept:['timp']},
+  {id:'basset', label:'Anything valuable the organization must protect: its data, systems and operations.', max:1, accept:['tasset']},
+  {id:'brisk', label:'The overall possibility that a threat will exploit a vulnerability and cause harm.', max:1, accept:['trisk']},
+  {id:'bexp', label:'The act of using a weakness to get in or to cause harm.', max:1, accept:['texp']}
+ ]
+},
+
+{
+ id:'ex3', theme:'harm', kind:'steps', label:'Scenario triage · timed', noRetry:true,
+ title:'Shift simulation: the risk desk queue',
+ brief:'<p>You cover the Meridian risk desk this morning. Six queue items arrive one by one. Tag each item with the exact risk term <b>before the 30-second clock runs out</b>. One wrong tag delays an escalation — read twice, tag once.</p>',
+ steps:[
+  {timer:30,
+   q:'Queue item 1 — tag it:',
+   story:logBlock(['ALERT · An attacker group is scanning our public VPN gateway right now, looking for a way in.']),
+   options:[
+    {t:'Threat', ok:true, note:'An outside actor actively looking for a way in is a threat — the who or what that could cause harm.'},
+    {t:'Vulnerability', note:'The alert describes an actor, not a weakness. The old gateway software would be the vulnerability.'},
+    {t:'Impact', note:'No harm has happened yet, so this cannot be impact.'},
+    {t:'Risk appetite', note:'Appetite is a leadership choice about how much risk we accept. It has nothing to do with tagging this alert.'}],
+   win:'Good tag. The desk starts a close watch on it and warns the VPN owner.',
+   lose:'Mislabel! The item sat in the queue for 40 minutes while the scan continued.'},
+  {timer:30,
+   q:'Queue item 2 — tag it:',
+   story:logBlock(['SCAN REPORT · The VPN gateway runs software from 2019 with a known login-bypass flaw. MFA is not enabled on the device.']),
+   options:[
+    {t:'Vulnerability', ok:true, note:'A flaw in our own system that attackers could use — that is a vulnerability. Missing MFA (multi-factor authentication — a second proof of identity, like a phone code) makes the same weakness worse.'},
+    {t:'Threat', note:'The report describes our weakness, not an actor. The scanning group from item 1 is the threat.'},
+    {t:'Impact', note:'Nothing has been taken or broken yet. Impact is the harm, not the weak spot.'},
+    {t:'Risk', note:'Close — but the report names the weak spot itself. Risk is the full picture: threat + weakness + harm.'}],
+   win:'Good tag. The gateway owner gets a patching ticket with priority high.',
+   lose:'Mislabel! The scanner spent the morning chasing a “threat” that was actually our own weak spot.'},
+  {timer:30,
+   q:'Queue item 3 — tag it:',
+   story:logBlock(['PREDICTION SHEET · If someone uses the login bypass, they could read every shipment record we hold.']),
+   options:[
+    {t:'Risk', ok:true, note:'This line connects all three parts: an actor could use a flaw and cause harm. That full possibility is exactly what “risk” means.'},
+    {t:'Vulnerability', note:'The sentence describes what could happen, not the flaw itself. The flaw lives in item 2.'},
+    {t:'Threat', note:'No person, group or event is named here. A prediction sheet is not an actor.'},
+    {t:'Impact', note:'It has not happened. This is the possibility of harm — the risk — not the harm itself.'}],
+   win:'Good tag. The sheet joins the register as RL-2026-017, waiting for scoring.',
+   lose:'Mislabel! The sheet was filed as “harm done” and the media team nearly apologized for a breach that never happened.'},
+  {timer:30,
+   q:'Queue item 4 — tag it:',
+   story:logBlock(['INCIDENT · 40,000 customer records were copied out of the file server overnight. Confirmed exfiltration (data stolen).']),
+   options:[
+    {t:'Impact', ok:true, note:'The harm is real and already happened. This is a data breach — impact realized. Until last night it was a risk; now it is damage.'},
+    {t:'Risk', note:'The possibility phase is over. When harm actually happens, we stop saying “risk” and start saying “incident” and “impact”.'},
+    {t:'Threat', note:'The actor is a threat, yes — but the item describes the result, not the actor.'},
+    {t:'Vulnerability', note:'A weakness may have been used, but the item reports the damage itself.'}],
+   win:'Good tag. The response team is paged and the register entry moves to “incident”.',
+   lose:'Mislabel! The desk treated a live breach as a theory and lost two hours.'},
+  {timer:30,
+   q:'Queue item 5 — tag it:',
+   story:logBlock(['ACCESS LOG · A leaver’s account (disable date: never) opened the payroll folder at 02:00 from an unknown laptop.']),
+   options:[
+    {t:'Unauthorized access', ok:true, note:'Someone used an account without permission — unauthorized access, happening now. The missing offboarding is also a vulnerability, but the event itself is the access.'},
+    {t:'Vulnerability', note:'The broken offboarding process is a weakness, yes — but the log line shows the harmful event in progress. Tag the event, not the cause.'},
+    {t:'Threat', note:'The actor is unknown, but what you tag is what the response team hunts. Here the fact is: someone got in who should not have.'},
+    {t:'Impact', note:'Tempting — real harm is underway. But the precise term for “someone got in without permission” is unauthorized access. Exact tags route incidents to the right team.'}],
+   win:'Good tag. The accounts team disables the leaver access within minutes.',
+   lose:'Mislabel! A vague tag sent the ticket to the wrong queue for an hour.'},
+  {timer:30,
+   q:'Queue item 6 — tag it:',
+   story:logBlock(['TICKET #4412 · Finance asks: “How much of this supplier-chain risk are we willing to live with?”']),
+   options:[
+    {t:'Risk appetite', ok:true, note:'“How much risk are we willing to live with?” is the definition of risk appetite — the amount of risk leadership accepts while chasing its goals.'},
+    {t:'Likelihood', note:'The question is not how likely the event is, but how much of it we accept.'},
+    {t:'Vulnerability', note:'No weakness is described here.'},
+    {t:'Impact', note:'No damage is described here.'}],
+   win:'Good tag. You book a session with leadership to set the supplier-chain appetite line.',
+   lose:'Mislabel! Finance waited three days for an answer about a “metric”.'}
+ ]
+},
+
+{
+ id:'ex4', theme:'harm', kind:'cloze', label:'Risk register · cloze',
+ title:'Complete the risk register entry',
+ brief:'A vendor risk entry came back half-written. Drag words from the bank into the blanks. Three words are decoys — they fit nowhere. Click a placed word to remove it.',
+ text:'A {b0} actor could {b1} the {b2} in the file-transfer service, which still accepts any password of one character or more. If used, this leads to {b3} of customer records — a full {b4} of our shipment data.',
+ tiles:[
+  {id:'w1', t:'threat', note:'“Actor” is the giveaway: a person or group who could act — that is a threat.'},
+  {id:'w2', t:'exploit', note:'Exploit is the verb for using a weakness. “Mitigate” would mean fixing it — the actor does not fix things for us.'},
+  {id:'w3', t:'vulnerability', note:'Accepting one-character passwords is the weakness — the vulnerability.'},
+  {id:'w4', t:'unauthorized access', note:'Reading records you are not allowed to read is unauthorized access — the event in progress.'},
+  {id:'w5', t:'data breach', note:'When sensitive data is actually taken, we call it a data breach — confirmed harm to data.'},
+  {id:'w6', t:'likelihood', decoy:true, note:'No probability language is missing in this entry.'},
+  {id:'w7', t:'mitigate', decoy:true, note:'Mitigate is what defenders do — it cannot be the actor’s action here.'},
+  {id:'w8', t:'firewall', decoy:true, note:'Nothing in the entry is about a network box.'}
+ ],
+ blanks:[
+  {id:'b0', accept:['w1'], w:'threat', note:'“A threat actor could…” — the actor is the threat.'},
+  {id:'b1', accept:['w2'], w:'exploit', note:'“Could exploit the vulnerability” — the attacker’s verb. (Mitigate is the defender’s verb.)'},
+  {id:'b2', accept:['w3'], w:'vulnerability', note:'The password rule is the weakness — the vulnerability.'},
+  {id:'b3', accept:['w4'], w:'unauthorized access', note:'Reading records without permission = unauthorized access.'},
+  {id:'b4', accept:['w5'], w:'data breach', note:'Sensitive data taken and exposed = a data breach, the confirmed harm.'}
+ ]
+},
+
+{
+ id:'ex5', theme:'prog', kind:'order', label:'Ordering',
+ title:'Build the risk management program lifecycle',
+ brief:'An auditor asks Meridian to present its risk management program as one ordered loop. Put the six steps in the correct running order — drag the rows, or use the arrows. 1 = first step.',
+ items:[
+  {id:'st1', t:'Set the risk appetite and goals — decide how much risk the organization will accept.', note:'The program starts with context. Leadership sets the appetite first, so every later decision has a clear line to measure against.'},
+  {id:'st2', t:'Identify — find assets, threats and vulnerabilities by examining processes, technologies and activities.', note:'Field work starts with risk identification: know your assets, then find threats and weaknesses against them.'},
+  {id:'st3', t:'Analyze — score every risk: how likely is it, and how bad is the harm?', note:'Analyze means measure: give each risk a likelihood and an impact score.'},
+  {id:'st4', t:'Evaluate — compare the scores with the appetite and decide the priorities.', note:'Evaluate means judge: risk evaluation compares each measured risk with the appetite. Measure first, judge second — many people mix these two.'},
+  {id:'st5', t:'Treat — mitigate, transfer, accept or avoid, and record every decision.', note:'Treatment follows the evaluation: choose the handling option and write down who decided what, and why.'},
+  {id:'st6', t:'Monitor & review — watch for change and repeat the whole cycle.', note:'A program is a loop, not a one-off project. New threats, new systems, new rules — so it never really ends.'}
+ ],
+ correct:['st1','st2','st3','st4','st5','st6'],
+ display:['st3','st5','st1','st6','st2','st4']
+},
+
+{
+ id:'ex6', theme:'treat', kind:'steps', label:'Branching case',
+ title:'Case file: CardVault Payments',
+ brief:logBlock([
+ 'CASE FILE · CARDVAULT PAYMENTS — you are the risk analyst on duty.',
+ 'Board appetite: “Zero appetite for regulatory risk. Low appetite for customer-data risk. Moderate appetite for internal IT risk.”',
+ '09:41 — A scan finds that the production payment API stores raw card numbers without encryption. The same flaw exists on an internal test server that holds no real data.'
+ ]),
+ steps:[
+  {story:'09:47 — Compliance pings you: “Give me your first read.”',
+   q:'What is your FIRST conclusion?',
+   options:[
+    {t:'No risk exists — no attacker has used the flaw yet.', note:'Risk is a possibility, not a confirmed event. Waiting for the first attack is how breaches happen.'},
+    {t:'The production API breaks our zero-appetite line for regulatory risk, so it needs action now.', ok:true, note:'Unencrypted card storage breaks the card-industry rules (PCI DSS). That is regulatory risk with zero appetite — and raw card numbers are also customer-data risk with low appetite.'},
+    {t:'Only the test server matters — test systems usually face the internet.', note:'Assumed and wrong: the test server holds no real data, so its impact is tiny. The production API is the live exposure.'},
+    {t:'Both findings are equally urgent because the flaw is identical.', note:'Same vulnerability, different risk: impact depends on what the asset holds and which rules apply. Production with real card data wins.'}]},
+  {story:'10:15 — PCI DSS (the card industry’s security standard) confirms a violation and possible fines. Management asks how to handle the risk while keeping the service running.',
+   q:'You recommend to ______ the risk.',
+   options:[
+    {t:'Mitigate it — encrypt and tokenize the card data (tokenize = replace the card numbers with worthless stand-in codes) so a break-in reveals nothing usable.', ok:true, note:'Reducing the risk with controls while keeping the service alive is the definition of mitigation.'},
+    {t:'Transfer it — move the storage to the cloud provider so the risk becomes theirs.', note:'A contract can share money losses, but the duty to protect card data (and the fines) stays with CardVault.'},
+    {t:'Accept it — the API is profitable and the fine is not certain.', note:'Acceptance must sit inside appetite. Regulatory risk appetite is zero, so acceptance is not available at any price.'},
+    {t:'Avoid it — shut down the payment API until the problem disappears.', note:'Avoid means removing the activity that creates the risk. CardVault lives on this API; the board wants it fixed, not switched off.'}]},
+  {story:'10:40 — The tokenization project takes three weeks. The compliance clock is already running.',
+   q:'What do you do in the meantime?',
+   options:[
+    {t:'Record an interim plan: block new raw card storage today, add compensating checks, and log the temporary risk with an owner and a review date.', ok:true, note:'Interim controls reduce the exposure now, and a documented, owned, dated entry keeps the zero-appetite risk visible and managed.'},
+    {t:'Accept the risk for three weeks — the fix is already scheduled.', note:'Acceptance needs a signed, documented decision and must sit inside appetite. A zero-appetite risk cannot be parked informally.'},
+    {t:'Transfer the risk to the hosting provider for three weeks.', note:'You cannot transfer compliance duty. The fines would still land on CardVault.'},
+    {t:'Do nothing — the ticket exists, so the risk is handled.', note:'A ticket is not a treatment. Three unmanaged weeks is exactly the gap auditors hunt for.'}]},
+  {story:'11:30 — Fix deployed. Scans now show only tokenized data. Management asks what goes into the register.',
+   q:'What is left, and what do you write?',
+   options:[
+    {t:'Nothing is left — close and delete the entry.', note:'Treatment rarely removes everything. Deleting history also breaks the audit trail.'},
+    {t:'Record the residual risk (the small risk that remains, for example the token vault itself), rescore it, and keep it on the register for scheduled review.', ok:true, note:'Residual risk is what remains after treatment. Honest registers keep it visible and reviewed — that is how a program, not a one-off project, works.'},
+    {t:'Escalate to the board as an active crisis.', note:'The crisis is handled. The board needs the updated score, not panic.'},
+    {t:'Transfer the remaining risk to the tokenization vendor by contract.', note:'The remaining risk is mostly ours to manage; a contract shift cannot cover it fully.'}]}
+ ]
+},
+
+{
+ id:'ex7', theme:'treat', kind:'match', label:'Matching',
+ title:'Treatment desk: match the move',
+ brief:'Seven requests landed from department heads. Click a request, then click the treatment that fits it best. Click a paired item again to unpair it. Three treatments are used twice — choose carefully, the near-misses are intentional.',
+ left:[
+  {id:'l1', s:'Insurance', t:'Buy a cyber-insurance policy that would pay ransomware recovery costs.', note:'Insurance pays money after an event; it does not make the event less likely or less harmful. Moving the financial pain to someone else is transfer.'},
+  {id:'l2', s:'FTP shutdown', t:'Retire the old FTP server that nobody uses, so the risk disappears with the service.', note:'Stopping the activity removes the risk at its source. That is avoidance — the only treatment that makes the risk impossible.'},
+  {id:'l3', s:'VPN patch + MFA', t:'Patch the VPN and enforce MFA so a break-in becomes far less likely.', note:'You keep the service and lower the likelihood with controls. That is mitigation — the everyday work of security.'},
+  {id:'l4', s:'Signed legacy keep', t:'Leadership signs a documented decision to keep a low-risk legacy printer protocol, reviewed yearly.', note:'A signed, documented, reviewed decision to live with a small risk is acceptance — formal acceptance, not neglect.'},
+  {id:'l5', s:'External processor', t:'Move all card handling to a certified external processor, so their systems hold the cards.', note:'Responsibility for the riskiest part moves to another party — transfer (some call it sharing). Their controls also help, but the defining move is the shift of responsibility.'},
+  {id:'l6', s:'Stop collecting', t:'Stop collecting customers’ birth dates, so leaking them becomes impossible.', note:'Data that no longer exists cannot leak. Removing the data source removes the risk — avoidance, even though it feels like a “control”.'},
+  {id:'l7', s:'Backup power', t:'Add a backup power line so a grid failure no longer halts the warehouse.', note:'The activity stays; a control lowers the impact. Mitigation can target impact, not only likelihood.'}
+ ],
+ right:[
+  {id:'rm', label:'Mitigate', accept:['l3','l7']},
+  {id:'rt', label:'Transfer', accept:['l1','l5']},
+  {id:'ra', label:'Accept', accept:['l4']},
+  {id:'rv', label:'Avoid', accept:['l2','l6']}
+ ]
+},
+
+{
+ id:'ex8', theme:'app', kind:'dnd', label:'Drag & drop bins',
+ title:'Appetite or tolerance? Sort the statements',
+ brief:'Two words people constantly swap: <b>risk appetite</b> — how much risk leadership <i>wants</i> to take (broad, directional) — and <b>risk tolerance</b> — the measurable limits set around specific areas (how much variation is OK). Drag each statement into the right bin. No decoys this time — every tile belongs somewhere.',
+ tiles:[
+  {id:'a1', t:'Board: “We will take only low risk with customer data.”', note:'Broad, directional, leadership-voiced — appetite.'},
+  {id:'a2', t:'Policy: “Payment system downtime must stay under 2 hours per quarter.”', note:'A measurable limit around one specific area — tolerance.'},
+  {id:'a3', t:'CISO: “Up to 3 low-severity findings may stay open per internet-facing system.”', note:'A quantified threshold for a defined scope — tolerance operationalizes the appetite.'},
+  {id:'a4', t:'Board: “We have zero appetite for knowingly breaking laws or regulations.”', note:'A top-level statement of what we will not do at all — appetite.'},
+  {id:'a5', t:'Team: “Endpoint patching may lag no more than 14 days behind release.”', note:'A concrete number a team can be audited against — tolerance.'},
+  {id:'a6', t:'CEO: “We are a growth company — we accept more delivery risk than a bank would.”', note:'A strategic stance about risk-taking in general — appetite.'}
+ ],
+ buckets:[
+  {id:'bkApp', label:'Risk appetite', hint:'Broad direction from leadership', max:4, accept:['a1','a4','a6']},
+  {id:'bkTol', label:'Risk tolerance', hint:'Measurable limits around specific areas', max:4, accept:['a2','a3','a5']}
+ ]
+},
+
+{
+ id:'ex9', theme:'harm', kind:'steps', label:'Log analysis',
+ title:'Morning log review: vpn01',
+ brief:logBlock([
+ '2026-10-05 02:11:04  vpn01  auth.fail    user=administrator  src=45[.]155[.]205[.]233  "password incorrect"',
+ '2026-10-05 02:11:19  vpn01  auth.fail    user=root           src=45[.]155[.]205[.]233  "password incorrect"',
+ '2026-10-05 02:11:31  vpn01  auth.fail    user=j.tanaka       src=45[.]155[.]205[.]233  "password incorrect"',
+ '2026-10-05 02:11:44  vpn01  auth.fail    user=svc_backup     src=45[.]155[.]205[.]233  "password incorrect"',
+ '2026-10-05 02:12:02  vpn01  auth.fail    user=a.moreau       src=45[.]155[.]205[.]233  "password incorrect"',
+ '2026-10-05 02:14:51  vpn01  auth.success user=a.moreau       src=45[.]155[.]205[.]233  mfa=none',
+ '2026-10-05 02:15:02  vpn01  vpn.session  user=a.moreau       action=download  file=payroll_q4.zip  size=412MB'
+ ])+'<p>One external IP, five different accounts, then a login and a 412 MB download. Work through the four questions below — keep the log open as evidence.</p><p class="dim">Context: 4,000 employees connect through vpn01 every day. Meridian’s board appetite is <b>moderate</b> for operational risk and <b>low</b> for data risk.</p>',
+ steps:[
+  {q:'Question 1 — One password failed on five different accounts, then one succeeded. What technique is this?',
+   options:[
+    {t:'Password spraying — few passwords tried across many accounts.', ok:true, note:'Spraying means one or two common passwords against many usernames, to avoid automatic account lockouts. Brute force would hammer ONE account with thousands of passwords.'},
+    {t:'Brute force on the administrator account.', note:'Five different accounts were hit, not one. That pattern is spraying, not brute force.'},
+    {t:'Normal users forgetting their passwords.', note:'One external IP at 02:11 hitting five accounts — including root and a service account — is not forgetfulness.'},
+    {t:'A DDoS attack.', note:'DDoS floods a service to crash it. Nothing here is a flood; these are normal-sized login requests.'}]},
+  {q:'Question 2 — Which vulnerability is the attacker targeting?',
+   options:[
+    {t:'The VPN accepts a password alone — MFA is not enforced.', ok:true, note:'The success line says mfa=none. One good password was enough to get in — that is the weakness being used.'},
+    {t:'Old TLS on port 443.', note:'The log shows nothing about TLS versions. Do not invent evidence.'},
+    {t:'A shared admin password.', note:'a.moreau is a personal account, not a shared one.'},
+    {t:'The firewall’s open port.', note:'A VPN must be reachable to work. Openness alone is not the flaw that let the attacker in.'}]},
+  {q:'Question 3 — At 02:15:02, 412 MB of payroll data leaves with a.moreau’s account. Name the event(s) precisely.',
+   options:[
+    {t:'Unauthorized access — and the download suggests a data breach may be underway.', ok:true, note:'Getting in without permission = unauthorized access. Pulling sensitive files out = likely data breach (harm to data). Two terms, one event chain.'},
+    {t:'Just unauthorized access — downloads are normal use.', note:'A 412 MB payroll archive at 02:15 from an external IP is not normal use.'},
+    {t:'A data breach only — no unauthorized access happened.', note:'A breach cannot happen without first getting in. The log shows the intrusion itself.'},
+    {t:'False positive — the IP belongs to the backup job.', note:'svc_backup was being attacked, not used. The session runs under a.moreau.'}]},
+  {q:'Question 4 — Pick the best IMMEDIATE treatment while forensics run.',
+   options:[
+    {t:'Kill the session, disable a.moreau, reset credentials, enforce MFA on the VPN, block the attacker IP — and record the action.', ok:true, note:'This stops the harm, closes the used weakness, and keeps remote work alive: mitigation with immediate effect.'},
+    {t:'Turn the VPN off permanently — avoid the risk completely.', note:'Avoid removes the risk by killing the service — and 4,000 remote staff stop working. Appetite for operational risk is moderate, not zero: this over-treats and breaks the business.'},
+    {t:'Buy breach insurance today — transfer it.', note:'Insurance pays money afterwards; it stops nothing right now.'},
+    {t:'Document and accept — monitor it for a week.', note:'Active unauthorized access with data leaving is far beyond any appetite line. Acceptance here would be negligence.'}]}
+ ]
+},
+
+{
+ id:'ex10', theme:'prog', kind:'spot', label:'Spot the mistake',
+ title:'Audit the risk assessment',
+ brief:'Below is the draft of a junior’s risk assessment. Exactly <b>three</b> lines contain real mistakes. Click the three flawed lines, then check. Flagging a flawless line counts against your credibility — the report explains every answer.',
+ pick:3,
+ lines:[
+  {id:'s1', t:'Asset: the customer database — about 200,000 records — hosted in our own data centre.', flawed:false},
+  {id:'s2', t:'Threat: a SQL-injection weakness in the public search form.', flawed:true, note:'A weakness is a vulnerability, not a threat. (SQL injection means typing database commands into a form to make it give up data.) The threat is the who or what that would use it — for example, an external attacker running injection attempts.'},
+  {id:'s3', t:'Vulnerability: the search form passes user input to the database without checking it first.', flawed:false},
+  {id:'s4', t:'Likelihood: rated “certain”, because threat actors exist somewhere on the internet.', flawed:true, note:'Attackers existing somewhere is not proof they will hit this form. Likelihood is judged for your context: exposure, controls, past events. “Some attackers exist” would make almost every risk “certain”, which is useless for prioritization.'},
+  {id:'s5', t:'Impact: if exploited, an attacker could read the full customer table.', flawed:false},
+  {id:'s6', t:'Treatment: we will transfer this risk by patching the form this weekend.', flawed:true, note:'Patching is mitigation — you keep the form and reduce the risk. Transfer means moving the risk to another party, such as an insurer or a contract partner.'},
+  {id:'s7', t:'Residual: after the fix, the risk scores low and stays on the register for quarterly review.', flawed:false}
+ ]
+},
+
+{
+ id:'ex11', theme:'app', kind:'order', label:'Priority ranking',
+ title:'Prioritize the register: where does the budget go?',
+ brief:'The budget covers treating only <b>two</b> risks this quarter, so your ranking decides who gets protection. Rank all five: 1 = treat first. Rulers: likelihood × impact, and the appetite (low for data risk, moderate for IT risk).',
+ items:[
+  {id:'RA', t:'A vendor’s public cloud bucket holds unencrypted backups of 500,000 customer records. Bucket listing is on. The vendor has had two breaches before.', note:'Enormous impact and a shaky vendor, but the exposure is indirect: no attack is running right now. Urgent vendor action — yet after the live attacks below.'},
+  {id:'RB', t:'An old test laptop with a default password sits in a locked internal lab. It holds no data and has no internet access.', note:'Default password, but locked room, no data, no exposure. Lowest likelihood and impact — treat last.'},
+  {id:'RC', t:'Password-spray attempts against the MFA-less VPN were confirmed this week. 30,000 accounts are exposed.', note:'Confirmed active attacks, no MFA, 30,000 accounts exposed at once. This is the most urgent live risk — mitigate now.'},
+  {id:'RD', t:'The office printer runs vulnerable firmware. It is internal-only and no sensitive data passes through it.', note:'Low impact, internal only. Schedule the patch — no panic needed.'},
+  {id:'RE', t:'An admin cloud key with full rights was published in a public code repository. Three external accounts have already cloned it.', note:'Treat a published secret as already stolen. Rotate and contain first — likelihood is effectively certain and the impact is total.'}
+ ],
+ correct:['RE','RC','RA','RD','RB'],
+ display:['RD','RA','RB','RC','RE']
+},
+
+{
+ id:'ex12', theme:'prog', kind:'cloze', label:'Policy cloze',
+ title:'Write the policy',
+ brief:'Meridian’s risk policy lost seven words during a template migration. Rebuild the clause from the word bank. Three words are decoys. Click a placed word to remove it.',
+ text:'All business units take part in the company’s {b0}. Each unit must {b1} risks by reviewing its processes, technologies and activities every quarter, so that new weaknesses do not stay hidden. Every finding is scored for {b2} and {b3}. Risks that sit above our {b4} must be treated: we {b5} them with controls, transfer them by insurance or contract, avoid them by stopping the activity, or {b6} them with a signed, documented decision.',
+ tiles:[
+  {id:'p1', t:'risk management program', note:'The sentence names the umbrella under which everything else lives: the risk management program.'},
+  {id:'p2', t:'identify', note:'Identify is the verb of finding risks — exactly by examining processes, technologies and activities.'},
+  {id:'p3', t:'likelihood', note:'The chance side of the score.'},
+  {id:'p4', t:'impact', note:'The harm side of the score.'},
+  {id:'p5', t:'risk appetite', note:'Above appetite means beyond what leadership chose to accept — so it must be treated.'},
+  {id:'p6', t:'mitigate', note:'Controls that shrink the risk = mitigation. (Monitoring only watches a risk; it does not shrink it.)'},
+  {id:'p7', t:'accept', note:'Acceptance always needs a signature and a record. Anything less is neglect with paperwork.'},
+  {id:'p8', t:'exploit', decoy:true, note:'Exploit is the attacker’s verb — a staff policy never asks people to exploit.'},
+  {id:'p9', t:'firewall', decoy:true, note:'A firewall is one control among many — not a policy keyword in this clause.'},
+  {id:'p10', t:'monitor', decoy:true, note:'Tempting — but the blank says “with controls” that treat the risk. Monitoring appears later in the policy: watch and review.'}
+ ],
+ blanks:[
+  {id:'b0', accept:['p1'], w:'risk management program', note:'“…take part in the company’s risk management program.”'},
+  {id:'b1', accept:['p2'], w:'identify', note:'“…must identify risks by reviewing processes, technologies and activities.”'},
+  {id:'b2', accept:['p3'], w:'likelihood', note:'Scored for likelihood — the chance side.'},
+  {id:'b3', accept:['p4'], w:'impact', note:'Scored for impact — the harm side.'},
+  {id:'b4', accept:['p5'], w:'risk appetite', note:'“Above our risk appetite” — the leadership line that forces treatment.'},
+  {id:'b5', accept:['p6'], w:'mitigate', note:'“We mitigate them with controls” — treatment by reduction.'},
+  {id:'b6', accept:['p7'], w:'accept', note:'“…or accept them with a signed, documented decision.”'}
+ ]
+},
+
+{
+ id:'ex13', theme:'harm', kind:'dnd', label:'Impact classification',
+ title:'Where does it hurt? Sort the harm',
+ brief:'Impact lands on three kinds of assets: <b>Data</b> (information is stolen, changed or lost), <b>Systems</b> (hardware or software is damaged, disrupted or taken over), <b>Operations</b> (the business’s ability to run and deliver is hurt). Drag each event into the right bin — two events per bin, but some will tempt you.',
+ tiles:[
+  {id:'h1', t:'40,000 customer records are copied and posted online.', note:'Confidentiality of information — data harm. (A data breach.)'},
+  {id:'h2', t:'Ransomware encrypts the finance server; IT restores it after three days of downtime.', note:'The machine and its software were disrupted — systems harm. The payroll delay that follows would be operations, but this line describes the system.'},
+  {id:'h3', t:'The distribution centre halts; customers receive orders five days late.', note:'Nothing about data or machines here — the ability to run and deliver is what got hurt.'},
+  {id:'h4', t:'A hacker edits product prices on the shop site to one euro.', note:'No system broke and nothing was stolen — information was changed. Data harm includes loss of integrity. (The fraudulent orders would then become an operational hit.)'},
+  {id:'h5', t:'A fire destroys the primary server-room hardware.', note:'Hardware destroyed — systems harm. If backups also failed, data loss would follow; but this line is about the machines.'},
+  {id:'h6', t:'Because the finance server was down, staff get paid one week late and morale drops.', note:'The system is already restored; the remaining harm is to how the business runs — operations.'}
+ ],
+ buckets:[
+  {id:'bData', label:'Data', hint:'Information stolen, changed or lost', max:4, accept:['h1','h4']},
+  {id:'bSys', label:'Systems', hint:'Hardware or software damaged, disrupted or taken over', max:4, accept:['h2','h5']},
+  {id:'bOps', label:'Operations', hint:'The ability to run and deliver is hurt', max:4, accept:['h3','h6']}
+ ]
+},
+
+{
+ id:'ex14', theme:'app', kind:'steps', label:'Mixed · 2 parts',
+ title:'Budget day: focus limited resources',
+ brief:'Finance gives you money for <b>one</b> project this year. Board appetite: low for data risk, moderate for operational risk. Your duty: focus the limited resources for maximum protection.',
+ steps:[
+  {q:'Part 1 — Which single project do you fund?',
+   options:[
+    {t:'Full-disk encryption on all 1,200 laptops — removes most data-breach risk from lost devices; cost: low.', ok:true, note:'Best risk reduction per euro, aimed exactly at the low-appetite area (data). Small spend, big protection — this is what “focus limited resources for maximum protection” means.'},
+    {t:'A new SIEM (a system that collects and correlates security logs) — finds incidents faster; cost: high.', note:'Detection is valuable, but it does not reduce risk by itself: incidents still happen — they are only noticed sooner. With one slot only, prevention beats detection here.'},
+    {t:'Redesign the whole supplier network — removes one high operational risk; cost: extreme.', note:'Real reduction, but the price eats the entire budget for a moderate-appetite area. Disproportionate.'},
+    {t:'Cyber insurance for breach costs — transfers the money impact; cost: medium.', note:'Insurance transfers cost, not risk: the breach chance and the data harm stay identical.'}]},
+  {multi:true, q:'Part 2 — Select EVERY true statement about risk appetite.',
+   options:[
+    {t:'Appetite guides where limited resources go first.', ok:true, note:'True — the appetite is the ruler for priorities: the risk that sits furthest above appetite gets the budget first.'},
+    {t:'Having a risk appetite means the organization takes no risk at all.', note:'False — zero risk is impossible. Every process carries some risk. Appetite says how much is acceptable, not nothing.'},
+    {t:'Appetite can differ by risk type: zero for legal risk, moderate for IT risk.', ok:true, note:'True — real appetite statements are split by category, exactly like the CardVault board did.'},
+    {t:'Once written, the appetite never changes.', note:'False — appetite follows strategy, markets and new laws. Boards review it at least once a year.'}]}
+ ]
+},
+
+{
+ id:'ex15', theme:'prog', kind:'steps', label:'Capstone case',
+ title:'Capstone: Helios Health annual review',
+ brief:logBlock([
+ 'CASE FILE · HELIOS HEALTH — annual risk review.',
+ '12 clinics · Board appetite: zero for patient-safety and legal risk, moderate for IT risk.',
+ 'Findings:',
+ ' (1) Phishing mails reached 30 staff last month.',
+ ' (2) The appointment system still runs a default admin account (admin/admin).',
+ ' (3) Paper patient notes sit in an unlocked basement.',
+ ' (4) The company has no cyber insurance.',
+ ' (5) A new law requires patient-breach notification within 72 hours.'
+ ]),
+ steps:[
+  {q:'Part 1 — The default admin/admin account on the appointment system is best classified as a…',
+   options:[
+    {t:'Threat', note:'No actor here. It is our own flaw, waiting to be found — a weakness, not a threat.'},
+    {t:'Vulnerability', ok:true, note:'A credential nobody changed is a weakness in our own system — the textbook vulnerability. The threat (whoever finds it) comes later.'},
+    {t:'Risk', note:'Close. A risk needs all three parts together: threat + this weakness + harm. The account alone is just the vulnerability part.'},
+    {t:'Impact', note:'Nothing has happened yet — no harm, no impact.'}]},
+  {q:'Part 2 — Which line correctly pairs ONE threat and ONE vulnerability from the dossier?',
+   options:[
+    {t:'Threat: phishing mails that reached staff · Vulnerability: the default admin account', ok:true, note:'Correct pairing. The mails are the harmful force (threat); admin/admin is our weakness (vulnerability).'},
+    {t:'Threat: the admin/admin account · Vulnerability: the phishing mails', note:'Swapped. The account is our weakness; the phishing campaign is the harmful force.'},
+    {t:'Threat: patient notes in the basement · Vulnerability: the new 72-hour law', note:'The notes are an exposed asset, and the law is a requirement — not a weakness of ours. Mislabels like this wreck a register.'},
+    {t:'Threat: the missing cyber insurance · Vulnerability: the unlocked basement', note:'Missing insurance is a treatment gap, not a threat. (The basement part alone would be a real physical weakness.)'}]},
+  {multi:true, q:'Part 3 — A receptionist clicked a phishing link. Attackers read her mailbox, which held patient appointment details. Reception was closed for two hours while accounts were reset. Select EVERY harm statement that is TRUE.',
+   options:[
+    {t:'Data breach — patient information was exposed to attackers.', ok:true, note:'True — sensitive patient data reached unauthorized eyes. That is the definition of a data breach.'},
+    {t:'Unauthorized access — the attackers used her account without permission.', ok:true, note:'True — they entered and used an account they had no right to use.'},
+    {t:'No harm occurred, because only email was involved.', note:'False — the mailbox held patient appointment details. Real data, real harm.'},
+    {t:'Operational disruption — reception could not work for two hours.', ok:true, note:'True — the business’s ability to run was hurt. Harm to operations is impact too.'}]},
+  {q:'Part 4 — Management reacts to the new law: “We will simply stop collecting patients’ birth numbers — the portal works without them.” Which treatment is this?',
+   options:[
+    {t:'Avoid', ok:true, note:'The activity that creates the risk — collecting birth numbers — is removed entirely. Data that never exists can never leak: avoidance.'},
+    {t:'Mitigate', note:'Mitigation would keep collecting and add controls around the data. Here collection stops altogether.'},
+    {t:'Transfer', note:'Nobody else took the risk over — it was eliminated at the source.'},
+    {t:'Accept', note:'Nothing was signed off to live with. The risk was removed, not tolerated.'}]},
+  {q:'Part 5 — After treatments, the register shows the phishing risk down from medium to low (MFA + training done). What must the program still do?',
+   options:[
+    {t:'Keep the entry with its residual score, assign an owner, and re-review on a schedule and after major changes.', ok:true, note:'Treatment rarely ends risk completely. The residual (leftover) risk stays visible, owned and reviewed — that is what makes it a program and not a one-off project.'},
+    {t:'Nothing — a low risk disappears from the register.', note:'Low is not zero. Deleting entries hides the picture from the next review and from the audit trail.'},
+    {t:'Delete the entry quietly so the auditor sees a clean list.', note:'Hiding risks from auditors is a governance failure — and usually a career-limiting one.'},
+    {t:'Hand the entry to the clinics; head office is done with it.', note:'Passing paper is not treatment. Head office owns the program and the appetite lines.'}]}
+ ]
+}
+];
+
+/* ==================== ENGINE: HELPERS ==================== */
+function $(s,r){return (r||document).querySelector(s);}
+function mk(tag,cls,html){var n=document.createElement(tag); if(cls)n.className=cls; if(html!=null)n.innerHTML=html; return n;}
+function snip(s,n){return s.length>n? s.slice(0,n)+'…' : s;}
+function show(id){['scr-intro','scr-exam','scr-results'].forEach(function(s){$('#'+s).classList.toggle('hidden',s!==id);}); window.scrollTo({top:0});}
+function unitsOf(ex){
+ if(ex.kind==='steps')return ex.steps.length;
+ if(ex.kind==='dnd')return ex.tiles.filter(function(t){return !t.decoy;}).length;
+ if(ex.kind==='cloze')return ex.blanks.length;
+ if(ex.kind==='order')return ex.items.length;
+ if(ex.kind==='match')return ex.left.length;
+ return ex.pick;
+}
+var TOTAL=EXAMS.reduce(function(a,e){return a+unitsOf(e);},0);
+var THEME_TOTALS={};
+Object.keys(THEMES).forEach(function(k){THEME_TOTALS[k]=EXAMS.filter(function(e){return e.theme===k;}).reduce(function(a,e){return a+unitsOf(e);},0);});
+var PASS_PCT=80;
+
+/* ==================== ENGINE: STATE ==================== */
+var S=null;
+function freshState(){
+ S={name:'',cur:0,score:0,answered:0,units:{},theme:{},wrong:[],clockIv:null,startTs:0};
+ Object.keys(THEMES).forEach(function(k){S.theme[k]={a:0,c:0};});
+}
+function scoreUnit(uid,ok,info){
+ if(!S||S.units[uid]!==undefined)return;
+ S.units[uid]=ok; S.answered++;
+ var ex=EXAMS[S.cur]; var th=S.theme[ex.theme]; th.a++;
+ if(ok){th.c++; S.score++;}
+ else{S.wrong.push({ex:ex.title,label:(info&&info.label)||'task',why:(info&&info.why)||''});}
+ updateHUD();
+}
+function feedback(fb,ok,html){
+ fb.innerHTML='';
+ fb.append(mk('div','fb '+(ok?'good':'badr'),(ok?'<b>✓ Correct.</b> ':'<b>✗ Wrong.</b> ')+html));
+}
+function fbList(lines){
+ return '<ul class="fbl">'+lines.map(function(l){return '<li class="'+(l.ok?'lok':'lbad')+'">'+(l.ok?'✓ ':'✗ ')+l.t+'</li>';}).join('')+'</ul>';
+}
+function toast(msg){
+ var t=mk('div','toast',msg); document.body.appendChild(t);
+ setTimeout(function(){t.remove();},1900);
+}
+
+/* ==================== ENGINE: HUD & CLOCK ==================== */
+function updateHUD(){
+ if(!S)return;
+ $('#hScore').textContent=S.score+' pts';
+ var pct=S.answered?Math.round(S.score/S.answered*100):0;
+ $('#hPct').textContent=pct+'% so far';
+ $('#hAns').textContent=S.answered+'/'+TOTAL;
+ $('#hFill').style.width=(S.answered/TOTAL*100)+'%';
+ Object.keys(THEMES).forEach(function(k){
+  var c=$('#chip-'+k); if(!c)return;
+  var t=S.theme[k]; var goal=Math.ceil(THEME_TOTALS[k]*0.8);
+  c.innerHTML=SHORT[k]+' <b>'+t.c+'/'+THEME_TOTALS[k]+'</b>';
+  c.classList.toggle('done',t.a===THEME_TOTALS[k]&&t.c>=goal);
+  c.classList.toggle('part',t.a>0&&t.c<goal);
+ });
+}
+function startClock(){
+ stopClock(); S.startTs=Date.now();
+ $('#hClock').textContent='00:00';
+ S.clockIv=setInterval(function(){
+  var s=Math.floor((Date.now()-S.startTs)/1000);
+  $('#hClock').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+ },1000);
+}
+function stopClock(){ if(S&&S.clockIv){clearInterval(S.clockIv); S.clockIv=null;} }
+
+/* ==================== ENGINE: DRAG & DROP (pointer events, mouse + touch) ==================== */
+var dragGhost=null,lastDrop=null;
+function clearHover(){ if(lastDrop){lastDrop.classList.remove('over'); lastDrop=null;} }
+function dropTargetAt(x,y){
+ var els=document.elementsFromPoint(x,y);
+ for(var i=0;i<els.length;i++){ var d=els[i].closest?els[i].closest('.droppable'):null; if(d)return d; }
+ return null;
+}
+function draggable(node,opts){
+ node.addEventListener('pointerdown',function(e){
+  if(e.target.closest('button'))return;
+  if(opts.canDrag&&!opts.canDrag())return;
+  e.preventDefault();
+  var sx=e.clientX,sy=e.clientY,moved=false,gw=0;
+  var mv=function(ev){
+   if(!moved&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>7){
+    moved=true; node.classList.add('dragging');
+    if(opts.ghost!==false){
+     var r=node.getBoundingClientRect(); gw=r.width;
+     dragGhost=node.cloneNode(true); dragGhost.classList.add('ghost');
+     dragGhost.style.width=gw+'px'; document.body.appendChild(dragGhost);
+    }
+   }
+   if(!moved)return;
+   if(opts.onMove){opts.onMove(ev,node); return;}
+   if(dragGhost){
+    dragGhost.style.left=(ev.clientX-gw/2)+'px';
+    dragGhost.style.top=(ev.clientY-16)+'px';
+    clearHover();
+    var t=dropTargetAt(ev.clientX,ev.clientY);
+    if(t){t.classList.add('over'); lastDrop=t;}
+   }
+  };
+  var finish=function(ev){
+   window.removeEventListener('pointermove',mv);
+   window.removeEventListener('pointerup',finish);
+   window.removeEventListener('pointercancel',finish);
+   if(!moved){ if(opts.onClick)opts.onClick(); return; }
+   node.classList.remove('dragging');
+   if(dragGhost){dragGhost.remove(); dragGhost=null;}
+   if(opts.onMove){ if(opts.onDropLive)opts.onDropLive(); return; }
+   var t=dropTargetAt(ev.clientX,ev.clientY); clearHover();
+   if(t&&opts.onDrop)opts.onDrop(opts.payload?opts.payload():null,t);
+  };
+  window.addEventListener('pointermove',mv);
+  window.addEventListener('pointerup',finish);
+  window.addEventListener('pointercancel',finish);
+ });
+ node.addEventListener('contextmenu',function(e){e.preventDefault();});
+}
+
+/* ==================== ENGINE: RENDER DISPATCH ==================== */
+var RENDERS={steps:rSteps,dnd:rDnd,cloze:rCloze,order:rOrder,match:rMatch,spot:rSpot};
+function renderExercise(){
+ var ex=EXAMS[S.cur]; var area=$('#exarea'); area.innerHTML='';
+ var card=mk('section','card');
+ card.append(mk('div','extop','<span class="badge">'+ex.label+'</span><span class="ttag">'+THEMES[ex.theme]+'</span><span class="num">Assignment '+(S.cur+1)+' / '+EXAMS.length+'</span>'));
+ card.append(mk('h2',null,ex.title));
+ if(ex.brief)card.append(mk('div','brief',ex.brief));
+ var body=mk('div','exbody'); card.append(body);
+ var fb=mk('div','fbwrap'); fb.setAttribute('aria-live','polite'); card.append(fb);
+ var nav=mk('div','nav');
+ var nx=mk('button','btn primary',(S.cur===EXAMS.length-1)?'Finish & see verdict ▸':'Next assignment ▸');
+ nx.disabled=true;
+ nx.onclick=function(){
+  if(S.cur<EXAMS.length-1){S.cur++; renderExercise(); window.scrollTo({top:0,behavior:'smooth'});}
+  else showResults();
+ };
+ nav.append(nx); card.append(nav);
+ area.append(card);
+ RENDERS[ex.kind](ex,body,fb,function(){nx.disabled=false;});
+ updateHUD();
+}
+
+/* ==================== RENDERER: STEPS (QCM / triage / branching / capstone) ==================== */
+function rSteps(ex,body,fb,unlock){
+ var k=0;
+ var prog=mk('div','stepprog',''); body.append(prog);
+ function doneAll(){
+  if(!fb.querySelector('.fbdone'))fb.append(mk('div','fbdone','Assignment complete — Next unlocked.'));
+  unlock();
+ }
+ function renderStep(){
+  Array.prototype.slice.call(body.querySelectorAll('.stepbox')).forEach(function(n){n.remove();});
+  var st=ex.steps[k];
+  prog.textContent='Step '+(k+1)+' / '+ex.steps.length+(st.timer?' · timed — one shot only':'');
+  var box=mk('div','stepbox');
+  if(st.story)box.append(mk('div','story',st.story));
+  box.append(mk('div','q',st.q));
+  var firstOk=st.options.find(function(o){return o.ok;});
+  var list=mk('div','opts'); box.append(list);
+  var ckbtn=null, timerIv=null;
+  function stopTimer(){ if(timerIv){clearInterval(timerIv); timerIv=null; var tb=box.querySelector('.tbarwrap'); if(tb)tb.remove();} }
+  function revealCorrect(){
+   Array.prototype.forEach.call(list.children,function(b,i){ if(st.options[i].ok)b.classList.add('ok'); });
+  }
+  function lockAll(){ Array.prototype.forEach.call(list.children,function(b){b.classList.add('dead');}); }
+  function nextBtn(label){
+   var nb=mk('button','btn small',label||'Next step ▸');
+   nb.onclick=function(){ stopTimer(); k++; fb.innerHTML='';
+    if(k<ex.steps.length)renderStep(); else doneAll();
+    window.scrollTo({top:0,behavior:'smooth'}); };
+   box.append(nb);
+  }
+  st.options.forEach(function(o,i){
+   var b=mk('button','opt','<span class="optk">'+String.fromCharCode(65+i)+'</span><span class="optt">'+o.t+'</span>');
+   b.onclick=function(){
+    if(box.dataset.done)return;
+    if(b.classList.contains('dead'))return;
+    var good=!!o.ok;
+    if(st.multi){
+     if(b.classList.contains('sel'))b.classList.remove('sel'); else b.classList.add('sel');
+     if(ckbtn)ckbtn.disabled=!list.querySelector('.sel');
+     return;
+    }
+    var uid=ex.id+'-s'+k;
+    var firstTry=S.units[uid]===undefined;
+    scoreUnit(uid,good,{label:'Step '+(k+1),why:firstOk.note});
+    stopTimer();
+    if(good){
+     b.classList.add('ok'); lockAll(); box.dataset.done='1'; revealCorrect();
+     var html=o.note;
+     if(!firstTry)html='<span class="amnote">Point locked on your first answer — this correction is for learning, not for the score.</span><br>'+html;
+     if(st.win)html+='<div class="flavor">'+st.win+'</div>';
+     feedback(fb,true,html);
+     if(k<ex.steps.length-1)nextBtn('Next step ▸'); else doneAll();
+    } else {
+     b.classList.add('bad','dead');
+     if(ex.noRetry){
+      box.dataset.done='1'; lockAll(); revealCorrect();
+      var html2=o.note+' '+firstOk.note;
+      if(st.lose)html2+='<div class="flavor">'+st.lose+'</div>';
+      feedback(fb,false,html2);
+      if(k<ex.steps.length-1)nextBtn('Next item ▸'); else doneAll();
+     } else {
+      feedback(fb,false,o.note+' <span class="dim">Try again — pick another answer. Your first answer is the one that scores.</span>');
+     }
+    }
+   };
+   list.append(b);
+  });
+  if(st.multi){
+   ckbtn=mk('button','btn small','Check selection'); ckbtn.disabled=true;
+   ckbtn.onclick=function(){
+    if(box.dataset.done)return;
+    box.dataset.done='1'; ckbtn.disabled=true; stopTimer();
+    var all=true;
+    Array.prototype.forEach.call(list.children,function(b,i){
+     var o=st.options[i]; var sel=b.classList.contains('sel');
+     if(sel!==!!o.ok)all=false;
+     if(o.ok)b.classList.add('ok'); else if(sel)b.classList.add('bad'); else b.classList.add('dim');
+    });
+    lockAll();
+    scoreUnit(ex.id+'-s'+k,all,{label:'Part '+(k+1),why:firstOk.note});
+    var lines=st.options.map(function(o){
+     return {ok:!!o.ok,t:o.t+' — '+(o.ok?'TRUE. '+o.note:'FALSE. '+o.note)};
+    });
+    feedback(fb,all,fbList(lines));
+    if(k<ex.steps.length-1)nextBtn('Next part ▸'); else doneAll();
+   };
+   box.append(ckbtn);
+  }
+  if(st.timer){
+   var tw=mk('div','tbarwrap','<div class="tbar"><div class="tfill"></div></div><span class="tsec">'+st.timer+'s</span>');
+   box.append(tw);
+   var left=st.timer;
+   var tf=tw.querySelector('.tfill'), ts=tw.querySelector('.tsec');
+   timerIv=setInterval(function(){
+    left--; ts.textContent=left+'s'; tf.style.width=(left/st.timer*100)+'%';
+    if(left<=0){
+     stopTimer();
+     if(!box.dataset.done){
+      box.dataset.done='1'; lockAll(); revealCorrect();
+      scoreUnit(ex.id+'-s'+k,false,{label:'Step '+(k+1),why:firstOk.note});
+      var html='The 30-second clock ran out — in a live desk, an untagged item delays everyone. '+firstOk.note;
+      if(st.lose)html+='<div class="flavor">'+st.lose+'</div>';
+      feedback(fb,false,html);
+      if(k<ex.steps.length-1)nextBtn('Next item ▸'); else doneAll();
+     }
+    }
+   },1000);
+  }
+  body.append(box);
+ }
+ renderStep();
+}
+
+/* ==================== RENDERER: DND (terms→slots, statements→bins) ==================== */
+function rDnd(ex,body,fb,unlock){
+ var checked=false;
+ var placed={}; ex.tiles.forEach(function(t){placed[t.id]=null;});
+ var nodeOf={};
+ var bwrap=mk('div','bankwrap', '<div class="banktitle">Term tray — drag a tile onto a slot / into a bin. Click a placed tile to send it back.</div>');
+ var bank=mk('div','bank'); bwrap.append(bank);
+ ex.tiles.forEach(function(t){
+  var n=mk('div','tile',t.t); n.dataset.tid=t.id; nodeOf[t.id]=n; bank.append(n);
+  draggable(n,{
+   canDrag:function(){return !checked;},
+   payload:function(){return t.id;},
+   onClick:function(){
+    if(checked)return;
+    var p=n.parentNode;
+    if(p&&p.classList.contains('bbody')){bank.append(n); placed[t.id]=null; upd();}
+   },
+   onDrop:function(tid,drop){
+    var acc=drop._acc; if(!acc)return;
+    var bb=drop.querySelector('.bbody');
+    if(placed[tid]===acc.id)return;
+    if(bb.children.length>=acc.max){
+     if(acc.max===1){var old=bb.children[0]; bank.append(old); placed[old.dataset.tid]=null;}
+     else{toast('This bin is full ('+acc.max+' tiles max) — click a tile inside it to send one back.'); return;}
+    }
+    bb.append(n); placed[tid]=acc.id; upd();
+   }
+  });
+ });
+ var bins=mk('div','bins');
+ ex.buckets.forEach(function(b){
+  var d=mk('div','bucket droppable','<div class="bhead">'+b.label+(b.hint?'<div class="bhint">'+b.hint+'</div>':'')+'</div>');
+  d._acc=b; d.append(mk('div','bbody')); bins.append(d);
+ });
+ body.append(bwrap,bins);
+ var act=mk('div','exactions');
+ var ck=mk('button','btn primary','Check placement'); ck.disabled=true;
+ act.append(ck,mk('span','dim hint','Place every non-decoy tile to enable checking.'));
+ function upd(){
+  ck.disabled=ex.tiles.filter(function(t){return !t.decoy;}).some(function(t){return !placed[t.id];});
+ }
+ body.append(act);
+ ck.onclick=function(){
+  if(checked||ck.disabled)return;
+  checked=true; ck.disabled=true;
+  Array.prototype.forEach.call(body.querySelectorAll('.tile'),function(n){n.classList.add('locked');});
+  var lines=[],all=true;
+  ex.tiles.forEach(function(t){
+   var n=nodeOf[t.id]; var bid=placed[t.id];
+   if(t.decoy){
+    if(bid){all=false; n.classList.add('wrongmark'); lines.push({ok:false,t:'<b>'+t.t+'</b> was placed, but it is a decoy. '+t.note});}
+    else{n.classList.add('rightmark'); lines.push({ok:true,t:'<b>'+t.t+'</b> correctly left in the tray. '+t.note});}
+    return;
+   }
+   var bkt=ex.buckets.find(function(b){return b.id===bid;});
+   var good=!!(bkt&&bkt.accept.indexOf(t.id)>=0);
+   n.classList.add(good?'rightmark':'wrongmark');
+   if(!good)all=false;
+   lines.push({ok:good,t:'<b>'+t.t+'</b> → '+(bkt?'“'+snip(bkt.label,70)+'”':'tray')+'. '+t.note});
+   scoreUnit(ex.id+'-'+t.id,good,{label:t.t,why:t.note});
+  });
+  feedback(fb,all,fbList(lines));
+  unlock();
+ };
+}
+
+/* ==================== RENDERER: CLOZE (word bank → blanks) ==================== */
+function rCloze(ex,body,fb,unlock){
+ var checked=false;
+ var placed={}; ex.tiles.forEach(function(t){placed[t.id]=null;});
+ var textEl=mk('div','textblock');
+ textEl.innerHTML=ex.text.replace(/\{(b\d+)\}/g,function(m,id){
+  return '<span class="blank droppable" data-bid="'+id+'">______</span>';
+ });
+ var nodeOf={};
+ var bwrap=mk('div','bankwrap','<div class="banktitle">Word bank — drag a word into a blank. Click a placed word to remove it.</div>');
+ var bank=mk('div','bank'); bwrap.append(bank);
+ var blankOf={};
+ textEl.querySelectorAll('.blank').forEach(function(bl){blankOf[bl.dataset.bid]=bl;});
+ ex.tiles.forEach(function(t){
+  var n=mk('div','tile',t.t); n.dataset.tid=t.id; nodeOf[t.id]=n; bank.append(n);
+  draggable(n,{
+   canDrag:function(){return !checked;},
+   payload:function(){return t.id;},
+   onClick:function(){
+    if(checked)return;
+    var p=n.parentNode;
+    if(p&&p.classList.contains('blank')){bank.append(n); placed[t.id]=null; upd();}
+   },
+   onDrop:function(tid,drop){
+    if(!drop.classList.contains('blank'))return;
+    var bid=drop.dataset.bid;
+    var cur=drop.querySelector('.tile');
+    if(cur){bank.append(cur); placed[cur.dataset.tid]=null;}
+    drop.innerHTML=''; drop.append(n); placed[tid]=bid; upd();
+   }
+  });
+ });
+ body.append(textEl,bwrap);
+ var act=mk('div','exactions');
+ var ck=mk('button','btn primary','Check the entry'); ck.disabled=true;
+ act.append(ck,mk('span','dim hint','Fill every blank to enable checking.'));
+ function filled(bid){
+  return Object.keys(placed).some(function(tid){return placed[tid]===bid;});
+ }
+ function upd(){ ck.disabled=ex.blanks.some(function(b){return !filled(b.id);}); }
+ body.append(act);
+ ck.onclick=function(){
+  if(checked||ck.disabled)return;
+  checked=true; ck.disabled=true;
+  Array.prototype.forEach.call(body.querySelectorAll('.tile'),function(n){n.classList.add('locked');});
+  var lines=[],all=true;
+  ex.blanks.forEach(function(b){
+   var tid=Object.keys(placed).find(function(x){return placed[x]===b.id;});
+   var good=!!(tid&&b.accept.indexOf(tid)>=0);
+   var word=tid?ex.tiles.find(function(t){return t.id===tid;}).t:'—';
+   var bl=blankOf[b.id];
+   bl.classList.remove('droppable');
+   if(good){nodeOf[tid].classList.add('rightmark');}else{all=false; if(tid)nodeOf[tid].classList.add('wrongmark'); bl.classList.add('wrongmark');}
+   lines.push({ok:good,t:'Blank “'+b.w+'”: you wrote “'+word+'”. '+(good?'Correct. ':'The right word was “'+b.w+'”. ')+b.note});
+   scoreUnit(ex.id+'-'+b.id,good,{label:b.w,why:b.note});
+  });
+  ex.tiles.forEach(function(t){
+   if(t.decoy){
+    if(placed[t.id]){nodeOf[t.id].classList.add('wrongmark'); lines.push({ok:false,t:'<b>'+t.t+'</b> is a decoy — it fits nowhere. '+t.note});}
+    else nodeOf[t.id].classList.add('rightmark');
+   }
+  });
+  feedback(fb,all,fbList(lines));
+  unlock();
+ };
+}
+
+/* ==================== RENDERER: ORDER (lifecycle / priority ranking) ==================== */
+function rOrder(ex,body,fb,unlock){
+ var checked=false;
+ var list=mk('div','olist');
+ ex.display.forEach(function(id){
+  var it=ex.items.find(function(x){return x.id===id;});
+  var n=mk('div','ord-item','<span class="onum"></span><span class="otext">'+it.t+'</span><span class="oarrs"><button class="arr" data-d="-1">▲</button><button class="arr" data-d="1">▼</button></span>');
+  n.dataset.iid=id;
+  n.querySelectorAll('.arr').forEach(function(btn){
+   btn.onclick=function(){
+    if(checked)return;
+    var d=+btn.dataset.d;
+    if(d<0&&n.previousElementSibling)list.insertBefore(n,n.previousElementSibling);
+    if(d>0&&n.nextElementSibling)list.insertBefore(n.nextElementSibling,n);
+    updNums();
+   };
+  });
+  draggable(n,{
+   canDrag:function(){return !checked;},
+   ghost:false,
+   onMove:function(ev){
+    var items=Array.prototype.filter.call(list.children,function(c){return c!==n;});
+    for(var i=0;i<items.length;i++){
+     var o=items[i]; var r=o.getBoundingClientRect();
+     if(ev.clientY<r.top+r.height/2){list.insertBefore(n,o); updNums(); return;}
+     if(ev.clientY>r.bottom-r.height/2){
+      if(o.nextElementSibling)list.insertBefore(n,o.nextElementSibling); else list.append(n);
+      updNums(); return;
+     }
+    }
+   }
+  });
+  list.append(n);
+ });
+ function updNums(){
+  Array.prototype.forEach.call(list.children,function(c,i){c.querySelector('.onum').textContent=(i+1);});
+ }
+ updNums();
+ body.append(list);
+ var act=mk('div','exactions');
+ var ck=mk('button','btn primary','Lock the order'); ck.disabled=false;
+ act.append(ck,mk('span','dim hint','Every position is scored individually — partial credit applies.'));
+ body.append(act);
+ ck.onclick=function(){
+  if(checked)return;
+  checked=true; ck.disabled=true; list.classList.add('locked');
+  var lines=[],all=true;
+  Array.prototype.forEach.call(list.children,function(child,i){
+   var good=child.dataset.iid===ex.correct[i];
+   child.classList.add(good?'rightmark':'wrongmark');
+   if(!good)all=false;
+   var rightItem=ex.items.find(function(x){return x.id===ex.correct[i];});
+   lines.push({ok:good,t:'Rank '+(i+1)+' — '+(good?'correct: ':'should be: ')+'<b>'+snip(rightItem.t,90)+'</b> '+rightItem.note});
+   scoreUnit(ex.id+'-pos'+i,good,{label:'Rank '+(i+1),why:rightItem.note});
+  });
+  feedback(fb,all,fbList(lines));
+  unlock();
+ };
+}
+
+/* ==================== RENDERER: MATCH (click-to-pair) ==================== */
+function rMatch(ex,body,fb,unlock){
+ var checked=false,pickedL=null,colorI=0;
+ var pairs={};
+ var lnode={},rnode={};
+ var grid=mk('div','mgrid');
+ var leftCol=mk('div','mcol'),rightCol=mk('div','mcol');
+ leftCol.append(mk('div','mcoltitle','Requests / situations'));
+ rightCol.append(mk('div','mcoltitle','Treatment options'));
+ ex.left.forEach(function(l){
+  var n=mk('div','mitem','<span class="mt">'+l.t+'</span><span class="mp"></span>');
+  n.dataset.lid=l.id; lnode[l.id]=n;
+  n.onclick=function(){
+   if(checked)return;
+   if(pairs[l.id]){unpair(l.id); return;}
+   if(pickedL===l.id){n.classList.remove('picked'); pickedL=null; return;}
+   if(pickedL)lnode[pickedL].classList.remove('picked');
+   pickedL=l.id; n.classList.add('picked');
+  };
+  leftCol.append(n);
+ });
+ ex.right.forEach(function(r){
+  var n=mk('div','mitem mright','<span class="mt"><b>'+r.label+'</b></span><div class="rpairs"></div>');
+  rnode[r.id]=n;
+  n.onclick=function(){ if(!checked&&pickedL)pair(pickedL,r.id); };
+  rightCol.append(n);
+ });
+ function pair(lid,rid){
+  if(pairs[lid])unpair(lid);
+  pairs[lid]=rid;
+  var pc='p'+(colorI++%7);
+  lnode[lid].classList.remove('picked');
+  lnode[lid].classList.add('paired',pc);
+  lnode[lid].querySelector('.mp').textContent='→ '+ex.right.find(function(r){return r.id===rid;}).label;
+  var chip=mk('span','pchip '+pc,ex.left.find(function(l){return l.id===lid;}).s);
+  chip.dataset.lid=lid;
+  rnode[rid].querySelector('.rpairs').append(chip);
+  pickedL=null; upd();
+ }
+ function unpair(lid){
+  var rid=pairs[lid]; delete pairs[lid];
+  var pc=Array.prototype.find.call(lnode[lid].classList,function(c){return /^p\d$/.test(c);});
+  if(pc)lnode[lid].classList.remove('paired',pc);
+  lnode[lid].querySelector('.mp').textContent='';
+  if(rid){
+   var rp=rnode[rid].querySelector('.rpairs');
+   Array.prototype.forEach.call(rp.children,function(ch){ if(ch.dataset.lid===lid)ch.remove(); });
+  }
+  upd();
+ }
+ function upd(){ ck.disabled=Object.keys(pairs).length!==ex.left.length; }
+ grid.append(leftCol,rightCol); body.append(grid);
+ var act=mk('div','exactions');
+ var ck=mk('button','btn primary','Check the pairings'); ck.disabled=true;
+ act.append(ck,mk('span','dim hint','Every request must be paired before checking.'));
+ body.append(act);
+ ck.onclick=function(){
+  if(checked||ck.disabled)return;
+  checked=true; ck.disabled=true; grid.classList.add('locked');
+  var lines=[],all=true;
+  ex.left.forEach(function(l){
+   var rid=pairs[l.id];
+   var r=ex.right.find(function(x){return x.id===rid;});
+   var good=!!(r&&r.accept.indexOf(l.id)>=0);
+   lnode[l.id].classList.add(good?'rightmark':'wrongmark');
+   if(!good)all=false;
+   lines.push({ok:good,t:'<b>'+l.s+'</b> → '+(r?'<b>'+r.label+'</b>':'—')+': '+(good?'correct. ':'not the best fit. ')+l.note});
+   scoreUnit(ex.id+'-'+l.id,good,{label:l.s,why:l.note});
+  });
+  feedback(fb,all,fbList(lines));
+  unlock();
+ };
+}
+
+/* ==================== RENDERER: SPOT (audit flawed lines) ==================== */
+function rSpot(ex,body,fb,unlock){
+ var checked=false;
+ var cnt=mk('span','spotcnt','0 / '+ex.pick+' selected');
+ var wrap=mk('div','spotwrap');
+ var nodeOf={};
+ ex.lines.forEach(function(l){
+  var n=mk('div','spotline','<span class="lnum">'+l.id.toUpperCase()+'</span>'+l.t);
+  nodeOf[l.id]=n;
+  n.onclick=function(){
+   if(checked)return;
+   n.classList.toggle('sel');
+   cnt.textContent=wrap.querySelectorAll('.sel').length+' / '+ex.pick+' selected';
+   ck.disabled=wrap.querySelectorAll('.sel').length!==ex.pick;
+  };
+  wrap.append(n);
+ });
+ body.append(cnt,wrap);
+ var act=mk('div','exactions');
+ var ck=mk('button','btn primary','File the audit'); ck.disabled=true;
+ act.append(ck,mk('span','dim hint','Select exactly '+ex.pick+' flawed lines.'));
+ body.append(act);
+ ck.onclick=function(){
+  if(checked||ck.disabled)return;
+  checked=true; ck.disabled=true; wrap.classList.add('locked');
+  var lines=[],all=true;
+  ex.lines.forEach(function(l){
+   var n=nodeOf[l.id]; var isSel=n.classList.contains('sel');
+   if(l.flawed){
+    var good=isSel;
+    n.classList.add(good?'okline':'missline');
+    if(!good)all=false;
+    lines.push({ok:good,t:'Line '+l.id.toUpperCase()+': '+(good?'correctly flagged as flawed. ':'you missed this flaw. ')+l.note});
+    scoreUnit(ex.id+'-'+l.id,good,{label:'Line '+l.id.toUpperCase(),why:l.note});
+   } else if(isSel){
+    n.classList.add('badline');
+    lines.push({ok:false,t:'Line '+l.id.toUpperCase()+': this sentence was actually fine — flagging it hurt your credibility.'});
+   } else {
+    lines.push({ok:true,t:'Line '+l.id.toUpperCase()+': correctly left unmarked.'});
+   }
+  });
+  feedback(fb,all,fbList(lines));
+  unlock();
+ };
+}
+
+/* ==================== RESULTS ==================== */
+function showResults(){
+ stopClock();
+ var pct=Math.round(S.score/TOTAL*100);
+ var pass=pct>=PASS_PCT;
+ var box=$('#resBox'); box.innerHTML='';
+ var card=mk('section','card rescard');
+ card.append(mk('div','resbig '+(pass?'rgood':'rbad'),pct+'%'));
+ card.append(mk('div','ressub',S.score+' / '+TOTAL+' points · pass mark '+PASS_PCT+'% · shift time '+$('#hClock').textContent));
+ if(pass){
+  var cert=mk('div','cert');
+  cert.append(mk('div','certtop','CERTIFICATE OF ACHIEVEMENT'));
+  var nm=mk('div','certname'); nm.textContent=S.name||'Anonymous Analyst'; cert.append(nm);
+  cert.append(mk('div','certline','has completed CYBER-EXAM CR-101 — Risk Analyst Certification'));
+  cert.append(mk('div','certline dim','Threats · Vulnerabilities · Risk Appetite · Treatment · The Risk Management Program'));
+  cert.append(mk('div','certdate','Score '+S.score+'/'+TOTAL+' ('+pct+'%) · '+new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})));
+  card.append(cert);
+ } else {
+  card.append(mk('div','failnote','You scored below the 80% pass mark. A certification cannot be issued. Read the review below, close your gaps, then retake — the exam resets completely.'));
+ }
+ var tb=mk('div','tbars');
+ Object.keys(THEMES).forEach(function(k){
+  var t=S.theme[k]; var p=Math.round(t.c/THEME_TOTALS[k]*100);
+  var row=mk('div','themebar');
+  row.append(mk('div','tlabel','<span>'+THEMES[k]+'</span><span class="dim">'+t.c+'/'+THEME_TOTALS[k]+' · '+p+'%</span>'));
+  var tr=mk('div','ttrack');
+  var f=mk('div','tfillr '+(p>=80?'g':(p>=50?'m':'b')));
+  f.style.width=p+'%'; tr.append(f); row.append(tr);
+  tb.append(row);
+ });
+ card.append(tb);
+ if(S.wrong.length){
+  var rv=mk('div','review');
+  rv.append(mk('h2',null,'Review these points'));
+  S.wrong.forEach(function(w){
+   rv.append(mk('div','revitem','<b>'+w.ex+'</b> · '+w.label+' — '+w.why));
+  });
+  card.append(rv);
+ }
+ var btns=mk('div','resbtns');
+ var rb=mk('button','btn primary','↻ Retake the exam');
+ rb.onclick=function(){
+  var nm2=S.name; freshState(); S.name=nm2;
+  show('scr-exam'); buildChips(); startClock(); renderExercise();
+ };
+ var bb=mk('button','btn','◂ Back to the briefing');
+ bb.onclick=function(){show('scr-intro');};
+ btns.append(rb,bb); card.append(btns);
+ box.append(card);
+ show('scr-results');
+}
+
+/* ==================== INTRO & BOOT ==================== */
+function buildIntro(){
+ var kp=$('#kwpanel');
+ Object.keys(THEMES).forEach(function(k){
+  var g=mk('div','kwgroup');
+  g.append(mk('div','kwtitle',THEMES[k]));
+  var row=mk('div','kwrow');
+  KEYWORDS[k].forEach(function(w){row.append(mk('span','kwchip',w));});
+  g.append(row); kp.append(g);
+ });
+ $('#statEx').textContent=EXAMS.length+' assignments';
+ $('#statTotal2').textContent=TOTAL+' challenges';
+ $('#statUnits').textContent=TOTAL+' scored challenges, 1 point each. Pass mark <b>80%</b> — the score tracks live in the header.';
+}
+function buildChips(){
+ var c=$('#hChips'); c.innerHTML='';
+ Object.keys(THEMES).forEach(function(k){
+  var ch=mk('span','chip'); ch.id='chip-'+k; c.append(ch);
+ });
+ updateHUD();
+}
+document.addEventListener('DOMContentLoaded',function(){
+ freshState();
+ buildIntro();
+ $('#startBtn').onclick=function(){
+  S.name=($('#aname').value||'').trim().slice(0,40);
+  show('scr-exam'); buildChips(); startClock(); renderExercise();
+ };
+});
+window.__CR101__={state:function(){return S;},EXAMS:EXAMS,TOTAL:TOTAL,renderExercise:renderExercise,showResults:showResults,freshState:freshState};
+</script>
+</body>
+</html>

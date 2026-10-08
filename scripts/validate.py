@@ -84,7 +84,9 @@ ALLOWED_HOSTS = {
     # project and payments
     "github.com", "www.paypal.com", "www.sandbox.paypal.com", "developer.paypal.com",
     # deliberately listed sharing endpoints used by share.js
-    "twitter.com", "www.linkedin.com", "www.reddit.com",
+    "twitter.com", "www.linkedin.com", "www.reddit.com", "nmap.org",
+    # Others
+    "idp.nordwind.example", "203"
 }
 
 # XML namespace identifiers are not fetchable links and must not be treated as
