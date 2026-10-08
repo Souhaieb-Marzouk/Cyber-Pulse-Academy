@@ -468,6 +468,26 @@ def write_json(path: Path, payload):
 # --------------------------------------------------------------------------- #
 INDEX_SUMMARY_CHARS = 500
 
+# Fields the browser needs in order to filter and cross-reference.
+#
+# Leaving one of these out does not break the build or the page render, which is
+# exactly what makes the omission easy to miss: the facet simply has nothing to
+# match on, so choosing any value returns "no results" instead of an error. That
+# is what happened to the technique "Parent tactic" filter. They are all short,
+# so every field the UI can read is published.
+REFERENCE_FIELDS = (
+    "parentTactic",         # techniques: the "Parent tactic" facet
+    "parentTechnique",      # techniques: the parent of a sub-technique
+    "isSubTechnique",       # techniques: the parent/sub facet
+    "mitigatesTechniques",  # mitigations: which techniques a control addresses
+    "techniqueId",          # detections: the technique being detected
+    "detectsTechniques",    # detections
+    "severity",             # detections: the severity facet
+    "linkedTechniques",     # groups
+    "aliases",              # groups
+    "relatedTopics",        # every type: the cross-reference list
+)
+
 
 def lean_topic(topic):
     """Project one topic down to the fields the browser needs."""
@@ -510,6 +530,13 @@ def lean_topic(topic):
     # them. At full catalogue size that keeps about 1.3 MB out of the index.
     if topic.get("type") == "certification":
         lean["objectives"] = topic.get("objectives") or []
+
+    # The filter and cross-reference fields. Empty values are omitted rather than
+    # published as null, so the index stays as small as it can be.
+    for field in REFERENCE_FIELDS:
+        value = topic.get(field)
+        if value not in (None, "", [], {}):
+            lean[field] = value
 
     return lean
 

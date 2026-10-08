@@ -237,11 +237,22 @@
   A11y.ensureSkipLink();
 
   document.addEventListener('DOMContentLoaded', function () {
-    A11y.notices();
+    /* The notices are built from translated strings, and the dictionary is
+       fetched asynchronously. Building them before it arrives makes every
+       string fall back to its raw key, which is why the consent notice showed
+       "consent.accept" on its button. nav.js already waits the same way; this
+       block was the one place that did not. CM.i18n.ready runs the callback
+       immediately when the bundle is already loaded, so nothing is delayed on
+       a warm cache. */
+    CM.i18n.ready(function () {
+      A11y.notices();
+    });
   });
 
   /* A storage failure detected later in the session still gets a notice. */
   document.addEventListener('cm:storage-degraded', function () {
-    A11y.notices();
+    CM.i18n.ready(function () {
+      A11y.notices();
+    });
   });
 })();

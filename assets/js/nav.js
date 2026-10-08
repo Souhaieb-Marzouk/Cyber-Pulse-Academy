@@ -210,13 +210,16 @@
     host.innerHTML =
       '<div class="cm-wrap cm-header__bar">' +
         '<a class="cm-brand" href="' + relHref('index.html') + '">' +
-          /* The owner supplies the brand as a single logo image, so the navbar
-             shows the logo only, with no wordmark next to it. The alt text
-             carries the site name, which is what gives the link its accessible
-             name for a screen reader and its tooltip on hover. */
-          '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.png') + '" ' +
+          /* The navbar uses the shield mark, not the full lockup. The lockup
+             carries the words "CYBER PULSE ACADEMY" beneath the shield, and at
+             navbar scale those words are about three pixels tall, so the whole
+             thing reads as a smudge. The mark alone stays legible. The full
+             lockup is used in the footer, where there is room for it.
+             The alt text carries the site name, which is what gives the link
+             its accessible name for a screen reader and its tooltip on hover. */
+          '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo-mark.png') + '" ' +
             'alt="' + CM.util.esc(t('site.name')) + ', home" ' +
-            'width="150" height="92" decoding="async">' +
+            'width="40" height="40" decoding="async">' +
         '</a>' +
         '<nav class="cm-nav" aria-label="' + CM.util.esc(t('nav.primary')) + '">' +
           '<ul class="cm-nav__list">' + items + '</ul>' +
@@ -379,8 +382,11 @@
       '<div class="cm-wrap cm-footer__inner">' +
         '<div class="cm-footer__brand">' +
           '<a class="cm-brand" href="' + relHref('index.html') + '">' +
-            '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.png') + '" ' +
-              'alt="' + CM.util.esc(t('site.name')) + ', home" width="150" height="92" ' +
+            /* The footer has the room the navbar does not, so it shows the full
+               lockup with the wordmark, at its true square aspect ratio. */
+            '<img class="cm-brand__logo cm-brand__logo--footer" ' +
+              'src="' + CM.util.url('assets/img/logo.png') + '" ' +
+              'alt="' + CM.util.esc(t('site.name')) + ', home" width="132" height="132" ' +
               'decoding="async" loading="lazy">' +
           '</a>' +
           '<p class="cm-small cm-muted">' + CM.util.esc(t('site.tagline')) + '</p>' +
