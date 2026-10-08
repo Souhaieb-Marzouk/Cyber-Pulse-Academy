@@ -238,6 +238,15 @@
           'href="' + CM.util.esc(CM.util.donateUrl()) + '" target="_blank" rel="noopener noreferrer" ' +
           'aria-label="' + CM.util.esc(t('nav.donateLabel')) + '">' +
           svg('heart') + '<span>' + CM.util.esc(t('nav.donate')) + '</span></a>' +
+        '<a class="cm-iconbtn cm-iconbtn--star" id="cm-star-repo" ' +
+          'href="' + CM.util.esc(String(CM.config.repoUrl || '#')) + '" ' +
+          'target="_blank" rel="noopener noreferrer" ' +
+          'title="' + CM.util.esc(t('nav.starRepo')) + '" ' +
+          'aria-label="' + CM.util.esc(t('nav.starRepo')) + '">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+            'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+            '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>' +
+          '</svg></a>' +
         '<button type="button" class="cm-chip-id" id="cm-identity-chip"></button>' +
         '<button type="button" class="cm-iconbtn" id="cm-theme-toggle" aria-pressed="false"></button>' +
         '<button type="button" class="cm-burger" id="cm-burger" aria-expanded="false" aria-controls="cm-drawer" ' +
@@ -411,6 +420,15 @@
         '<p class="cm-small cm-mt1 cm-mb0">' +
           '<a href="' + CM.util.esc(repoUrl) + '" target="_blank" rel="noopener noreferrer">' + svg('external') + ' ' +
             CM.util.esc(t('footer.github')) + '</a>' +
+          ' <span class="cm-dim" aria-hidden="true">|</span> ' +
+          /* A star is given on GitHub, not here: no script can star a
+             repository on someone's behalf, so this opens the repository in a
+             new tab and lets them click Star there. */
+          '<a class="cm-star" href="' + CM.util.esc(repoUrl) + '" target="_blank" rel="noopener noreferrer">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+              'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+              '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>' +
+            '</svg> ' + CM.util.esc(t('nav.starRepo')) + '</a>' +
           ' <span class="cm-dim" aria-hidden="true">|</span> ' +
           '<a class="cm-donate" href="' + CM.util.esc(CM.util.donateUrl()) + '" target="_blank" rel="noopener noreferrer">' +
             svg('heart') + ' ' + CM.util.esc(t('footer.donate')) + '</a>' +

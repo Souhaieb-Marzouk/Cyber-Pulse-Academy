@@ -1,4 +1,4 @@
-﻿/* ============================================================================
+/* ============================================================================
    CyberPulseAcademy - assets/js/exam-hub.js
    The exercise hub. Loads an exercise page inside a same-origin iframe,
    hands it the student's identity, listens for a score, and never shows a
@@ -81,23 +81,30 @@
             'var el=nodes[j];' +
             'if(!el||el.offsetParent===null){continue;}' +
             'var txt=(el.innerText||el.textContent||"");' +
-            'if(txt&&(pctFrom(txt)!==null||ratioFrom(txt)!==null)){return {el:el,text:txt};}' +
+            'if(txt&&(pctFrom(txt)!==null||ratioFrom(txt)!==null)){return {el:el,text:txt,specific:true};}' +
           '}}' +
         /* Last resort: the whole visible page, but only when it mentions a
            pass or fail verdict, so we do not fire on a mid-exam progress bar. */
         'var body=(document.body&&(document.body.innerText||document.body.textContent))||"";' +
         'if(/\\b(passed|failed|your score|final score|results?)\\b/i.test(body)){' +
-          'return {el:document.body,text:body};}' +
+          'return {el:document.body,text:body,specific:false};}' +
         'return null;}' +
       /* --- emit once per distinct outcome --- */
-      'function emit(percent,score,total){' +
+      'function emit(percent,score,total,specific,verdictText){' +
         'if(percent===null||percent===undefined){return;}' +
         'var key=percent+"|"+score+"|"+total;' +
         'if(key===last){return;}last=key;' +
+        /* The verdict is only inferred from text when a real results panel was
+           found. The whole-page fallback is never trusted for this: an exam
+           whose questions talk about a failed sign-in contains the word
+           "failed" all over the page, and scanning it marked a 89% pass as a
+           fail. With no reliable panel, the percentage decides. */
         'var passed=null;' +
-        'var txt=(document.body&&(document.body.innerText||""))||"";' +
-        'if(/\\bnot passed\\b|\\bfailed\\b/i.test(txt)){passed=false;}' +
-        'else if(/\\bpassed\\b|\\bcongratulations\\b|\\bwell done\\b/i.test(txt)){passed=true;}' +
+        'if(specific){' +
+          'var txt=String(verdictText||"");' +
+          'if(/\\bnot passed\\b|\\bnot a pass\\b|\\bunsuccessful\\b/i.test(txt)){passed=false;}' +
+          'else if(/\\bpass(?:ed)?\\b|\\bcongratulations\\b|\\bwell done\\b/i.test(txt)){passed=true;}' +
+        '}' +
         'if(passed===null){passed=percent>=70;}' +
         'try{parent.postMessage({type:"CYBERPULSE_SCORE",topicId:TOPIC,batch:BATCH,' +
           'score:(score===null?null:score),total:(total===null?null:total),' +
@@ -107,10 +114,10 @@
         'if(!found){return;}' +
         'var p=pctFrom(found.text);' +
         'var r=ratioFrom(found.text);' +
-        'if(r){emit(r.percent,r.score,r.total);return;}' +
+        'if(r){emit(r.percent,r.score,r.total,!!found.specific,found.text);return;}' +
         'if(p!==null){' +
           'var m=/\\b(\\d{1,3})\\s*(?:of|\\/)\\s*(\\d{1,3})\\b/.exec(found.text);' +
-          'emit(p,m?parseInt(m[1],10):null,m?parseInt(m[2],10):null);}}' +
+          'emit(p,m?parseInt(m[1],10):null,m?parseInt(m[2],10):null,!!found.specific,found.text);}}' +
       /* --- watch the DOM for the results screen appearing --- */
       'var scheduled=false;' +
       'function schedule(){if(scheduled){return;}scheduled=true;' +
@@ -126,8 +133,8 @@
           'try{var key=String(k||""),val=String(v||"");' +
             'if(/score|result|quiz|exam|attempt/i.test(key)){' +
               'var p=pctFrom(val);var r=ratioFrom(val);' +
-              'if(r){emit(r.percent,r.score,r.total);}' +
-              'else if(p!==null){emit(p,null,null);}}}catch(e){}' +
+              'if(r){emit(r.percent,r.score,r.total,false,"");}' +
+              'else if(p!==null){emit(p,null,null,false,"");}}}catch(e){}' +
           'return out;};' +
       '}catch(e){}' +
       /* --- respond to the parent handshake --- */
@@ -212,21 +219,49 @@
        screen more than once (mutation + interval + click). */
     var key = active.batch + '|' + percent + '|' + (data.total === undefined ? '' : data.total);
     if (active.scoredFor === key) { return; }
-    active.scoredFor = key;
 
     var passed = (typeof data.passed === 'boolean') ? data.passed : (percent >= CM.config.defaultPassMark);
 
-    CM.Store.submitStat({
-      topicId: active.topicId,
-      batch: active.batch,
+    /* Hold the score until it stops changing, then record it once.
+     *
+     * Several exercise results screens count the score up: 68, then 74, then 78,
+     * then 89. The bridge fires on every one of those mutations, so recording
+     * immediately wrote four separate attempts for a single exam and pushed the
+     * "exams taken" total far above the number of exams actually sat. Waiting
+     * for the value to settle records the real, final score exactly once. */
+    active.pending = {
+      key: key,
       score: (typeof data.score === 'number') ? data.score : null,
       total: (typeof data.total === 'number') ? data.total : null,
       percent: percent,
       passed: passed
+    };
+    if (active.recordTimer) { clearTimeout(active.recordTimer); }
+    active.recordTimer = setTimeout(flushScore, 1600);
+  }
+
+  /* Write the settled score. Called only once the numbers have stopped moving. */
+  function flushScore() {
+    active.recordTimer = null;
+    var settled = active.pending;
+    if (!settled) { return; }
+    active.pending = null;
+    active.scoredFor = settled.key;
+
+    var percent = settled.percent;
+    var passed = settled.passed;
+
+    CM.Store.submitStat({
+      topicId: active.topicId,
+      batch: active.batch,
+      score: settled.score,
+      total: settled.total,
+      percent: percent,
+      passed: passed
     }).then(function () {
       var summary = t('batch.returned', {
-        score: (typeof data.score === 'number' ? data.score : '?'),
-        total: (typeof data.total === 'number' ? data.total : '?'),
+        score: (settled.score === null ? '?' : settled.score),
+        total: (settled.total === null ? '?' : settled.total),
         pct: CM.util.pct(percent)
       });
       CM.a11y.toast(summary + ' \u00B7 ' + (passed ? t('batch.pass') : t('batch.fail')), passed ? 'ok' : 'warn');

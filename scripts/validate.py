@@ -91,8 +91,12 @@ ALLOWED_HOSTS = {
     "cloud.google.com",
     # project and payments
     "github.com", "www.paypal.com", "www.sandbox.paypal.com", "developer.paypal.com",
-    # deliberately listed sharing endpoints used by share.js
+    # deliberately listed sharing endpoints used by share.js.
+    # discord.com is opened by the Discord button: Discord has no public
+    # share endpoint for arbitrary text, so the button copies the message
+    # and opens Discord for the visitor to paste it.
     "twitter.com", "www.linkedin.com", "www.reddit.com", "nmap.org",
+    "discord.com",
     # certification and standards bodies cited as the reference on a topic page
     "aws.amazon.com", "training.fortinet.com", "training.linuxfoundation.org",
     "www.cisecurity.org", "www.elastic.co", "cloudsecurityalliance.org",

@@ -21,15 +21,21 @@
 
   var context = { topicId: '', title: '', difficulty: 'extreme', questionCount: 20, percent: null };
 
-  /* Question count is not in the manifest, so read it from the batch meta if
-     the hub managed to read it, and fall back to a neutral phrasing. */
+  /* Question count comes from the attempt that was actually recorded. When it
+     is genuinely unknown the wording simply omits it: the old code printed a
+     hard-coded "20 questions", which was wrong for any exercise that did not
+     happen to have twenty. */
   function describe() {
     var hasScore = typeof context.percent === 'number';
-    var key = hasScore ? 'share.template' : 'share.templateNoScore';
+    var hasCount = typeof context.questionCount === 'number' && context.questionCount > 0;
+    var key = hasScore
+      ? (hasCount ? 'share.template' : 'share.templateNoCount')
+      : 'share.templateNoScore';
     return t(key, {
       pct: hasScore ? CM.util.pct(context.percent) : '',
       title: context.title,
-      count: context.questionCount,
+      count: hasCount ? context.questionCount : '',
+      exercises: context.exerciseCount || 0,
       difficulty: context.difficulty.replace('-', ' ')
     });
   }
@@ -54,33 +60,58 @@
     if (!host) { return; }
 
     var text = describe();
-    var links = shareLinks(text);
     var native = typeof navigator.share === 'function';
 
+    /* The message is a real text field rather than a paragraph, so a visitor can
+       rewrite it before sharing. Every link is rebuilt from whatever is in the
+       field at the moment it is clicked, which is what makes the edit stick. */
     host.innerHTML =
-      '<p class="cm-share__preview" id="cm-share-text">' + esc(text) + '</p>' +
+      '<label class="cm-share__label" for="cm-share-text">' + esc(t('share.editLabel')) + '</label>' +
+      '<textarea class="cm-share__text" id="cm-share-text" rows="3" spellcheck="false">' + esc(text) + '</textarea>' +
       '<div class="cm-share">' +
         (native
           ? '<button type="button" class="cm-btn cm-btn--primary cm-btn--sm" id="cm-share-native">' +
               CM.nav.svg('external') + esc(t('action.share')) + '</button>'
           : '') +
+        '<a class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-share-x" href="#" target="_blank" rel="noopener noreferrer">' +
+          esc(t('share.x')) + '</a>' +
+        '<a class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-share-linkedin" href="#" target="_blank" rel="noopener noreferrer">' +
+          esc(t('share.linkedin')) + '</a>' +
+        '<a class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-share-reddit" href="#" target="_blank" rel="noopener noreferrer">' +
+          esc(t('share.reddit')) + '</a>' +
+        '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-share-discord">' +
+          esc(t('share.openDiscord')) + '</button>' +
         '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-share-copy">' +
           esc(t('action.copyLink')) + '</button>' +
-        '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + links.x + '" target="_blank" rel="noopener noreferrer">' +
-          esc(t('share.x')) + '</a>' +
-        '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + links.linkedin + '" target="_blank" rel="noopener noreferrer">' +
-          esc(t('share.linkedin')) + '</a>' +
-        '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + links.reddit + '" target="_blank" rel="noopener noreferrer">' +
-          esc(t('share.reddit')) + '</a>' +
       '</div>' +
-      (native ? '' : '<p class="cm-small cm-dim cm-mt1">' + esc(t('share.unsupported')) + '</p>');
+      '<p class="cm-small cm-dim cm-mt1">' + esc(t('share.discordHint')) + '</p>' +
+      (native ? '' : '<p class="cm-small cm-dim">' + esc(t('share.unsupported')) + '</p>');
+
+    var field = host.querySelector('#cm-share-text');
+
+    function currentText() {
+      return (field && field.value) ? field.value : text;
+    }
+
+    function refreshLinks() {
+      var links = shareLinks(currentText());
+      var pairs = [['#cm-share-x', links.x],
+                   ['#cm-share-linkedin', links.linkedin],
+                   ['#cm-share-reddit', links.reddit]];
+      for (var i = 0; i < pairs.length; i++) {
+        var node = host.querySelector(pairs[i][0]);
+        if (node) { node.setAttribute('href', pairs[i][1]); }
+      }
+    }
+    if (field) { field.addEventListener('input', refreshLinks); }
+    refreshLinks();
 
     var nativeBtn = host.querySelector('#cm-share-native');
     if (nativeBtn) {
       nativeBtn.addEventListener('click', function () {
         navigator.share({
           title: context.title + ' on CyberPulseAcademy',
-          text: text,
+          text: currentText(),
           url: topicUrl()
         })['catch'](function () {
           /* The user cancelled, or the platform refused. Neither is an error
@@ -89,8 +120,28 @@
       });
     }
 
+    /* Discord has no public share endpoint for arbitrary text, so the honest
+       behaviour is to put the message on the clipboard and open Discord for the
+       visitor to paste it. Pretending otherwise would ship a broken button. */
+    var discordBtn = host.querySelector('#cm-share-discord');
+    if (discordBtn) {
+      discordBtn.addEventListener('click', function () {
+        var payload = currentText() + '\n' + topicUrl();
+        function open() {
+          CM.a11y.toast(t('share.copiedForDiscord'), 'ok');
+          CM.a11y.announce(t('share.copiedForDiscord'), false);
+          window.open('https://discord.com/channels/@me', '_blank', 'noopener,noreferrer');
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(payload).then(open)['catch'](function () { legacyCopy(payload, open); });
+        } else {
+          legacyCopy(payload, open);
+        }
+      });
+    }
+
     host.querySelector('#cm-share-copy').addEventListener('click', function () {
-      var payload = text + ' ' + topicUrl();
+      var payload = currentText() + ' ' + topicUrl();
       function done() {
         CM.a11y.toast(t('share.copied'), 'ok');
         CM.a11y.announce(t('share.copied'), false);
@@ -129,8 +180,23 @@
       context.topicId = topic.id;
       context.title = topic.title;
       context.difficulty = topic.difficulty || 'extreme';
+      context.questionCount = null;
+      context.exerciseCount = Array.isArray(topic.exercises) ? topic.exercises.length : 0;
       var best = CM.Store.getBestFor(topic.id);
       if (best && typeof best.percent === 'number') { context.percent = best.percent; }
+      /* Describe the exercise that was actually attempted. Using the topic's own
+         difficulty printed "very hard difficulty" after an easy paper, because
+         the topic is rated very hard overall while its easy exercise is not. */
+      if (best) {
+        if (typeof best.total === 'number' && best.total > 0) {
+          context.questionCount = best.total;
+        }
+        var attempted = null;
+        if (best.batch && Array.isArray(topic.exercises)) {
+          attempted = topic.exercises[best.batch - 1];
+        }
+        if (attempted && attempted.difficulty) { context.difficulty = attempted.difficulty; }
+      }
       var mount = document.getElementById('cm-share');
       if (mount) { render(mount); }
       return context;
