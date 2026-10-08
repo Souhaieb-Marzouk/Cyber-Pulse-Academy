@@ -97,7 +97,7 @@
      word matches are rejected, so ordinary names containing these strings as
      substrings are still allowed. */
   var BLOCKED_WORDS = [
-    'admin', 'administrator', 'root', 'moderator', 'official', 'cyberpulseacademy',
+    'admin', 'administrator', 'root', 'moderator', 'official', 'cyber-pulse-academy',
     'mitre', 'comptia', 'isc2', 'isaca', 'offsec', 'eccouncil', 'giac',
     'fuck', 'shit', 'cunt', 'bitch', 'asshole', 'bastard', 'dick', 'piss',
     'nigger', 'nigga', 'faggot', 'retard', 'whore', 'slut'

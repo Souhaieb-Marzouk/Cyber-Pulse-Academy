@@ -281,20 +281,52 @@ def validate_relationships(topics):
             elif ref == tid:
                 errors.append(f"{rel}: relatedTopics references itself")
 
-        # Batches must be the three canonical paths, in order.
-        batches = topic.get("batches") or []
-        for index, batch in enumerate(batches, start=1):
-            expected = f"exercises/{tid}/batch-{index}.html"
-            if batch.get("path") != expected:
-                errors.append(
-                    f"{rel}: batches[{index - 1}].path is '{batch.get('path')}', expected '{expected}'"
-                )
-            if batch.get("batch") != index:
-                errors.append(
-                    f"{rel}: batches[{index - 1}].batch is {batch.get('batch')}, expected {index}"
-                )
+        # Exercises. Any number, any file name, any folder under exercises/, and
+        # a topic may legitimately have none yet. What is checked here is that a
+        # path points inside exercises/, ends in .html, is unique across the whole
+        # catalogue, and that a chapter number is not repeated within a topic.
+        seen_paths = set()
+        for label, exercise in exercise_entries(topic):
+            path_text = exercise.get("path")
+            if not isinstance(path_text, str) or not path_text.startswith("exercises/"):
+                errors.append(f"{rel}: {label}.path must start with 'exercises/'")
+                continue
+            if not path_text.endswith(".html"):
+                errors.append(f"{rel}: {label}.path must end with '.html'")
+            if path_text in seen_paths:
+                errors.append(f"{rel}: {label}.path '{path_text}' is listed twice in this topic")
+            seen_paths.add(path_text)
+
+        numbers = [c.get("number") for c in (topic.get("chapters") or [])]
+        if len(numbers) != len(set(numbers)):
+            errors.append(f"{rel}: chapter numbers are not unique")
 
     return errors
+
+
+def exercise_entries(topic):
+    """Yield (label, exercise) for every exercise on a topic, in display order.
+
+    Chapters first, then any flat exercises, which is the order the pages show
+    them in. This mirrors CM.util.exerciseList in assets/js/config.js; if the data
+    shape ever changes, both must change together.
+    """
+    for chapter in (topic.get("chapters") or []):
+        for index, exercise in enumerate(chapter.get("exercises") or [], start=1):
+            yield (f"chapters[{chapter.get('number')}].exercises[{index - 1}]", exercise)
+    for index, exercise in enumerate(topic.get("exercises") or [], start=1):
+        yield (f"exercises[{index - 1}]", exercise)
+
+
+def topic_exercise_stats(topic):
+    """{total, published, draft, missing} for one topic."""
+    stats = {"total": 0, "published": 0, "draft": 0, "missing": 0}
+    for _label, exercise in exercise_entries(topic):
+        stats["total"] += 1
+        status = exercise.get("status") or "published"
+        if status in stats:
+            stats[status] += 1
+    return stats
 
 
 # --------------------------------------------------------------------------- #
@@ -316,21 +348,49 @@ def build_catalog(topics, site_version):
         if dirname:
             totals[dirname] += 1
 
-    batches_published = sum(
-        1
-        for topic in topics
-        for batch in (topic.get("batches") or [])
-        if batch.get("status") == "published"
-    )
-    total_batches = sum(len(topic.get("batches") or []) for topic in topics)
-
-    coverage = {"with0Batches": [], "with1Batch": [], "with2Batches": [], "with3Batches": []}
-    bucket_key = {0: "with0Batches", 1: "with1Batch", 2: "with2Batches", 3: "with3Batches"}
+    # Exercise accounting across the whole catalogue.
+    exercises_published = 0
+    exercises_draft = 0
+    exercises_missing = 0
+    exercises_total = 0
+    chapters_total = 0
     for topic in topics:
-        published = sum(
-            1 for batch in (topic.get("batches") or []) if batch.get("status") == "published"
-        )
-        coverage[bucket_key[published]].append(topic.get("id"))
+        chapters_total += len(topic.get("chapters") or [])
+        for _label, exercise in exercise_entries(topic):
+            exercises_total += 1
+            status = exercise.get("status") or "published"
+            if status == "published":
+                exercises_published += 1
+            elif status == "draft":
+                exercises_draft += 1
+            else:
+                exercises_missing += 1
+
+    # Coverage buckets, redefined for the flexible model. The old 0/1/2/3 scheme
+    # only made sense when every topic had exactly three slots.
+    #
+    # A certification counts as complete only when every chapter has at least one
+    # exercise. Otherwise a certificate with a single lesson attached would report
+    # as finished while seven of its eight chapters were empty, which is exactly
+    # the kind of flattering number this page exists to avoid.
+    coverage = {
+        "noExercises": [],
+        "noPublished": [],
+        "partial": [],
+        "complete": [],
+    }
+    for topic in topics:
+        stats = topic_exercise_stats(topic)
+        chapters = topic.get("chapters") or []
+        empty_chapters = [c for c in chapters if not (c.get("exercises") or [])]
+        if stats["total"] == 0:
+            coverage["noExercises"].append(topic.get("id"))
+        elif stats["published"] == 0:
+            coverage["noPublished"].append(topic.get("id"))
+        elif empty_chapters or stats["published"] < stats["total"]:
+            coverage["partial"].append(topic.get("id"))
+        else:
+            coverage["complete"].append(topic.get("id"))
 
     themes: dict[tuple, dict] = {}
     for topic in topics:
@@ -360,10 +420,20 @@ def build_catalog(topics, site_version):
                 name: totals.get(name, 0)
                 for name in TYPE_DIRS
             },
-            batchesPublished=batches_published,
-            batchesMissing=total_batches - batches_published,
-            batchesTotal=total_batches,
+            exercisesPublished=exercises_published,
+            exercisesDraft=exercises_draft,
+            exercisesMissing=exercises_missing,
+            exercisesTotal=exercises_total,
+            chaptersTotal=chapters_total,
             topics=len(topics),
+            topicsWithExercises=len(topics) - len(coverage["noExercises"]),
+            topicsWithNoExercises=len(coverage["noExercises"]),
+            # Legacy aliases. The old key names are kept so that any page or script
+            # written against the batch model keeps returning a sensible number
+            # instead of undefined.
+            batchesPublished=exercises_published,
+            batchesMissing=exercises_missing,
+            batchesTotal=exercises_total,
         ),
         "coverage": coverage,
         "themes": ordered_themes,
@@ -470,18 +540,20 @@ def derive_base_url():
     try:
         text = CONFIG_JS.read_text(encoding="utf-8")
     except OSError:
-        return "https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/"
+        return "https://example.github.io/cyber-pulse-academy"
     match = re.search(r"repoUrl\s*:\s*['\"]([^'\"]+)['\"]", text)
     if not match:
-        return "https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/"
+        return "https://example.github.io/cyber-pulse-academy"
     url = match.group(1).rstrip("/")
     gh = re.match(r"https://github\.com/([^/]+)/([^/]+)$", url)
     if gh:
         owner, repo = gh.group(1), gh.group(2)
         if owner.startswith("<") or repo.startswith("<"):
-            return "https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/"
-        return f"https://{owner}.github.io/{repo}"
-    return url or "https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/"
+            return "https://example.github.io/cyber-pulse-academy"
+        # GitHub Pages serves an organisation site at the lowercased owner
+        # subdomain, while the repository path keeps its original case.
+        return f"https://{owner.lower()}.github.io/{repo}"
+    return url or "https://example.github.io/cyber-pulse-academy"
 
 
 def read_site_version():
@@ -554,15 +626,18 @@ def main():
             print(f"  {dirname:<16} {totals.get(dirname, 0):>5}")
         print(f"  {'TOTAL TOPICS':<16} {totals['topics']:>5}")
         print("-" * 62)
-        print(f"  batches published {totals['batchesPublished']:>4} of {totals['batchesTotal']}")
-        print(f"  batches missing   {totals['batchesMissing']:>4}  <- this is the contribution roadmap")
+        print(f"  exercises published {totals['exercisesPublished']:>4} of {totals['exercisesTotal']}")
+        print(f"  exercises draft     {totals['exercisesDraft']:>4}")
+        print(f"  exercises missing   {totals['exercisesMissing']:>4}  <- listed but no file yet")
+        print(f"  certification chapters {totals['chaptersTotal']:>4}")
         print("-" * 62)
-        print("  coverage: 0 batches %d | 1 batch %d | 2 batches %d | 3 batches %d" % (
-            len(catalog["coverage"]["with0Batches"]),
-            len(catalog["coverage"]["with1Batch"]),
-            len(catalog["coverage"]["with2Batches"]),
-            len(catalog["coverage"]["with3Batches"]),
+        print("  coverage: no exercises %d | none published %d | partial %d | complete %d" % (
+            len(catalog["coverage"]["noExercises"]),
+            len(catalog["coverage"]["noPublished"]),
+            len(catalog["coverage"]["partial"]),
+            len(catalog["coverage"]["complete"]),
         ))
+        print(f"  topics with exercises  {totals['topicsWithExercises']} of {totals['topics']}")
         print(f"  themes            {len(catalog['themes'])}")
         print(f"  contentHash       {catalog['contentHash']}")
         print(f"  sitemap.xml       {url_count} URLs at {base_url}")

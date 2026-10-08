@@ -45,6 +45,7 @@ from build_catalog import (  # noqa: E402  (path set above on purpose)
     CATALOG_PATH,
     ROOT,
     TYPE_DIRS,
+    exercise_entries,
     load_topics,
     validate_relationships,
 )
@@ -89,7 +90,7 @@ ALLOWED_HOSTS = {
 # XML namespace identifiers are not fetchable links and must not be treated as
 # third-party dependencies. schema $id values are the same kind of thing: they
 # name a schema, they are never requested.
-NAMESPACE_HOSTS = {"www.w3.org", "www.sitemaps.org", "cyberpulseacademy.local"}
+NAMESPACE_HOSTS = {"www.w3.org", "www.sitemaps.org", "cyber-pulse-academy.local"}
 
 # Only these file types are scanned for external URLs. Markdown documentation and
 # the build guide legitimately show other services as illustrations: a Cloudflare
@@ -102,7 +103,7 @@ URL_SCAN_EXEMPT = {"GUIDE.html"}
 # assembled at runtime, not a path. The link checker must not try to resolve it.
 JS_EXPRESSION_CHARS = set("+'\"${}(`")
 
-SKIP_DIRS = {".git", "node_modules", "__pycache__", ".github", ".vscode"}
+SKIP_DIRS = {".git", "node_modules", "__pycache__", ".github", ".vscode", ".vs", ".idea"}
 
 # Numbers that look like live indicators. Defence in depth: the CONTRIBUTING
 # rules forbid them, and this is the check that enforces it.
@@ -167,30 +168,62 @@ def check_data(report: Report) -> list[dict]:
     else:
         report.ok(f"{len(topics)} topic files parse, validate against the schema, and cross-reference cleanly")
 
-    # Check 4 and 5: three batches, canonical paths, honest status.
+    # Check 4 and 5: every listed exercise either exists on disk or is honestly
+    # marked as not ready, and no path is claimed twice.
+    seen_paths = {}
     for topic in topics:
         tid = topic.get("id", "?")
         rel = f"data/{next((d for d, t in TYPE_DIRS.items() if t == topic.get('type')), '?')}/{tid}.json"
-        batches = topic.get("batches") or []
-        if len(batches) != 3:
-            report.fail(f"{rel}: has {len(batches)} batch entries, exactly 3 are required")
-            continue
-        for index, batch in enumerate(batches, start=1):
-            path_text = batch.get("path", "")
-            status = batch.get("status", "published")
-            if path_text != f"exercises/{tid}/batch-{index}.html":
-                report.fail(f"{rel}: batches[{index - 1}].path should be exercises/{tid}/batch-{index}.html")
+
+        entries = []
+        for chapter in (topic.get("chapters") or []):
+            for exercise in (chapter.get("exercises") or []):
+                entries.append((f"chapter {chapter.get('number')}", exercise))
+        for exercise in (topic.get("exercises") or []):
+            entries.append(("the exercise list", exercise))
+
+        for where, exercise in entries:
+            path_text = exercise.get("path", "")
+            status = exercise.get("status", "published")
+            label = f"{where}: {exercise.get('title', '')!r}"
+
+            if not isinstance(path_text, str) or not path_text.startswith("exercises/"):
+                report.fail(f"{rel}: {label} path must start with 'exercises/'")
+                continue
+            if not path_text.endswith(".html"):
+                report.fail(f"{rel}: {label} path must end with '.html'")
+            if path_text in seen_paths:
+                report.fail(
+                    f"{rel}: {label} reuses the path '{path_text}', which is already claimed by "
+                    f"{seen_paths[path_text]}"
+                )
+            seen_paths[path_text] = tid
+
             exists = (ROOT / path_text).exists()
             if status == "published" and not exists:
                 report.fail(
-                    f"{rel}: batch {index} is marked published but {path_text} does not exist. "
-                    f"The coverage dashboard would be lying."
+                    f"{rel}: {label} is marked published but '{path_text}' is not in the "
+                    f"repository. The coverage page would be claiming something nobody can open. "
+                    f"Create the file, or set its status to missing."
                 )
             if status == "missing" and exists:
                 report.warn(
-                    f"{rel}: batch {index} exists on disk but is marked missing, so it will "
-                    f"show as 'help us build it'. Set status to published."
+                    f"{rel}: {label} exists on disk but is marked missing, so it will show as "
+                    f"'Coming soon'. Set status to published."
                 )
+
+        # A certification chapter that is empty is allowed, but the coverage page
+        # counts the topic as partial, which is the honest report.
+        numbers = [c.get("number") for c in (topic.get("chapters") or [])]
+        if len(numbers) != len(set(numbers)):
+            report.fail(f"{rel}: chapter numbers are not unique")
+
+    # A topic with no exercises at all is legitimate, so only report the total.
+    with_exercises = sum(1 for t in topics if exercise_entries(t))
+    report.ok(
+        f"{len(seen_paths)} exercise paths are unique and honest; "
+        f"{with_exercises} of {len(topics)} topics have at least one exercise"
+    )
 
     # Check 6 and 7: sources and attribution.
     needs_sources = {"certification", "tactic", "technique", "mitigation", "detection", "group"}

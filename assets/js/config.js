@@ -39,7 +39,7 @@
      >>> EDIT THESE VALUES, THEN COMMIT. <<<
 
      donationButtonId  Replace with the hosted button id from your PayPal
-                       Business account. See docs/paypal-setup.md.
+                       Business account. See the owner handover notes for the full procedure.
      repoUrl           Replace <user>/<repo> with your GitHub repository.
                        Every "Report an issue" link and the footer GitHub
                        link are built from this value.
@@ -61,7 +61,7 @@
     /* --- owner values: edit these three -------------------------------- */
     repoUrl: 'https://github.com/Souhaieb-Marzouk/Cyber-Pulse-Academy',
     statsEndpoint: '',
-    donationButtonId: 'XXXXXXXXXXXXX',
+    donationButtonId: 'KNUSPQTVR9WCU',
 
     /* --- statistics ---------------------------------------------------- */
     /* "local" ships by default on purpose: see pages/privacy.html. */
@@ -70,14 +70,18 @@
        ever counted. Change it, then never change it again, or historical
        unique-user counts will double. It is NOT a secret: it only stops the
        same username producing different hashes between deployments. */
-    statsSalt: 'cyberpulseacademy-public-salt-v1',
+    statsSalt: 'cyberpulse-public-salt-v1',
     statsTimeoutMs: 5000,
 
     /* --- donations ------------------------------------------------------ */
     donationCurrency: 'EUR',
-    donationPresets: [5, 10, 25],
+    donationPresets: [5, 10, 25, 50],
     donationActionLive: 'https://www.paypal.com/donate',
     donationActionSandbox: 'https://www.sandbox.paypal.com/donate',
+    /* PayPal hosted buttons cannot enforce a minimum, so the site does: the
+       first preset is 5 EUR and every preset link sends that amount, which is
+       the documented PayPal pattern. The support page states the minimum. */
+    donationMinAmount: 5,
 
     /* --- behaviour ------------------------------------------------------ */
     defaultTheme: 'dark',
@@ -210,14 +214,92 @@
       return String.fromCodePoint(base + (cc.charCodeAt(0) - 65)) +
              String.fromCodePoint(base + (cc.charCodeAt(1) - 65));
     },
-    /* Turn a topic JSON object into the 0-3 published-batch count. */
-    publishedCount: function (topic) {
-      if (!topic || !topic.batches) { return 0; }
-      var n = 0;
-      for (var i = 0; i < topic.batches.length; i++) {
-        if (topic.batches[i] && topic.batches[i].status === 'published') { n++; }
+    /* ------------------------------------------------------------------
+       The exercise model, in one place.
+
+       A topic holds its exercises in one of two shapes:
+
+         * most topics: a flat "exercises" array, any length including zero;
+         * a certification: "chapters", each with its own "exercises" array,
+           plus an optional flat "exercises" array for material that belongs to
+           no single chapter.
+
+       These three helpers are the only place that shape is understood. Every
+       renderer, the coverage dashboard and the statistics page go through them,
+       so adding a third shape later means changing one file.
+       ------------------------------------------------------------------ */
+    exerciseList: function (topic) {
+      if (!topic) { return []; }
+      var out = [];
+      var chapters = topic.chapters;
+      if (chapters && chapters.length) {
+        for (var c = 0; c < chapters.length; c++) {
+          var items = chapters[c] && chapters[c].exercises;
+          if (!items) { continue; }
+          for (var i = 0; i < items.length; i++) {
+            out.push({ exercise: items[i], chapter: chapters[c] });
+          }
+        }
       }
-      return n;
+      var flat = topic.exercises;
+      if (flat && flat.length) {
+        for (var f = 0; f < flat.length; f++) {
+          out.push({ exercise: flat[f], chapter: null });
+        }
+      }
+      return out;
+    },
+
+    /* Counts for one topic: how many exercises exist, and how many are live. */
+    exerciseStats: function (topic) {
+      var list = CM.util.exerciseList(topic);
+      var stats = { total: list.length, published: 0, draft: 0, missing: 0 };
+      for (var i = 0; i < list.length; i++) {
+        var status = (list[i].exercise && list[i].exercise.status) || 'published';
+        if (status === 'published') { stats.published++; }
+        else if (status === 'draft') { stats.draft++; }
+        else { stats.missing++; }
+      }
+      return stats;
+    },
+
+    /* How many catalogue entries a topic has that a learner can actually open.
+       Kept as a named function because the coverage dashboard and the listing
+       cards both need exactly this number. */
+    publishedCount: function (topic) {
+      return CM.util.exerciseStats(topic).published;
+    },
+    totalCount: function (topic) {
+      return CM.util.exerciseStats(topic).total;
+    },
+    isCertification: function (topic) {
+      return !!topic && topic.type === 'certification';
+    },
+
+    /* ------------------------------------------------------------------
+       The donation link, built in one place.
+
+       The owner supplied a PayPal hosted button and asked for a minimum of
+       5 EUR. A hosted button cannot be forced to a minimum by a URL: PayPal
+       applies whatever rules the button was created with. So the site does the
+       two things it can actually control:
+
+         1. every preset amount starts at the minimum or above, so one-click
+            giving can never be below 5 EUR;
+         2. the amount is pre-filled in the URL so the donor lands on PayPal
+            with 5 EUR already selected.
+
+       If the button was created with "donors choose the amount" and a minimum,
+       PayPal enforces it. If it was not, a determined donor can lower it, and
+       that is a PayPal setting the owner must make, not something this file can
+       fix. pages/support.html states the minimum to the visitor either way.
+       ------------------------------------------------------------------ */
+    donateUrl: function (amount) {
+      var value = amount || CONFIG.donationMinAmount || 5;
+      var url = CONFIG.donationActionLive + '/?hosted_button_id=' + encodeURIComponent(CONFIG.donationButtonId);
+      url += '&amount=' + encodeURIComponent(String(value));
+      url += '&currency_code=' + encodeURIComponent(CONFIG.donationCurrency);
+      return url;
     },
     debounce: function (fn, wait) {
       var timer = null;

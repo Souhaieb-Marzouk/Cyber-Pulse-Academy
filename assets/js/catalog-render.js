@@ -53,23 +53,36 @@
            CM.nav.svg('alert') + esc(label) + '</span>';
   }
 
-  function batchDots(topic) {
-    var published = CM.util.publishedCount(topic);
+  /* Exercise readiness badge.
+
+     Shows a small bar plus a written count, because colour and shape must never
+     be the only signal. The bar is capped at eight segments so a topic with forty
+     exercises does not overflow the card, and the number next to it is always the
+     truth. */
+  function exerciseBadge(topic) {
+    var stats = CM.util.exerciseStats(topic);
+    var ready = stats.published;
+    var total = stats.total;
+    var segments = Math.max(total, 1);
+    if (segments > 8) { segments = 8; }
+    var filled = total === 0 ? 0 : Math.round((ready / total) * segments);
     var pips = '';
-    for (var i = 0; i < 3; i++) {
-      var b = (topic.batches && topic.batches[i]) ? topic.batches[i] : null;
-      var cls = 'cm-batchdot__pip';
-      if (b && b.status === 'published') { cls += ' cm-batchdot__pip--on'; }
-      else if (b && b.status === 'draft') { cls += ' cm-batchdot__pip--draft'; }
-      pips += '<span class="' + cls + '"></span>';
+    for (var i = 0; i < segments; i++) {
+      pips += '<span class="cm-batchdot__pip' + (i < filled ? ' cm-batchdot__pip--on' : '') + '"></span>';
     }
-    /* Text label alongside the pips: the colour is never the only signal. */
-    var text = published === 3
-      ? t('status.publishedCount', { n: 3 })
-      : t('status.batchPips', { n: published });
-    return '<span class="cm-batchdot" title="' + esc(text) + '">' +
+    var label;
+    if (total === 0) {
+      label = t('coverage.noExercises');
+    } else if (ready === 0) {
+      label = t('coverage.noPublished');
+    } else if (ready === total) {
+      label = t('exercise.countMany', { n: ready }) + ', ' + t('coverage.completeBucket').toLowerCase();
+    } else {
+      label = ready + ' / ' + total + ' ready';
+    }
+    return '<span class="cm-batchdot" title="' + esc(label) + '">' +
              '<span class="cm-batchdot__pips" aria-hidden="true">' + pips + '</span>' +
-             '<span class="cm-batchdot__label">' + esc(published + '/3 batches') + '</span>' +
+             '<span class="cm-batchdot__label">' + esc(label) + '</span>' +
            '</span>';
   }
 
@@ -146,7 +159,7 @@
           tags +
         '</div>' +
         '<div class="cm-card__foot">' +
-          batchDots(topic) +
+          exerciseBadge(topic) +
           '<span class="cm-spacer"></span>' +
           '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + topicHref(topic.id) + '">' +
             esc(t('action.start')) + '</a>' +
@@ -163,14 +176,19 @@
     var defaults = {
       q: '',
       themes: [],
-      batches: null,
+      readiness: null,
       sort: options.defaultSort || 'title'
     };
     try {
       var params = new URLSearchParams(location.search);
       if (params.get('q')) { defaults.q = params.get('q'); }
       if (params.get('theme')) { defaults.themes = String(params.get('theme')).split(',').filter(Boolean); }
-      if (params.get('batches')) { defaults.batches = parseInt(params.get('batches'), 10); }
+      if (params.get('ready')) { defaults.readiness = String(params.get('ready')); }
+      /* The old ?batches= links are mapped onto the closest new filter so a
+         bookmarked URL does not silently show everything. */
+      if (!defaults.readiness && params.get('batches')) {
+        defaults.readiness = params.get('batches') === '0' ? 'none' : 'partial';
+      }
       if (params.get('sort')) { defaults.sort = params.get('sort'); }
     } catch (e) { /* no query string support: use defaults */ }
     return defaults;
@@ -181,12 +199,27 @@
       var params = new URLSearchParams();
       if (state.q) { params.set('q', state.q); }
       if (state.themes.length) { params.set('theme', state.themes.join(',')); }
-      if (state.batches !== null && state.batches !== undefined) { params.set('batches', String(state.batches)); }
+      if (state.readiness) { params.set('ready', state.readiness); }
       if (state.sort && state.sort !== 'title') { params.set('sort', state.sort); }
       var qs = params.toString();
       var url = location.pathname + (qs ? '?' + qs : '') + location.hash;
       history.replaceState(null, '', url);
     } catch (e) { /* ignore: filters still work, they just are not shareable */ }
+  }
+
+  /* Which readiness bucket a topic falls into. Kept as one function so the card
+     badge, the filter and the coverage page can never disagree with each other. */
+  function readiness(topic) {
+    var stats = CM.util.exerciseStats(topic);
+    var chapters = topic.chapters || [];
+    var emptyChapters = 0;
+    for (var i = 0; i < chapters.length; i++) {
+      if (!(chapters[i].exercises || []).length) { emptyChapters++; }
+    }
+    if (stats.total === 0) { return 'none'; }
+    if (stats.published === 0) { return 'notReady'; }
+    if (emptyChapters || stats.published < stats.total) { return 'partial'; }
+    return 'complete';
   }
 
   function applyFilters(topics, state) {
@@ -195,8 +228,8 @@
 
     var out = topics.filter(function (topic) {
       if (state.themes.length && state.themes.indexOf(topic.theme) === -1) { return false; }
-      if (state.batches !== null && state.batches !== undefined) {
-        if (CM.util.publishedCount(topic) !== state.batches) { return false; }
+      if (state.readiness) {
+        if (readiness(topic) !== state.readiness) { return false; }
       }
       if (terms.length) {
         var haystack = [topic.title, topic.shortTitle, topic.id, topic.externalId, topic.theme]
@@ -210,7 +243,7 @@
     });
 
     out.sort(function (a, b) {
-      if (state.sort === 'batches') {
+      if (state.sort === 'exercises') {
         var diff = CM.util.publishedCount(b) - CM.util.publishedCount(a);
         if (diff !== 0) { return diff; }
       } else if (state.sort === 'reviewed') {
@@ -274,7 +307,7 @@
               '<label class="cm-vh" for="cm-list-sort">' + esc(t('filter.sort')) + '</label>' +
               '<select class="cm-select" id="cm-list-sort" style="width:auto;min-width:190px">' +
                 '<option value="title">' + esc(t('filter.sortTitle')) + '</option>' +
-                '<option value="batches">' + esc(t('filter.sortBatches')) + '</option>' +
+                '<option value="exercises">' + esc(t('filter.sortBatches')) + '</option>' +
                 '<option value="difficulty">' + esc(t('status.difficulty')) + '</option>' +
                 '<option value="reviewed">' + esc(t('filter.sortReviewed')) + '</option>' +
               '</select>' +
@@ -305,13 +338,13 @@
         themeHtml += '</fieldset>';
 
         themeHtml += '<fieldset><legend>' + esc(t('filter.batches')) + '</legend>';
-        ['0', '1', '2', '3'].forEach(function (n) {
-          var checked = String(state.batches) === n ? ' checked' : '';
-          themeHtml += '<label><input type="radio" name="cm-batches" value="' + n + '"' + checked + '>' +
-                       '<span>' + esc(t('coverage.need' + n)) + '</span></label>';
+        [['', 'filter.anyReadiness'], ['complete', 'coverage.need3'],
+         ['partial', 'coverage.need1'], ['notReady', 'coverage.need2'],
+         ['none', 'coverage.need0']].forEach(function (pair) {
+          var checked = String(state.readiness || '') === pair[0] ? ' checked' : '';
+          themeHtml += '<label><input type="radio" name="cm-readiness" value="' + pair[0] + '"' + checked + '>' +
+                       '<span>' + esc(t(pair[1])) + '</span></label>';
         });
-        themeHtml += '<label><input type="radio" name="cm-batches" value=""' +
-                     (state.batches === null ? ' checked' : '') + '><span>' + esc('Any') + '</span></label>';
         themeHtml += '</fieldset>';
 
         themeHtml += '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm cm-btn--block" id="cm-clear-filters-2">' +
@@ -360,15 +393,15 @@
             var idx = state.themes.indexOf(value);
             if (input.checked && idx === -1) { state.themes.push(value); }
             else if (!input.checked && idx !== -1) { state.themes.splice(idx, 1); }
-          } else if (input.type === 'radio' && input.name === 'cm-batches') {
-            state.batches = input.value === '' ? null : parseInt(input.value, 10);
+          } else if (input.type === 'radio' && input.name === 'cm-readiness') {
+            state.readiness = input.value === '' ? null : input.value;
           }
           render();
         });
       }
 
       function clearAll() {
-        state.q = ''; state.themes = []; state.batches = null; state.sort = 'title';
+        state.q = ''; state.themes = []; state.readiness = null; state.sort = 'title';
         searchInput.value = ''; sortSelect.value = 'title';
         if (sidebar) {
           sidebar.querySelectorAll('input[type="checkbox"]').forEach(function (i) { i.checked = false; });
@@ -413,28 +446,26 @@
       '<p class="cm-mt2">' + esc(t('a11y.loading')) + '</p></div>';
 
     return CM.store.getCatalog().then(function (catalog) {
-      var totals = { topics: catalog.topics.length, published: 0, missing: 0, complete: 0 };
-      var byType = {};
+      var totals = { topics: catalog.topics.length, ready: 0, notReady: 0, complete: 0, none: 0 };
 
       catalog.topics.forEach(function (topic) {
-        var n = CM.util.publishedCount(topic);
-        totals.published += n;
-        totals.missing += (3 - n);
-        if (n === 3) { totals.complete++; }
-        if (!byType[topic.type]) { byType[topic.type] = { total: 0, published: 0 }; }
-        byType[topic.type].total++;
-        byType[topic.type].published += n;
+        var stats = CM.util.exerciseStats(topic);
+        totals.ready += stats.published;
+        totals.notReady += (stats.total - stats.published);
+        var bucket = readiness(topic);
+        if (bucket === 'complete') { totals.complete++; }
+        if (bucket === 'none') { totals.none++; }
       });
 
-      var state = { type: 'all', batches: null, q: '' };
+      var state = { type: 'all', readiness: null, q: '' };
 
       mount.innerHTML =
         '<div class="cm-grid cm-grid--4 cm-mb2">' +
           '<div class="cm-stat"><div class="cm-stat__num">' + totals.topics + '</div>' +
             '<div class="cm-stat__label">' + esc(t('coverage.totalTopics')) + '</div></div>' +
-          '<div class="cm-stat"><div class="cm-stat__num">' + totals.published + '</div>' +
+          '<div class="cm-stat"><div class="cm-stat__num">' + totals.ready + '</div>' +
             '<div class="cm-stat__label">' + esc(t('coverage.totalBatches')) + '</div></div>' +
-          '<div class="cm-stat"><div class="cm-stat__num">' + totals.missing + '</div>' +
+          '<div class="cm-stat"><div class="cm-stat__num">' + totals.notReady + '</div>' +
             '<div class="cm-stat__label">' + esc(t('coverage.remaining')) + '</div></div>' +
           '<div class="cm-stat"><div class="cm-stat__num">' + totals.complete + '</div>' +
             '<div class="cm-stat__label">' + esc(t('coverage.complete')) + '</div></div>' +
@@ -451,30 +482,40 @@
               return '<option value="' + esc(type) + '">' + esc(t(CATALOG_META[type].labelKey)) + '</option>';
             }).join('') +
           '</select>' +
+          '<label class="cm-vh" for="cm-cov-ready">' + esc(t('filter.batches')) + '</label>' +
+          '<select class="cm-select" id="cm-cov-ready" style="width:auto;min-width:210px">' +
+            '<option value="">' + esc(t('filter.anyReadiness')) + '</option>' +
+            '<option value="complete">' + esc(t('coverage.need3')) + '</option>' +
+            '<option value="partial">' + esc(t('coverage.need1')) + '</option>' +
+            '<option value="notReady">' + esc(t('coverage.need2')) + '</option>' +
+            '<option value="none">' + esc(t('coverage.need0')) + '</option>' +
+          '</select>' +
         '</div>' +
         '<p class="cm-legend cm-mb2">' +
           '<span><i class="cm-cov__cell--0"></i> ' + esc(t('coverage.need0')) + '</span>' +
-          '<span><i class="cm-cov__cell--1"></i> ' + esc(t('coverage.need1')) + '</span>' +
           '<span><i class="cm-cov__cell--2"></i> ' + esc(t('coverage.need2')) + '</span>' +
+          '<span><i class="cm-cov__cell--1"></i> ' + esc(t('coverage.need1')) + '</span>' +
           '<span><i class="cm-cov__cell--3"></i> ' + esc(t('coverage.need3')) + '</span>' +
         '</p>' +
         '<div class="cm-tablewrap" id="cm-cov-tablewrap"></div>' +
-        '<div class="cm-banner cm-banner--accent cm-mt2">' + CM.nav.svg('heart') +
+        '<div class="cm-banner cm-banner--accent cm-mt2">' + CM.nav.svg('info') +
           '<div><span class="cm-banner__title">' + esc(t('contribute.title')) + '</span>' +
           '<p>' + esc(t('coverage.cta')) + '</p>' +
           '<p class="cm-mb0"><a class="cm-btn cm-btn--primary cm-btn--sm" ' +
-            'href="' + esc(CM.config.repoUrl) + '/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">' +
-            esc(t('contribute.link')) + '</a></p></div>' +
+            'href="' + CM.util.url('pages/support.html') + '">' +
+            esc(t('donate.cta')) + '</a></p></div>' +
         '</div>';
 
       var tableWrap = mount.querySelector('#cm-cov-tablewrap');
       var searchInput = mount.querySelector('#cm-cov-search');
       var typeSelect = mount.querySelector('#cm-cov-type');
+      var readySelect = mount.querySelector('#cm-cov-ready');
 
       function renderTable() {
         var q = state.q.trim().toLowerCase();
         var rows = catalog.topics.filter(function (topic) {
           if (state.type !== 'all' && topic.type !== state.type) { return false; }
+          if (state.readiness && readiness(topic) !== state.readiness) { return false; }
           if (q && (topic.title + ' ' + topic.id + ' ' + (topic.externalId || '')).toLowerCase().indexOf(q) === -1) { return false; }
           return true;
         });
@@ -485,22 +526,22 @@
         });
 
         var body = rows.map(function (topic) {
-          var n = CM.util.publishedCount(topic);
-          var cells = '';
-          for (var i = 0; i < 3; i++) {
-            var b = topic.batches && topic.batches[i] ? topic.batches[i] : null;
-            var status = b ? b.status : 'missing';
-            var symbol = status === 'published' ? '\u2713' : (status === 'draft' ? '\u25CB' : '\u2014');
-            var text = status === 'published' ? t('status.published') : (status === 'draft' ? t('status.draft') : t('status.missing'));
-            cells += '<td><span class="cm-badge ' + (status === 'published' ? 'cm-badge--ok' : (status === 'draft' ? 'cm-badge--warn' : 'cm-badge--bad')) +
-                     '">' + symbol + ' ' + esc('Batch ' + (i + 1)) + ': ' + esc(text) + '</span></td>';
-          }
+          var stats = CM.util.exerciseStats(topic);
+          var bucket = readiness(topic);
+          var bucketKey = { none: 'coverage.need0', notReady: 'coverage.need2',
+                            partial: 'coverage.need1', complete: 'coverage.need3' }[bucket];
+          var bucketClass = { none: 'cm-badge--bad', notReady: 'cm-badge--bad',
+                              partial: 'cm-badge--warn', complete: 'cm-badge--ok' }[bucket];
+          var symbol = { none: '\u2014', notReady: '\u25CB',
+                         partial: '\u25D1', complete: '\u2713' }[bucket];
+          var chapters = (topic.chapters || []).length;
           return '<tr>' +
             '<td><strong><a href="' + topicHref(topic.id) + '">' + esc(topic.title) + '</a></strong>' +
               (topic.externalId ? ' <span class="cm-badge cm-badge--id cm-badge--sm">' + esc(topic.externalId) + '</span>' : '') + '</td>' +
             '<td>' + esc(topic.theme) + '</td>' +
-            '<td class="cm-num">' + n + '/3</td>' +
-            cells +
+            '<td><span class="cm-badge ' + bucketClass + '">' + symbol + ' ' + esc(t(bucketKey)) + '</span></td>' +
+            '<td class="cm-num">' + stats.published + ' / ' + stats.total + '</td>' +
+            '<td class="cm-num">' + (chapters || '\u2014') + '</td>' +
           '</tr>';
         }).join('');
 
@@ -508,17 +549,17 @@
           '<table class="cm-table"><caption class="cm-vh">' + esc(t('coverage.title')) + '</caption>' +
           '<thead><tr><th scope="col">' + esc(t('stats.topic')) + '</th>' +
           '<th scope="col">' + esc(t('filter.theme')) + '</th>' +
-          '<th scope="col">' + esc(t('filter.batches')) + '</th>' +
-          '<th scope="col">' + esc(t('batch.1.label')) + '</th>' +
-          '<th scope="col">' + esc(t('batch.2.label')) + '</th>' +
-          '<th scope="col">' + esc(t('batch.3.label')) + '</th></tr></thead>' +
-          '<tbody>' + (body || '<tr><td colspan="6">' + esc(t('filter.none')) + '</td></tr>') + '</tbody></table>';
+          '<th scope="col">' + esc(t('coverage.legend')) + '</th>' +
+          '<th scope="col">' + esc(t('stats.batch')) + '</th>' +
+          '<th scope="col">' + esc('Chapters') + '</th></tr></thead>' +
+          '<tbody>' + (body || '<tr><td colspan="5">' + esc(t('filter.none')) + '</td></tr>') + '</tbody></table>';
       }
 
       searchInput.addEventListener('input', CM.util.debounce(function () {
         state.q = searchInput.value; renderTable();
       }, 180));
       typeSelect.addEventListener('change', function () { state.type = typeSelect.value; renderTable(); });
+      readySelect.addEventListener('change', function () { state.readiness = readySelect.value || null; renderTable(); });
 
       mount.removeAttribute('aria-busy');
       renderTable();
@@ -617,7 +658,7 @@
 
       return '<tr>' +
         '<td><strong><a href="' + topicHref(row.topicId) + '">' + esc(topicTitle(row.topicId)) + '</a></strong></td>' +
-        '<td>' + esc('Batch ' + row.batch) + '</td>' +
+        '<td>' + esc('Exercise ' + row.batch) + '</td>' +
         '<td class="cm-num">' + row.runs + '</td>' +
         '<td class="cm-num">' + row.uniqueUsers + '</td>' +
         '<td class="cm-num">' + (row.avgScore === null ? '\u2014' : esc(CM.util.pct(row.avgScore))) + '</td>' +
@@ -742,8 +783,8 @@
 
     return CM.store.getCatalog().then(function (catalog) {
       var totals = catalog.totals || {};
-      var published = totals.batchesPublished || 0;
-      var totalBatches = totals.batchesTotal || (catalog.topics.length * 3);
+      var ready = totals.exercisesPublished || 0;
+      var totalExercises = totals.exercisesTotal || 0;
 
       function paintStats(snapshot) {
         var users = snapshot && snapshot.totals ? (snapshot.totals.users || 0) : 0;
@@ -755,10 +796,11 @@
         statsMount.innerHTML =
           '<div class="cm-grid cm-grid--4">' +
             '<div class="cm-stat"><div class="cm-stat__num">' + totals.topics + '</div>' +
-              '<div class="cm-stat__label">' + esc(t('home.stats.topics')) + '</div></div>' +
-            '<div class="cm-stat"><div class="cm-stat__num">' + published + '</div>' +
-              '<div class="cm-stat__label">' + esc(t('home.stats.batches')) + '</div>' +
-              '<div class="cm-tiny cm-dim">' + esc('of ' + totalBatches + ' planned') + '</div></div>' +
+              '<div class="cm-stat__label">' + esc(t('home.stats.topics')) + '</div>' +
+              '<div class="cm-tiny cm-dim">' + esc('study pages') + '</div></div>' +
+            '<div class="cm-stat"><div class="cm-stat__num">' + ready + '</div>' +
+              '<div class="cm-stat__label">' + esc(t('home.stats.exercisesReady')) + '</div>' +
+              '<div class="cm-tiny cm-dim">' + esc('of ' + totalExercises + ' planned') + '</div></div>' +
             '<div class="cm-stat"><div class="cm-stat__num">' + countries + '</div>' +
               '<div class="cm-stat__label">' + esc(t('home.stats.countries')) + '</div></div>' +
             '<div class="cm-stat"><div class="cm-stat__num">' + exams + '</div>' +
@@ -791,7 +833,7 @@
               var label = topic ? topic.title : a.topicId;
               return '<li>' +
                 '<a href="' + topicHref(a.topicId) + '">' + esc(label) + '</a>' +
-                '<span class="cm-badge cm-badge--sm">' + esc('Batch ' + a.batch) + '</span>' +
+                '<span class="cm-badge cm-badge--sm">' + esc('Exercise ' + a.batch) + '</span>' +
                 '<span class="cm-batchresult cm-batchresult--' + (a.passed ? 'pass' : 'fail') + '">' +
                   (a.passed ? t('batch.pass') : t('batch.fail')) + '</span>' +
                 '<span class="cm-attempts__score">' + esc(CM.util.pct(a.percent)) + '</span>' +
@@ -819,30 +861,32 @@
           }).join('') + '</ul>';
       }
 
-      /* 4. Coverage gaps teaser. This is the contribution roadmap in miniature:
-          name the real number, do not imply more is done than there is. */
+      /* 4. "Still being written" teaser. Names the real numbers rather than
+            implying more is finished than actually is. */
       if (gapsMount) {
-        var buckets = { 0: [], 1: [], 2: [], 3: [] };
+        var waiting = [];
+        var notReady = 0;
         catalog.topics.forEach(function (topic) {
-          buckets[CM.util.publishedCount(topic)].push(topic);
+          var stats = CM.util.exerciseStats(topic);
+          notReady += (stats.total - stats.published);
+          if (readiness(topic) === 'none' || readiness(topic) === 'notReady') { waiting.push(topic); }
         });
-        var missing = totals.batchesMissing || 0;
-        var examples = buckets[0].slice(0, 5).map(function (topic) {
+        var examples = waiting.slice(0, 6).map(function (topic) {
           return '<li><a href="' + topicHref(topic.id) + '">' + esc(topic.title) + '</a></li>';
-        }).join('');
+        }).join('') || '<li class="cm-dim">Every topic has at least one exercise ready.</li>';
 
         gapsMount.innerHTML =
           '<div class="cm-card">' +
             '<h2 class="cm-card__title">' + esc(t('home.gaps')) + '</h2>' +
-            '<p>' + esc(missing + ' exercise batches are still to be written across ' +
-              (buckets[0].length + buckets[1].length + buckets[2].length) + ' topics.') + '</p>' +
-            '<p class="cm-small cm-muted">' + esc('Topics still waiting for their first batch:') + '</p>' +
+            '<p>' + esc(notReady + ' exercises are listed but not finished yet, across ' +
+              waiting.length + ' topics.') + '</p>' +
+            '<p class="cm-small cm-muted">' + esc('Topics still waiting for their first exercise:') + '</p>' +
             '<ul class="cm-chips">' + examples + '</ul>' +
             '<div class="cm-card__foot">' +
               '<a class="cm-btn cm-btn--primary cm-btn--sm" href="' + CM.util.url('pages/coverage.html') + '">' +
                 esc(t('home.gapsCta')) + '</a>' +
               '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + CM.util.url('pages/support.html') + '">' +
-                esc(t('nav.support')) + '</a>' +
+                esc(t('donate.cta')) + '</a>' +
             '</div>' +
           '</div>';
       }

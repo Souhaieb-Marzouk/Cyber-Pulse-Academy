@@ -132,7 +132,7 @@
     cat.topics = Array.isArray(cat.topics) ? cat.topics : [];
     cat.themes = Array.isArray(cat.themes) ? cat.themes : [];
     cat.totals = cat.totals || {};
-    cat.coverage = cat.coverage || { with0Batches: [], with1Batch: [], with2Batches: [], with3Batches: [] };
+    cat.coverage = cat.coverage || { noExercises: [], noPublished: [], partial: [], complete: [] };
 
     /* Reserved module slots. The renderer ignores unknown and empty fields, so
        these can be filled in a later release without touching any UI code. */
@@ -320,12 +320,26 @@
 
     /* Coverage buckets, recomputed from batch status so the dashboard never
        lies even if catalog.json is briefly stale. */
+    /* Buckets for the coverage page. Mirrors the logic in catalog-render.js and
+       in scripts/build_catalog.py: a certification only counts as complete when
+       every chapter has at least one exercise. */
     getCoverage: function () {
       return Store.getCatalog().then(function (cat) {
-        var buckets = { 0: [], 1: [], 2: [], 3: [] };
+        var buckets = { noExercises: [], noPublished: [], partial: [], complete: [] };
         for (var i = 0; i < cat.topics.length; i++) {
-          var n = CM.util.publishedCount(cat.topics[i]);
-          buckets[n].push(cat.topics[i]);
+          var topic = cat.topics[i];
+          var stats = CM.util.exerciseStats(topic);
+          var chapters = topic.chapters || [];
+          var emptyChapters = 0;
+          for (var c = 0; c < chapters.length; c++) {
+            if (!(chapters[c].exercises || []).length) { emptyChapters++; }
+          }
+          var bucket;
+          if (stats.total === 0) { bucket = 'noExercises'; }
+          else if (stats.published === 0) { bucket = 'noPublished'; }
+          else if (emptyChapters || stats.published < stats.total) { bucket = 'partial'; }
+          else { bucket = 'complete'; }
+          buckets[bucket].push(topic);
         }
         return buckets;
       });

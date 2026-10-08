@@ -1,14 +1,14 @@
-/* ============================================================================
+﻿/* ============================================================================
    CyberPulseAcademy - assets/js/exam-hub.js
-   The exercise hub. Loads a generated batch inside a same-origin iframe,
+   The exercise hub. Loads an exercise page inside a same-origin iframe,
    hands it the student's identity, listens for a score, and never shows a
    silent blank frame.
 
-   The contract with a batch file (see docs/exercise-generation-prompt.md):
+   The contract an exercise page may implement:
 
-     parent -> batch   { type: "CYBERPULSEACADEMY_INIT", username, country, batch,
+     parent -> batch   { type: "CYBERPULSE_INIT", username, country, batch,
                          topicId, locale, theme }
-     batch  -> parent   { type: "CYBERPULSEACADEMY_SCORE", topicId, batch, score,
+     batch  -> parent   { type: "CYBERPULSE_SCORE", topicId, batch, score,
                          passed, total, percent }
 
    Batch files are generated separately and may predate this contract, so the
@@ -39,15 +39,15 @@
   /* ------------------------------------------------------------ reporting */
   function reportUrl(topicId, batch) {
     var base = String(CM.config.repoUrl || '').replace(/\/+$/, '');
-    return base + '/issues/new?template=bug-exercise.md' +
-           '&title=' + encodeURIComponent('Broken batch: ' + topicId + ' batch ' + batch) +
+    return base + '/issues/new' +
+           '?title=' + encodeURIComponent('Broken batch: ' + topicId + ' batch ' + batch) +
            '&labels=bug';
   }
 
   function accuracyUrl(topicId, title) {
     var base = String(CM.config.repoUrl || '').replace(/\/+$/, '');
-    return base + '/issues/new?template=content-accuracy.md' +
-           '&title=' + encodeURIComponent('Content accuracy: ' + title) +
+    return base + '/issues/new' +
+           '?title=' + encodeURIComponent('Content accuracy: ' + title) +
            '&labels=content';
   }
 
@@ -99,7 +99,7 @@
         'if(/\\bnot passed\\b|\\bfailed\\b/i.test(txt)){passed=false;}' +
         'else if(/\\bpassed\\b|\\bcongratulations\\b|\\bwell done\\b/i.test(txt)){passed=true;}' +
         'if(passed===null){passed=percent>=70;}' +
-        'try{parent.postMessage({type:"CYBERPULSEACADEMY_SCORE",topicId:TOPIC,batch:BATCH,' +
+        'try{parent.postMessage({type:"CYBERPULSE_SCORE",topicId:TOPIC,batch:BATCH,' +
           'score:(score===null?null:score),total:(total===null?null:total),' +
           'percent:percent,passed:passed},location.origin);}catch(e){}}' +
       'function scan(){' +
@@ -132,8 +132,8 @@
       '}catch(e){}' +
       /* --- respond to the parent handshake --- */
       'window.addEventListener("message",function(ev){' +
-        'if(!ev||!ev.data||ev.data.type!=="CYBERPULSEACADEMY_INIT"){return;}' +
-        'try{window.dispatchEvent(new CustomEvent("cyberpulseacademy:init",{detail:ev.data}));}catch(e){}' +
+        'if(!ev||!ev.data||ev.data.type!=="CYBERPULSE_INIT"){return;}' +
+        'try{window.dispatchEvent(new CustomEvent("cyber-pulse-academy:init",{detail:ev.data}));}catch(e){}' +
         'schedule();});' +
       /* --- also re-check when the user returns to the tab or clicks around --- */
       'document.addEventListener("click",schedule,true);' +
@@ -164,7 +164,7 @@
   function sendInit(iframe) {
     var identity = CM.identity ? CM.identity.get() : null;
     var payload = {
-      type: 'CYBERPULSEACADEMY_INIT',
+      type: 'CYBERPULSE_INIT',
       username: identity ? identity.name : '',
       country: identity ? identity.country : 'ZZ',
       batch: active.batch,
@@ -173,7 +173,18 @@
       theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'
     };
     try {
-      if (iframe.contentWindow) { iframe.contentWindow.postMessage(payload, location.origin); }
+      if (iframe.contentWindow) {
+        iframe.contentWindow.postMessage(payload, location.origin);
+        /* Send the legacy protocol name too, so an exercise file written before
+           the site was renamed still receives its handshake. Two messages cost
+           nothing and remove a whole class of "why is my exercise blank". */
+        var legacy = {};
+        for (var key in payload) {
+          if (Object.prototype.hasOwnProperty.call(payload, key)) { legacy[key] = payload[key]; }
+        }
+        legacy.type = 'CYBERMASTERY_INIT';
+        iframe.contentWindow.postMessage(legacy, location.origin);
+      }
     } catch (e) {
       if (CM.config.debug) { console.warn('[CM] postMessage failed', e); }
     }
@@ -185,9 +196,14 @@
        write statistics into this site. */
     if (event.origin !== location.origin) { return; }
     var data = event.data;
-    if (!data || data.type !== 'CYBERPULSEACADEMY_SCORE') { return; }
+    if (!data) { return; }
+    /* Accept both protocol names, for the same backwards-compatibility reason. */
+    if (data.type !== 'CYBERPULSE_SCORE' && data.type !== 'CYBERMASTERY_SCORE') { return; }
     if (String(data.topicId) !== String(active.topicId)) { return; }
-    if (parseInt(data.batch, 10) !== parseInt(active.batch, 10)) { return; }
+    /* An exercise file that is not one of the numbered batches may omit the batch
+       number entirely. Treat that as "any batch" rather than dropping the score. */
+    var incomingBatch = parseInt(data.batch, 10);
+    if (!isNaN(incomingBatch) && incomingBatch !== parseInt(active.batch, 10)) { return; }
 
     var percent = (typeof data.percent === 'number') ? Math.max(0, Math.min(100, data.percent)) : null;
     if (percent === null) { return; }
@@ -226,47 +242,65 @@
   });
 
   /* ------------------------------------------------------------- rendering */
-  function stateFor(batch) {
-    if (!batch) { return 'missing'; }
-    return batch.status || 'missing';
-  }
-
-  function renderBatchCards(mount, topic) {
-    var best = { 1: CM.Store.getBestFor(topic.id, 1), 2: CM.Store.getBestFor(topic.id, 2), 3: CM.Store.getBestFor(topic.id, 3) };
-    var html = '';
-    for (var i = 0; i < 3; i++) {
-      var batch = topic.batches[i];
-      var state = stateFor(batch);
-      var missing = state === 'missing';
-      html +=
-        '<article class="cm-batch cm-batch--' + (i + 1) + '" data-state="' + esc(state) + '" data-batch="' + (i + 1) + '">' +
-          '<span class="cm-batch__n">' + esc(t('batch.' + (i + 1) + '.label')) + '</span>' +
-          '<h3 class="cm-batch__title">' + esc(batch ? batch.title : t('batch.' + (i + 1) + '.label')) + '</h3>' +
-          '<p class="cm-batch__focus">' + esc(batch ? batch.focus : '') + '</p>' +
-          '<div class="cm-row cm-mt1">' +
-            '<span class="cm-badge cm-badge--' + esc(topic.difficulty || 'extreme') + '">' + esc(t('status.difficulty.' + (topic.difficulty || 'extreme'))) + '</span>' +
-            (missing
-              ? '<span class="cm-badge cm-badge--bad">' + CM.nav.svg('alert') + esc(t('status.missing')) + '</span>'
-              : '<span class="cm-badge cm-badge--ok">' + CM.nav.svg('check') + esc(t('status.published')) + '</span>') +
-          '</div>' +
-          (best[i + 1] ? '<p class="cm-batch__best">' + esc(t('batch.best', { pct: CM.util.pct(best[i + 1].percent) })) + '</p>' : '') +
-          '<div class="cm-batch__foot">' +
-            (missing
-              ? '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + esc(CM.config.repoUrl) + '/blob/main/CONTRIBUTING.md" ' +
-                  'target="_blank" rel="noopener noreferrer">' + esc(t('batch.notPublished')) + '</a>'
-              : '<button type="button" class="cm-btn cm-btn--primary cm-btn--sm" data-start="' + (i + 1) + '">' +
-                  esc(t('action.startBatch', { n: i + 1 })) + '</button>') +
-          '</div>' +
-        '</article>';
+  /* The exercise list itself is rendered as static HTML by
+     scripts/generate_pages.py. That keeps every exercise crawlable and readable
+     with JavaScript switched off. This function only attaches behaviour to the
+     buttons, so there is exactly one place that knows a topic's exercises exist
+     and exactly one place that makes them clickable. */
+  function wireExercises(topic) {
+    var buttons = document.querySelectorAll('[data-cm-exercise]');
+    for (var i = 0; i < buttons.length; i++) {
+      (function (button) {
+        if (button.getAttribute('data-cm-wired') === '1') { return; }
+        button.setAttribute('data-cm-wired', '1');
+        button.addEventListener('click', function () {
+          var index = parseInt(button.getAttribute('data-cm-exercise'), 10);
+          var path = button.getAttribute('data-cm-path') || '';
+          start(topic, index, path);
+        });
+      })(buttons[i]);
     }
-    mount.innerHTML = html;
+
+    /* Show the best score already recorded on this device for each exercise. */
+    var bestNodes = document.querySelectorAll('[data-cm-best]');
+    for (var b = 0; b < bestNodes.length; b++) {
+      (function (node) {
+        var path = node.getAttribute('data-cm-best');
+        var attempts = CM.Store.getRecentAttempts(400).filter(function (a) {
+          return a.topicId === topic.id;
+        });
+        /* Match on the stored path when the record has one, otherwise fall back
+           to matching by exercise index taken from the DOM order. */
+        var match = null;
+        for (var a = 0; a < attempts.length; a++) {
+          if (attempts[a].path && path && attempts[a].path === path) {
+            if (!match || (attempts[a].percent || 0) > (match.percent || 0)) { match = attempts[a]; }
+          }
+        }
+        if (!match) {
+          var buttons = document.querySelectorAll('[data-cm-exercise]');
+          for (var j = 0; j < buttons.length; j++) {
+            if (buttons[j].getAttribute('data-cm-path') === path) {
+              var idx = parseInt(buttons[j].getAttribute('data-cm-exercise'), 10);
+              match = CM.Store.getBestFor(topic.id, idx);
+              break;
+            }
+          }
+        }
+        if (match && typeof match.percent === 'number') {
+          node.hidden = false;
+          node.innerHTML = CM.nav.svg('check') + ' ' +
+            esc('Your best score on this device: ' + CM.util.pct(match.percent));
+        }
+      })(bestNodes[b]);
+    }
   }
 
   function renderShell(mount, topic) {
     mount.innerHTML =
       '<div class="cm-frame-shell">' +
         '<div class="cm-frame-shell__bar">' +
-          '<span class="cm-frame-shell__label" id="cm-frame-label">' + esc('Exercise batch') + '</span>' +
+          '<span class="cm-frame-shell__label" id="cm-frame-label">' + esc('Exercise') + '</span>' +
           '<span class="cm-frame-shell__meta" id="cm-frame-meta"></span>' +
           '<span class="cm-frame-shell__actions">' +
             '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-frame-newtab" hidden>' +
@@ -278,7 +312,7 @@
           '</span>' +
         '</div>' +
         '<div class="cm-frame-overlay" id="cm-frame-overlay" hidden></div>' +
-        '<iframe class="cm-frame" id="cm-frame" title="' + esc(t('batch.iframeTitle', { n: 1, topic: topic.title })) + '" ' +
+        '<iframe class="cm-frame" id="cm-frame" title="' + esc('Exercise for ' + topic.title) + '" ' +
           'hidden referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>' +
         '<p class="cm-frame-note cm-vh" id="cm-frame-live" role="status" aria-live="polite"></p>' +
       '</div>';
@@ -302,7 +336,7 @@
     if (retry) {
       retry.addEventListener('click', function () {
         overlay.hidden = true;
-        loadBatch(topic, batch);
+        loadExercise(topic, batch, active.path);
       });
     }
     CM.a11y.announce(isTimeout ? t('batch.timeout.title') : t('batch.loadError.title'), true);
@@ -332,23 +366,31 @@
   }
 
   /* ------------------------------------------------------------ loading */
-  function loadBatch(topic, batch) {
+  /* Load one exercise into the frame.
+
+     `index` is the 1-based position of the exercise in this topic's list, which
+     is also what gets recorded as the attempt number. `pathOverride` is the path
+     straight from the button's data attribute, so the hub works even if the
+     manifest is briefly out of step with the rendered page. */
+  function loadExercise(topic, index, pathOverride) {
     var iframe = document.getElementById('cm-frame');
     if (!iframe) { return; }
-    var entry = topic.batches[batch - 1];
-    if (!entry) { return; }
 
-    var path = String(entry.path || ('exercises/' + topic.id + '/batch-' + batch + '.html')).replace(/^\.?\//, '');
+    var list = CM.util.exerciseList(topic);
+    var entry = list[index - 1] ? list[index - 1].exercise : null;
+    var path = String(pathOverride || (entry && entry.path) || '').replace(/^\.?\//, '');
+    if (!path) { return; }
     var url = CM.util.url(path);
 
     active.iframe = iframe;
     active.topicId = topic.id;
-    active.batch = batch;
+    active.batch = index;
+    active.path = path;
     active.scoredFor = '';
 
     if (active.timer) { clearTimeout(active.timer); }
 
-    label(batch, entry, null);
+    label(index, entry, null);
     setLoading();
     iframe.hidden = true;
     iframe.removeAttribute('src');
@@ -368,10 +410,10 @@
       preflight = fetch(url, { credentials: 'omit', cache: 'no-cache', signal: ctrl.signal });
       active.timer = setTimeout(function () {
         ctrl.abort();
-        showOverlay('timeout', topic, batch);
+        showOverlay('timeout', topic, index);
       }, CM.config.iframeTimeoutMs);
     } else {
-      active.timer = setTimeout(function () { showOverlay('timeout', topic, batch); }, CM.config.iframeTimeoutMs);
+      active.timer = setTimeout(function () { showOverlay('timeout', topic, index); }, CM.config.iframeTimeoutMs);
     }
 
     preflight.then(function (response) {
@@ -380,7 +422,7 @@
     }).then(function (html) {
       if (active.timer) { clearTimeout(active.timer); }
       var meta = readMeta(html);
-      label(batch, entry, meta);
+      label(index, entry, meta);
 
       /* Loading through the same URL the preflight just fetched means this
          second request is served from the HTTP cache. */
@@ -397,13 +439,13 @@
         var exit = document.getElementById('cm-frame-exit');
         if (exit) { exit.hidden = false; }
         var live = document.getElementById('cm-frame-live');
-        if (live) { live.textContent = t('batch.loading') + ' ' + t('action.start') + ': batch ' + batch + ' is ready.'; }
-        CM.a11y.announce('Batch ' + batch + ' loaded.', false);
+        if (live) { live.textContent = 'Exercise ' + index + ' is ready.'; }
+        CM.a11y.announce('Exercise ' + index + ' loaded.', false);
         try { iframe.contentWindow.focus(); } catch (e) { /* ignore */ }
       };
       iframe.onerror = function () {
         if (active.timer) { clearTimeout(active.timer); }
-        showOverlay('error', topic, batch);
+        showOverlay('error', topic, index);
       };
 
       /* A second guard: some browsers fire load for an error page. Compare the
@@ -412,16 +454,17 @@
         var doc = null;
         try { doc = iframe.contentDocument; } catch (e) { doc = null; }
         if (!doc || !doc.body || doc.body.childElementCount === 0) {
-          showOverlay('timeout', topic, batch);
+          showOverlay('timeout', topic, index);
         }
       }, CM.config.iframeTimeoutMs);
 
       iframe.src = url;
 
-      /* Deep link so the batch can be shared or opened on its own. */
+      /* Deep link, so an exercise can be shared or opened on its own. */
       try {
         var params = new URLSearchParams(location.search);
-        params.set('batch', String(batch));
+        params.set('exercise', String(index));
+        params.delete('batch');
         history.replaceState(null, '', location.pathname + '?' + params.toString() + location.hash);
       } catch (e) { /* ignore */ }
 
@@ -430,18 +473,18 @@
       if (shell) { shell.scrollIntoView({ block: 'start', behavior: CM.a11y.reduceMotion ? 'auto' : 'smooth' }); }
     })['catch'](function (err) {
       if (active.timer) { clearTimeout(active.timer); }
-      if (CM.config.debug) { console.warn('[CM] batch preflight failed', err); }
+      if (CM.config.debug) { console.warn('[CM] exercise preflight failed', err); }
       /* Abort means our own timeout already handled it. */
       if (err && err.name === 'AbortError') { return; }
-      showOverlay('error', topic, batch);
+      showOverlay('error', topic, index);
     });
   }
 
-  function label(batch, entry, meta) {
+  function label(index, entry, meta) {
     var labelEl = document.getElementById('cm-frame-label');
     var metaEl = document.getElementById('cm-frame-meta');
     if (labelEl) {
-      labelEl.textContent = t('batch.' + batch + '.label') + ': ' + (entry && entry.title ? entry.title : '');
+      labelEl.textContent = entry && entry.title ? entry.title : ('Exercise ' + index);
     }
     if (metaEl) {
       var bits = [];
@@ -461,7 +504,7 @@
     mount.hidden = false;
     mount.innerHTML =
       '<h2>' + CM.nav.svg('check') + esc('You passed.') + '</h2>' +
-      '<p>' + esc('That is a genuinely hard batch to pass. If this platform helped, supporting it keeps new batches coming. This card only appears after a pass, it never interrupts an exercise, and nothing is gated behind it.') + '</p>' +
+      '<p>' + esc('That is a genuinely hard exercise to pass. If this platform helped, supporting it keeps new exercises coming. This card only appears after a pass, it never interrupts an exercise, and nothing is gated behind it.') + '</p>' +
       '<div class="cm-celebrate__actions">' +
         '<a class="cm-btn cm-btn--primary" href="' + CM.util.url('pages/support.html') + '">' +
           CM.nav.svg('heart') + esc(t('footer.donate')) + '</a>' +
@@ -481,7 +524,7 @@
         CM.store.storage.set('cm.celebrate.dismissed.' + active.topicId, true);
       });
     }
-    CM.a11y.announce('You passed this batch.', false);
+    CM.a11y.announce('You passed this exercise.', false);
   }
 
   /* ----------------------------------------------------------- attempts */
@@ -499,7 +542,7 @@
       '<h2 class="cm-h3">' + esc(t('exam.recent')) + '</h2>' +
       '<ul class="cm-attempts">' + attempts.slice(0, 8).map(function (a) {
         return '<li>' +
-          '<span class="cm-badge cm-badge--sm">' + esc('Batch ' + a.batch) + '</span>' +
+          '<span class="cm-badge cm-badge--sm">' + esc('Exercise ' + a.batch) + '</span>' +
           '<time class="cm-dim cm-tiny" datetime="' + esc(new Date(a.ts).toISOString()) + '">' +
             esc(CM.util.date(new Date(a.ts).toISOString().slice(0, 10))) + '</time>' +
           '<span class="cm-batchresult cm-batchresult--' + (a.passed ? 'pass' : 'fail') + '">' +
@@ -515,9 +558,11 @@
     var topicId = opts.topicId || (document.body && document.body.getAttribute('data-cm-topic'));
     if (!topicId) { return Promise.resolve(); }
 
-    var cardsMount = document.getElementById('cm-batches');
     var shellMount = document.getElementById('cm-hub');
-    if (!cardsMount && !shellMount) { return Promise.resolve(); }
+    var hasExerciseButtons = document.querySelectorAll('[data-cm-exercise]').length > 0;
+    if (!shellMount && !hasExerciseButtons && !document.getElementById('cm-attempts')) {
+      return Promise.resolve();
+    }
 
     return CM.Store.getTopic(topicId).then(function (topic) {
       if (!topic) {
@@ -529,29 +574,23 @@
         return;
       }
 
-      if (cardsMount) { renderBatchCards(cardsMount, topic); }
       if (shellMount) { renderShell(shellMount, topic); }
+      wireExercises(topic);
       renderAttempts();
 
-      /* Random batch button, if the page provides one. */
-      var randomBtn = document.getElementById('cm-random-batch');
+      /* "Surprise me" button, when the page provides one. */
+      var randomBtn = document.getElementById('cm-random-exercise');
       if (randomBtn) {
         randomBtn.addEventListener('click', function () {
-          var available = topic.batches.filter(function (b) { return b.status !== 'missing'; });
+          var available = CM.util.exerciseList(topic).filter(function (item) {
+            return (item.exercise.status || 'published') !== 'missing';
+          });
           if (!available.length) {
-            CM.a11y.toast('No batch is published yet for this topic. The coverage dashboard shows what is missing.', 'warn');
+            CM.a11y.toast('No exercise is ready for this topic yet. The coverage page shows what is planned.', 'warn');
             return;
           }
           var pick = available[Math.floor(Math.random() * available.length)];
-          start(topic, pick.batch);
-        });
-      }
-
-      if (cardsMount) {
-        cardsMount.addEventListener('click', function (event) {
-          var btn = event.target.closest('[data-start]');
-          if (!btn) { return; }
-          start(topic, parseInt(btn.getAttribute('data-start'), 10));
+          start(topic, CM.util.exerciseList(topic).indexOf(pick) + 1, pick.exercise.path);
         });
       }
 
@@ -559,59 +598,54 @@
         shellMount.addEventListener('click', function (event) {
           var target = event.target.closest('button, a');
           if (!target) { return; }
-          if (target.id === 'cm-frame-reload') { loadBatch(topic, active.batch); return; }
+          if (target.id === 'cm-frame-reload') { loadExercise(topic, active.batch, active.path); return; }
           if (target.id === 'cm-frame-newtab') {
-            window.open(target.getAttribute('data-href') || CM.util.url(topic.batches[active.batch - 1].path), '_blank', 'noopener');
+            window.open(target.getAttribute('data-href') || CM.util.url(active.path || ''), '_blank', 'noopener');
             return;
           }
           if (target.id === 'cm-frame-exit') {
             var iframe = document.getElementById('cm-frame');
             if (iframe) { iframe.hidden = true; iframe.removeAttribute('src'); }
-            var shell = document.querySelector('.cm-frame-shell__bar');
-            if (shell) {
-              ['cm-frame-newtab', 'cm-frame-reload', 'cm-frame-exit'].forEach(function (id) {
-                var el = document.getElementById(id);
-                if (el) { el.hidden = true; }
-              });
-            }
+            ['cm-frame-newtab', 'cm-frame-reload', 'cm-frame-exit'].forEach(function (id) {
+              var el = document.getElementById(id);
+              if (el) { el.hidden = true; }
+            });
             hideOverlay();
-            var cards = document.getElementById('cm-batches');
-            if (cards) { cards.scrollIntoView({ block: 'start', behavior: CM.a11y.reduceMotion ? 'auto' : 'smooth' }); }
+            var first = document.querySelector('[data-cm-exercise]');
+            if (first) {
+              first.scrollIntoView({ block: 'center', behavior: CM.a11y.reduceMotion ? 'auto' : 'smooth' });
+              first.focus();
+            }
             return;
           }
         });
       }
 
-      /* Deep link: ?batch=2 opens that batch straight away. */
-      var requested = parseInt(CM.util.param('batch'), 10);
-      if (requested && topic.batches[requested - 1] && topic.batches[requested - 1].status !== 'missing') {
-        start(topic, requested);
+      /* Deep link: ?exercise=3 opens that exercise straight away. The older
+         ?batch= form is still accepted so existing shared links keep working. */
+      var requested = parseInt(CM.util.param('exercise') || CM.util.param('batch'), 10);
+      var list = CM.util.exerciseList(topic);
+      if (requested && list[requested - 1] && (list[requested - 1].exercise.status || 'published') !== 'missing') {
+        start(topic, requested, list[requested - 1].exercise.path);
       }
     });
   }
 
-  /* Starting a batch always requires an identity. Reading never does. */
-  function start(topic, batch) {
+  /* Starting an exercise always requires an identity. Reading never does. */
+  function start(topic, index, path) {
     CM.Identity.require().then(function (identity) {
       if (!identity) {
         CM.a11y.toast(t('identity.needFirst'), 'warn');
         return;
       }
-      var cards = document.getElementById('cm-batches');
-      if (cards) {
-        cards.querySelectorAll('.cm-batch').forEach(function (card) {
-          card.setAttribute('data-state', card.getAttribute('data-batch') === String(batch)
-            ? 'active'
-            : (card.getAttribute('data-state') === 'active' ? (topic.batches[parseInt(card.getAttribute('data-batch'), 10) - 1].status || 'missing') : card.getAttribute('data-state')));
-        });
-      }
-      loadBatch(topic, batch);
+      loadExercise(topic, index, path);
     });
   }
 
   CM.examHub = {
     init: init,
-    loadBatch: loadBatch,
+    loadExercise: loadExercise,
+    loadBatch: loadExercise,
     reportUrl: reportUrl,
     accuracyUrl: accuracyUrl,
     readMeta: readMeta,

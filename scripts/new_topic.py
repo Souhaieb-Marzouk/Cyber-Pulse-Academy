@@ -251,9 +251,9 @@ iframe, and listens for the score message.
 
 * Be one file. No external CDN, no build step, no separate assets.
 * Stay under 250 KB or CI fails.
-* Emit `{{ type: "CYBERPULSEACADEMY_SCORE", topicId: "{topic_id}", batch: N, score, total, percent, passed }}`
+* Emit `{{ type: "CYBERPULSE_SCORE", topicId: "{topic_id}", batch: N, score, total, percent, passed }}`
   to `parent` when the results screen appears, so the score reaches the stats page.
-* Listen for `CYBERPULSEACADEMY_INIT` and ignore it if it does not need it.
+* Listen for `CYBERPULSE_INIT` and ignore it if it does not need it.
 * Defang every indicator: `hxxp://evil[.]example`, `10[.]0[.]0[.]1`.
 * Contain no working exploit code, no real credentials and no live malware.
 

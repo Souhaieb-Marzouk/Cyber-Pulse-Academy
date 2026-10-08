@@ -7,7 +7,7 @@
               anything centrally without a published privacy policy is a real
               legal exposure, not a formality.
      "remote" POST {statsEndpoint}/event, and read {statsEndpoint}/stats.
-              The endpoint is owner-hosted. See cloudflare-worker/README.md.
+              The endpoint is owner-hosted. See the owner handover notes.
      "off"    no collection at all. Nothing leaves the page, nothing is kept.
 
    What is never sent: the raw username. What is sent in remote mode is

@@ -12,7 +12,7 @@ each batch into a same-origin iframe from the paths below.
 | 3 | `exercises/t1059/batch-3.html` | **missing** | Adversarial & Cross-domain: red-team perspective, evasion, dual-perspective pairs, ATT&CK mapping, risk ranking, report drafting. |
 
 Batch 1 is the complete standalone deliverable: 20 questions, mixed mechanics, immediate
-explanations, a results screen at `#cm-results`, and the `CYBERMASTERY_SCORE` postMessage contract
+explanations, a results screen at `#cm-results`, and the `CYBERPULSE_SCORE` postMessage contract
 with `location.origin` as the target, wrapped in `try`/`catch` so it also runs when opened directly.
 Batches 2 and 3 are still to be written and are marked `missing` in `data/techniques/t1059.json`.
 

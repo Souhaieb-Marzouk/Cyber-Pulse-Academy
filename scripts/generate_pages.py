@@ -99,10 +99,18 @@ def read_repo_url() -> str:
 
 
 def base_url_from(config_repo: str) -> str:
-    gh = re.match(r"https://github\.com/([^/]+)/([^/]+)$", config_repo)
+    """Turn the GitHub repository URL into the GitHub Pages URL.
+
+    GitHub serves an organisation or user site at the lowercased owner
+    subdomain, while the repository path keeps its original capitalisation, so
+    Souhaieb-Marzouk/Cyber-Pulse-Academy becomes
+    https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy. Getting this wrong
+    produces canonical URLs that point at a hostname that does not resolve.
+    """
+    gh = re.match(r"https://github\.com/([^/]+)/([^/]+?)/?$", config_repo)
     if gh and not gh.group(1).startswith("<"):
-        return f"https://{gh.group(1)}.github.io/{gh.group(2)}"
-    return "https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/"
+        return f"https://{gh.group(1).lower()}.github.io/{gh.group(2)}"
+    return "https://example.github.io/cyber-pulse-academy"
 
 
 # --------------------------------------------------------------------------- #
@@ -155,21 +163,29 @@ def build_faqs(topic: dict) -> list[dict]:
             "a": first_sentences(topic.get("summary"), 2),
         },
         {
-            "q": f"How hard are the {title} practice exercises on CyberPulseAcademy?",
+            "q": f"Is {title} explained for beginners on this page?",
             "a": (
-                f"The exercises are graded {difficulty}. Each topic has three independent batches: one "
-                f"focused on detection and triage, one on hands-on response and configuration, and one "
-                f"adversarial batch written from the attacker perspective with ATT&CK mapping and report "
-                f"drafting. You need roughly 70 percent to pass a batch."
+                "Yes. The page opens with a plain-language section written at B1 English level: a simple "
+                "definition, why the topic matters, how it works in a few steps, a real-world example and "
+                "the key takeaways. The detailed technical explanation comes after it, for readers who "
+                "already work in security."
             ),
         },
         {
-            "q": f"How many {title} practice questions are there?",
+            "q": f"How hard are the {title} exercises on CyberPulseAcademy?",
             "a": (
-                "Three separate exercise batches are reserved for this topic, each a standalone "
-                "interactive exam with its own question set, terminal or query tasks and a scored "
-                "results screen. The coverage dashboard on this site shows exactly which of the three "
-                "are published today."
+                f"The exercises are graded {difficulty}. They are hands-on scenario work rather than "
+                f"definitions: reading logs and alerts, choosing the right next step, configuring or "
+                f"correcting something, and explaining your reasoning. Most exercises use a pass mark "
+                f"of about 70 percent."
+            ),
+        },
+        {
+            "q": f"How many {title} exercises are there?",
+            "a": (
+                "The number grows over time, so the honest answer is on the page itself: each exercise is "
+                "listed with its type and whether it is ready to open. The coverage dashboard shows the "
+                "same information for every topic on the site."
             ),
         },
         {"q": f"Is CyberPulseAcademy official {'study material' if is_cert else 'training'}?", "a": official},
@@ -270,12 +286,13 @@ def head_block(topic: dict, canonical: str, og_image: str, site_version: str) ->
 <meta name="twitter:description" content="{esc(description[:200])}">
 <meta name="twitter:image" content="{esc(og_image)}">
 
-<link rel="icon" href="../assets/img/logo.png" type="image/png">
+<link rel="icon" href="../assets/img/logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="../assets/img/logo.svg">
 <link rel="manifest" href="../manifest.json">
 <link rel="stylesheet" href="../assets/css/main.css?v={esc(site_version)}">
 <link rel="stylesheet" href="../assets/css/components.css?v={esc(site_version)}">
 <link rel="stylesheet" href="../assets/css/exam.css?v={esc(site_version)}">
+<link rel="stylesheet" href="../assets/css/components-v2.css?v={esc(site_version)}">
 <script>
 /* Theme bootstrap. One inline line so the correct theme is applied before the
    first paint. Without it a dark-default site flashes white on every load,
@@ -313,6 +330,10 @@ def icon(name: str) -> str:
         "check": "M20 6 9 17l-5-5",
         "bug": "M8 2v3M16 2v3M3 8h3M18 8h3M4 14h16M8 20a4 4 0 0 1-4-4v-2h16v2a4 4 0 0 1-4 4M12 22v-2",
         "info": "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01",
+        "grid": "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
+        "book": "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z",
+        "layers": "M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+        "play": "M5 3l14 9-14 9V3z",
     }
     return (
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
@@ -363,24 +384,165 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
             + "</ul></section>"
         )
 
-    # ---- batches
-    batch_rows = []
-    for batch in topic.get("batches") or []:
-        status = batch.get("status", "missing")
+    # ---- beginner introduction -------------------------------------------
+    # Rendered statically rather than by JavaScript, so it is the first thing a
+    # visitor and a crawler both see, and so the page is useful with JavaScript
+    # switched off. The five headings are the ones the owner asked for.
+    beginner = topic.get("beginner") or {}
+    beginner_html = ""
+    if beginner:
+        steps = beginner.get("howItWorks") or []
+        takeaways = beginner.get("takeaways") or []
+        steps_html = "".join(f"<li>{esc(step)}</li>" for step in steps)
+        takeaways_html = "".join(f"<li>{esc(item)}</li>" for item in takeaways)
+        beginner_html = f"""<section class="cm-start" aria-labelledby="cm-start-heading">
+  <p class="cm-start__eyebrow">New to this? Start here</p>
+  <h2 id="cm-start-heading" class="cm-start__title">Explained in plain language</h2>
+  <p class="cm-start__note">Written for beginners. No security background needed.</p>
+
+  <div class="cm-start__grid">
+    <div class="cm-start__card">
+      <h3>{icon("info")} Simple definition</h3>
+      <p>{esc(beginner.get("definition", ""))}</p>
+    </div>
+    <div class="cm-start__card">
+      <h3>{icon("alert")} Why should you care?</h3>
+      <p>{esc(beginner.get("whyItMatters", ""))}</p>
+    </div>
+  </div>
+
+  <div class="cm-start__card cm-start__card--wide">
+    <h3>{icon("grid")} How it works, in plain steps</h3>
+    <ol class="cm-start__steps">{steps_html}</ol>
+  </div>
+
+  <div class="cm-start__card cm-start__card--wide">
+    <h3>{icon("book")} Real-world example</h3>
+    <p>{esc(beginner.get("example", ""))}</p>
+  </div>
+
+  <div class="cm-start__card cm-start__card--wide cm-start__card--take">
+    <h3>{icon("check")} Key takeaways</h3>
+    <ul class="cm-start__takeaways">{takeaways_html}</ul>
+  </div>
+</section>"""
+
+    # ---- exercises -------------------------------------------------------
+    # A topic may hold any number of exercises. A certification groups them under
+    # chapters; everything else uses one flat list. Both render as static HTML so
+    # the list is crawlable and works without JavaScript, and assets/js/exam-hub.js
+    # only has to attach behaviour to the buttons.
+    flat_exercises = []
+    for chapter in (topic.get("chapters") or []):
+        for exercise in (chapter.get("exercises") or []):
+            flat_exercises.append((exercise, chapter))
+    for exercise in (topic.get("exercises") or []):
+        flat_exercises.append((exercise, None))
+
+    KIND_LABEL = {"lesson": "Lesson", "quiz": "Quiz", "lab": "Lab", "exam": "Exam", "scenario": "Scenario"}
+
+    def exercise_card(exercise, index, chapter_title=None):
+        status = exercise.get("status") or "published"
+        kind = exercise.get("kind") or "exam"
         badge_class = {"published": "cm-badge--ok", "draft": "cm-badge--warn"}.get(status, "cm-badge--bad")
         symbol = {"published": "\u2713", "draft": "\u25CB"}.get(status, "\u2014")
-        label = {"published": "Published", "draft": "Draft"}.get(status, "Not published yet")
-        batch_rows.append(
-            f'<li><strong>Batch {int(batch.get("batch", 0))}:</strong> {esc(batch.get("title", ""))} '
-            f'<span class="cm-badge {badge_class}">{symbol} {esc(label)}</span><br>'
-            f'<span class="cm-small cm-muted">{esc(batch.get("focus", ""))}</span><br>'
-            f'<code>{esc(batch.get("path", ""))}</code></li>'
-        )
+        label = {"published": "Ready", "draft": "Draft"}.get(status, "Not published yet")
+        summary = exercise.get("summary") or ""
+        minutes = exercise.get("minutes")
+        if status == "missing":
+            action = ('<span class="cm-exercise__soon">Coming soon</span>')
+        else:
+            action = (f'<button type="button" class="cm-btn cm-btn--primary cm-btn--sm" '
+                      f'data-cm-exercise="{index}" data-cm-path="{esc(exercise.get("path", ""))}">'
+                      f'Start exercise</button>')
+        return f"""<article class="cm-exercise" data-cm-status="{esc(status)}">
+  <div class="cm-exercise__body">
+    <div class="cm-row cm-mb1">
+      <span class="cm-badge">{esc(KIND_LABEL.get(kind, "Exercise"))}</span>
+      <span class="cm-badge {badge_class}">{symbol} {esc(label)}</span>
+      {f'<span class="cm-badge cm-badge--theme">{esc(chapter_title)}</span>' if chapter_title else ''}
+      {f'<span class="cm-badge">{minutes} min</span>' if minutes else ''}
+    </div>
+    <h3 class="cm-exercise__title">{esc(exercise.get("title", "Exercise"))}</h3>
+    {f'<p class="cm-exercise__summary">{esc(summary)}</p>' if summary else ''}
+    <p class="cm-exercise__best" data-cm-best="{esc(exercise.get("path", ""))}" hidden></p>
+  </div>
+  <div class="cm-exercise__action">{action}</div>
+</article>"""
 
-    batches_noscript = (
+    exercises_html = ""
+    exercise_no = 0
+    if flat_exercises:
+        if topic.get("type") == "certification" and (topic.get("chapters") or []):
+            chapter_blocks = []
+            for chapter in (topic.get("chapters") or []):
+                items = chapter.get("exercises") or []
+                cards = ""
+                for exercise in items:
+                    exercise_no += 1
+                    cards += exercise_card(exercise, exercise_no)
+                weight = f'<span class="cm-badge cm-badge--theme">{esc(chapter.get("weight"))}</span>' if chapter.get("weight") else ""
+                objectives = "".join(f"<li>{esc(o)}</li>" for o in (chapter.get("objectives") or []))
+                if cards:
+                    body = f'<div class="cm-exercises">{cards}</div>'
+                else:
+                    body = ('<p class="cm-small cm-dim">No exercises published for this chapter yet.</p>')
+                chapter_blocks.append(f"""<details class="cm-chapter"{" open" if chapter.get("number") == 1 else ""}>
+  <summary>
+    <span class="cm-chapter__num">Chapter {int(chapter.get("number", 0))}</span>
+    <span class="cm-chapter__name">{esc(chapter.get("title", ""))}</span>
+    {weight}
+    <span class="cm-chapter__count">{len(items)} exercise{"s" if len(items) != 1 else ""}</span>
+  </summary>
+  <div class="cm-chapter__body">
+    <h4>What this chapter covers</h4>
+    <ul>{objectives}</ul>
+    {body}
+  </div>
+</details>""")
+            exercises_html = (
+                '<section class="cm-section" aria-labelledby="cm-chapters-heading">'
+                '<h2 id="cm-chapters-heading">Chapters and exercises</h2>'
+                '<p class="cm-muted">This certification is organised by chapter, following the official '
+                'exam domains. Open a chapter to see its exercises.</p>'
+                + "".join(chapter_blocks) + "</section>"
+            )
+            # Flat exercises that belong to no chapter still get shown.
+            flat_only = topic.get("exercises") or []
+            if flat_only:
+                cards = ""
+                for exercise in flat_only:
+                    exercise_no += 1
+                    cards += exercise_card(exercise, exercise_no)
+                exercises_html += (
+                    '<section class="cm-section" aria-labelledby="cm-extra-heading">'
+                    '<h2 id="cm-extra-heading">Additional exercises</h2>'
+                    f'<div class="cm-exercises">{cards}</div></section>'
+                )
+        else:
+            cards = ""
+            for exercise, _chapter in flat_exercises:
+                exercise_no += 1
+                cards += exercise_card(exercise, exercise_no)
+            exercises_html = (
+                '<section class="cm-section" aria-labelledby="cm-exercises-heading">'
+                '<h2 id="cm-exercises-heading">Exercises</h2>'
+                f'<div class="cm-exercises">{cards}</div></section>'
+            )
+
+    # The no-JavaScript story: list every exercise with its path, honestly.
+    noscript_rows = "".join(
+        f'<li>{esc(e.get("title", ""))} '
+        f'<span class="cm-badge { {"published":"cm-badge--ok","draft":"cm-badge--warn"}.get(e.get("status") or "published","cm-badge--bad") }">'
+        f'{esc(e.get("status") or "published")}</span> '
+        f'<code>{esc(e.get("path", ""))}</code></li>'
+        for e, _c in flat_exercises
+    ) or '<li>No exercises have been published for this topic yet.</li>'
+    exercises_noscript = (
         '<noscript><div class="cm-banner cm-banner--info">' + icon("info") +
-        '<div><span class="cm-banner__title">Three batches are reserved for this topic</span><ul>'
-        + "".join(batch_rows) + "</ul></div></div></noscript>"
+        '<div><span class="cm-banner__title">Exercises on this page</span>'
+        '<p class="cm-small">Starting an exercise needs JavaScript. The exercise files themselves are '
+        'plain HTML and can be opened directly:</p><ul>' + noscript_rows + '</ul></div></div></noscript>'
     )
 
     # ---- tags
@@ -488,14 +650,15 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
     }
 
     accuracy_link = (
-        f"{repo_url}/issues/new?template=content-accuracy.md"
-        f"&title=Content%20accuracy%3A%20{esc(topic.get('title', ''))}&labels=content"
+        f"{repo_url}/issues/new"
+        f"?title=Content%20problem%3A%20{esc(topic.get('title', ''))}"
+        f"&labels=content"
+        f"&body=Page%3A%20{esc('topics/' + tid + '.html')}"
     )
-    batch1_path = (topic.get("batches") or [{}])[0].get("path", f"exercises/{tid}/batch-1.html")
 
     share_fallback = (
-        f"I scored 92% on the {topic.get('title', '')} exam, 20 questions, "
-        f"{DIFFICULTY_LABEL.get(difficulty, 'Extreme').lower()} difficulty."
+        f"I am studying {topic.get('title', '')} on CyberPulseAcademy, "
+        f"{DIFFICULTY_LABEL.get(difficulty, 'Extreme').lower()} level."
     )
 
     return f"""{head_block(topic, canonical, og_image, site_version)}
@@ -519,27 +682,24 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
     <div class="cm-pagehead">
       <h1>{esc(title_with_id)}</h1>
       <div class="cm-row cm-mb2">{''.join(badges)}</div>
-      <p class="cm-lede">{esc(topic.get("summary", ""))}</p>
     </div>
 
-    {attribution_banner(topic, repo_url)}
+    {beginner_html}
+
+    <section class="cm-section" aria-labelledby="cm-overview-heading">
+      <h2 id="cm-overview-heading">In more detail</h2>
+      <p>{esc(topic.get("summary", ""))}</p>
+      {attribution_banner(topic, repo_url)}
+    </section>
 
     {objectives_html}
 
-    <section class="cm-section" aria-labelledby="cm-batches-heading">
-      <h2 id="cm-batches-heading">Choose an exercise batch</h2>
-      <p class="cm-muted">Three independent batches per topic. Each one covers the same subject from a
-      different angle, so doing all three is a much better test than repeating one.</p>
-      <div class="cm-row cm-mb2">
-        <button type="button" class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-random-batch">Random batch</button>
-        <span class="cm-small cm-dim">Practice only. Nothing here is a live target.</span>
-      </div>
-      <div class="cm-batches" id="cm-batches" aria-busy="true"></div>
-      {batches_noscript}
-      <div class="cm-hub" id="cm-hub"></div>
-      <div class="cm-celebrate" id="cm-celebrate" hidden></div>
-      <div id="cm-attempts" class="cm-mt3"></div>
-    </section>
+    {exercises_html}
+
+    <div class="cm-hub" id="cm-hub"></div>
+    {exercises_noscript}
+    <div class="cm-celebrate" id="cm-celebrate" hidden></div>
+    <div id="cm-attempts" class="cm-mt3"></div>
 
     <section class="cm-section" id="cm-share-section" aria-labelledby="cm-share-heading">
       <h2 id="cm-share-heading">Share this topic</h2>
@@ -559,14 +719,12 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
 
     <section class="cm-section" aria-labelledby="cm-report">
       <h2 id="cm-report">Something wrong with this page?</h2>
-      <p class="cm-muted">Found an inaccuracy, a broken link, or an exercise batch that will not load?
-      Open an issue. Accuracy reports need a source citation, and that requirement is enforced by the
-      issue template.</p>
+      <p class="cm-muted">Found a mistake, a broken link, or an exercise that will not open? Use the
+      button below and describe it. Please include a link that supports your correction.</p>
       <div class="cm-row">
         <a class="cm-btn cm-btn--ghost" href="{accuracy_link}" target="_blank" rel="noopener noreferrer">
-          {icon("bug")} Report an issue with this content
+          {icon("bug")} Report a problem with this content
         </a>
-        <a class="cm-btn cm-btn--ghost" href="../CONTRIBUTING.md">Contribute a batch</a>
       </div>
     </section>
 

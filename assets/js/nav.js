@@ -210,11 +210,13 @@
     host.innerHTML =
       '<div class="cm-wrap cm-header__bar">' +
         '<a class="cm-brand" href="' + relHref('index.html') + '">' +
-          '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.png') + '" alt="" width="34" height="34" decoding="async">' +
-          '<span class="cm-brand__text">' +
-            '<span class="cm-brand__name">' + CM.util.esc(t('site.name')) + '</span>' +
-            '<span class="cm-brand__tag">' + CM.util.esc(t('site.brandTag')) + '</span>' +
-          '</span>' +
+          /* The owner supplies the brand as a single logo image, so the navbar
+             shows the logo only, with no wordmark next to it. The alt text
+             carries the site name, which is what gives the link its accessible
+             name for a screen reader and its tooltip on hover. */
+          '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.png') + '" ' +
+            'alt="' + CM.util.esc(t('site.name')) + ', home" ' +
+            'width="150" height="92" decoding="async">' +
         '</a>' +
         '<nav class="cm-nav" aria-label="' + CM.util.esc(t('nav.primary')) + '">' +
           '<ul class="cm-nav__list">' + items + '</ul>' +
@@ -226,6 +228,13 @@
           '<input id="cm-hsearch-input" type="search" name="q" placeholder="' + CM.util.esc(t('search.placeholder')) + '" ' +
             'autocomplete="off" title="' + CM.util.esc(t('search.shortcut')) + '">' +
         '</form>' +
+        /* The donation button is in the header on every page, which is what the
+           owner asked for. It goes straight to PayPal with the minimum amount
+           pre-filled, in a new tab, with rel="noopener noreferrer". */
+        '<a class="cm-donate-btn cm-donate-btn--nav" id="cm-nav-donate" ' +
+          'href="' + CM.util.esc(CM.util.donateUrl()) + '" target="_blank" rel="noopener noreferrer" ' +
+          'aria-label="' + CM.util.esc(t('nav.donateLabel')) + '">' +
+          svg('heart') + '<span>' + CM.util.esc(t('nav.donate')) + '</span></a>' +
         '<button type="button" class="cm-chip-id" id="cm-identity-chip"></button>' +
         '<button type="button" class="cm-iconbtn" id="cm-theme-toggle" aria-pressed="false"></button>' +
         '<button type="button" class="cm-burger" id="cm-burger" aria-expanded="false" aria-controls="cm-drawer" ' +
@@ -292,7 +301,12 @@
     }
     drawerHtml += '</ul><h2>' + CM.util.esc(t('nav.search')) + '</h2><ul>' +
       '<li><a href="' + relHref('pages/search.html') + '">' + CM.util.esc(t('search.label')) + '</a></li>' +
-      '</ul>';
+      '</ul>' +
+      /* Donation is reachable from the mobile menu too, so the header button
+         never becomes desktop-only. */
+      '<a class="cm-btn cm-btn--primary cm-btn--block cm-mt2" ' +
+        'href="' + CM.util.esc(CM.util.donateUrl()) + '" target="_blank" rel="noopener noreferrer">' +
+        svg('heart') + CM.util.esc(t('nav.donate')) + '</a>';
     drawer.innerHTML = drawerHtml;
 
     function setDrawer(open) {
@@ -334,12 +348,40 @@
     var repoUrl = String(CM.config.repoUrl || '');
 
     host.innerHTML =
+      /* The donation card sits at the top of the footer on EVERY page, so support
+         is always one click away without ever interrupting a study session. It is
+         an inline block, never a modal and never a gate. */
+      '<div class="cm-wrap"><div class="cm-footer__donate">' +
+        '<div class="cm-footer__donate-text">' +
+          '<h2>' + CM.util.esc(t('donate.title')) + '</h2>' +
+          '<p>' + CM.util.esc(t('donate.body')) + '</p>' +
+          '<p class="cm-tiny cm-dim cm-mb0">' +
+            CM.util.esc(t('donate.min', { amount: CM.config.donationMinAmount || 5, currency: CM.config.donationCurrency })) +
+            ' ' + CM.util.esc(t('support.disclaimer')) +
+          '</p>' +
+        '</div>' +
+        '<div class="cm-footer__donate-actions">' +
+          '<a class="cm-btn cm-btn--primary" href="' + CM.util.esc(CM.util.donateUrl()) + '" ' +
+            'target="_blank" rel="noopener noreferrer">' +
+            svg('heart') + CM.util.esc(t('donate.cta')) + '</a>' +
+          '<span class="cm-donate-presets">' +
+            (CM.config.donationPresets || [5, 10, 25]).map(function (amount) {
+              return '<a class="cm-donate-preset" href="' + CM.util.esc(CM.util.donateUrl(amount)) + '" ' +
+                'target="_blank" rel="noopener noreferrer" ' +
+                'aria-label="' + CM.util.esc(t('donate.preset', { amount: amount, currency: CM.config.donationCurrency })) + '">' +
+                amount + ' ' + CM.util.esc(CM.config.donationCurrency) + '</a>';
+            }).join('') +
+          '</span>' +
+          '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + relHref('pages/support.html') + '">' +
+            CM.util.esc(t('nav.support')) + '</a>' +
+        '</div>' +
+      '</div></div>' +
       '<div class="cm-wrap cm-footer__inner">' +
         '<div class="cm-footer__brand">' +
           '<a class="cm-brand" href="' + relHref('index.html') + '">' +
-            '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.png') + '" alt="" width="34" height="34" decoding="async" loading="lazy">' +
-            '<span class="cm-brand__text"><span class="cm-brand__name">' + CM.util.esc(t('site.name')) + '</span>' +
-            '<span class="cm-brand__tag">' + CM.util.esc(t('site.brandTag')) + '</span></span>' +
+            '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.png') + '" ' +
+              'alt="' + CM.util.esc(t('site.name')) + ', home" width="150" height="92" ' +
+              'decoding="async" loading="lazy">' +
           '</a>' +
           '<p class="cm-small cm-muted">' + CM.util.esc(t('site.tagline')) + '</p>' +
           '<p class="cm-small cm-dim">' + CM.util.esc(t('footer.license')) + '</p>' +
@@ -364,8 +406,8 @@
           '<a href="' + CM.util.esc(repoUrl) + '" target="_blank" rel="noopener noreferrer">' + svg('external') + ' ' +
             CM.util.esc(t('footer.github')) + '</a>' +
           ' <span class="cm-dim" aria-hidden="true">|</span> ' +
-          '<a class="cm-donate" href="' + relHref('pages/support.html') + '">' + svg('heart') + ' ' +
-            CM.util.esc(t('footer.donate')) + '</a>' +
+          '<a class="cm-donate" href="' + CM.util.esc(CM.util.donateUrl()) + '" target="_blank" rel="noopener noreferrer">' +
+            svg('heart') + ' ' + CM.util.esc(t('footer.donate')) + '</a>' +
         '</p>' +
       '</div>';
 
