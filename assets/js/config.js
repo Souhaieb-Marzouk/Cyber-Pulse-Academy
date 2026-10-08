@@ -59,7 +59,7 @@
     catalogVersion: '1.0.0',
 
     /* --- owner values: edit these three -------------------------------- */
-    repoUrl: 'https://github.com/<user>/<repo>',
+    repoUrl: 'https://github.com/Souhaieb-Marzouk/Cyber-Pulse-Academy',
     statsEndpoint: '',
     donationButtonId: 'XXXXXXXXXXXXX',
 
