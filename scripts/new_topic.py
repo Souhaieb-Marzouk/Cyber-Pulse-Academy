@@ -58,22 +58,22 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 # the shipped seed content so every topic reads identically.
 ATTRIBUTION = {
     "certification": (
-        "Objectives summary paraphrased from publicly available exam objectives. CyberMastery is not "
+        "Objectives summary paraphrased from publicly available exam objectives. CyberPulseAcademy is not "
         "affiliated with, endorsed by, or sponsored by {vendor}."
     ),
     "tactic": (
         "Tactic content is derived from the publicly available MITRE ATT&CK knowledge base. ATT&CK is "
-        "a registered trademark of The MITRE Corporation. CyberMastery is not affiliated with, "
+        "a registered trademark of The MITRE Corporation. CyberPulseAcademy is not affiliated with, "
         "endorsed by, or sponsored by MITRE, and this content is not official MITRE material."
     ),
     "technique": (
         "Technique content is derived from the publicly available MITRE ATT&CK knowledge base. ATT&CK "
-        "is a registered trademark of The MITRE Corporation. CyberMastery is not affiliated with, "
+        "is a registered trademark of The MITRE Corporation. CyberPulseAcademy is not affiliated with, "
         "endorsed by, or sponsored by MITRE, and this content is not official MITRE material."
     ),
     "mitigation": (
         "Mitigation content is derived from the publicly available MITRE ATT&CK knowledge base. "
-        "ATT&CK is a registered trademark of The MITRE Corporation. CyberMastery is not affiliated "
+        "ATT&CK is a registered trademark of The MITRE Corporation. CyberPulseAcademy is not affiliated "
         "with, endorsed by, or sponsored by MITRE, and this content is not official MITRE material."
     ),
     "detection": (
@@ -83,7 +83,7 @@ ATTRIBUTION = {
     "group": (
         "Group summaries are derived from publicly available threat intelligence reporting and the "
         "MITRE ATT&CK knowledge base. ATT&CK is a registered trademark of The MITRE Corporation. "
-        "Attribution statements reflect third-party reporting, not the position of CyberMastery."
+        "Attribution statements reflect third-party reporting, not the position of CyberPulseAcademy."
     ),
 }
 
@@ -251,9 +251,9 @@ iframe, and listens for the score message.
 
 * Be one file. No external CDN, no build step, no separate assets.
 * Stay under 250 KB or CI fails.
-* Emit `{{ type: "CYBERMASTERY_SCORE", topicId: "{topic_id}", batch: N, score, total, percent, passed }}`
+* Emit `{{ type: "CYBERPULSEACADEMY_SCORE", topicId: "{topic_id}", batch: N, score, total, percent, passed }}`
   to `parent` when the results screen appears, so the score reaches the stats page.
-* Listen for `CYBERMASTERY_INIT` and ignore it if it does not need it.
+* Listen for `CYBERPULSEACADEMY_INIT` and ignore it if it does not need it.
 * Defang every indicator: `hxxp://evil[.]example`, `10[.]0[.]0[.]1`.
 * Contain no working exploit code, no real credentials and no live malware.
 
@@ -277,7 +277,7 @@ def run(script: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Scaffold a new CyberMastery topic and rebuild the site data.",
+        description="Scaffold a new CyberPulseAcademy topic and rebuild the site data.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

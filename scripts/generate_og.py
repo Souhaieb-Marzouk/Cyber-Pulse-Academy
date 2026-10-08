@@ -224,7 +224,7 @@ def write_png(topic: dict, png_path: Path, width: int, height: int) -> bool:
                 continue
         return ImageFont.load_default()
 
-    draw.text((90 * scale, 74 * scale), "CyberMastery", font=font(34 * scale, True), fill="#e8f1fb")
+    draw.text((90 * scale, 74 * scale), "CyberPulseAcademy", font=font(34 * scale, True), fill="#e8f1fb")
     if topic.get("externalId"):
         draw.text((width - 90 * scale, 78 * scale), topic["externalId"],
                   font=font(40 * scale, True), fill=accent, anchor="ra")
@@ -273,7 +273,7 @@ def write_icons() -> tuple[int, bool]:
     written = 0
 
     def shield(draw, cx, cy, size, fill, edge, tick, tick_width) -> None:
-        """Draw the CyberMastery shield centred on (cx, cy).
+        """Draw the CyberPulseAcademy shield centred on (cx, cy).
 
         Pillow cannot rasterise SVG, so this redraws the same geometry in
         Pillow primitives. The SVG files remain the source of truth.
@@ -357,7 +357,7 @@ def write_icons() -> tuple[int, bool]:
     draw.rectangle([0, 0, width, 7], fill="#22d3ee")
     draw.ellipse([60, 40, 260, 200], fill="#0b1420")
     shield(draw, cx=110, cy=104, size=64, fill="#0e2a38", edge="#22d3ee", tick="#22d3ee", tick_width=8)
-    draw.text((146, 88), "CyberMastery", font=load_font(36, True), fill="#e8f1fb")
+    draw.text((146, 88), "CyberPulseAcademy", font=load_font(36, True), fill="#e8f1fb")
     draw.text((90, 250), "Master cyber security theory", font=load_font(64, True), fill="#e8f1fb")
     draw.text((90, 330), "through hard practice.", font=load_font(64, True), fill="#22d3ee")
     draw.line([(90, 424), (width - 90, 424)], fill="#1e3350", width=2)

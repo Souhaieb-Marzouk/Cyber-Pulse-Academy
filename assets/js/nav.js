@@ -210,7 +210,7 @@
     host.innerHTML =
       '<div class="cm-wrap cm-header__bar">' +
         '<a class="cm-brand" href="' + relHref('index.html') + '">' +
-          '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.svg') + '" alt="" width="34" height="34" decoding="async">' +
+          '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.png') + '" alt="" width="34" height="34" decoding="async">' +
           '<span class="cm-brand__text">' +
             '<span class="cm-brand__name">' + CM.util.esc(t('site.name')) + '</span>' +
             '<span class="cm-brand__tag">' + CM.util.esc(t('site.brandTag')) + '</span>' +
@@ -337,7 +337,7 @@
       '<div class="cm-wrap cm-footer__inner">' +
         '<div class="cm-footer__brand">' +
           '<a class="cm-brand" href="' + relHref('index.html') + '">' +
-            '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.svg') + '" alt="" width="34" height="34" decoding="async" loading="lazy">' +
+            '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo.png') + '" alt="" width="34" height="34" decoding="async" loading="lazy">' +
             '<span class="cm-brand__text"><span class="cm-brand__name">' + CM.util.esc(t('site.name')) + '</span>' +
             '<span class="cm-brand__tag">' + CM.util.esc(t('site.brandTag')) + '</span></span>' +
           '</a>' +

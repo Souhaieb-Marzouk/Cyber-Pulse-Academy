@@ -36,13 +36,13 @@ TOPICS_DIR = ROOT / "topics"
 PAGES_DIR = ROOT / "pages"
 CONFIG_JS = ROOT / "assets" / "js" / "config.js"
 
-MITRE_BANNER = (    "ATT&CK\u00ae is a registered trademark of The MITRE Corporation. CyberMastery content is "
+MITRE_BANNER = (    "ATT&CK\u00ae is a registered trademark of The MITRE Corporation. CyberPulseAcademy content is "
     "derived from publicly available ATT&CK data and is not official MITRE material. See "
     "MITRE's Terms of Use."
 )
 
 CERT_BANNER = (
-    "Unofficial Study Resource. CyberMastery is not affiliated with, endorsed by, or sponsored by "
+    "Unofficial Study Resource. CyberPulseAcademy is not affiliated with, endorsed by, or sponsored by "
     "CompTIA, ISC2, ISACA, OffSec, EC-Council, GIAC, Microsoft, AWS, Google, Cisco, or any other "
     "vendor. Objectives summaries are paraphrased from publicly available exam objectives."
 )
@@ -102,7 +102,7 @@ def base_url_from(config_repo: str) -> str:
     gh = re.match(r"https://github\.com/([^/]+)/([^/]+)$", config_repo)
     if gh and not gh.group(1).startswith("<"):
         return f"https://{gh.group(1)}.github.io/{gh.group(2)}"
-    return "https://example.github.io/cybermastery"
+    return "https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/"
 
 
 # --------------------------------------------------------------------------- #
@@ -131,7 +131,7 @@ def build_faqs(topic: dict) -> list[dict]:
 
     if is_cert:
         official = (
-            f"No. CyberMastery is an independent, community-run study resource. It is not affiliated "
+            f"No. CyberPulseAcademy is an independent, community-run study resource. It is not affiliated "
             f"with, endorsed by, or sponsored by {topic.get('theme', 'the vendor')} or any other "
             f"vendor, and no vendor logo appears anywhere on this site. Objective summaries are "
             f"paraphrased from publicly available exam objectives."
@@ -145,7 +145,7 @@ def build_faqs(topic: dict) -> list[dict]:
         )
     else:
         official = (
-            "No. CyberMastery is independent and community-run. It is a free study resource and is "
+            "No. CyberPulseAcademy is independent and community-run. It is a free study resource and is "
             "not affiliated with any vendor, certification body or training provider."
         )
 
@@ -155,7 +155,7 @@ def build_faqs(topic: dict) -> list[dict]:
             "a": first_sentences(topic.get("summary"), 2),
         },
         {
-            "q": f"How hard are the {title} practice exercises on CyberMastery?",
+            "q": f"How hard are the {title} practice exercises on CyberPulseAcademy?",
             "a": (
                 f"The exercises are graded {difficulty}. Each topic has three independent batches: one "
                 f"focused on detection and triage, one on hands-on response and configuration, and one "
@@ -172,9 +172,9 @@ def build_faqs(topic: dict) -> list[dict]:
                 "are published today."
             ),
         },
-        {"q": f"Is CyberMastery official {'study material' if is_cert else 'training'}?", "a": official},
+        {"q": f"Is CyberPulseAcademy official {'study material' if is_cert else 'training'}?", "a": official},
         {
-            "q": "Does CyberMastery track me?",
+            "q": "Does CyberPulseAcademy track me?",
             "a": (
                 "No tracking cookies, no third-party scripts and no fingerprinting. The name and "
                 "country you enter are stored only in your own browser, and the statistics page states "
@@ -242,7 +242,7 @@ def relationships(topic: dict, index: dict) -> list[tuple[str, list[str]]]:
 
 def head_block(topic: dict, canonical: str, og_image: str, site_version: str) -> str:
     title = f"{topic.get('externalId', '')} {topic.get('title', '')}".strip()
-    meta_title = f"{title} \u2014 Practice Exam | CyberMastery"
+    meta_title = f"{title} \u2014 Practice Exam | CyberPulseAcademy"
     description = re.sub(r"\s+", " ", str(topic.get("summary", ""))).strip()
     if len(description) > 300:
         description = description[:297].rsplit(" ", 1)[0] + "..."
@@ -258,19 +258,19 @@ def head_block(topic: dict, canonical: str, og_image: str, site_version: str) ->
 <meta name="theme-color" content="#070d16">
 <meta name="color-scheme" content="dark light">
 
-<meta property="og:site_name" content="CyberMastery">
+<meta property="og:site_name" content="CyberPulseAcademy">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{esc(title)} practice exam">
 <meta property="og:description" content="{esc(description[:200])}">
 <meta property="og:url" content="{esc(canonical)}">
 <meta property="og:image" content="{esc(og_image)}">
-<meta property="og:image:alt" content="{esc(title)} study page on CyberMastery">
+<meta property="og:image:alt" content="{esc(title)} study page on CyberPulseAcademy">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{esc(title)} practice exam">
 <meta name="twitter:description" content="{esc(description[:200])}">
 <meta name="twitter:image" content="{esc(og_image)}">
 
-<link rel="icon" href="../assets/img/logo.svg" type="image/svg+xml">
+<link rel="icon" href="../assets/img/logo.png" type="image/png">
 <link rel="apple-touch-icon" href="../assets/img/logo.svg">
 <link rel="manifest" href="../manifest.json">
 <link rel="stylesheet" href="../assets/css/main.css?v={esc(site_version)}">
@@ -427,7 +427,7 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
         sources_html = (
             '<section class="cm-section" aria-labelledby="cm-sources"><h2 id="cm-sources">Sources</h2>'
             f'<ul class="cm-sources">{items}</ul>'
-            '<p class="cm-small cm-dim">External links open in a new tab. CyberMastery is not '
+            '<p class="cm-small cm-dim">External links open in a new tab. CyberPulseAcademy is not '
             'responsible for the content of third-party sites.</p></section>'
         )
 
@@ -469,8 +469,8 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
                 "isAccessibleForFree": True,
                 "assesses": objectives[:6] or [f"{topic.get('title', '')} concepts and their real-world application"],
                 "about": [{"@type": "Thing", "name": t} for t in tags[:8]],
-                "provider": {"@type": "Organization", "name": "CyberMastery", "url": base_url},
-                "isPartOf": {"@type": "WebSite", "name": "CyberMastery", "url": base_url},
+                "provider": {"@type": "Organization", "name": "CyberPulseAcademy", "url": base_url},
+                "isPartOf": {"@type": "WebSite", "name": "CyberPulseAcademy", "url": base_url},
             },
             {
                 "@type": "FAQPage",
@@ -572,7 +572,7 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
 
     <aside class="cm-donate-card cm-mt3" aria-labelledby="cm-donate-mini">
       <h2 id="cm-donate-mini" class="cm-h3">Support more free content</h2>
-      <p class="cm-small cm-muted">CyberMastery is free, has no adverts and runs no third-party
+      <p class="cm-small cm-muted">CyberPulseAcademy is free, has no adverts and runs no third-party
       tracking. Voluntary support funds new exercise batches. It is never required and never gates
       content.</p>
       <a class="cm-btn cm-btn--primary cm-btn--sm" href="../pages/support.html">Support this project</a>
