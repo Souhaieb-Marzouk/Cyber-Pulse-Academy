@@ -147,8 +147,21 @@
       extra = '<p class="cm-tiny cm-dim cm-mt1">' + esc('Also tracked as: ' + topic.aliases.slice(0, 3).join(', ')) + '</p>';
     }
 
+    /* A topic is "ready" when at least one of its exercises has a real file.
+       The card then draws a green border, so a visitor scanning a listing can
+       see at a glance which topics they can actually start on. The border is a
+       second signal only: the exercise badge in the card footer already states
+       the readiness in words, so nothing here depends on colour alone. */
+    var readyCount = 0;
+    try {
+      readyCount = CM.util.exerciseStats(topic).published;
+    } catch (error) {
+      readyCount = 0;
+    }
+    var readyClass = readyCount > 0 ? ' cm-card--ready' : '';
+
     var html =
-      '<article class="cm-card cm-card--hover cm-card--link" data-id="' + esc(topic.id) + '">' +
+      '<article class="cm-card cm-card--hover cm-card--link' + readyClass + '" data-id="' + esc(topic.id) + '">' +
         '<div class="cm-card__head">' +
           '<h3 class="cm-card__title"><a href="' + topicHref(topic.id) + '">' + esc(topic.title) + '</a></h3>' +
         '</div>' +

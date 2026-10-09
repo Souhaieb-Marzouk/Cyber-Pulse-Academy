@@ -88,7 +88,7 @@ ALLOWED_HOSTS = {
     "www.isc2.org", "www.comptia.org", "www.isaca.org", "www.offsec.com",
     "www.eccouncil.org", "www.giac.org", "www.sans.org", "www.cisco.com",
     "www.linuxfoundation.org", "learn.microsoft.com", "docs.aws.amazon.com",
-    "cloud.google.com",
+    "cloud.google.com", "docs.splunk.com",
     # project and payments
     "github.com", "www.paypal.com", "www.sandbox.paypal.com", "developer.paypal.com",
     # deliberately listed sharing endpoints used by share.js.
