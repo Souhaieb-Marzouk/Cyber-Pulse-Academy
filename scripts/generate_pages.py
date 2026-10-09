@@ -353,14 +353,20 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
     kind = topic.get("type", "keyword")
     catalog_path, catalog_label = CATALOG_PAGE[kind]
     canonical = f"{base_url}/topics/{tid}.html"
-    # Prefer the PNG preview when it exists. Facebook, LinkedIn and X render
-    # PNG but ignore SVG, and an unfurl with no image looks like a bare link.
-    # Fall back to the SVG, which is what ships before generate_og.py --png is
-    # run, so the tag is never dangling.
-    if (ROOT / "assets" / "img" / "og" / f"{tid}.png").exists():
-        og_image = f"{base_url}/assets/img/og/{tid}.png"
-    else:
-        og_image = f"{base_url}/assets/img/og/{tid}.svg"
+    # The preview is always the PNG. Facebook, LinkedIn and X render PNG but
+    # ignore SVG, so the PNG is the correct tag, and generate_og.py --png is a
+    # build step that produces it.
+    #
+    # This used to prefer the PNG only when it already existed and fall back to
+    # the SVG otherwise. That read sensibly but made the output depend on build
+    # ORDER: a page generated before its PNG was written recorded the SVG and
+    # never changed again, so a later regeneration rewrote it and CI reported
+    # drift. Naming one format unconditionally makes the same input always
+    # produce the same page.
+    #
+    # If the PNG is ever missing, validate.py reports it: a warning when the SVG
+    # is there as a fallback, a failure when neither exists.
+    og_image = f"{base_url}/assets/img/og/{tid}.png"
 
     title_with_id = f"{topic.get('externalId', '')} {topic.get('title', '')}".strip()
 
