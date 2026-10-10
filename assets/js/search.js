@@ -154,10 +154,17 @@
           : catalog.topics.filter(function (tp) { return tp.type === state.type; });
 
         var scored = [];
-        /* An empty query is a browse, not a search: show the pool in a stable
-           order rather than nothing. */
+        /* An empty query is a browse, not a search: list everything the current
+           filter allows, in a stable order.
+           This used to take only the first 40 entries and report that as the
+           total, so choosing a catalog with more than 40 topics still showed 40
+           and said "40 results". The count only became correct once a query was
+           typed, because the branch below always scored the whole pool. */
         if (!parsed.terms.length && !parsed.phrases.length && !state.q.trim()) {
-          scored = pool.slice(0, 40).map(function (tp) { return { topic: tp, score: 0 }; });
+          scored = pool.map(function (tp) { return { topic: tp, score: 0 }; });
+          scored.sort(function (a, b) {
+            return String(a.topic.title).localeCompare(String(b.topic.title));
+          });
         } else {
           for (var i = 0; i < pool.length; i++) {
             var s = scoreTopic(pool[i], parsed);
