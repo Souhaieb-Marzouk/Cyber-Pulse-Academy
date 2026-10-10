@@ -333,6 +333,50 @@ def topic_exercise_stats(topic):
 # Building
 # --------------------------------------------------------------------------- #
 
+EXERCISE_META_RE = re.compile(
+    r'id=["\']cm-exercise-meta["\'][^>]*>(.*?)</script>', re.S | re.I)
+
+
+def batch_question_total(topics):
+    """How many individual exercises live inside the batches that are ready.
+
+    A "batch" is one exercise file — one exam. A file that follows the site's
+    contract declares its own `questionCount` in a `cm-exercise-meta` block, so
+    the real number of questions inside it is knowable without opening it in a
+    browser. Files that predate that contract simply do not contribute, and the
+    number that did contribute is returned alongside the total so the figure can
+    be reported honestly rather than as an estimate.
+    """
+    total = 0
+    counted = 0
+    declared = 0
+    for topic in topics:
+        for _label, exercise in exercise_entries(topic):
+            if (exercise.get("status") or "published") != "published":
+                continue
+            relative = str(exercise.get("path") or "")
+            path = ROOT / relative
+            if not relative or not path.is_file():
+                continue
+            declared += 1
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            match = EXERCISE_META_RE.search(text)
+            if not match:
+                continue
+            try:
+                meta = json.loads(match.group(1))
+            except json.JSONDecodeError:
+                continue
+            count = meta.get("questionCount")
+            if isinstance(count, int) and count > 0:
+                total += count
+                counted += 1
+    return total, counted, declared
+
+
 def content_hash(topics):
     """Deterministic sha256 over the sorted topic payloads."""
     digest = hashlib.sha256()
@@ -347,6 +391,9 @@ def build_catalog(topics, site_version):
         dirname = TYPE_TO_DIR.get(topic.get("type"))
         if dirname:
             totals[dirname] += 1
+
+    # How many individual exercises sit inside the batches that are ready.
+    batch_questions, batches_counted, batches_declared = batch_question_total(topics)
 
     # Exercise accounting across the whole catalogue.
     exercises_published = 0
@@ -428,6 +475,17 @@ def build_catalog(topics, site_version):
             topics=len(topics),
             topicsWithExercises=len(topics) - len(coverage["noExercises"]),
             topicsWithNoExercises=len(coverage["noExercises"]),
+            # Topics a learner can actually start on right now: at least one of
+            # their exercises has a real file. This is the honest "covered"
+            # figure, as opposed to topicsWithExercises, which counts topics that
+            # merely have slots reserved.
+            topicsReady=(len(topics) - len(coverage["noExercises"])
+                         - len(coverage["noPublished"])),
+            # How many individual exercises live inside those ready batches,
+            # summed from each file's own declared questionCount.
+            batchQuestions=batch_questions,
+            batchesCounted=batches_counted,
+            batchesDeclared=batches_declared,
             # Legacy aliases. The old key names are kept so that any page or script
             # written against the batch model keeps returning a sensible number
             # instead of undefined.

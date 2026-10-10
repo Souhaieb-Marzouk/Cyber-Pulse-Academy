@@ -126,10 +126,15 @@
           '<label class="cm-vh" for="cm-search-type">' + esc(t('filter.catalog')) + '</label>' +
           '<select class="cm-select" id="cm-search-type" style="width:auto;min-width:210px">' +
             '<option value="all">' + esc('All catalogs') + ' (' + catalog.topics.length + ')</option>' +
-            CM.render.CATALOG_META && Object.keys(CM.render.CATALOG_META).map(function (type) {
+            /* The conditional MUST be parenthesised. Without the parentheses,
+               "+" binds tighter than "&&", so the whole expression is read as
+               (everything built so far) && (this list), and because CATALOG_META
+               is a truthy object the entire form, input and results container
+               were thrown away and the search box never rendered. */
+            (CM.render.CATALOG_META ? Object.keys(CM.render.CATALOG_META).map(function (type) {
               return '<option value="' + esc(type) + '">' + esc(t(CM.render.CATALOG_META[type].labelKey)) +
                      ' (' + (typeCounts[type] || 0) + ')</option>';
-            }).join('') +
+            }).join('') : '') +
           '</select>' +
           '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-search-clear">' +
             esc(t('search.clear')) + '</button>' +
@@ -187,6 +192,10 @@
             var excerpt = String(topic.summary || '');
             if (excerpt.length > 200) { excerpt = excerpt.slice(0, 197).replace(/\s+\S*$/, '') + '...'; }
             var published = CM.util.publishedCount(topic);
+            var total = CM.util.totalCount(topic);
+            /* "Complete" is now "every slot this topic has is ready", not the
+               fixed three the old batch model assumed. */
+            var badge = total === 0 ? 'bad' : (published === total ? 'ok' : (published === 0 ? 'bad' : 'warn'));
             return '<li class="cm-card cm-card--hover">' +
               '<div class="cm-card__head"><h2 class="cm-card__title">' +
                 '<a href="' + CM.render.topicHref(topic.id) + '">' + highlight(topic.title, terms) + '</a>' +
@@ -195,8 +204,8 @@
                 (topic.externalId ? '<span class="cm-badge cm-badge--id">' + esc(topic.externalId) + '</span>' : '') +
                 '<span class="cm-badge cm-badge--theme">' + esc(topic.theme) + '</span>' +
                 '<span class="cm-badge">' + esc(topic.type) + '</span>' +
-                '<span class="cm-badge cm-badge--' + (published === 3 ? 'ok' : (published === 0 ? 'bad' : 'warn')) + '">' +
-                  esc(published + '/3 batches') + '</span>' +
+                '<span class="cm-badge cm-badge--' + badge + '">' +
+                  esc(published + ' of ' + total + ' batches ready') + '</span>' +
               '</div>' +
               '<p>' + highlight(excerpt, terms) + '</p>' +
             '</li>';
