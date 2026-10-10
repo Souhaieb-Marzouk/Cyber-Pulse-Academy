@@ -5,12 +5,12 @@ You have written an exercise as a standalone HTML file. This command records it
 on the right study page and rebuilds the site, so you never hand-edit a list.
 
     python scripts/new_exercise.py --topic firewall --title "Reading firewall logs" \
-        --path "exercises/keywords/firewall-logs.html"
+        --path "exercises/keywords/firewall/firewall-logs.html"
 
     # put it under chapter 3 of a certification instead of the topic itself
     python scripts/new_exercise.py --topic cysa-plus --chapter 3 \
         --title "Triage a suspicious login" \
-        --path "exercises/CySA+/triage-suspicious-login.html" \
+        --path "exercises/certifications/CySA+/triage-suspicious-login.html" \
         --kind scenario --minutes 25
 
 What it does:
@@ -79,7 +79,7 @@ def main() -> int:
     parser.add_argument("--topic", required=True, help="the topic id, for example firewall or cysa-plus")
     parser.add_argument("--title", required=True, help="what the learner sees on the button")
     parser.add_argument("--path", required=True,
-                        help="repository-relative path to the exercise file, for example exercises/CySA+/lesson-1.html")
+                        help="repository-relative path, for example exercises/certifications/CySA+/lesson-1.html")
     parser.add_argument("--chapter", type=int, default=None,
                         help="for a certification only: which chapter number to attach it to")
     parser.add_argument("--kind", default="exam", choices=KINDS, help="shown as a chip")

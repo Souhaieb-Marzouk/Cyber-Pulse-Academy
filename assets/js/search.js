@@ -196,7 +196,12 @@
             /* "Complete" is now "every slot this topic has is ready", not the
                fixed three the old batch model assumed. */
             var badge = total === 0 ? 'bad' : (published === total ? 'ok' : (published === 0 ? 'bad' : 'warn'));
-            return '<li class="cm-card cm-card--hover">' +
+            /* cm-card--link is REQUIRED. Without it the card is not a
+               positioning context, so the overlay created by
+               .cm-card__title a::after { position: absolute; inset: 0 } escapes
+               to the nearest positioned ancestor and stretches across the whole
+               page, which makes every click anywhere follow the first result. */
+            return '<li class="cm-card cm-card--link cm-card--hover">' +
               '<div class="cm-card__head"><h2 class="cm-card__title">' +
                 '<a href="' + CM.render.topicHref(topic.id) + '">' + highlight(topic.title, terms) + '</a>' +
               '</h2></div>' +

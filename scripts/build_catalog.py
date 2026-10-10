@@ -712,11 +712,18 @@ def read_site_version():
 
 
 def collect_exercise_paths():
-    """Only exercises that actually exist on disk go into the sitemap."""
+    """Every exercise file that actually exists on disk.
+
+    This used to glob only "batch-*.html", a leftover from the old three-batch
+    model where every exercise was named batch-1, batch-2 or batch-3. Once files
+    could be named anything, that silently dropped almost all of them from the
+    sitemap: of 178 published exercises only one was ever listed. Every .html
+    under exercises/ is an exercise file by definition, so every one is listed.
+    """
     found = set()
     exercises_dir = ROOT / "exercises"
     if exercises_dir.exists():
-        for path in exercises_dir.rglob("batch-*.html"):
+        for path in exercises_dir.rglob("*.html"):
             found.add(path.relative_to(ROOT).as_posix())
     return found
 
