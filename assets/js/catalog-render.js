@@ -473,11 +473,18 @@
       var state = { type: 'all', readiness: null, q: '' };
 
       mount.innerHTML =
-        '<div class="cm-grid cm-grid--4 cm-mb2">' +
+        '<div class="cm-grid cm-grid--3 cm-mb2">' +
           '<div class="cm-stat"><div class="cm-stat__num">' + totals.topics + '</div>' +
             '<div class="cm-stat__label">' + esc(t('coverage.totalTopics')) + '</div></div>' +
           '<div class="cm-stat"><div class="cm-stat__num">' + totals.ready + '</div>' +
             '<div class="cm-stat__label">' + esc(t('coverage.totalBatches')) + '</div></div>' +
+          /* How many individual exercises are inside those ready batches, summed
+             from what each exercise file declares about itself. */
+          '<div class="cm-stat"><div class="cm-stat__num">' + (catalog.totals.batchQuestions || 0) + '</div>' +
+            '<div class="cm-stat__label">' + esc(t('home.stats.batchQuestions')) + '</div>' +
+            '<div class="cm-tiny cm-dim">' +
+              esc('counted in ' + (catalog.totals.batchesCounted || 0) + ' of '
+                  + (catalog.totals.exercisesPublished || 0) + ' batches') + '</div></div>' +
           '<div class="cm-stat"><div class="cm-stat__num">' + totals.notReady + '</div>' +
             '<div class="cm-stat__label">' + esc(t('coverage.remaining')) + '</div></div>' +
           '<div class="cm-stat"><div class="cm-stat__num">' + totals.complete + '</div>' +
@@ -806,14 +813,31 @@
         var mode = snapshot ? snapshot.mode : 'local';
 
         if (!statsMount) { return; }
+        var questions = totals.batchQuestions || 0;
+        var counted = totals.batchesCounted || 0;
         statsMount.innerHTML =
-          '<div class="cm-grid cm-grid--4">' +
+          /* Six figures in a 3x2 grid. The first four come from the manifest and
+             are the same for every visitor; the last two come from the
+             statistics provider and are the learner's own numbers in local mode.
+             Keeping them visually together but sourced differently is honest:
+             the mode notice underneath says which is which. */
+          '<div class="cm-grid cm-grid--3">' +
             '<div class="cm-stat"><div class="cm-stat__num">' + totals.topics + '</div>' +
               '<div class="cm-stat__label">' + esc(t('home.stats.topics')) + '</div>' +
               '<div class="cm-tiny cm-dim">' + esc('study pages') + '</div></div>' +
+            '<div class="cm-stat"><div class="cm-stat__num">' + (totals.topicsReady || 0) + '</div>' +
+              '<div class="cm-stat__label">' + esc(t('home.stats.topicsCovered')) + '</div>' +
+              '<div class="cm-tiny cm-dim">' + esc('at least one exercise ready') + '</div></div>' +
             '<div class="cm-stat"><div class="cm-stat__num">' + ready + '</div>' +
               '<div class="cm-stat__label">' + esc(t('home.stats.exercisesReady')) + '</div>' +
               '<div class="cm-tiny cm-dim">' + esc('of ' + totalExercises + ' planned') + '</div></div>' +
+            '<div class="cm-stat"><div class="cm-stat__num">' + questions + '</div>' +
+              '<div class="cm-stat__label">' + esc(t('home.stats.batchQuestions')) + '</div>' +
+              /* The count is only knowable for batches that declare it, so the
+                 sub-line names the subset. Without it the page showed "113 ready
+                 batches" beside "178 batches ready" and read as a contradiction. */
+              '<div class="cm-tiny cm-dim">' +
+                esc('counted in ' + counted + ' of ' + ready + ' batches') + '</div></div>' +
             '<div class="cm-stat"><div class="cm-stat__num">' + countries + '</div>' +
               '<div class="cm-stat__label">' + esc(t('home.stats.countries')) + '</div></div>' +
             '<div class="cm-stat"><div class="cm-stat__num">' + exams + '</div>' +
