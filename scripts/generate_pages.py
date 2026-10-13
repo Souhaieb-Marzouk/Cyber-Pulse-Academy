@@ -812,7 +812,14 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
 
 # Keys are case-sensitive and include camelCase ones such as batchesPublished,
 # so the character class must not be lowercase-only.
-COUNT_RE = re.compile(r'(<span[^>]*\bdata-cm-count="([A-Za-z]+)"[^>]*>)(.*?)(</span>)', re.S)
+# Matches the element whatever it is - span, div, strong - and holds the tag name
+# in group 2 so the closing tag can be matched with a backreference.
+#
+# This used to spell out <span> on both sides. The home page stat strip puts its
+# numbers on <div class="cm-stat__num">, so those four were never matched: the
+# injector silently skipped them and the page kept whatever value had been typed
+# into it by hand. Any element carrying data-cm-count is now updated.
+COUNT_RE = re.compile(r'(<([a-z]+)[^>]*\bdata-cm-count="([A-Za-z]+)"[^>]*>)(.*?)(</\2>)', re.S)
 ASSET_RE = re.compile(r'((?:src|href)=")([^":#?][^":]*?\.(?:css|js))(\?v=[^"]*)?(")')
 BASE_URL_TOKEN = "__CM_BASE_URL__"
 REPO_URL_TOKEN = "__CM_REPO_URL__"
@@ -914,9 +921,10 @@ def inject_counts(catalog: dict) -> int:
         text = path.read_text(encoding="utf-8")
 
         def replace_count(match):
-            key = match.group(2)
+            # Group 2 is the tag name, group 3 the count key, group 5 the closing tag.
+            key = match.group(3)
             value = totals.get(key, 0)
-            return f"{match.group(1)}{value}{match.group(4)}"
+            return f"{match.group(1)}{value}{match.group(5)}"
 
         updated = COUNT_RE.sub(replace_count, text)
         if updated != text:

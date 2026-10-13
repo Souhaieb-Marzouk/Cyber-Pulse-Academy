@@ -232,7 +232,14 @@
     var chapters = topic.chapters || [];
     var emptyChapters = 0;
     for (var i = 0; i < chapters.length; i++) {
-      if (!(chapters[i].exercises || []).length) { emptyChapters++; }
+      /* A chapter's exercises arrive EITHER as an array of entries OR as a plain
+         count, depending on which projection produced the catalog. Reading
+         .length off a number yields undefined, which made every chapter look
+         empty and pushed every certification into "partial" - so "All ready"
+         matched nothing on the certifications page. Both shapes are handled. */
+      var held = chapters[i].exercises;
+      var count = Array.isArray(held) ? held.length : (typeof held === 'number' ? held : 0);
+      if (!count) { emptyChapters++; }
     }
     if (stats.total === 0) { return 'none'; }
     if (stats.published === 0) { return 'notReady'; }
