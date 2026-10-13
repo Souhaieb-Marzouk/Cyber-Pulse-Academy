@@ -960,6 +960,11 @@
     related: related,
     home: home,
     renderCard: renderCard,
+    /* Exported so pages with their own filter controls - the technique and
+       mitigation browsers - can bucket topics exactly as the shared listing
+       does. Without this they had no way to offer an "All ready" filter, which
+       is why the filter menu on mitre-techniques.html lacked one. */
+    readiness: readiness,
     topicHref: topicHref,
     CATALOG_META: CATALOG_META,
     stripVendorLogos: stripVendorLogos
