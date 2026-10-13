@@ -46,12 +46,12 @@
 
   /* ------------------------------------------------------------ helpers -- */
 
-  function difficultyBadge(topic) {
-    var d = topic.difficulty || 'extreme';
-    var label = t('status.difficulty.' + d);
-    return '<span class="cm-badge cm-badge--' + esc(d) + '">' +
-           CM.nav.svg('alert') + esc(label) + '</span>';
-  }
+  /* difficultyBadge() lived here. It rendered the topic's own "difficulty"
+     field (Extreme / Very hard / Hard) as a badge on every card. It was removed
+     from the cards because that field describes the exercise batches rather than
+     the topic, and the batches already report their own tiers through the
+     exercise badge. The sort-by-difficulty control still reads topic.difficulty,
+     so the field itself is unchanged. */
 
   /* Exercise readiness badge.
 
@@ -108,7 +108,12 @@
       badges += '<span class="cm-badge cm-badge--id">' + esc(topic.externalId) + '</span> ';
     }
     badges += '<span class="cm-badge cm-badge--theme">' + esc(topic.theme) + '</span> ';
-    badges += difficultyBadge(topic);
+    /* The topic-level difficulty badge is deliberately NOT rendered here.
+       It read as a property of the topic, but it is a rating of the topic's
+       exercise batches, and those carry their own four tiers (EASY, MEDIUM,
+       HARD, EXTREMELY HARD) which the exercise badge below reports properly.
+       Showing a second, differently-scaled difficulty next to the readiness
+       badge invited the reader to conflate the two. */
     /* Certification cards carry the unofficial badge permanently. */
     if (isCert) {
       badges += ' <span class="cm-badge cm-badge--unofficial">' + esc(t('status.unofficial')) + '</span>';
