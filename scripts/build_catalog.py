@@ -387,10 +387,17 @@ def content_hash(topics):
 
 def build_catalog(topics, site_version):
     totals = {name: 0 for name in TYPE_DIRS}
+    # Per-catalog "ready" counts. A topic counts once at least one of its exercises
+    # has a real file, which is the same honest test topicsReady applies to the whole
+    # site. The homepage prints these beside each catalog's documented total, so the
+    # gap between "documented" and "practisable right now" is visible at a glance.
+    ready_by_dir = {name: 0 for name in TYPE_DIRS}
     for topic in topics:
         dirname = TYPE_TO_DIR.get(topic.get("type"))
         if dirname:
             totals[dirname] += 1
+            if topic_exercise_stats(topic)["published"] > 0:
+                ready_by_dir[dirname] += 1
 
     # How many individual exercises sit inside the batches that are ready.
     batch_questions, batches_counted, batches_declared = batch_question_total(topics)
@@ -463,10 +470,16 @@ def build_catalog(topics, site_version):
         "contentHash": content_hash(topics),
         "siteVersion": site_version,
         "totals": dict(
-            {
-                name: totals.get(name, 0)
-                for name in TYPE_DIRS
-            },
+            {name: totals.get(name, 0)
+             for name in TYPE_DIRS},
+            # keywordsReady, certificationsReady, tacticsReady, techniquesReady,
+            # mitigationsReady, detectionsReady, groupsReady: the per-catalog
+            # counterpart of topicsReady, consumed by the homepage coverage strip.
+            **{f"{name}Ready": ready_by_dir.get(name, 0)
+               for name in TYPE_DIRS},
+            # How many catalogs exist at all. The homepage prints the figure, so it is
+            # derived here rather than typed into the markup, where it could go stale.
+            catalogs=len(TYPE_DIRS),
             exercisesPublished=exercises_published,
             exercisesDraft=exercises_draft,
             exercisesMissing=exercises_missing,

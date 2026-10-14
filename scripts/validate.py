@@ -302,6 +302,20 @@ def check_size(report: Report):
         report.ok(f"manifest exempt from the per-file cap, measured: {item}")
 
 
+XMLNS_BEFORE = re.compile(r'xmlns(?::[A-Za-z0-9_.\-]+)?\s*=\s*["\']$')
+
+
+def in_xmlns(text: str, pos: int) -> bool:
+    """True when the URL at pos is the value of an xmlns declaration.
+
+    Namespace URIs are identifiers that nothing ever fetches: the task scheduler
+    schema, the Office schemas, SVG. Flagging them would mean allow-listing every
+    vendor schema in turn or mangling a technically correct artefact, so the
+    context is recognised structurally instead.
+    """
+    return bool(XMLNS_BEFORE.search(text[max(0, pos - 60):pos]))
+
+
 def check_external_urls(report: Report):
     offenders: dict[str, set[str]] = {}
     url_re = re.compile(r"https?://([A-Za-z0-9.\-]+)")
@@ -316,8 +330,10 @@ def check_external_urls(report: Report):
             text = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        for host in url_re.findall(text):
-            host = host.lower().rstrip(".")
+        for match in url_re.finditer(text):
+            if in_xmlns(text, match.start()):
+                continue
+            host = match.group(1).lower().rstrip(".")
             if host in ALLOWED_HOSTS or host in NAMESPACE_HOSTS:
                 continue
             # A relative GitHub Pages deployment keeps its own hostname out of
@@ -385,6 +401,9 @@ def check_not_ignored(report: Report):
         report.ok("no shipped file is excluded by .gitignore")
 
 
+LIVE_SCHEME_DEFANGED_HOST = re.compile(r"\bhttps?://[A-Za-z0-9-]+\[\.\]")
+
+
 def check_iocs(report: Report):
     """Defence in depth for the content-safety rules in CONTRIBUTING.md."""
     hits = 0
@@ -410,6 +429,8 @@ def check_iocs(report: Report):
                 return
         if rel.startswith("exercises/"):
             for match in LIVE_URL_IN_EXERCISE.finditer(text):
+                if in_xmlns(text, match.start()):
+                    continue
                 report.fail(
                     f"ioc: {rel} contains a live-looking URL '{match.group(0)}'. "
                     f"Exercise content must defang URLs as hxxp://example[.]com."
@@ -417,8 +438,56 @@ def check_iocs(report: Report):
                 hits += 1
                 if hits > 40:
                     return
+            # Defanging the dots while leaving the scheme live still produces something
+            # that reads as a real URL, and no browser-driven check catches it because
+            # the host has no literal dot left. The corpus convention is hxxp://.
+            for match in LIVE_SCHEME_DEFANGED_HOST.finditer(text):
+                report.fail(
+                    f"ioc: {rel} writes '{match.group(0)}' with a live scheme. Defang the "
+                    f"scheme too: hxxp://host[.]tld."
+                )
+                hits += 1
+                if hits > 40:
+                    return
     if hits == 0:
         report.ok("no un-defanged indicators found in data or exercises")
+
+
+LEGACY_CATALOGUE_FIGURES = {
+    "246 topics": "the 1.0.0 topic count of 246",
+    "738": "the 1.0.0 batch count of 738",
+    "three hard exercise batches": "the retired three-batch model",
+    "three exercise batches": "the retired three-batch model",
+}
+
+
+def check_legacy_figures(report: Report):
+    """Hand-written text must not hard-quote a catalogue total.
+
+    Counts inside element text are injected from the manifest by generate_pages.py, so
+    they cannot go stale. Counts typed into a meta description, a share string or the
+    PWA manifest are invisible to that pass and rot silently: five shipped files were
+    still advertising 246 topics and 738 batches long after both were wrong. The
+    wording in those fields is deliberately count-free, and this keeps it that way.
+    """
+    offenders = []
+    targets = [ROOT / "index.html", ROOT / "404.html", ROOT / "manifest.json"]
+    targets += sorted((ROOT / "pages").glob("*.html"))
+    for path in targets:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for needle, why in LEGACY_CATALOGUE_FIGURES.items():
+            if needle in text:
+                offenders.append(f"{path.relative_to(ROOT).as_posix()} still quotes {why}")
+    if offenders:
+        for item in offenders:
+            report.fail(
+                f"legacy-figure: {item}. The injector only fills element text, so use "
+                f"count-free wording in attributes, share strings and the manifest."
+            )
+    else:
+        report.ok("no hand-written file quotes a retired catalogue figure")
 
 
 def check_internal_links(report: Report):
@@ -756,6 +825,7 @@ def main():
     check_not_ignored(report)
     check_external_urls(report)
     check_iocs(report)
+    check_legacy_figures(report)
     if not args.no_link_check:
         check_internal_links(report)
     check_catalog_fresh(report, topics)

@@ -820,6 +820,14 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
 # injector silently skipped them and the page kept whatever value had been typed
 # into it by hand. Any element carrying data-cm-count is now updated.
 COUNT_RE = re.compile(r'(<([a-z]+)[^>]*\bdata-cm-count="([A-Za-z]+)"[^>]*>)(.*?)(</\2>)', re.S)
+
+# Coverage meters: the tag carries data-cm-meter="<catalog>" and a style attribute
+# whose width is recomputed from the catalogue on every build.
+METER_TAG_RE = re.compile(r'<[a-z]+[^>]*\bdata-cm-meter="[A-Za-z]+"[^>]*>', re.S)
+METER_ATTR_RE = re.compile(r'\bdata-cm-meter="([A-Za-z]+)"')
+METER_STYLE_RE = re.compile(r'style="[^"]*"')
+# The build marker on <html>, kept in step with the ?v= stamps by stamp_versions().
+BUILD_RE = re.compile(r'data-cm-build="[^"]*"')
 ASSET_RE = re.compile(r'((?:src|href)=")([^":#?][^":]*?\.(?:css|js))(\?v=[^"]*)?(")')
 BASE_URL_TOKEN = "__CM_BASE_URL__"
 REPO_URL_TOKEN = "__CM_REPO_URL__"
@@ -912,6 +920,31 @@ def normalise_absolute_urls(base_url: str, repo_url: str, verbose: bool = False)
     return changed
 
 
+def inject_meters(text: str, totals: dict) -> str:
+    """Size every coverage bar from the catalogue.
+
+    A bar carries data-cm-meter="<catalog>" and its width is derived from
+    "<catalog>Ready" against "<catalog>". Deriving it here means the bar can never
+    disagree with the two figures printed beside it, and a visitor without
+    JavaScript still sees the right proportion.
+    """
+
+    def fix_tag(match):
+        tag = match.group(0)
+        key = METER_ATTR_RE.search(tag)
+        if not key:
+            return tag
+        name = key.group(1)
+        ready = totals.get(f"{name}Ready", 0) or 0
+        documented = totals.get(name, 0) or 0
+        pct = int(ready * 100 / documented + 0.5) if documented else 0
+        if METER_STYLE_RE.search(tag):
+            return METER_STYLE_RE.sub(f'style="width:{pct}%"', tag, count=1)
+        return tag[:-1] + f' style="width:{pct}%">'
+
+    return METER_TAG_RE.sub(fix_tag, text)
+
+
 def inject_counts(catalog: dict) -> int:
     totals = catalog.get("totals", {})
     changed = 0
@@ -926,7 +959,7 @@ def inject_counts(catalog: dict) -> int:
             value = totals.get(key, 0)
             return f"{match.group(1)}{value}{match.group(5)}"
 
-        updated = COUNT_RE.sub(replace_count, text)
+        updated = inject_meters(COUNT_RE.sub(replace_count, text), totals)
         if updated != text:
             path.write_text(updated, encoding="utf-8")
             changed += 1
@@ -934,11 +967,18 @@ def inject_counts(catalog: dict) -> int:
 
 
 def stamp_versions(site_version: str) -> int:
-    """Append ?v=<siteVersion> to every local CSS/JS reference. Idempotent."""
+    """Stamp the build version onto every page. Idempotent.
+
+    Two places carry it: the ?v= query on every local CSS/JS reference, and the
+    data-cm-build marker on <html>. The marker used to be written only by the topic
+    template, so the hand-written shells (index, 404, pages/) stayed frozen at
+    whatever version they were authored with while the topic pages moved on. Both
+    are stamped here so the marker means what it says.
+    """
     changed = 0
     candidates = list(ROOT.glob("*.html")) + list(PAGES_DIR.glob("*.html")) + list(TOPICS_DIR.glob("*.html"))
     for path in candidates:
-        text = path.read_text(encoding="utf-8")
+        original = path.read_text(encoding="utf-8")
 
         def replace_asset(match):
             prefix, target, _existing, suffix = match.groups()
@@ -946,8 +986,11 @@ def stamp_versions(site_version: str) -> int:
                 return match.group(0)
             return f"{prefix}{target}?v={site_version}{suffix}"
 
+        # Compare against the file as it was read, not against the intermediate text:
+        # a page whose assets are already stamped still needs the build marker written.
+        text = BUILD_RE.sub(f'data-cm-build="{site_version}"', original)
         updated = ASSET_RE.sub(replace_asset, text)
-        if updated != text:
+        if updated != original:
             path.write_text(updated, encoding="utf-8")
             changed += 1
     return changed

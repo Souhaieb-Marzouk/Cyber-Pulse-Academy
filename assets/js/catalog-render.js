@@ -818,48 +818,102 @@
       var ready = totals.exercisesPublished || 0;
       var totalExercises = totals.exercisesTotal || 0;
 
+      /* Whole numbers with thin separators, so 9753 reads as 9,753 without
+         depending on the browser locale. */
+      function fmtInt(n) {
+        return String(n === null || n === undefined ? 0 : n)
+          .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      }
+
+      function statBox(num, label, sub, mod) {
+        return '<div class="cm-stat' + (mod ? ' ' + mod : '') + '">' +
+          '<span class="cm-stat__num">' + fmtInt(num) + '</span>' +
+          '<span class="cm-stat__label">' + esc(label) + '</span>' +
+          (sub ? '<span class="cm-stat__sub">' + esc(sub) + '</span>' : '') +
+          '</div>';
+      }
+
+      /* One catalog: how much of it a learner can start today, against how much is
+         documented. The meter is decorative - the two figures carry the meaning -
+         so it is hidden from assistive technology rather than described twice. */
+      function coverageCard(key, label, href) {
+        var readyCount = totals[key + 'Ready'] || 0;
+        var documented = totals[key] || 0;
+        var pct = documented > 0 ? Math.round((readyCount / documented) * 100) : 0;
+        return '<a class="cm-stat' + (readyCount ? '' : ' cm-stat--zero') + '" href="' + esc(href) + '">' +
+          '<span class="cm-stat__num">' + fmtInt(readyCount) + '</span>' +
+          '<span class="cm-stat__label">' + esc(label) + '</span>' +
+          '<span class="cm-stat__sub">' + esc(t('home.stats.coveredOf', { total: fmtInt(documented) })) + '</span>' +
+          '<span class="cm-meter" aria-hidden="true"><span class="cm-meter__fill" style="width:' + pct + '%"></span></span>' +
+          '</a>';
+      }
+
       function paintStats(snapshot) {
-        var users = snapshot && snapshot.totals ? (snapshot.totals.users || 0) : 0;
-        var countries = snapshot && snapshot.totals ? (snapshot.totals.countries || 0) : 0;
         var exams = snapshot && snapshot.totals ? (snapshot.totals.examsTaken || 0) : 0;
         var mode = snapshot ? snapshot.mode : 'local';
 
         if (!statsMount) { return; }
         var questions = totals.batchQuestions || 0;
         var counted = totals.batchesCounted || 0;
+
+        /* The groups are deliberately ordered scale -> progress -> coverage ->
+           activity. Library and exercise figures come from the manifest and are
+           identical for every visitor; the activity block comes from the statistics
+           provider and is the learner's own number in local mode, which the notice
+           underneath says out loud. */
         statsMount.innerHTML =
-          /* Six figures in a 3x2 grid. The first four come from the manifest and
-             are the same for every visitor; the last two come from the
-             statistics provider and are the learner's own numbers in local mode.
-             Keeping them visually together but sourced differently is honest:
-             the mode notice underneath says which is which. */
-          '<div class="cm-grid cm-grid--3">' +
-            '<div class="cm-stat"><div class="cm-stat__num">' + totals.topics + '</div>' +
-              '<div class="cm-stat__label">' + esc(t('home.stats.topics')) + '</div>' +
-              '<div class="cm-tiny cm-dim">' + esc('study pages') + '</div></div>' +
-            '<div class="cm-stat"><div class="cm-stat__num">' + (totals.topicsReady || 0) + '</div>' +
-              '<div class="cm-stat__label">' + esc(t('home.stats.topicsCovered')) + '</div>' +
-              '<div class="cm-tiny cm-dim">' + esc('at least one exercise ready') + '</div></div>' +
-            '<div class="cm-stat"><div class="cm-stat__num">' + ready + '</div>' +
-              '<div class="cm-stat__label">' + esc(t('home.stats.exercisesReady')) + '</div>' +
-              '<div class="cm-tiny cm-dim">' + esc('of ' + totalExercises + ' planned') + '</div></div>' +
-            '<div class="cm-stat"><div class="cm-stat__num">' + questions + '</div>' +
-              '<div class="cm-stat__label">' + esc(t('home.stats.batchQuestions')) + '</div>' +
-              /* The count is only knowable for batches that declare it, so the
-                 sub-line names the subset. Without it the page showed "113 ready
-                 batches" beside "178 batches ready" and read as a contradiction. */
-              '<div class="cm-tiny cm-dim">' +
-                esc('counted in ' + counted + ' of ' + ready + ' batches') + '</div></div>' +
-            '<div class="cm-stat"><div class="cm-stat__num">' + countries + '</div>' +
-              '<div class="cm-stat__label">' + esc(t('home.stats.countries')) + '</div></div>' +
-            '<div class="cm-stat"><div class="cm-stat__num">' + exams + '</div>' +
-              '<div class="cm-stat__label">' + esc(t('home.stats.exams')) + '</div></div>' +
-          '</div>' +
-          (mode === 'local'
-            ? '<p class="cm-small cm-dim cm-mt1">' + esc(t('stats.localNotice')) + '</p>'
-            : (mode === 'off'
-              ? '<p class="cm-small cm-dim cm-mt1">' + esc(t('stats.offNotice')) + '</p>'
-              : '<p class="cm-small cm-dim cm-mt1">' + esc(t('stats.remoteNotice')) + '</p>'));
+          '<div class="cm-stats">' +
+            '<section class="cm-stats__group">' +
+              '<h2 class="cm-stats__head">' + esc(t('home.stats.head.library')) + '</h2>' +
+              '<div class="cm-stats__grid cm-stats__grid--wide">' +
+                statBox(totals.topics, t('home.stats.topics'), '') +
+                statBox(totals.catalogs || 7, t('home.stats.catalogs'), '') +
+                statBox(0, t('home.stats.ads'), '') +
+              '</div>' +
+            '</section>' +
+            '<section class="cm-stats__group">' +
+              '<h2 class="cm-stats__head">' + esc(t('home.stats.head.exercises')) + '</h2>' +
+              '<div class="cm-stats__grid cm-stats__grid--wide">' +
+                statBox(ready, t('home.stats.exercisesReady'),
+                        t('home.stats.planned', { total: fmtInt(totalExercises) })) +
+                statBox(questions, t('home.stats.batchQuestions'),
+                        t('home.stats.countedIn', { counted: fmtInt(counted), ready: fmtInt(ready) })) +
+              '</div>' +
+            '</section>' +
+            '<section class="cm-stats__group cm-stats__group--coverage">' +
+              '<h2 class="cm-stats__head">' + esc(t('home.stats.head.coverage')) +
+                ' <span class="cm-stats__note">' + esc(t('home.stats.head.coverageHint')) + '</span></h2>' +
+              '<div class="cm-stats__grid">' +
+                coverageCard('keywords', t('home.stats.keywords'), 'pages/keywords.html') +
+                coverageCard('certifications', t('home.stats.certifications'), 'pages/certifications.html') +
+                coverageCard('tactics', t('home.stats.tactics'), 'pages/mitre-tactics.html') +
+                coverageCard('techniques', t('home.stats.techniques'), 'pages/mitre-techniques.html') +
+                coverageCard('mitigations', t('home.stats.mitigations'), 'pages/mitre-mitigations.html') +
+                coverageCard('detections', t('home.stats.detections'), 'pages/mitre-detections.html') +
+                coverageCard('groups', t('home.stats.groups'), 'pages/mitre-groups.html') +
+              '</div>' +
+              '<p class="cm-small cm-dim">' + esc(t('home.stats.coverageNote')) + '</p>' +
+            '</section>' +
+            '<section class="cm-stats__group">' +
+              '<h2 class="cm-stats__head">' + esc(t('home.stats.head.you')) + '</h2>' +
+              /* The learner's own figure gets the whole row and a taller card: it is the
+                 only number in the strip that is about them rather than about the site. */
+              '<div class="cm-stats__grid cm-stats__grid--full">' +
+                statBox(exams, t('home.stats.exams'), '', 'cm-stat--wide') +
+              '</div>' +
+              (mode === 'local'
+                ? '<p class="cm-small cm-dim">' + esc(t('stats.localNotice')) + '</p>'
+                : (mode === 'off'
+                  ? '<p class="cm-small cm-dim">' + esc(t('stats.offNotice')) + '</p>'
+                  : '<p class="cm-small cm-dim">' + esc(t('stats.remoteNotice')) + '</p>')) +
+            '</section>' +
+          '</div>';
+
+        /* The mount ships as aria-busy="true" in index.html. Clearing it once the
+           strip has been painted stops assistive technology from treating the
+           statistics as permanently loading. The guard keeps the renderer usable
+           outside a browser, where the mount is a stub. */
+        if (statsMount && statsMount.removeAttribute) { statsMount.removeAttribute('aria-busy'); }
       }
 
       /* Paint immediately from the manifest so the strip is never empty, then
