@@ -28,7 +28,7 @@
 /* Bump this string whenever the shell changes. It is the only thing that
    invalidates already-installed clients, so forgetting it means users keep the
    old shell until the browser next updates it. */
-const SHELL_VERSION = '1.4.0';
+const SHELL_VERSION = '1.5.0';
 const SHELL_CACHE = 'cm-shell-v' + SHELL_VERSION;
 const DATA_CACHE = 'cm-data-v' + SHELL_VERSION;
 const PAGE_CACHE = 'cm-pages-v' + SHELL_VERSION;
@@ -55,10 +55,10 @@ const SHELL_ASSETS = [
   './assets/js/seo.js',
   './assets/js/sw-register.js',
   './assets/i18n/en.json',
-  './assets/img/logo.svg',
-  './assets/img/icon-192.svg',
-  './assets/img/icon-512.svg',
-  './assets/img/icon-maskable.svg',
+  /* PNG icons only, and only the small one: the 512 px files are install-time
+     assets the manifest fetches over the network, not things a page needs to
+     render offline. */
+  './assets/img/icon-192.png',
   './manifest.json',
   './data/catalog.json'
 ];

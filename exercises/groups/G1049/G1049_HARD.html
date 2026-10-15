@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="../../../assets/img/logo.png" type="image/png">
+<title>G1049 — HARD practice exam</title>
+<script type="application/json" id="cm-exercise-meta">
+{
+  "topicId": "g1049",
+  "batch": 3,
+  "title": "G1049 AppleJeus — HARD",
+  "difficulty": "hard",
+  "questionCount": 16,
+  "estimatedMinutes": 55,
+  "passMark": 70
+}
+</script>
+<script type="application/json" id="exam-data">
+{"severity": "hard", "severityLabel": "HARD", "timerMinutes": 55, "exercises": [{"id": "H01", "type": "steps", "title": "SIGALERT: decide the response path (3 steps)", "scenarioSummary": "A live alert on the finance VLAN. Three decisions, then one grade.", "scenario": [{"label": "ARTEFACT 1 — EDR console, host FIN-WS-14", "kind": "log", "filterable": true, "text": "2023-02-14 11:02:19 UTC  P  3CXDesktopApp.exe -> C:\\Windows\\System32\\msiexec.exe /i 3cxupdate.msi /qn\n2023-02-14 11:02:25 UTC  M  3CXDesktopApp.exe loaded ffmpeg.dll  hash=ON-WATCHLIST  sig=valid vendor subject\n2023-02-14 11:02:31 UTC  N  3CXDesktopApp.exe -> 185[.]199[.]108[.]153:443  cookie: __tutma=441207; __tutmc=9f2c"}, {"label": "ARTEFACT 2 — Context from the SOC lead", "kind": "text", "text": "<em>'This host runs the trading desk. Markets are open. The CISO wants no knee-jerk moves. The library hash matches the watchlist published for campaign C0057, but the process tree is all we have so far.'<\/em>"}], "question": "Work through the three decision steps.", "steps": [{"question": "STEP 1 — What is the strongest single indicator in Artefact 1?", "options": [{"t": "The watchlisted ffmpeg.dll hash loaded by the trusted app", "correct": true}, {"t": "msiexec running quietly with /qn", "correct": false}, {"t": "Outbound traffic on port 443", "correct": false}, {"t": "The process name 3CXDesktopApp.exe itself", "correct": false}], "correct": "The watchlisted ffmpeg.dll hash loaded by the trusted app"}, {"question": "STEP 2 — Given market hours, which action is the least aggressive that still contains risk?", "options": [{"t": "Block the C2 destinations and the update channel at the proxy, keep the host online for monitoring", "correct": true}, {"t": "Power off FIN-WS-14 immediately to stop the attacker", "correct": false}, {"t": "Reimage the whole trading subnet during market hours", "correct": false}, {"t": "Do nothing and review next week", "correct": false}], "correct": "Block the C2 destinations and the update channel at the proxy, keep the host online for monitoring"}, {"question": "STEP 3 — Which evidence do you collect FIRST while the host is still live?", "options": [{"t": "Volatile data: process list and loaded modules, then the installer file", "correct": true}, {"t": "Ship the workstation to the forensic lab unpowered", "correct": false}, {"t": "Delete the .msi so nobody else runs it", "correct": false}, {"t": "Screenshot the trading application window only", "correct": false}], "correct": "Volatile data: process list and loaded modules, then the installer file"}], "hint": "Step 1: one indicator is unique to this campaign, the others happen on healthy hosts too. Step 2: containment that does not stop the business. Step 3: what disappears first when power is cut?", "explanation": "Step 1: /qn, 443 traffic and the app name all occur on healthy installs; the watchlisted library hash is campaign-specific. Step 2: cutting power or reimaging during market hours costs the business money and loses volatile evidence — network blocking contains the C2 (cookie-header beacons to __tutma/__tutmc) while monitoring continues, which is the least aggressive sufficient action. Step 3: volatile memory and loaded modules vanish at power-off, so they come first. This is the defender perspective on C0057 triage: precise indicator, proportionate containment, evidence order.", "study": "Alert triage hierarchy: unique indicator → proportionate containment → evidence collection order."}, {"id": "H02", "type": "qcm", "title": "Hijack or injection? Read the service context", "scenarioSummary": "Two techniques on the page look similar. The service name decides it.", "scenario": [{"label": "ARTEFACT 1 — EDR module events", "kind": "log", "filterable": true, "text": "2023-02-14 11:05:41 UTC  SVC  IKEEXT (Running, LocalSystem)  loaded C:\\Windows\\System32\\TAXHAUL.dll\n2023-02-14 11:05:41 UTC  FS   C:\\Windows\\System32\\TAXHAUL.dll  created 17:41 same day  signed=FALSE  path=system directory"}, {"label": "ARTEFACT 2 — From the G1049 page", "kind": "text", "text": "<em>AppleJeus splits functionality across multiple .dll files using export functions, such as DLLGetClassObject. AppleJeus has also used DLL search order hijacking via the IKEEXT service, running with LocalSystem privileges, to load the TAXHAUL DLL for persistence. It also uses the SigFlip tool to inject arbitrary code without breaking the file's signature.<\/em>"}], "question": "Which technique does Artefact 1 show — and why?", "options": [{"t": "DLL search-order hijacking (T1574.001) — a trusted service loaded a rogue DLL", "correct": true}, {"t": "Portable Executable injection (T1055.002) — code was injected into a signed file", "correct": false}, {"t": "Reflective code loading (T1620) — shellcode was mapped into memory", "correct": false}, {"t": "Create or Modify System Process (T1543) — a new service was registered", "correct": false}], "hint": "The obvious pick is injection because 'DLL' and 'service' appear together. Look at what actually loaded what.", "explanation": "The trap: the page contains both DLL hijacking and PE injection, so keyword-matching 'inject' feels right. But the artefact shows a legitimate service (IKEEXT) loading a rogue DLL from its expected path — the definition of search-order hijacking, used here for persistence with LocalSystem privileges. PE injection (SigFlip) modifies a signed file's content instead. A new service registration is absent. The wrong options are each defensible in another incident — that is what makes the service context the deciding signal.", "study": "T1574.001 versus T1055.002 versus T1620; anchor on WHO loads WHAT."}, {"id": "H03", "type": "multi", "title": "What does the TAXHAUL chain prove?", "scenarioSummary": "Select every statement the artefacts and the page actually support.", "scenario": [{"label": "ARTEFACT 1 — Host evidence", "kind": "log", "filterable": true, "text": "2023-02-14 11:05:41 UTC  SVC  IKEEXT (LocalSystem)  loaded C:\\Windows\\System32\\TAXHAUL.dll\n2023-02-14 11:06:02 UTC  NET  TAXHAUL.dll  pipe=\\\\.\\pipe\\veiled_signal  state=listening"}, {"label": "ARTEFACT 2 — From the G1049 page", "kind": "text", "text": "<em>DLL search order hijacking via the IKEEXT service, running with LocalSystem privileges, to load the TAXHAUL DLL for persistence. VEILEDSIGNAL creates and listens on a Windows named pipe to exchange messages between modules.<\/em>"}], "question": "Select every statement that is true for this host.", "options": [{"t": "Persistence was achieved through a privileged service loading TAXHAUL", "correct": true}, {"t": "The service runs with LocalSystem privileges, so the implant runs as SYSTEM", "correct": true}, {"t": "A named pipe suggests module-to-module communication is active", "correct": true}, {"t": "The IKEEXT service itself was replaced by a new binary", "correct": false}, {"t": "ICONICSTEALER harvested the browser history on this host", "correct": false}], "hint": "Three statements rest on the artefacts. Two borrow facts from elsewhere.", "explanation": "Hijacked IKEEXT loading TAXHAUL equals persistence; LocalSystem means the payload inherits SYSTEM rights, which is why this matters for privilege-boundary thinking; and the pipe name matches VEILEDSIGNAL's documented inter-module channel. Nothing shows the service binary itself was replaced (it was made to load a rogue DLL), and no browser data theft is in the evidence. Near-miss discipline: true-on-page is not true-on-host — a statement needs support from this artefact set.", "study": "Reading artefacts against the group's page without importing unrelated facts."}, {"id": "H04", "type": "qcm", "title": "The signing certificate detail", "scenarioSummary": "You must pick the detection anchor for the signed malware from C0057.", "scenario": [{"label": "ARTEFACT 1 — Signing details from the page", "kind": "text", "text": "<em>The X_TRADER platform was discontinued in 2020 but remained downloadable in 2022. AppleJeus used a code signing certificate to digitally sign the malicious software with an expiration date set to October 2022. The file was signed with the subject 'Trading Technologies International, Inc', and the contained Setup.exe carried the same certificate.<\/em>"}, {"label": "ARTEFACT 2 — SOC debate", "kind": "text", "text": "<em>Analyst A: 'Valid signature means safe, ignore it.' Analyst B: 'The signature must have been revoked, block on revocation.' Analyst C: 'Anchor on the subject plus the October 2022 expiry window.'<\/em>"}], "question": "Which detection anchor is correct for this campaign?", "options": [{"t": "The certificate subject plus the October 2022 expiry window", "correct": true}, {"t": "Any revoked certificate, no matter its subject or issuer", "correct": false}, {"t": "Any valid signature, because signatures cannot be abused", "correct": false}, {"t": "Any file named exactly Setup.exe found anywhere on disk", "correct": false}], "hint": "The signature was valid when it mattered. Revocation is a guess the artefacts do not support.", "explanation": "The malicious files carried a genuinely valid signature under a vendor-like subject with a short validity ending October 2022 — so 'valid means safe' is the wrong instinct here (a real best-practice turned bad in this context), and revocation is invented. The subject-plus-expiry combination is documented on the page and is precise enough to hunt on. Filename-only matching would bury you in noise: Setup.exe is everywhere. This is how detection engineers turn a campaign detail into a huntable rule.", "study": "T1553.002 Code Signing abuse in C0057; signature metadata as a hunt key."}, {"id": "H05", "type": "qcm", "title": "Beacon or analytics? (looks benign but is not)", "scenarioSummary": "A colleague wants to close an alert as 'marketing cookies'. Decide.", "scenario": [{"label": "ARTEFACT 1 — Proxy sample from one host, 6 hours", "kind": "log", "filterable": true, "text": "2023-02-21 08:00:02 UTC  GET hxxps://telemetry[.]example-cdn[.]net/pixel.gif  cookie: __tutma=441207; __tutmc=9f2c  ua=3CXDesktopApp/18.9.3\n2023-02-21 09:00:02 UTC  GET hxxps://telemetry[.]example-cdn[.]net/pixel.gif  cookie: __tutma=441207; __tutmc=9f2c  ua=3CXDesktopApp/18.9.3\n2023-02-21 14:00:02 UTC  GET hxxps://telemetry[.]example-cdn[.]net/pixel.gif  cookie: __tutma=441207; __tutmc=9f2c  ua=3CXDesktopApp/18.9.3"}, {"label": "ARTEFACT 2 — Page fact and network baseline", "kind": "text", "text": "<em>Campaign C0057 used hardcoded cookie variables __tutma or __tutmc in HTTPS requests from the payload. Your network baseline: real browser traffic carries varied analytics cookies per site and never from a desktop app user-agent.<\/em>"}], "question": "What is the right call?", "options": [{"t": "Alarming: fixed __tutma/__tutmc values on an hourly app schedule — escalate", "correct": true}, {"t": "Benign: analytics cookies appear on every website, so close the alert", "correct": false}, {"t": "Inconclusive: ask the user first whether they visit that website", "correct": false}, {"t": "Benign: a domain with 'cdn' in its name is always legitimate", "correct": false}], "hint": "Check the user-agent line first. Which of your processes normally sends analytics cookies?", "explanation": "The exact variables the campaign document names repeat with identical values, on an exact hourly schedule, from a desktop application user-agent — three signals that no browser analytics stack produces together. 'Analytics are normal' is true in general and wrong here: the values never rotate, and browsers, not VOIP-style desktop apps, are the cookie source in your baseline. Domain names prove nothing. This is the 'looks benign but is alarming' case: the page's hardcoded-variable fact is precisely what defeats the benign-looking wrapper.", "study": "Combining a campaign indicator with a network baseline to defeat benign-looking beacons."}, {"id": "H06", "type": "qcm", "title": "MsMpEng.exe panic (looks alarming but is not)", "scenarioSummary": "A junior analyst reports Microsoft Defender being impersonated. Verify before acting.", "scenario": [{"label": "ARTEFACT 1 — File inventory alert", "kind": "log", "filterable": true, "text": "2023-02-15 09:12:44 UTC  FS  NEW_FILE  path=C:\\Windows\\System32\\MsMpEng.exe  size=2.1MB  signed=FALSE  note=name matches Microsoft Defender AV binary\n2023-02-15 09:12:44 UTC  PROC  no running Defender service conflict on this host  file not executed yet"}, {"label": "ARTEFACT 2 — From the G1049 page", "kind": "text", "text": "<em>AppleJeus used a compiled version of the publicly available FRP software to move laterally within the 3CX network. AppleJeus dropped the software in C:\\Windows\\System32 named MsMpEng.exe.<\/em>"}], "question": "Which action is correct right now?", "options": [{"t": "Verify the hash against known FRP hashes; quarantine that unsigned copy", "correct": true}, {"t": "Uninstall Microsoft Defender on all hosts, since it is compromised", "correct": false}, {"t": "Ignore it: MsMpEng.exe is always the name of the genuine Defender binary", "correct": false}, {"t": "Reimage every host in the subnet as a precautionary measure", "correct": false}], "hint": "The real Defender binary is signed and does not appear as a fresh unsigned file. Check before you break anything.", "explanation": "The alert is alarming in appearance but the correct move is verification: FRP is public software with known hashes, and the artefact shows an unsigned copy that has not even executed. Hash verification confirms it is the masquerading FRP tool documented for G1049, then quarantining that single file removes the risk. Uninstalling Defender would remove genuine protection, blanket trust in the name is exactly the masquerade's goal, and subnet reimaging costs a fortune for one unexecuted file. Least-aggressive sufficient action wins again.", "study": "S1144 FRP dropped as MsMpEng.exe; verify-then-act on masquerade alerts."}, {"id": "H07", "type": "order", "title": "Reconstruct the full intrusion order", "scenarioSummary": "Five evidence cards from one incident must become a story.", "scenario": [{"label": "ARTEFACT 1 — Evidence cards", "kind": "text", "text": "<em>Card 1: A poisoned 3CX update ships from the modified build environment. Card 2: Attackers log into the vendor's environment with legitimate VPN credentials. Card 3: ffmpeg.dll loads under the trusted 3CXDesktopApp. Card 4: VEILEDSIGNAL injects into the first browser process. Card 5: The implant fetches icon files from GitHub that hide the C2 URL.<\/em>"}], "question": "Drag the cards into the order the attacker performed them.", "items": [{"k": "o1", "t": "Attackers log in with legitimate VPN credentials", "slot": ""}, {"k": "o2", "t": "The build environment is modified; the poisoned update ships", "slot": ""}, {"k": "o3", "t": "ffmpeg.dll loads under the trusted 3CXDesktopApp", "slot": ""}, {"k": "o4", "t": "VEILEDSIGNAL injects into the first browser process", "slot": ""}, {"k": "o5", "t": "The implant fetches icon files hiding the C2 URL", "slot": ""}], "correctOrder": ["o1", "o2", "o3", "o4", "o5"], "hint": "Credentials came first — nothing else works without them. The GitHub fetch is the implant phoning home, so it comes last.", "explanation": "The page's two-stage story fixes the sequence: valid VPN credentials opened the vendor, the build compromise shipped the poisoned update, the install chain loaded ffmpeg.dll, the loaded module injected into the browser, and only then did the implant resolve its C2 through the icon dead drop. Each step enables the next — if your timeline puts GitHub fetching before installation, the story cannot physically happen, which is exactly how timeline ordering catches misread evidence in real IR work.", "study": "C0057 end-to-end: T1078 → T1195.002 → T1218.007/ffmpeg.dll → T1055 → T1102.001."}, {"id": "H08", "type": "match", "title": "Match detections to their techniques", "scenarioSummary": "A detection engineer reviews six candidate detections for the group's playbook.", "scenario": [{"label": "ARTEFACT 1 — Candidate detections", "kind": "text", "text": "<em>D1: Alert on outbound HTTPS carrying the literal variables __tutma / __tutmc. D2: Alert on new plists under /Library/LaunchDaemons with runatload from non-approved vendors. D3: Alert on extra .dylib inside mounted .dmg of trusted apps. D4: Alert on named pipes created by office-productivity applications. D5: Alert on libraries that decrypt only a fixed portion of their own file. D6: Alert on fetches of image files from code-hosting sites where decoded bytes are not images.<\/em>"}, {"label": "ARTEFACT 2 — Techniques available for mapping", "kind": "text", "text": "<em>T1071.001 · T1543.004 · T1546.016 · T1559 · T1027.013 · T1102.001<\/em>"}], "question": "Match each detection to the technique it detects.", "left": [{"k": "x1", "t": "D1 cookie variables"}, {"k": "x2", "t": "D2 LaunchDaemon plists"}, {"k": "x3", "t": "D3 dylib in dmg"}, {"k": "x4", "t": "D4 named pipes"}, {"k": "x5", "t": "D5 partial self-decrypt"}, {"k": "x6", "t": "D6 icon files"}], "right": ["T1071.001", "T1543.004", "T1546.016", "T1559", "T1027.013", "T1102.001"], "correct": {"x1": "T1071.001", "x2": "T1543.004", "x3": "T1546.016", "x4": "T1559", "x5": "T1027.013", "x6": "T1102.001"}, "hint": "Say each detection out loud as 'catches the implant doing X' — X is the technique.", "explanation": "Each detection is the operational form of one page technique: cookie variables are COLDCAT's web C2, plists are the Launch Daemon, dylib-in-dmg is the macOS installer trigger, pipes are VEILEDSIGNAL's IPC, partial self-decryption is the RC4-encrypted library, and icon dead drops are the hidden C2 URL. This mapping exercise is literally the deliverable a detection engineer produces when a new group report lands: every technique gets a candidate detection, then each detection gets tuned against false positives.", "study": "From technique to detection: data source, logic, and expected false positives."}, {"id": "H09", "type": "multi", "title": "Two-stage compromise: what carries over?", "scenarioSummary": "Separate stage-one facts from stage-two facts in the C0057 story.", "scenario": [{"label": "ARTEFACT 1 — From the G1049 page", "kind": "text", "text": "<em>AppleJeus first compromised an 'end-of-life' trading software application which was downloaded and executed inside the 3CX enterprise environment. The second compromise modified the Windows and macOS build environments used to distribute the 3CX software to their customer base.<\/em>"}, {"label": "ARTEFACT 2 — Stage notes", "kind": "text", "text": "<em>Stage 1 artefacts: trojanized X_TRADER running inside 3CX. Stage 2 artefacts: changes to the Windows and macOS build jobs.<\/em>"}], "question": "Select every statement that is true about the two stages.", "options": [{"t": "Stage 1 gave the attackers a foothold inside the 3CX environment", "correct": true}, {"t": "Stage 2 used that foothold to reach the build environments", "correct": true}, {"t": "Both stages are instances of software supply chain compromise (T1195.002)", "correct": true}, {"t": "The poisoned 3CX update shipped before stage 1", "correct": false}, {"t": "Stage 1 required exploiting Chrome on 3CX employee laptops", "correct": false}], "hint": "The page orders the stages. Ask what each stage physically delivered.", "explanation": "Stage 1 delivered a trojanized, already end-of-life trading app into the 3CX environment — a foothold. Stage 2 used that position to modify the build environments that ship 3CX software. Both are supply chain compromises, which is why the technique is listed once for a two-step story. The update shipped only after stage 2, and the Chrome exploit belongs to the separate drive-by use, not to stage 1 here. Keeping stages separate is what lets you answer 'when did customers get hit?' with a defensible date.", "study": "T1195.002 as a chain; stage separation in incident timelines."}, {"id": "H10", "type": "qcm", "title": "Why sleep one to four weeks?", "scenarioSummary": "An endpoint shows the implant woke up long after installation.", "scenario": [{"label": "ARTEFACT 1 — From the G1049 page", "kind": "text", "text": "<em>AppleJeus's software generates a randomly selected date that is between 1-4 weeks in the future. This timestamp is then checked against the current time of the compromised machine, and the malware will sleep until that time is encountered.<\/em>"}, {"label": "ARTEFACT 2 — Sandbox note", "kind": "text", "text": "<em>Automated sandbox runs observed: installed, idled for 10 minutes, no network, reported 'clean'.<\/em>"}], "question": "What does the random delayed execution achieve for the attacker?", "options": [{"t": "It pushes real activity past short automated analysis windows", "correct": true}, {"t": "It lets the malware survive antivirus signature updates", "correct": false}, {"t": "It synchronises the infection with the attacker's holidays", "correct": false}, {"t": "It keeps the implant alive across operating system reboots", "correct": false}], "hint": "The sandbox note is the hint: what did the sandbox see, and when?", "explanation": "Sandboxes watch for minutes; the implant waits for a random day up to a month away, so automated analysis sees only an idle program and files a clean verdict. That is timing-based evasion — T1678 exists on the page precisely because of this. Signature updates and reboots are unrelated to a time check, and attackers do not schedule around holidays. The defender takeaway: for high-value hosts, retain execution and install history for weeks, because 'quiet at install time' proves nothing against this actor.", "study": "T1678 Delay Execution; why post-install silence is not innocence."}, {"id": "H11", "type": "dragdrop", "title": "Map controls to the techniques they blunt", "scenarioSummary": "A control owner asks which control actually addresses which technique.", "scenario": [{"label": "ARTEFACT 1 — Controls on offer", "kind": "text", "text": "<em>C1: Enforce allow-listed code signing and reject unexpected vendor-like certificates. C2: Multi-factor authentication on all remote access. C3: Browser patching SLA measured in days. C4: EDR rules for library loads by privileged services. C5: Software supply chain risk review for build pipelines.<\/em>"}, {"label": "ARTEFACT 2 — Techniques needing coverage", "kind": "text", "text": "<em>T1553.002 Code Signing · T1078 Valid Accounts · T1203 Exploitation for Client Execution (Chrome) · T1574.001 DLL Search Order Hijack · T1195.002 Compromise Software Supply Chain<\/em>"}], "question": "Move each control onto the technique it most directly blunts.", "slots": [{"k": "g1", "t": "T1553.002"}, {"k": "g2", "t": "T1078"}, {"k": "g3", "t": "T1203"}, {"k": "g4", "t": "T1574.001"}, {"k": "g5", "t": "T1195.002"}], "items": [{"k": "k1", "t": "C1 signing allow-list", "slot": "g1"}, {"k": "k2", "t": "C2 MFA on remote access", "slot": "g2"}, {"k": "k3", "t": "C3 fast browser patching", "slot": "g3"}, {"k": "k4", "t": "C4 EDR on privileged service library loads", "slot": "g4"}, {"k": "k5", "t": "C5 build pipeline risk review", "slot": "g5"}], "hint": "Ask of each control: which single step of the group's playbook does it break?", "explanation": "A signing allow-list breaks the trusted-certificate trick; MFA kills the stolen-VPN-credential entry that started everything; browser patching closes CVE-2022-0609-style client exploits; EDR on service library loads catches hijacks like IKEEXT loading TAXHAUL; and pipeline review attacks the build-environment modification itself. Mapping controls to specific techniques — not to 'the group' in general — is what makes a mitigation budget defensible when the CISO asks why each control was funded.", "study": "Control-to-technique mapping; defensive reasoning against the group's known playbook."}, {"id": "H12", "type": "fill", "title": "Draft the incident summary", "scenarioSummary": "Complete the executive summary with the correct technical keywords.", "scenario": [{"label": "ARTEFACT 1 — Summary draft", "kind": "text", "text": "<em>'The intrusion entered through valid VPN credentials, poisoned the vendor's build pipeline, shipped a signed malicious update, and hid its command channel inside hosted image files.'<\/em>"}], "question": "Insert the three missing keywords.", "template": "The entry used {b1} accounts, the campaign was a {b2} compromise, and the update abused {b3} to look trusted.", "blanks": {"b1": {"choices": ["valid", "expired", "guest", "service"], "correct": "valid"}, "b2": {"choices": ["software supply chain", "dns cache", "physical access", "wireless"], "correct": "software supply chain"}, "b3": {"choices": ["code signing", "screen sharing", "disk encryption", "email filters"], "correct": "code signing"}}, "hint": "Each keyword appears on the G1049 page in exactly this context.", "explanation": "'Valid' is the page's own adjective for the credentials — they were real, which is why MFA matters. The two-stage operation is a software supply chain compromise, the technique the page lists for both stages. Code signing is what made the malicious files look vendor-genuine until the October 2022 expiry. Executive summaries live or die on these exact words: the wrong keyword sends leadership to buy the wrong control.", "study": "The three keywords and their techniques: T1078, T1195.002, T1553.002."}, {"id": "H13", "type": "multi", "title": "Browser injection — separate the true from the borrowed", "scenarioSummary": "An EDR trace shows a browser doing things browsers do not do.", "scenario": [{"label": "ARTEFACT 1 — EDR trace, host TRD-WS-3", "kind": "log", "filterable": true, "text": "2023-02-14 11:07:12 UTC  PROC  chrome.exe (first instance today)  remote_thread=SET  source_image=3CXDesktopApp.exe\n2023-02-14 11:07:12 UTC  PIPE  name=\\\\.\\pipe\\veiled_signal  owner=chrome.exe  state=created\n2023-02-14 11:07:40 UTC  NET  chrome.exe  -> hxxps://gh-icons[.]example[.]org/icon14.png  decoded_len=412"}, {"label": "ARTEFACT 2 — From the G1049 page", "kind": "text", "text": "<em>VEILEDSIGNAL uses process injection to inject the C2 communication module code in the first found process instance of Chrome, Firefox, or Edge. It monitors the established named pipe and re-injects if necessary. AppleJeus leveraged a GitHub repository to host icon files containing the command and control URL.<\/em>"}], "question": "Select every statement the evidence supports about this host.", "options": [{"t": "The C2 module was injected into the browser process (T1055)", "correct": true}, {"t": "The pipe matches VEILEDSIGNAL's documented inter-module channel (T1559)", "correct": true}, {"t": "The icon fetch is consistent with the dead drop resolver (T1102.001)", "correct": true}, {"t": "The browser was updated to a new version during the trace", "correct": false}, {"t": "ICONICSTEALER exported the browsing history to the cloud", "correct": false}], "hint": "Three statements mirror the page almost line by line. Two describe events that are not in the trace at all.", "explanation": "A remote thread from the app into the first browser instance is injection; the pipe name matches the documented VEILEDSIGNAL channel; and a non-image payload inside an icon fetch matches the dead drop. No update event and no history export appear in the trace — the second borrows ICONICSTEALER's role from elsewhere on the page. The blue-team lesson is channel discipline: after injection, watch the pipe and the fetches, because that is where the implant must talk, whatever it pretends to be.", "study": "T1055, T1559, T1102.001 as one chain; what each artefact type contributes."}, {"id": "H14", "type": "terminal", "title": "Recognise the loader in the shell history", "scenarioSummary": "You have a disk image's shell history from the compromised build host. Find the in-memory loader.", "scenario": [{"label": "ARTEFACT 1 — IR ticket #9023", "kind": "text", "text": "<em>'Build host BLD-02 was rebuilt. We kept the admin's shell history file. A colleague says one line matches a loader that turns a payload into position-independent code and loads it straight into memory. Confirm which line and what it means — read-only, please. The host is a forensic image; nothing may be modified.'<\/em>"}, {"label": "ARTEFACT 2 — From the G1049 page", "kind": "text", "text": "<em>AppleJeus leverages the publicly available open-source project DAVESHELL to convert PE-COFF files to position-independent code to reflectively load the payload into memory.<\/em>"}], "question": "Use the evidence shell (read-only) to find the line, then select what it proves.", "terminal": {"prompt": "ir@bld-02-image", "files": {"history_admin.txt": "cd \\\\buildshare\\stage\\x_trader\\v9.2\ndaveshell -f payload.bin\nwhoami /priv\nnet group \"build admins\" /domain", "build_log_tail.txt": "[ok] packaging xtrader_setup.exe (signed, subject Trading Technologies International, Inc)\n[ok] copy to staging\\x_trader\\v9.2\n[warn] signing cert expires October 2022", "notes.txt": "daveshell = sRDI-style shellcode runner: converts a PE to position-independent code, reflectively loads it in memory\nsigflip = embeds code into an Authenticode-signed PE without breaking the signature (not seen in this history)"}, "answer": {"label": "What does the daveshell line prove?", "options": [{"t": "A payload was converted to position-independent code and reflectively loaded in memory (T1620)", "correct": true}, {"t": "The admin renewed the signing certificate for the build", "correct": false}, {"t": "Code was embedded into a signed file without breaking its signature", "correct": false}, {"t": "The build pipeline compiled the app from clean source", "correct": false}], "correct": "A payload was converted to position-independent code and reflectively loaded in memory (T1620)"}, "canonical": "daveshell -f payload.bin\n  daveshell   -> the open-source sRDI-style loader the page credits AppleJeus with using\n  -f payload.bin -> the payload file converted to position-independent shellcode\n  effect      -> the payload runs reflectively in memory: no file on disk to scan, nothing written to disk at load time", "dangerNote": "The history also shows privilege enumeration (whoami /priv, net group). On a live host, never re-run attacker commands; on this image your read-only shell blocked any write or delete attempt you may have tried."}, "hint": "The shell supports ls, cat and grep. Read the notes file first — then grep the history for the loader name it defines.", "explanation": "The line 'daveshell -f payload.bin' is the documented loader: it converts the payload to position-independent code and reflectively loads it into memory — Reflective Code Loading (T1620) straight from the group's page. The near-misses are designed to catch page-skimmers: SigFlip (embedded-in-signed-file injection) is also on the page but the history note says it does not appear here, and the certificate and clean-source readings ignore the loader's actual function. Recognising attacker loaders in evidence — without executing anything — is a core IR skill against this actor.", "study": "T1620 Reflective Code Loading; DAVESHELL's role; evidence handling on read-only images."}, {"id": "H15", "type": "multi", "title": "Coverage gap review", "scenarioSummary": "Five detections are live. Find what the group's page can still exploit.", "scenario": [{"label": "ARTEFACT 1 — Detections deployed after C0057", "kind": "text", "text": "<em>Live: (1) HTTPS cookie-variable beacon rule. (2) LaunchDaemon plist rule on macOS. (3) MSI/Electron library-load rule on Windows. (4) Named-pipe creation rule for productivity apps. (5) Signing-subject hunt for the campaign certificate.<\/em>"}, {"label": "ARTEFACT 2 — Techniques still unreviewed", "kind": "text", "text": "<em>Candidates: T1102.001 dead drop resolvers · T1217 browser information discovery · T1657 financial theft · T1553.002 code signing (covered by 5)<\/em>"}], "question": "Select the TWO techniques that remain uncovered by the deployed detections.", "options": [{"t": "T1102.001 Dead Drop Resolver", "correct": true}, {"t": "T1217 Browser Information Discovery", "correct": true}, {"t": "T1553.002 Code Signing", "correct": false}, {"t": "T1071.001 Web Protocols", "correct": false}], "hint": "Walk the five live detections against the candidate list. Two candidates have no matching rule.", "explanation": "The icon-file dead drop and the browser information theft have no rule in the deployed set — ICONICSTEALER's history theft and the GitHub icon fetch both slip through. Code signing is already hunted by detection 5, and the cookie-variable rule covers the web C2, so selecting those subtracts. Coverage-gap reviews like this one are a standing detection-engineering task after every campaign report: the goal is not more rules, but no silent holes for this actor's documented behaviour.", "study": "Building a technique-to-detection coverage matrix after each campaign."}, {"id": "H16", "type": "order", "title": "Rank the response actions", "scenarioSummary": "You have four possible actions and a CISO asking for the order.", "scenario": [{"label": "ARTEFACT 1 — Situation", "kind": "text", "text": "<em>Confirmed: poisoned 3CX update installed on 40 hosts; C2 cookie beacons seen from 6; signing abuse confirmed; VPN credentials of one vendor account still active.<\/em>"}, {"label": "ARTEFACT 2 — Candidate actions", "kind": "text", "text": "<em>A: Revoke and rotate the vendor VPN account. B: Block the C2 destinations and update channel at the proxy. C: Publish a block rule for the campaign's signing subject and expiry. D: Schedule reimaging of the 40 hosts for the weekend window.<\/em>"}], "question": "Order the actions from first to last.", "items": [{"k": "r1", "t": "Block C2 destinations and the update channel", "slot": ""}, {"k": "r2", "t": "Revoke and rotate the vendor VPN account", "slot": ""}, {"k": "r3", "t": "Deploy the signing-subject block rule", "slot": ""}, {"k": "r4", "t": "Reimage the 40 hosts in the weekend window", "slot": ""}], "correctOrder": ["r1", "r2", "r3", "r4"], "hint": "Stop the bleeding first (network), close the way back in second, harden third, clean last.", "explanation": "Network blocking stops active beacons immediately at zero downtime — first. Revoking the still-valid VPN account removes the attacker's way back in — second. The signing block rule prevents further trusted-looking installs — third. Reimaging is thorough but disruptive and cannot start until traffic is cut, so it fills the planned weekend window — last. Sequencing response by containment, access removal, hardening, cleanup is standard IR practice and exactly how the least-aggressive-first principle plays out against this actor.", "study": "Response sequencing for a supply chain incident: contain, cut access, harden, clean."}]}
+</script>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0f1522; --card:#171f31; --ink:#e8eef8; --muted:#a8b3c7; --line:#2c3a55;
+  --head:#0a0f1c; --head-ink:#e8eef8;
+  --blue:#7fb2ff; --blue-bg:#18263f; --amber:#ffce7a; --amber-bg:#312712;
+  --green:#8fe0a7; --green-bg:#152a1c; --red:#ff9d94; --red-bg:#331616;
+  --orange:#ffb078; --orange-bg:#33200f; --mono:'Courier New',Courier,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font:16px/1.55 'Segoe UI',Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:980px;margin:0 auto;padding:0 14px 60px}
+button{font:inherit;cursor:pointer}
+input[type="radio"],input[type="checkbox"]{accent-color:#4a8dff}
+button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:3px solid #7fb2ff;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* ---------- persistent exam header ---------- */
+.exam-head{position:sticky;top:0;z-index:50;background:var(--head);color:var(--head-ink);
+  padding:8px 14px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;
+  box-shadow:0 2px 8px rgba(0,0,0,.55)}
+.exam-head .grow{flex:1 1 auto}
+.hstat{display:flex;align-items:center;gap:6px;font-size:14px;white-space:nowrap}
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-weight:700;font-size:13px;color:#fff}
+.badge-easy{background:#157347}.badge-medium{background:#9a4d00}.badge-hard{background:#b35300}.badge-xhard{background:#c22b21}
+.timerbox{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+.timer-state{font-size:12.5px;padding:2px 8px;border-radius:10px;background:#223050;border:1px solid #46608f;color:#d5e2ff}
+.timer-state.st-run{background:#173a24;border-color:#2e6b3c;color:#a9f0c0}
+.timer-state.st-pman{background:#4a3a0e;border-color:#8a6d1a;color:#ffe08a}
+.timer-state.st-pauto{background:#4a200e;border-color:#8a4318;color:#ffcf9e}
+.hbtn{background:#26334f;color:#e5edff;border:1px solid #46608f;border-radius:8px;padding:8px 14px;min-height:44px;font-weight:600}
+.hbtn:hover{background:#31426b}
+.hbtn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- intro / results panels ---------- */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:18px 0}
+.panel h1{font-size:26px;margin:0 0 6px}
+.panel h2{font-size:20px;margin:22px 0 8px;border-bottom:2px solid var(--line);padding-bottom:5px}
+.panel p{margin:9px 0}
+.kicker{color:var(--muted);font-size:14px;letter-spacing:.4px;text-transform:uppercase;font-weight:700}
+.greetline{color:#cfe0ff}
+.cta{background:#2f6fdb;color:#fff;border:none;border-radius:10px;padding:13px 26px;min-height:48px;font-size:17px;font-weight:700;margin:14px 6px 0 0}
+.cta:hover{background:#3a7ce8}
+.cta.secondary{background:#26334f;color:#cfe0ff;border:1px solid #46608f}
+.cta.secondary:hover{background:#31426b}
+.cta:disabled{opacity:.5;cursor:not-allowed}
+ul.rules{margin:8px 0 8px 22px;padding:0}
+ul.rules li{margin:6px 0}
+.objtype{display:inline-block;background:#2b3f6b;color:#fff;border-radius:8px;padding:3px 12px;font-weight:700;font-size:14px}
+
+/* ---------- keywords covered panel ---------- */
+.themes{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;margin-top:10px}
+.theme{background:#131a2b;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.theme h4{margin:0 0 8px;font-size:14.5px;color:#9db8e8}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{background:#223050;border:1px solid #3a4a6d;border-radius:9px;padding:2px 8px;font-size:12.5px;color:#c9d6ee}
+
+/* ---------- three exercise blocks ---------- */
+.block{border-radius:12px;padding:14px 16px;margin:16px 0;border:1px solid}
+.block .bhead{font-weight:800;font-size:13.5px;letter-spacing:1px;text-transform:uppercase;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.b-scenario{background:var(--blue-bg);border-color:#33507e}.b-scenario .bhead{color:#8fbaff}
+.b-question{background:var(--amber-bg);border-color:#6e5a1e}.b-question .bhead{color:var(--amber)}
+.b-answer{background:var(--green-bg);border-color:#2e5c3e}.b-answer .bhead{color:var(--green)}
+.b-question .qtext{font-weight:700;font-size:17px;margin:2px 0;color:var(--ink)}
+.collapser-summary{font-weight:700;color:#9db8e8;margin:0 0 6px}
+.artefact{background:#131a2b;border:1px solid var(--line);border-left:5px solid #7fb2ff;border-radius:8px;padding:10px 12px;margin:10px 0}
+.artefact .alabel{font-weight:700;font-size:13px;color:#8fbaff;margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px}
+.artefact p{margin:6px 0}
+.canonlabel{color:#8fbaff;font-weight:700;margin-top:8px}
+.collapser{background:none;border:none;color:#8fbaff;font-weight:700;padding:6px 4px;min-height:44px;text-align:left}
+
+/* ---------- logs & code ---------- */
+.logbox{background:#0d1420;color:#cfe3ff;border-radius:8px;padding:10px 12px;overflow:auto;font:14px/1.5 var(--mono)}
+.logbox .ln{white-space:pre;display:block}
+.logfilter{width:100%;max-width:420px;padding:8px 10px;min-height:44px;border:1px solid #46608f;border-radius:8px;background:#101a2c;color:#e7f0ff;margin:0 0 8px;font:14px var(--mono)}
+.ts{color:#8fd694}.ip{color:#7fd3ff}.lvl-error{color:#ff9b8a;font-weight:700}.lvl-warn{color:#ffd479}
+.str{color:#ffd479}.kw{color:#c792ea;font-weight:700}.num{color:#f2a65a}
+.codeblock{background:#0d1420;color:#e6edf5;border-radius:8px;padding:12px 14px;font:14.5px/1.55 var(--mono);overflow:auto;white-space:pre-wrap}
+.copyhint{color:var(--muted);font-size:12.5px;margin-top:4px}
+
+/* ---------- answer widgets ---------- */
+.opt{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;background:#1b2438;border:1.5px solid var(--line);
+  border-radius:10px;padding:11px 14px;margin:8px 0;min-height:48px;font-size:16px;line-height:1.45;color:var(--ink)}
+.opt:hover{border-color:#5b83c4;background:#223050}
+.opt:has(input:checked){border-color:#7fb2ff;background:#1b2c4a;box-shadow:inset 0 0 0 1px #7fb2ff}
+.opt.correct{border-color:#3fa06a;background:#17301f}
+.opt.wrong{border-color:#d0564c;background:#331919}
+.opt .okey{font-weight:800;min-width:26px}
+.opt:disabled{cursor:default;opacity:1}
+.optrow{display:flex;gap:10px;flex-wrap:wrap}
+select.anssel{padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:15.5px;background:#1b2438;color:var(--ink);min-height:44px;max-width:100%}
+.matchrow{display:flex;align-items:center;gap:10px;margin:9px 0;flex-wrap:wrap}
+.matchrow .ml{flex:1 1 260px;background:#1b2438;border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+
+/* drag and drop */
+.bank{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;min-height:48px;background:#131a2b;border:1px dashed var(--line);border-radius:10px;padding:8px}
+.dchip{background:#223050;border:1.5px solid #5b83c4;color:#cfe0ff;border-radius:9px;padding:8px 12px;font-size:15px;cursor:grab;min-height:44px}
+.dchip:hover{background:#2a3a5e}
+.dchip.armed{outline:3px solid #7fb2ff;background:#1b3358}
+.dropzone{background:#18202f;border:2px dashed #46608f;border-radius:10px;padding:10px 12px;margin:10px 0;min-height:64px}
+.dropzone.over{border-color:#7fb2ff;background:#1b2c4a}
+.dropzone .dtitle{font-weight:800;font-size:14px;color:#9db8e8;margin-bottom:6px}
+.dz-slot{display:flex;flex-direction:column;gap:8px}
+
+/* ordering */
+.ordlist{list-style:none;margin:10px 0;padding:0}
+.ordlist li{display:flex;align-items:center;gap:8px;background:#1b2438;border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;margin:8px 0}
+.ordlist .otxt{flex:1}
+.ordbtns button{border:1px solid var(--line);background:#26334f;border-radius:7px;min-width:44px;min-height:44px;color:#e5edff}
+.ordbtns button:hover{background:#31426b}
+.ordnum{font-weight:800;color:#93a1bb;min-width:22px;text-align:center}
+
+/* fill-in-the-blank */
+.filltext{font-size:16.5px;line-height:2.05}
+.filltext select{margin:0 3px}
+
+/* terminal */
+.term{background:#0a0f18;border-radius:10px;padding:12px;color:#d8e6ff;font:14.5px/1.5 var(--mono)}
+.term .scr{min-height:120px;max-height:260px;overflow:auto;white-space:pre-wrap;margin:0 0 8px}
+.term .promptline{display:flex;gap:6px;align-items:center}
+.term .ps1{color:#8fd694;font-weight:700;white-space:nowrap}
+.term input{flex:1;background:#101a2c;border:1px solid #33456b;color:#e7f0ff;border-radius:6px;padding:8px 10px;font:14.5px var(--mono);min-height:44px}
+.term .err{color:#ff9b8a}.term .warn{color:#ffd479}.term .ok{color:#8fd694}
+
+/* steps (decision tree) */
+.stephdr{display:inline-block;background:#2b3f6b;color:#fff;border-radius:8px;padding:3px 12px;font-weight:700;font-size:13.5px;margin:4px 0}
+.stepzone{border-left:4px solid #33507e;margin:12px 0;padding-left:14px}
+
+/* triage table */
+.trirow{background:#1b2438;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+.trirow .tsum{font-weight:600;margin-bottom:6px}
+
+/* ---------- feedback ---------- */
+.feedback{border-radius:12px;padding:15px 18px;margin:18px 0;border:1.5px solid}
+.fb-correct{background:var(--green-bg);border-color:#3fa06a}
+.fb-partial{background:var(--amber-bg);border-color:#b45309}
+.fb-incorrect{background:var(--red-bg);border-color:#d0564c}
+.fb-skipped{background:#1b2438;border-color:#5a6a8a}
+.feedback .fbtitle{font-weight:800;font-size:17px;display:flex;gap:9px;align-items:center;margin:0 0 8px}
+.fb-credit{font-weight:700;margin:6px 0}
+.itembd{list-style:none;margin:8px 0;padding:0}
+.itembd li{margin:7px 0;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
+.it-correct{color:#9fe8b8}.it-wrong{color:#ffab9f}.it-missed{color:#ffd479}
+.studytip{background:#16223a;border-left:5px solid #7fb2ff;border-radius:6px;padding:8px 12px;margin:10px 0;font-size:15px}
+
+/* ---------- review screen ---------- */
+.revitem{display:flex;align-items:center;gap:12px;background:#1b2438;border:1px solid var(--line);border-radius:10px;padding:12px;margin:10px 0;flex-wrap:wrap}
+.revitem .rtitle{flex:1 1 300px}
+
+/* ---------- results ---------- */
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:14px 0}
+.stat{background:#1b2438;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.stat .sval{font-size:26px;font-weight:800}
+.stat .slab{color:var(--muted);font-size:13.5px}
+.verdict{font-size:30px;font-weight:800;margin:12px 0}
+.pass{color:#6fe09a}.fail{color:#ff8d84}
+.cert{border:6px double #3fa06a;border-radius:14px;background:#12241a;padding:22px;text-align:center;margin:16px 0}
+.certsub{color:#a8b3c7}
+.timerreport{color:var(--muted);font-size:14px}
+@media (max-width:640px){.exam-head{gap:6px}.hstat{font-size:13px}.opt{font-size:15px}}
+.hidden{display:none!important}
+.blurit{filter:blur(9px);pointer-events:none;user-select:none}
+.pausecard{text-align:center;padding:50px 20px;background:#1b2438;border:2px dashed #46608f;border-radius:14px;margin:26px 0}
+.pausecard .big{font-size:40px}
+
+</style>
+</head>
+<body>
+<div class="exam-head">
+  <span class="hstat"><strong>G1049 AppleJeus</strong></span>
+  <span class="hstat" id="h-badge"></span>
+  <span class="hstat grow" id="h-count">Exercise 1 of 1</span>
+  <span class="hstat">Score <span id="h-score">0.0 / 0</span> <span id="h-percent">0%</span></span>
+  <span class="hstat timerbox">⏱ <span id="t-time">--:--</span> <span id="t-state" class="timer-state">● READY</span></span>
+  <button class="hbtn" id="h-hint">💡 Hint</button>
+  <button class="hbtn" id="h-skip">⤼ Skip</button>
+  <button class="hbtn" id="h-pause">⏸ Pause</button>
+  <button class="hbtn" id="h-finish">Finish</button>
+</div>
+<div class="wrap">
+
+<div id="screen-intro">
+  <div class="panel">
+    <div class="kicker">CyberPulseAcademy · MITRE ATT&CK topic · Tier 3: HARD</div>
+    <h1>G1049 — HARD practice exam</h1>
+    <p id="greet" class="greetline"></p>
+    
+<h2>Meet the attacker you will study: AppleJeus (G1049)</h2>
+<p><span class="objtype">ATT&CK OBJECT TYPE: GROUP (threat actor)</span></p>
+<p>In MITRE ATT&CK, a <strong>Group</strong> is a page that describes one real team of attackers: who they are, who they work for, what they want, and <em>how</em> they attack. This exam is about Group <strong>G1049</strong>. Its main name is <strong>AppleJeus</strong>. Other organisations track the same team under the names <strong>Gleaming Pisces</strong>, <strong>Citrine Sleet</strong>, <strong>UNC1720</strong>, and <strong>UNC4736</strong>. One team, several names — that is normal in threat intelligence.</p>
+<p>You will learn who these attackers are. AppleJeus is a state-sponsored team from North Korea (DPRK). It belongs to the country's <strong>Reconnaissance General Bureau</strong> and sits under the wide <strong>Lazarus Group</strong> umbrella. The team has been active since at least 2018. Imagine its job is like a bank robber, but for a government: its main mission is to <strong>generate and launder money to support that government</strong>. That is why it mostly attacks the <strong>cryptocurrency industry</strong>. It wants digital assets — coins and tokens — not customer databases.</p>
+<p>You will learn how they get in. AppleJeus mixes two tricks. First, <strong>phishing</strong>: emails that push malicious files. Second — their signature move — <strong>fake or trojanized cryptocurrency software</strong>: trading apps and wallets that look real but steal. In their most famous operation, the <strong>3CX Supply Chain Attack</strong> (campaign C0057), they took a two-step path: they first placed malware inside an old trading program (X_TRADER) used by one company, used that foothold to reach 3CX's <em>build environment</em>, and then poisoned a normal 3CX software update so thousands of customers installed the malware themselves.</p>
+<p>You will learn where this knowledge is used at work. A <strong>SOC analyst</strong> uses it to triage alerts like a hijacked DLL or odd cookie beacons. An <strong>incident responder</strong> uses it to scope a supply chain incident. A <strong>threat intelligence analyst</strong> uses it to brief leaders and to compare evidence against this group's playbook. A <strong>detection engineer</strong> turns the group's techniques — code signing abuse, process injection, dead drop resolvers — into detection rules. A <strong>GRC or control owner</strong> uses it to justify controls like signing enforcement, multi-factor authentication on VPNs, and software supply chain risk checks. A <strong>red teamer</strong> studies the playbook to test defences against it.</p>
+<p>Everything in this exam comes from the ATT&CK page for G1049: its aliases, its campaign, its 23 listed techniques, and its software (for example the FRP tool it dropped as <em>MsMpEng.exe</em>). Master this group, and you can recognise its fingerprints in real logs.</p>
+
+    
+<p>Below are the key ideas this topic covers, grouped by theme. Every exercise in this exam comes from these ideas, which are taken from the MITRE ATT&CK page for Group <strong>G1049</strong> (AppleJeus).</p>
+<div class="themes">
+  <div class="theme"><h4>Attribution &amp; Threat Actor Profile</h4><div class="chips">
+    <span class="chip">DPRK state-sponsored</span><span class="chip">Reconnaissance General Bureau (RGB)</span>
+    <span class="chip">Lazarus Group umbrella</span><span class="chip">TEMP.hermit resource alignment</span>
+    <span class="chip">active since at least 2018</span><span class="chip">alias: AppleJeus</span>
+    <span class="chip">alias: Gleaming Pisces</span><span class="chip">alias: Citrine Sleet</span>
+    <span class="chip">alias: UNC1720</span><span class="chip">alias: UNC4736</span></div></div>
+  <div class="theme"><h4>Targeting &amp; Objectives</h4><div class="chips">
+    <span class="chip">cryptocurrency industry</span><span class="chip">digital asset theft</span>
+    <span class="chip">T1657 Financial Theft</span><span class="chip">revenue for the government</span>
+    <span class="chip">high-value financial targets</span><span class="chip">selective backdoor deployment</span></div></div>
+  <div class="theme"><h4>Delivery &amp; Initial Access</h4><div class="chips">
+    <span class="chip">T1566 Phishing (spearphishing)</span><span class="chip">trojanized crypto trading software</span>
+    <span class="chip">T1189 Drive-by Compromise</span><span class="chip">hidden IFRAME on trading site</span>
+    <span class="chip">T1203 CVE-2022-0609 (Chrome)</span><span class="chip">T1195.002 Compromise Software Supply Chain</span>
+    <span class="chip">T1078 Valid Accounts (VPN)</span></div></div>
+  <div class="theme"><h4>Execution &amp; Persistence</h4><div class="chips">
+    <span class="chip">T1218.007 Msiexec (ffmpeg.dll)</span><span class="chip">T1218.015 Electron Applications</span>
+    <span class="chip">T1546.016 Installer Packages (.dmg/.dylib)</span><span class="chip">T1574.001 DLL Search Order Hijack (IKEEXT → TAXHAUL)</span>
+    <span class="chip">T1543.004 Launch Daemon → POOLRAT</span></div></div>
+  <div class="theme"><h4>Stealth &amp; Defense Evasion</h4><div class="chips">
+    <span class="chip">T1027 AES-256 GCM</span><span class="chip">T1027.009 Embedded Payloads</span>
+    <span class="chip">T1027.013 RC4 + partial decrypt key</span><span class="chip">T1620 Reflective Code Loading (DAVESHELL)</span>
+    <span class="chip">T1553.002 Code Signing (Trading Technologies cert)</span><span class="chip">T1678 Delay Execution (1–4 weeks)</span></div></div>
+  <div class="theme"><h4>C2 &amp; Communication</h4><div class="chips">
+    <span class="chip">COLDCAT</span><span class="chip">T1071.001 cookie headers __tutma / __tutmc</span>
+    <span class="chip">VEILEDSIGNAL</span><span class="chip">T1573.001 Symmetric Cryptography</span>
+    <span class="chip">T1102.001 GitHub icon dead drop</span><span class="chip">T1559 named pipe IPC</span>
+    <span class="chip">T1055 browser process injection</span><span class="chip">T1055.002 SigFlip PE injection</span></div></div>
+  <div class="theme"><h4>Collection &amp; Stealing</h4><div class="chips">
+    <span class="chip">ICONICSTEALER</span><span class="chip">T1217 Browser Information Discovery</span>
+    <span class="chip">browser history theft</span></div></div>
+  <div class="theme"><h4>Software, Tooling &amp; Campaign</h4><div class="chips">
+    <span class="chip">S1144 FRP (as MsMpEng.exe)</span><span class="chip">POOLRAT (macOS backdoor)</span>
+    <span class="chip">TAXHAUL</span><span class="chip">SigFlip</span><span class="chip">DAVESHELL</span>
+    <span class="chip">C0057 3CX Supply Chain Attack (Nov 2022 – Mar 2023)</span>
+    <span class="chip">X_TRADER end-of-life software</span></div></div>
+</div>
+
+    
+<h2>How this exam works</h2>
+<ul class="rules">
+  <li><strong>This exam:</strong> a tier-3 certification practice on Group G1049 (AppleJeus) with 16 dynamic exercises — multiple choice, multi-select, matching, drag &amp; drop, ordering, fill-in-the-blank, log analysis, decision trees and, in the harder tiers, an evidence shell.</li>
+  <li><strong>This tier is HARD.</strong> Exercises chain two to three ideas with near-miss answers: options that look right in another incident but are wrong here. Expect at least one "looks alarming but is benign" and one "looks benign but is alarming" case.</li>
+  <li><strong>Pass mark: 70%.</strong> Your score is computed only over the exercises you actually answer.</li>
+  <li><strong>Partial credit:</strong> exercises with several correct items are scored per item. Wrong selections subtract from correct ones: credit = max(0, (H − W) / N). A partially correct answer still earns partial credit — select-everything gives 0.</li>
+  <li><strong>Hint button:</strong> one hint per exercise. It costs 10% of that exercise's credit (clamped at 0). It nudges, it never answers.</li>
+  <li><strong>Check &amp; free thinking time:</strong> when you press <em>Check</em>, the timer stops automatically and the feedback appears. You may study it as long as you want — the timer only restarts when you press <em>Next</em>. This is different from the manual pause.</li>
+  <li><strong>Manual pause:</strong> the ⏸ Pause button stops the timer and hides the exercise while you take a real break. Press Resume to continue.</li>
+  <li><strong>Skip:</strong> every exercise has a Skip button. Skipped exercises wait in a pool; before finishing you can return to them (while time remains). Skipped-and-never-answered exercises are simply excluded from the score — skipping is free.</li>
+  <li><strong>Timer:</strong> this HARD exam gives you <strong>55 minutes</strong> for 16 exercises. When time ends, unanswered exercises are excluded and the exam closes.</li>
+  <li><strong>Retake:</strong> if you fail, you can retake the exam. Questions and options are reshuffled each attempt.</li>
+</ul>
+
+    <p style="font-weight:600">Ready? The timer starts the moment you press the button below.</p>
+    <button class="cta" id="start-btn">Start the HARD exam (16 exercises, 55 minutes)</button>
+  </div>
+</div>
+
+<div id="screen-exam" class="hidden">
+  <div id="ex-zone"></div>
+  <div id="pausecard" class="pausecard hidden">
+    <div class="big">⏸</div>
+    <h2>Paused — manual break</h2>
+    <p>The timer is stopped and the exercise is hidden so you cannot read it.</p>
+    <p>Press <strong>Resume</strong> in the top bar when you are ready to continue.</p>
+  </div>
+</div>
+
+<div id="screen-review" class="hidden"><div id="rev-zone"></div></div>
+<div id="screen-results" class="hidden"><div id="res-zone"></div></div>
+
+</div>
+<script>
+/* CyberPulseAcademy exam engine — self-contained, vanilla JS. */
+(function(){
+'use strict';
+function $(s,r){return (r||document).querySelector(s)}
+function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function shuffle(a){var x=a.slice();for(var i=x.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=x[i];x[i]=x[j];x[j]=t}return x}
+function round1(n){return Math.round(n*10)/10}
+
+var EXDATA = JSON.parse($('#exam-data').textContent);
+var META = JSON.parse($('#cm-exercise-meta').textContent);
+var EXS = EXDATA.exercises;
+var SEV = EXDATA.severity;            // easy|medium|hard|xhard
+var SEVLABEL = EXDATA.severityLabel;  // EASY|MEDIUM|HARD|EXTREMELY HARD
+var TIMER_SECONDS = EXDATA.timerMinutes * 60;
+var PASS = META.passMark || 70;
+
+/* ---------------- state ---------------- */
+var S = {
+  order: [], cur: 0,
+  graded: {},           // exId -> {credit, graded:true}
+  skipPool: [],         // exIds skipped and never answered
+  inReview: false,
+  creditSum: 0, answered: 0,
+  tState: 'IDLE',       // IDLE RUNNING PAUSED_MANUAL PAUSED_AUTO_CHECK ENDED
+  remaining: TIMER_SECONDS,
+  tHandle: null,
+  manualPauseSec: 0, autoPauseSec: 0,
+  attemptDone: false,
+  user: ''
+};
+
+/* ---------------- timer state machine ---------------- */
+function tSet(state){
+  S.tState = state;
+  if(S.tHandle){clearInterval(S.tHandle);S.tHandle=null;}
+  if(state==='RUNNING'){
+    S.tHandle = setInterval(function(){
+      if(S.tState!=='RUNNING') return;
+      S.remaining -= 1;
+      if(S.remaining<=0){S.remaining=0;renderTimer();timerEnd();}
+      renderTimer();
+    },1000);
+  }
+  renderTimer();
+}
+function timerEnd(){
+  tSet('ENDED');
+  goResults(true);
+}
+function renderTimer(){
+  var m=Math.floor(S.remaining/60), s=S.remaining%60;
+  $('#t-time').textContent = m+':'+(s<10?'0':'')+s;
+  var el=$('#t-state'), cls='timer-state', txt='';
+  if(S.tState==='RUNNING'){cls+=' st-run';txt='▶ RUNNING';}
+  else if(S.tState==='PAUSED_MANUAL'){cls+=' st-pman';txt='⏸ PAUSED — manual (press Resume)';}
+  else if(S.tState==='PAUSED_AUTO_CHECK'){cls+=' st-pauto';txt='⏸ PAUSED — reviewing feedback (resumes on Next)';}
+  else if(S.tState==='ENDED'){txt='■ ENDED';}
+  else {txt='● READY';}
+  el.className=cls; el.textContent=txt;
+}
+
+/* ---------------- scoring (spec formula) ---------------- */
+function scoreExercise(H,W,N){
+  if(N<=0) return 0;
+  return Math.max(0,(H-W)/N);
+}
+function applyHint(credit){
+  return Math.max(0, credit-0.10);
+}
+
+/* ---------------- exercise shuffling ---------------- */
+function reshuffle(){
+  S.order = shuffle(EXS.map(function(e,i){return i;}));
+  S.cur=0; S.graded={}; S.skipPool=[]; S.inReview=false;
+  S.creditSum=0; S.answered=0; S.remaining=TIMER_SECONDS;
+  S.manualPauseSec=0; S.autoPauseSec=0; S.attemptDone=false;
+  S.afterReviewReturn=false; S.tState='IDLE';
+  /* hint flags live on the exercise objects — reset them so every attempt
+     starts with one fresh hint per exercise (retake bug fix) */
+  EXS.forEach(function(e){ delete e._hintShown; delete e._hintUsed; });
+}
+
+/* ---------------- view switching ---------------- */
+var CTRL=['#h-hint','#h-skip','#h-pause','#h-finish'];
+function setControls(on){
+  CTRL.forEach(function(s){ var b=$(s); if(b) b.disabled=!on; });
+}
+function show(id){
+  ['screen-intro','screen-exam','screen-review','screen-results'].forEach(function(x){
+    $('#'+x).classList.toggle('hidden', x!==id);
+  });
+  /* header controls only make sense while an exercise is on screen */
+  setControls(id==='screen-exam');
+  window.scrollTo(0,0);
+}
+
+/* ---------------- header / live score ---------------- */
+function renderScore(){
+  $('#h-score').textContent = round1(S.creditSum)+' / '+S.answered;
+  var pct = S.answered>0 ? Math.round((S.creditSum/S.answered)*100) : 0;
+  $('#h-percent').textContent = pct+'%';
+}
+
+/* ---------------- severity badge ---------------- */
+function badgeHTML(){
+  var cls = 'badge badge-'+SEV;
+  return '<span class="'+cls+'">'+esc(SEVLABEL)+'</span>';
+}
+
+/* =============== ARTEFACT / LOG RENDERING =============== */
+var LOGID=0;
+function highlightLog(line){
+  var h = esc(line);
+  h = h.replace(/(\d{4}-\d{2}-\d{2}[T ][\d:.]+Z?)/g,'<span class="ts">$1</span>');
+  h = h.replace(/(\d{1,3}\[\.\]\d{1,3}\[\.\]\d{1,3}\[\.\]\d{1,3})/g,'<span class="ip">$1</span>');
+  h = h.replace(/\b(ERROR|CRIT|ALERT|FAILED|DETECT)\b/g,'<span class="lvl-error">$1</span>');
+  h = h.replace(/\b(WARN|WARNING)\b/g,'<span class="lvl-warn">$1</span>');
+  h = h.replace(/(&quot;[^&]*?&quot;)/g,'<span class="str">$1</span>');
+  return h;
+}
+function renderBlock(kind, text, filterable){
+  if(kind==='log'){
+    LOGID++;
+    var id='log'+LOGID;
+    var html='<div class="logbox" id="'+id+'">';
+    text.split('\n').forEach(function(l){
+      html+='<span class="ln" data-raw="'+esc(l.toLowerCase())+'">'+highlightLog(l)+'</span>';
+    });
+    html+='</div>';
+    if(filterable){
+      html='<input class="logfilter" type="text" aria-label="Filter log lines" placeholder="filter… (type to hide lines that do not match)" oninput="window.__filterLog(this,\''+id+'\')">'+html;
+    }
+    return html;
+  }
+  if(kind==='code') return '<div class="codeblock">'+esc(text)+'</div>';
+  return '<p>'+text+'</p>'; /* text may contain whitelisted inline tags */
+}
+window.__filterLog=function(inp,id){
+  var q=inp.value.toLowerCase();
+  $$('#'+id+' .ln').forEach(function(ln){
+    ln.style.display = (!q || ln.getAttribute('data-raw').indexOf(q)>=0) ? '' : 'none';
+  });
+};
+function scenarioHTML(ex){
+  var h='';
+  if(ex.scenarioSummary){
+    h+='<p class="collapser-summary">'+esc(ex.scenarioSummary)+'</p>';
+  }
+  if(ex.scenario && ex.scenario.length){
+    var body = ex.scenario.map(function(b,i){
+      var lbl = b.label? '<div class="alabel">'+esc(b.label)+'</div>' : '';
+      return '<div class="artefact">'+lbl+renderBlock(b.kind||'text',b.text,b.filterable)+'</div>';
+    }).join('');
+    if(ex.longScenario){
+      h+='<button class="collapser" type="button" onclick="window.__toggleScenario(this)">▾ Show full scenario</button>'+
+         '<div class="hidden" data-scenbody>'+body+'</div>';
+    } else {
+      h+=body;
+    }
+  }
+  return h;
+}
+window.__toggleScenario=function(btn){
+  var body=btn.parentNode.querySelector('[data-scenbody]');
+  var open=body.classList.toggle('hidden');
+  btn.textContent = open? '▾ Show full scenario' : '▴ Collapse scenario';
+};
+
+/* =============== WIDGET RENDERERS =============== */
+/* every renderer returns {html, collect()} — collect() returns array of selected item keys/values */
+function letter(i){return 'ABCDEFGH'.charAt(i);}
+
+function renderQCM(ex,ctx){
+  var opts=shuffle(ex.options.map(function(o,i){return {t:o.t,correct:!!o.correct,src:i};}));
+  var html='';
+  opts.forEach(function(o,i){
+    html+='<label class="opt" data-qcm="1"><input type="radio" name="q_'+ctx.uid+'" value="'+i+'" style="min-width:18px;min-height:18px">'+
+      '<span class="okey">'+letter(i)+'.</span><span>'+o.t+'</span></label>';
+  });
+  html='<div role="radiogroup" aria-label="Answer options">'+html+'</div>';
+  return {html:html, collect:function(){
+    var sel=$$('input[name="q_'+ctx.uid+'"]').filter(function(r){return r.checked;})[0];
+    return sel? [opts[parseInt(sel.value,10)]] : [];
+  }};
+}
+function renderMulti(ex,ctx){
+  var opts=shuffle(ex.options.map(function(o,i){return {t:o.t,correct:!!o.correct,src:i};}));
+  var html='';
+  opts.forEach(function(o,i){
+    html+='<label class="opt"><input type="checkbox" data-multi="1" value="'+i+'" style="min-width:18px;min-height:18px">'+
+      '<span class="okey">'+letter(i)+'.</span><span>'+o.t+'</span></label>';
+  });
+  html='<div role="group" aria-label="Select all that apply">'+html+'</div>';
+  return {html:html, collect:function(){
+    return $$('input[data-multi="1"]',ctx.root).filter(function(c){return c.checked;})
+      .map(function(c){return opts[parseInt(c.value,10)];});
+  }};
+}
+function renderMatch(ex,ctx){
+  var rights=shuffle(ex.right.slice());
+  var html='';
+  ex.left.forEach(function(l,i){
+    var os='<option value="">— choose —</option>';
+    rights.forEach(function(r,j){ os+='<option value="'+j+'">'+esc(r)+'</option>'; });
+    html+='<div class="matchrow"><div class="ml">'+l.t+'</div><select class="anssel" data-match="'+i+'" aria-label="Match for '+esc(l.t)+'">'+os+'</select></div>';
+  });
+  return {html:html, collect:function(){
+    return $$('select[data-match]',ctx.root).map(function(s){
+      var j=parseInt(s.value,10);
+      return {left:ex.left[parseInt(s.getAttribute('data-match'),10)], chosen: s.value===''? null : rights[j]};
+    });
+  }};
+}
+function renderDragDrop(ex,ctx){
+  var items=shuffle(ex.items.slice());
+  var bank='<div class="bank" data-bank="1" aria-label="Item bank">'+items.map(function(it){
+    return '<button type="button" class="dchip" draggable="true" data-key="'+esc(it.k)+'" data-txt="'+esc(it.t)+'">'+esc(it.t)+'</button>';
+  }).join('')+'</div>';
+  var zones='<div class="dz-slot">'+ex.slots.map(function(sl){
+    return '<div class="dropzone" data-slot="'+esc(sl.k)+'"><div class="dtitle">'+esc(sl.t)+'</div><div class="dzitems" data-dzitems="1"></div></div>';
+  }).join('')+'</div>';
+  var html=bank+zones;
+  return {html:html, collect:function(){
+    var out=[];
+    $$('.dropzone',ctx.root).forEach(function(z){
+      $$('.dchip',z).forEach(function(ch){ out.push({chip:ch.getAttribute('data-txt'), slot:z.getAttribute('data-slot')}); });
+    });
+    return out;
+  }, afterMount:function(root){ mountDnD(root); }};
+}
+function mountDnD(root){
+  var armedRef={v:null};
+  armedRef.get=function(){return armedRef.v;};
+  armedRef.set=function(x){armedRef.v=x;};
+  var armed=armedRef;
+  function place(chip,z){
+    z.querySelector('[data-dzitems]').appendChild(chip);
+    chip.classList.remove('armed'); armedRef.set(null);
+  }
+  $$('.dchip',root).forEach(function(ch){
+    ch.addEventListener('click',function(e){
+      e.stopPropagation(); /* chips sit inside the bank — do not let clicks reach the bank handler */
+      if(ch.classList.contains('armed')){ch.classList.remove('armed');armedRef.set(null);return;}
+      $$('.dchip',root).forEach(function(c){c.classList.remove('armed');});
+      ch.classList.add('armed'); armedRef.set(ch);
+    });
+    ch.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.stopPropagation(); } });
+    ch.addEventListener('dragstart',function(e){ e.stopPropagation(); e.dataTransfer.setData('text/plain', ch.getAttribute('data-key')); armedRef.set(ch); });
+  });
+  $$('.dropzone',root).forEach(function(z){
+    var title=z.querySelector('.dtitle');
+    z.setAttribute('tabindex','0');
+    z.setAttribute('role','button');
+    z.setAttribute('aria-label','Drop zone: '+(title?title.textContent:'target')+'. Press Enter to place the selected item here.');
+    z.addEventListener('click',function(){ var a=armedRef.get(); if(a) place(a,z); });
+    z.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); var a=armedRef.get(); if(a) place(a,z); } });
+    z.addEventListener('dragover',function(e){ e.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave',function(){ z.classList.remove('over'); });
+    z.addEventListener('drop',function(e){
+      e.preventDefault(); z.classList.remove('over');
+      var key=e.dataTransfer.getData('text/plain');
+      var chip=$$('.dchip',root).filter(function(c){return c.getAttribute('data-key')===key;})[0];
+      if(chip) place(chip,z);
+    });
+  });
+  mountBank(root,armedRef,function(){});
+}
+function mountBank(root,armedRef){
+  /* the item bank doubles as a drop target so chips can always be taken back */
+  var bank=$('[data-bank]',root);
+  if(!bank) return;
+  bank.setAttribute('tabindex','0');
+  bank.setAttribute('role','button');
+  bank.setAttribute('aria-label','Item bank. Press Enter to return the selected item to the bank.');
+  function toBank(chip){ bank.appendChild(chip); chip.classList.remove('armed'); armedRef.set(null); }
+  function fromChip(e){ return !!(e.target && e.target.closest && e.target.closest('.dchip')); }
+  bank.addEventListener('click',function(e){ if(fromChip(e)) return; var a=armedRef.get(); if(a) toBank(a); });
+  bank.addEventListener('keydown',function(e){ if(fromChip(e)) return; if(e.key==='Enter'||e.key===' '){ e.preventDefault(); var a=armedRef.get(); if(a) toBank(a); } });
+  bank.addEventListener('dragover',function(e){ e.preventDefault(); });
+  bank.addEventListener('drop',function(e){
+    e.preventDefault();
+    var key=e.dataTransfer.getData('text/plain');
+    var chip=$$('.dchip',root).filter(function(c){return c.getAttribute('data-key')===key;})[0];
+    if(chip) toBank(chip);
+  });
+}
+function renderOrder(ex,ctx){
+  var items=shuffle(ex.items.slice());
+  var rootEl=null;
+  function draw(){
+    var ol='<ol class="ordlist">';
+    items.forEach(function(it,i){
+      ol+='<li draggable="true" data-key="'+esc(it.k)+'"><span class="ordnum">'+(i+1)+'.</span>'+
+        '<span class="otxt">'+esc(it.t)+'</span><span class="ordbtns">'+
+        '<button type="button" data-up="'+i+'" aria-label="Move up">↑</button>'+
+        '<button type="button" data-down="'+i+'" aria-label="Move down">↓</button></span></li>';
+    });
+    ol+='</ol>';
+    rootEl.querySelector('[data-ordwrap]').innerHTML=ol;
+    $$('.ordbtns button',rootEl).forEach(function(b){
+      b.addEventListener('click',function(){
+        var i=parseInt(b.getAttribute('data-up')!==null?b.getAttribute('data-up'):b.getAttribute('data-down'),10);
+        var j=b.getAttribute('data-up')!==null? i-1 : i+1;
+        if(j<0||j>=items.length) return;
+        var t=items[i];items[i]=items[j];items[j]=t;draw();
+      });
+    });
+    $$('.ordlist li',rootEl).forEach(function(li){
+      li.addEventListener('dragstart',function(e){e.dataTransfer.setData('text/plain',li.getAttribute('data-key'));});
+      li.addEventListener('dragover',function(e){e.preventDefault();});
+      li.addEventListener('drop',function(e){
+        e.preventDefault();
+        var k=e.dataTransfer.getData('text/plain');
+        var a=items.map(function(x){return x.k;}).indexOf(k), b=items.map(function(x){return x.k;}).indexOf(li.getAttribute('data-key'));
+        if(a<0||b<0||a===b) return;
+        var t=items[a];items[a]=items[b];items[b]=t;draw();
+      });
+    });
+  }
+  var html='<div data-ordwrap="1"></div>';
+  return {html:html, collect:function(){return items.map(function(x){return x.k;});},
+    afterMount:function(root){rootEl=root;draw();}};
+}
+function renderFill(ex,ctx){
+  var parts=ex.template.split(/\{(\w+)\}/);
+  var html='<div class="filltext">';
+  parts.forEach(function(p,i){
+    if(i%2===0){ html+=p; }
+    else{
+      var bl=ex.blanks[p];
+      var ch=shuffle(bl.choices.slice());
+      var os='<option value="">— choose —</option>';
+      ch.forEach(function(c,j){os+='<option value="'+j+'">'+esc(c)+'</option>';});
+      html+='<select class="anssel" data-blank="'+esc(p)+'" aria-label="Blank '+esc(p)+'">'+os+'</select>';
+    }
+  });
+  html+='</div>';
+  return {html:html, collect:function(){
+    return $$('select[data-blank]',ctx.root).map(function(s){
+      var bl=ex.blanks[s.getAttribute('data-blank')];
+      var v=s.value;
+      return {blank:s.getAttribute('data-blank'), chosen: v===''? null : bl.choices[parseInt(v,10)]};
+    });
+  }};
+}
+function renderTriage(ex,ctx){
+  var html='';
+  ex.alerts.forEach(function(a,i){
+    var os='<option value="">— choose action —</option>';
+    a.options.forEach(function(o,j){os+='<option value="'+j+'">'+esc(o)+'</option>';});
+    html+='<div class="trirow"><div class="tsum">'+esc(a.summary)+'</div>'+
+      (a.log?'<div class="artefact"><div class="alabel">'+esc(a.logLabel||'Alert detail')+'</div>'+renderBlock('log',a.log,false)+'</div>':'')+
+      '<select class="anssel" data-triage="'+i+'" aria-label="Action for alert '+esc(a.summary)+'">'+os+'</select></div>';
+  });
+  return {html:html, collect:function(){
+    return $$('select[data-triage]',ctx.root).map(function(s){
+      var a=ex.alerts[parseInt(s.getAttribute('data-triage'),10)];
+      return {alert:a.summary, chosen: s.value===''? null : a.options[parseInt(s.value,10)]};
+    });
+  }};
+}
+function renderTerminal(ex,ctx){
+  var html='<div class="term" data-term="1"><div class="scr" data-scr="1"></div>'+
+    '<div class="promptline"><span class="ps1">'+esc(ex.terminal.prompt)+' $</span>'+
+    '<input type="text" data-termin="1" aria-label="Type a command" placeholder="type a command (help lists commands)"></div></div>';
+  return {html:html, collect:function(){
+    var sel=$$('select[data-termans]',ctx.root).filter(function(s){return s.value!=='';})[0];
+    if(sel){var a=ex.terminal.answer.options[parseInt(sel.value,10)];return [{choice:a}];}
+    return [];
+  }, afterMount:function(root){
+    var scr=root.querySelector('[data-scr]'), inp=root.querySelector('[data-termin]');
+    var FS=ex.terminal.files, hist=[];
+    /* case-insensitive file lookup so 'cat ROOT.txt' and 'cat root.txt' both work */
+    function fsGet(name){
+      if(FS[name]!==undefined) return FS[name];
+      var lk=String(name).toLowerCase();
+      var keys=Object.keys(FS);
+      for(var i=0;i<keys.length;i++){ if(keys[i].toLowerCase()===lk) return FS[keys[i]]; }
+      return undefined;
+    }
+    function out(t,cls){var d=document.createElement('div');if(cls)d.className=cls;d.textContent=t;scr.appendChild(d);scr.scrollTop=scr.scrollHeight;}
+    out('Evidence shell — simulated, read-only. Type help for commands.','ok');
+    function run(raw){
+      var cmd=raw.trim().replace(/\s+/g,' ');
+      if(!cmd) return;
+      out(ex.terminal.prompt+' $ '+raw);
+      hist.push(cmd);
+      var low=cmd.toLowerCase();
+      if(/^(rm|del|rd|format|dd|shred|mkfs|wipe|diskpart)\b/.test(low)){
+        out('[blocked] This command would change or destroy evidence. Nothing was executed. This attempt is recorded for the feedback.','err');
+        root.setAttribute('data-danger','1');
+        return;
+      }
+      if(low==='help'){out('Commands: ls — list evidence files | cat FILE — show a file | grep TEXT FILE — show matching lines | clear — clear screen');return;}
+      if(low==='clear'){scr.innerHTML='';return;}
+      if(low==='ls'){Object.keys(FS).forEach(function(f){out(f);});return;}
+      var m=cmd.match(/^cat\s+(\S+)$/i);
+      if(m){ var content=fsGet(m[1]); if(content!==undefined){content.split('\n').forEach(function(l){out(l);});} else out('cat: '+m[1]+': no such file','err'); return;}
+      m=cmd.match(/^grep\s+(\S+)\s+(\S+)$/i);
+      if(m){ var body=fsGet(m[2]); if(body===undefined){out('grep: '+m[2]+': no such file','err');return;}
+        var hits=body.split('\n').filter(function(l){return l.toLowerCase().indexOf(m[1].toLowerCase())>=0;});
+        if(hits.length) hits.forEach(function(l){out(l);}); else out('(no matches)'); return;}
+      out('command not found: '+cmd,'err');
+    }
+    inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){run(inp.value);inp.value='';} });
+    var ansBox=document.createElement('div');
+    var os='<option value="">— choose —</option>';
+    ex.terminal.answer.options.forEach(function(o,i){os+='<option value="'+i+'">'+esc(o)+'</option>';});
+    ansBox.innerHTML='<div class="artefact"><div class="alabel">'+esc(ex.terminal.answer.label||'Your finding')+'</div><select class="anssel" data-termans="1">'+os+'</select></div>';
+    root.appendChild(ansBox);
+  }};
+}
+function renderSteps(ex,ctx){
+  var html='';
+  ex.steps.forEach(function(st,i){
+    html+='<div class="stepzone" data-step="'+i+'"><span class="stephdr">STEP '+(i+1)+' OF '+ex.steps.length+'</span>'+
+      '<div class="b-question" style="margin:10px 0"><div class="bhead">❓ QUESTION</div><div class="qtext">'+esc(st.question)+'</div></div>'+
+      '<div data-stepans="'+i+'">'+renderStepWidget(st,ctx,i)+'</div></div>';
+  });
+  return {html:html, collect:function(){
+    var out=[];
+    ex.steps.forEach(function(st,i){
+      var sel=$$('[data-stepselect="'+i+'"]',ctx.root).filter(function(s){return s.value!=='';})[0];
+      out.push({step:i, chosen: sel? st.options[parseInt(sel.value,10)] : null});
+    });
+    return out;
+  }};
+}
+function renderStepWidget(st,ctx,i){
+  var os='<option value="">— choose —</option>';
+  st.options.forEach(function(o,j){os+='<option value="'+j+'">'+esc(o)+'</option>';});
+  return '<select class="anssel" data-stepselect="'+i+'" aria-label="'+esc(st.question)+'">'+os+'</select>';
+}
+
+/* =============== GRADING =============== */
+/* Each grader returns {items:[{name,state:'correct'|'wrong'|'missed',why}], credit} */
+function grade(ex, collectOut, ctx){
+  var items=[], H=0, W=0, N=0;
+  function add(name,state,why){items.push({name:name,state:state,why:why});}
+  if(ex.type==='qcm'){
+    var ok=ex.options.filter(function(o){return o.correct;})[0];
+    N=1;
+    var sel=collectOut[0];
+    if(sel && sel.correct){H=1;add('Your choice','correct','Correct — '+ok.t);}
+    else if(sel){W=1;add('Your choice','wrong','You chose: '+sel.t+'. The correct choice is: '+ok.t);}
+    else{add('Your choice','missed','No answer given. The correct choice is: '+ok.t);}
+  }
+  else if(ex.type==='multi'){
+    var corr=ex.options.filter(function(o){return o.correct;});
+    var corrTexts={}; corr.forEach(function(o){corrTexts[o.t]=true;});
+    var selTexts={}; collectOut.forEach(function(o){selTexts[o.t]=true;});
+    N=corr.length;
+    ex.options.forEach(function(o){
+      if(o.correct){
+        if(selTexts[o.t]){H++;add(o.t,'correct','You selected this. It belongs in the answer.');}
+        else{add(o.t,'missed','You missed this. It belongs in the answer.');}
+      }else{
+        if(selTexts[o.t]){W++;add(o.t,'wrong','You selected this, but it is not part of the answer.');}
+      }
+    });
+  }
+  else if(ex.type==='match'){
+    N=ex.left.length;
+    ex.left.forEach(function(l){
+      var c=ex.correct[l.k];
+      var got=collectOut.filter(function(x){return x.left.k===l.k;})[0];
+      if(got && got.chosen===c){H++;add(l.t,'correct','Matched to "'+c+'". Correct.');}
+      else if(got && got.chosen){W++;add(l.t,'wrong','You matched "'+l.t+'" to "'+got.chosen+'". Correct match: "'+c+'".');}
+      else{add(l.t,'missed','No match given. Correct match: "'+c+'".');}
+    });
+  }
+  else if(ex.type==='dragdrop'){
+    N=ex.items.length;
+    ex.items.forEach(function(it){
+      var placed=collectOut.filter(function(x){return x.chip===it.t;});
+      var ok=placed.length===1 && placed[0].slot===it.slot;
+      var slotName=function(k){var s=ex.slots.filter(function(x){return x.k===k;})[0];return s?s.t:k;};
+      if(ok){H++;add(it.t,'correct','Placed in "'+slotName(it.slot)+'". Correct.');}
+      else if(placed.length){W++;add(it.t,'wrong','Placed in "'+slotName(placed[0].slot)+'". Correct place: "'+slotName(it.slot)+'".');}
+      else{add(it.t,'missed','Not placed. It belongs in "'+slotName(it.slot)+'".');}
+    });
+  }
+  else if(ex.type==='order'){
+    N=ex.items.length;
+    var corrPos={}; ex.correctOrder.forEach(function(k,i){corrPos[k]=i;});
+    collectOut.forEach(function(k,i){
+      var it=ex.items.filter(function(x){return x.k===k;})[0];
+      if(corrPos[k]===i){H++;add((i+1)+'. '+it.t,'correct','Position '+(i+1)+' is correct.');}
+      else{W++;add((i+1)+'. '+it.t,'wrong','You put it at position '+(i+1)+'. Correct position: '+(corrPos[k]+1)+'.');}
+    });
+  }
+  else if(ex.type==='fill'){
+    N=Object.keys(ex.blanks).length;
+    Object.keys(ex.blanks).forEach(function(bk){
+      var bl=ex.blanks[bk];
+      var got=collectOut.filter(function(x){return x.blank===bk;})[0];
+      if(got && got.chosen===bl.correct){H++;add('Blank: '+bk,'correct','"'+bl.correct+'" is correct.');}
+      else if(got && got.chosen){W++;add('Blank: '+bk,'wrong','You chose "'+got.chosen+'". Correct: "'+bl.correct+'".');}
+      else{add('Blank: '+bk,'missed','No answer. Correct: "'+bl.correct+'".');}
+    });
+  }
+  else if(ex.type==='triage'){
+    N=ex.alerts.length;
+    collectOut.forEach(function(c){
+      var a=ex.alerts.filter(function(x){return x.summary===c.alert;})[0];
+      if(c.chosen===a.correct){H++;add(a.summary,'correct','Action "'+c.chosen+'" is the right call.');}
+      else if(c.chosen){W++;add(a.summary,'wrong','You chose "'+c.chosen+'". Right call: "'+a.correct+'".');}
+      else{add(a.summary,'missed','No action chosen. Right call: "'+a.correct+'".');}
+    });
+  }
+  else if(ex.type==='terminal'){
+    var ans=ex.terminal.answer;
+    N=1;
+    var c=collectOut[0];
+    if(c && c.choice===ans.correct){H=1;add('Your finding','correct','Correct — '+ans.correct);}
+    else if(c){W=1;add('Your finding','wrong','You chose: '+c.choice+'. Correct: '+ans.correct);}
+    else{add('Your finding','missed','No answer given. Correct: '+ans.correct);}
+    /* the destructive-command blocker flags the widget root, so search for it */
+    if(ctx.root && ctx.root.querySelector('[data-danger="1"]')){
+      add('Safety check','wrong','You tried to run a command that would change or destroy evidence. In real work, never run write commands on live evidence — collect and copy first.');
+    }
+  }
+  else if(ex.type==='steps'){
+    N=ex.steps.length;
+    collectOut.forEach(function(c){
+      var st=ex.steps[c.step];
+      if(c.chosen===st.correct){H++;add('STEP '+(c.step+1),'correct','Correct — '+st.correct);}
+      else if(c.chosen){W++;add('STEP '+(c.step+1),'wrong','You chose: '+c.chosen+'. Correct: '+st.correct);}
+      else{add('STEP '+(c.step+1),'missed','No answer. Correct: '+st.correct);}
+    });
+  }
+  var credit=scoreExercise(H,W,N);
+  return {credit:credit, items:items, H:H, W:W, N:N};
+}
+
+/* =============== EXERCISE RENDER FLOW =============== */
+var CTX={};
+function curEx(){return EXS[S.order[S.cur]];}
+function renderExercise(){
+  var ex=curEx();
+  if(!ex){goReviewOrResults();return;}
+  CTX={uid:'u'+S.cur, root:null, widget:null};
+  var h='';
+  h+='<div class="panel" data-exroot="1">';
+  h+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px">'+
+     '<span class="kicker">Exercise '+(S.cur+1)+' of '+EXS.length+'</span>'+badgeHTML()+'</div>';
+  h+='<h2 style="margin-top:2px">'+esc(ex.title)+'</h2>';
+  h+='<div class="block b-scenario"><div class="bhead">🗂 SCENARIO</div>'+scenarioHTML(ex)+'</div>';
+  h+='<div class="block b-question"><div class="bhead">❓ QUESTION</div><div class="qtext">'+esc(ex.question)+'</div></div>';
+  var w = ({qcm:renderQCM,multi:renderMulti,match:renderMatch,dragdrop:renderDragDrop,order:renderOrder,
+            fill:renderFill,triage:renderTriage,terminal:renderTerminal,steps:renderSteps})[ex.type](ex,CTX);
+  h+='<div class="block b-answer"><div class="bhead">✍ YOUR ANSWER</div><div data-widget="1">'+w.html+'</div></div>';
+  h+='<div data-fbzone="1"></div>';
+  var isLast = S.cur>=EXS.length-1;
+  h+='<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">'+
+     (ex.type==='steps'
+       ? '<button class="cta" data-finalcheck="1">Check — grade all steps</button>'
+       : '<button class="cta" data-check="1">Check</button>')+
+     '<button class="cta secondary" data-next="1" disabled>'+(isLast?'Final Submit ▸':'Next ▸')+'</button></div>';
+  h+='</div>';
+  var zone=$('#ex-zone'); zone.innerHTML=h;
+  CTX.root=zone.querySelector('[data-exroot]');
+  var wroot=zone.querySelector('[data-widget]');
+  if(w.afterMount) w.afterMount(wroot);
+  CTX.widget=w;
+  var fbzone=zone.querySelector('[data-fbzone]');
+  var prev=S.graded[ex.id];
+  if(prev){restoreFeedback(ex,prev,fbzone);}
+  if(ex._hintShown && !prev){showHintDiv(ex);}
+  $('#h-count').textContent='Exercise '+(S.cur+1)+' of '+EXS.length;
+  attachExerciseButtons(ex,fbzone);
+}
+function attachExerciseButtons(ex,fbzone){
+  var checkBtn=CTX.root.querySelector('[data-check]')||CTX.root.querySelector('[data-finalcheck]');
+  var nextBtn=CTX.root.querySelector('[data-next]');
+  var hintBtn=$('#h-hint');
+  /* a graded exercise is read-only: Check is done, Next is available */
+  if(S.graded[ex.id]){
+    checkBtn.disabled=true; checkBtn.textContent='Checked ✓'; nextBtn.disabled=false;
+  }
+  hintBtn.disabled = !!(S.graded[ex.id] && S.graded[ex.id].hintUsed);
+  hintBtn.onclick=function(){useHint(ex);};
+  $('#h-skip').onclick=function(){skipCurrent(ex);};
+  checkBtn.onclick=function(){
+    var sel=CTX.widget.collect();
+    if(!sel.length){alert('Choose an answer first, or press Skip if you want to move on.');return;}
+    /* CHECK = first action: auto-pause BEFORE rendering feedback */
+    if(S.tState==='RUNNING'){S.autoPauseEnter=Date.now();tSet('PAUSED_AUTO_CHECK');}
+    var g=grade(ex,sel,CTX);
+    var credit=g.credit;
+    var hinted = !!(ex._hintUsed || (S.graded[ex.id] && S.graded[ex.id].hintUsed));
+    if(hinted){credit=applyHint(credit);}
+    if(!S.graded[ex.id]){
+      S.graded[ex.id]={credit:credit,items:g.items,H:g.H,W:g.W,N:g.N,hintUsed:ex._hintUsed||false,ex:ex};
+      S.creditSum+=credit; S.answered+=1;
+      var ix=S.skipPool.indexOf(ex.id); if(ix>=0) S.skipPool.splice(ix,1);
+    } else {
+      var old=S.graded[ex.id];
+      S.creditSum += (credit-old.credit);
+      S.graded[ex.id].credit=credit;
+      S.graded[ex.id].hintUsed=hinted;
+      S.graded[ex.id].items=g.items;S.graded[ex.id].H=g.H;S.graded[ex.id].W=g.W;S.graded[ex.id].N=g.N;
+      checkBtn.disabled=true; nextBtn.disabled=false;
+    }
+    renderScore();
+    renderFeedback(ex,S.graded[ex.id],fbzone);
+    nextBtn.disabled=false; checkBtn.disabled=true;
+    checkBtn.textContent='Checked ✓';
+    $('#h-hint').disabled=true;
+  };
+  nextBtn.onclick=function(){
+    /* returning from the review screen: Next brings the learner back there */
+    if(S.afterReviewReturn){
+      S.afterReviewReturn=false;
+      if(S.tState==='PAUSED_AUTO_CHECK'){
+        if(S.autoPauseEnter){S.autoPauseSec+=Math.round((Date.now()-S.autoPauseEnter)/1000);S.autoPauseEnter=0;}
+        tSet('RUNNING');
+      }
+      goReview();return;
+    }
+    if(S.tState==='PAUSED_AUTO_CHECK'){
+      if(S.autoPauseEnter){S.autoPauseSec+=Math.round((Date.now()-S.autoPauseEnter)/1000);S.autoPauseEnter=0;}
+      /* resume; the ENDED transition happens in goResults (or on real timeout) —
+         if skipped exercises remain, the review screen is still part of the exam */
+      tSet('RUNNING');
+    }
+    if(S.inReview){goReview();return;}
+    S.cur++;
+    if(S.cur>=EXS.length){goReviewOrResults();return;}
+    renderExercise();
+  };
+}
+function showHintDiv(ex){
+  if(!CTX.root) return;
+  var zone=CTX.root.querySelector('[data-fbzone]');
+  if(!zone) return;
+  var d=document.createElement('div');
+  d.className='studytip';
+  d.innerHTML='<strong>💡 Hint (−10% of this exercise credit if used):</strong> '+esc(ex.hint);
+  zone.parentNode.insertBefore(d,zone);
+}
+function useHint(ex){
+  if(!CTX.root || ex._hintShown){return;}
+  ex._hintShown=true;
+  if(S.graded[ex.id]){S.graded[ex.id].hintUsed=true;
+    var nc=applyHint(S.graded[ex.id].credit);
+    S.creditSum += (nc - S.graded[ex.id].credit);
+    S.graded[ex.id].credit=nc;
+    renderScore();
+    var fb=$('#ex-zone [data-fbzone]');
+    if(fb && fb.innerHTML!==''){renderFeedback(ex,S.graded[ex.id],fb);}
+    return;
+  }
+  showHintDiv(ex);
+  ex._hintUsed=true;
+  var hb=$('#h-hint'); hb.disabled=true;
+}
+function skipCurrent(ex){
+  if(!S.graded[ex.id] && S.skipPool.indexOf(ex.id)<0){S.skipPool.push(ex.id);}
+  if(S.afterReviewReturn){S.afterReviewReturn=false;goReview();return;}
+  if(S.inReview){goReview();return;}
+  S.cur++;
+  if(S.cur>=EXS.length){goReviewOrResults();return;}
+  renderExercise();
+}
+
+/* =============== FEEDBACK =============== */
+function labelFor(credit){
+  if(credit>=1) return {t:'CORRECT',c:'fb-correct',i:'✅'};
+  if(credit>0) return {t:'PARTIALLY CORRECT',c:'fb-partial',i:'☑️'};
+  return {t:'INCORRECT',c:'fb-incorrect',i:'❌'};
+}
+var STATEICON={correct:'✓ Correct',wrong:'✗ Wrong',missed:'○ Missed'};
+var STATECLS={correct:'it-correct',wrong:'it-wrong',missed:'it-missed'};
+function renderFeedback(ex,res,zone){
+  var L=labelFor(res.credit);
+  var h='<div class="feedback '+L.c+'">';
+  h+='<div class="fbtitle">'+L.i+' '+L.t+'</div>';
+  h+='<div class="fb-credit">Credit: '+round1(res.credit)+' of 1.0';
+  if(res.N>1) h+=' — items: '+res.H+' correct / '+res.W+' wrong of '+res.N+' — credit = (H − W) / N = ('+res.H+' − '+res.W+') / '+res.N;
+  if(res.hintUsed) h+='<br>Hint used: −10% applied (clamped at 0).';
+  h+='</div>';
+  if(res.N>1){
+    h+='<ul class="itembd">';
+    res.items.forEach(function(it){
+      h+='<li class="'+STATECLS[it.state]+'"><strong>'+STATEICON[it.state]+'</strong> — '+esc(it.name)+': '+esc(it.why)+'</li>';
+    });
+    h+='</ul>';
+  } else {
+    res.items.forEach(function(it){h+='<p>'+STATEICON[it.state]+': '+esc(it.why)+'</p>';});
+  }
+  if(ex.terminal){
+    h+='<div class="alabel canonlabel">Canonical command / finding</div>';
+    h+='<div class="codeblock">'+esc(ex.terminal.canonical)+'</div>';
+    h+='<div class="copyhint">This is a copyable code block. The shell above is a simulation — nothing was executed.</div>';
+    if(ex.terminal.dangerNote) h+='<div class="studytip">⚠ '+esc(ex.terminal.dangerNote)+'</div>';
+  }
+  h+='<div style="margin-top:10px"><strong>Why:</strong> '+ex.explanation+'</div>';
+  if(ex.study) h+='<div class="studytip"><strong>What to study:</strong> '+esc(ex.study)+'</div>';
+  h+='</div>';
+  zone.innerHTML=h;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  zone.scrollIntoView({behavior:reduce?'auto':'smooth',block:'nearest'});
+}
+function restoreFeedback(ex,res,zone){renderFeedback(ex,res,zone);}
+
+/* =============== REVIEW SKIPPED =============== */
+function goReviewOrResults(){
+  if(S.tState==='IDLE') return; /* exam not started yet — nothing to finish */
+  if(S.skipPool.length){goReview();} else {goResults(false);}
+}
+function goReview(){
+  S.inReview=true;
+  var h='<div class="panel"><h1>Review skipped exercises</h1>'+
+    '<p>You skipped '+S.skipPool.length+' exercise(s). Skipped-and-never-answered exercises do not count for or against your score. You may return to them as many times as you want while the timer is still running.</p>';
+  S.skipPool.forEach(function(id,i){
+    var ex=EXS.filter(function(e){return e.id===id;})[0];
+    h+='<div class="revitem"><span class="rtitle">'+esc(ex.title)+'</span>'+
+      '<button class="cta secondary" data-rev="'+i+'">Return and answer</button></div>';
+  });
+  h+='<div style="margin-top:16px"><button class="cta" data-finish="1">Finish exam and see results</button>'+
+     '<button class="cta secondary" data-backrev="1">Keep going from where I was</button></div></div>';
+  $('#rev-zone').innerHTML=h;
+  $$('[data-rev]').forEach(function(b){
+    b.onclick=function(){
+      /* skipPool stores exercise IDs; S.order stores indices — translate properly */
+      var id=S.skipPool[parseInt(b.getAttribute('data-rev'),10)];
+      var exIdx=EXS.map(function(e){return e.id;}).indexOf(id);
+      S.cur=(exIdx>=0)? S.order.indexOf(exIdx) : -1;
+      if(S.cur<0){goReview();return;}
+      S.inReview=false;
+      S.afterReviewReturn=true;
+      show('screen-exam');   /* the exercise lives on the exam screen — unhide it */
+      renderExercise();
+    };
+  });
+  $('[data-finish]').onclick=function(){goResults(false);};
+  $('[data-backrev]').onclick=function(){S.inReview=false;show('screen-exam');renderExercise();};
+  show('screen-review');
+}
+
+/* =============== RESULTS =============== */
+function goResults(fromTimeout){
+  if(S.tState!=='ENDED'){tSet('ENDED');}
+  var counts={full:0,partial:0,zero:0}; var partialSum=0;
+  S.answered=0; S.creditSum=0;
+  EXS.forEach(function(ex){
+    var g=S.graded[ex.id];
+    if(g && g.graded!==false && g.credit!==undefined){
+      S.answered++; S.creditSum+=g.credit;
+      if(g.credit>=1)counts.full++;
+      else if(g.credit>0){counts.partial++;partialSum+=g.credit;}
+      else counts.zero++;
+    }
+  });
+  S.inReview=false; S.afterReviewReturn=false;
+  var skippedUn = EXS.length - S.answered;
+  var pct = S.answered>0 ? Math.round((S.creditSum/S.answered)*100) : 0;
+  var passed = pct>=PASS;
+  var h='<div class="panel"><h1>Results — '+esc(META.title)+'</h1>';
+  h+='<div class="verdict '+(passed?'pass':'fail')+'">'+(passed?'PASS':'FAIL')+' — '+pct+'% (pass mark '+PASS+'%)</div>';
+  h+='<div class="statgrid">'+
+    '<div class="stat"><div class="sval">'+round1(S.creditSum)+' / '+S.answered+'</div><div class="slab">Score over answered exercises</div></div>'+
+    '<div class="stat"><div class="sval">'+counts.full+'</div><div class="slab">Fully correct (credit 1.0)</div></div>'+
+    '<div class="stat"><div class="sval">'+counts.partial+'</div><div class="slab">Partially correct'+(counts.partial?(' — avg '+round1(partialSum/counts.partial)):'')+'</div></div>'+
+    '<div class="stat"><div class="sval">'+counts.zero+'</div><div class="slab">Fully incorrect (credit 0)</div></div>'+
+    '<div class="stat"><div class="sval">'+skippedUn+'</div><div class="slab">Skipped / not answered (excluded)</div></div>'+
+  '</div>';
+  h+='<p class="timerreport">Time report: '+Math.floor((TIMER_SECONDS-S.remaining)/60)+' min '+((TIMER_SECONDS-S.remaining)%60)+' s of exam time used · paused manually for '+S.manualPauseSec+' s · paused for feedback review '+S.autoPauseSec+' s.</p>';
+  if(fromTimeout) h+='<p>⏱ The timer ended, so the exam was closed automatically. Unanswered exercises were excluded from the score.</p>';
+  if(passed){
+    h+='<div class="cert"><div style="font-size:22px;font-weight:800">🏆 Certificate of Achievement</div>'+
+       '<p>'+esc(S.user? S.user : 'The learner')+' passed the <strong>'+esc(META.title)+'</strong> practice exam with '+pct+'%.</p>'+
+       '<p class="certsub">Topic: MITRE ATT&CK Group G1049 — AppleJeus · Tier: '+esc(SEVLABEL)+'</p></div>';
+  } else {
+    h+='<p>You must retake the exam to reach the '+PASS+'% pass mark. Study the feedback of the exercises you missed, then try again — the questions and options will be shuffled.</p>';
+  }
+  h+='<button class="cta" id="retake">Retake Exam</button>';
+  h+='</div>';
+  $('#res-zone').innerHTML=h;
+  show('screen-results');
+  $('#retake').onclick=startExam;
+  reportScore(S.creditSum,S.answered);
+}
+function reportScore(creditSum,answeredCount){
+  if(S.attemptDone) return; /* exactly once per attempt */
+  S.attemptDone=true;
+  var percent = answeredCount>0 ? Math.round((creditSum/answeredCount)*100) : 0;
+  try{
+    parent.postMessage({
+      type:'CYBERPULSE_SCORE',
+      topicId:META.topicId,
+      batch:META.batch,
+      score:Math.round(creditSum),
+      total:answeredCount,
+      percent:percent,
+      passed:percent>=PASS
+    }, location.origin);
+  }catch(e){/* opened directly, nothing to report to */}
+}
+
+/* =============== MANUAL PAUSE =============== */
+function manualPause(){
+  if(S.tState==='RUNNING'){
+    S._prev='RUNNING'; S.manualPauseEnter=Date.now(); tSet('PAUSED_MANUAL');
+    $('#ex-zone').classList.add('hidden');
+    $('#pausecard').classList.remove('hidden');
+  } else if(S.tState==='PAUSED_AUTO_CHECK'){
+    S._prev='PAUSED_AUTO_CHECK'; S.manualPauseEnter=Date.now(); tSet('PAUSED_MANUAL');
+    $('#ex-zone').classList.add('hidden');
+    $('#pausecard').classList.remove('hidden');
+  }
+  $('#h-pause').textContent='▶ Resume';
+}
+function manualResume(){
+  if(S.manualPauseEnter){S.manualPauseSec+=Math.round((Date.now()-S.manualPauseEnter)/1000);S.manualPauseEnter=0;}
+  $('#ex-zone').classList.remove('hidden');
+  $('#pausecard').classList.add('hidden');
+  $('#h-pause').textContent='⏸ Pause';
+  tSet(S._prev==='PAUSED_AUTO_CHECK'?'PAUSED_AUTO_CHECK':'RUNNING');
+}
+
+/* =============== START / INIT =============== */
+function startExam(){
+  reshuffle();
+  show('screen-exam');
+  $('#pausecard').classList.add('hidden');
+  $('#ex-zone').classList.remove('hidden');
+  tSet('RUNNING');
+  renderScore();
+  renderExercise();
+}
+function init(){
+  setControls(false); /* exam not started: header controls locked on the intro */
+  $('#h-count').textContent='Exercise 1 of '+EXS.length;
+  $('#h-badge').innerHTML=badgeHTML();
+  $('#h-pause').onclick=function(){
+    if(S.tState==='PAUSED_MANUAL') manualResume(); else manualPause();
+  };
+  $('#start-btn').onclick=startExam;
+  $('#h-finish').onclick=goReviewOrResults;
+  window.addEventListener('message',function(event){
+    if(!event.data) return;
+    if(event.data.type!=='CYBERPULSE_INIT' && event.data.type!=='CYBERMASTERY_INIT') return;
+    if(event.data.username) S.user=event.data.username;
+    var g=$('#greet');
+    if(g && event.data.username) g.textContent='Good luck, '+event.data.username+'!';
+  });
+  renderTimer();
+}
+document.addEventListener('DOMContentLoaded',init);
+})();
+
+</script>
+</body>
+</html>

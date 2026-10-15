@@ -490,6 +490,61 @@ def check_legacy_figures(report: Report):
         report.ok("no hand-written file quotes a retired catalogue figure")
 
 
+ICON_LINK = re.compile(r"<link[^>]*\brel=[\"'](?:shortcut )?icon[\"'][^>]*>", re.I)
+ICON_HREF = re.compile(r"href=[\"']([^\"']+)[\"']", re.I)
+APPLE_LINK = re.compile(r"<link[^>]*\brel=[\"']apple-touch-icon[\"'][^>]*>", re.I)
+
+
+def check_icons(report: Report):
+    """Every shipped page must declare the PNG tab icon, not an SVG and not a blank.
+
+    The icon is easy to get wrong and invisible in a diff: index.html pointed at
+    assets/img/logo.png while all 17 pages and all 2,050 topic pages pointed at
+    assets/img/logo.svg, so the tab icon changed the moment a visitor navigated, and the
+    556 exercise files declared nothing at all (six of them used an empty data: URI to
+    suppress the request). This pins the whole site to one PNG that really exists.
+    """
+    problems = []
+    scanned = 0
+    for path in shipped_files():
+        if path.suffix.lower() != ".html":
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        if rel in URL_SCAN_EXEMPT:
+            continue
+        scanned += 1
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        tags = ICON_LINK.findall(text)
+        if not tags:
+            problems.append(f"{rel} declares no tab icon")
+            continue
+        for tag in tags + APPLE_LINK.findall(text):
+            href = ICON_HREF.search(tag)
+            if not href:
+                problems.append(f"{rel} has an icon link with no href")
+                continue
+            value = href.group(1)
+            if value.startswith("data:"):
+                problems.append(
+                    f"{rel} suppresses the icon with a data: URI instead of using the PNG")
+            elif value.lower().endswith(".svg"):
+                problems.append(f"{rel} still points its icon at an SVG ({value})")
+            elif not value.lower().endswith(".png"):
+                problems.append(f"{rel} points its icon at something that is not a PNG ({value})")
+            elif not (path.parent / value).exists():
+                problems.append(f"{rel} icon target does not exist ({value})")
+    if problems:
+        for item in problems[:12]:
+            report.fail(f"icon: {item}")
+        if len(problems) > 12:
+            report.fail(f"icon: and {len(problems) - 12} more page(s) with the same problem")
+    else:
+        report.ok(f"every shipped page declares the PNG tab icon ({scanned} pages)")
+
+
 def check_internal_links(report: Report):
     """Every href/src that points inside the repo must resolve.
 
@@ -826,6 +881,7 @@ def main():
     check_external_urls(report)
     check_iocs(report)
     check_legacy_figures(report)
+    check_icons(report)
     if not args.no_link_check:
         check_internal_links(report)
     check_catalog_fresh(report, topics)

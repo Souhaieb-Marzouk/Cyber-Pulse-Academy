@@ -292,8 +292,8 @@ def head_block(topic: dict, canonical: str, og_image: str, site_version: str) ->
 <meta name="twitter:description" content="{esc(description[:200])}">
 <meta name="twitter:image" content="{esc(og_image)}">
 
-<link rel="icon" href="../assets/img/logo.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="../assets/img/logo.svg">
+<link rel="icon" href="../assets/img/logo.png" type="image/png">
+<link rel="apple-touch-icon" href="../assets/img/icon-192.png">
 <link rel="manifest" href="../manifest.json">
 <link rel="stylesheet" href="../assets/css/main.css?v={esc(site_version)}">
 <link rel="stylesheet" href="../assets/css/components.css?v={esc(site_version)}">
