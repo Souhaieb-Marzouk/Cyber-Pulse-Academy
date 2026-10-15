@@ -55,7 +55,7 @@
     /* --- identity of the deployment ------------------------------------ */
     siteName: 'CyberPulseAcademy',
     siteTagline: 'Hands-on, extreme-difficulty cyber security study',
-    siteVersion: '1.10.0',
+    siteVersion: '1.11.0',
     catalogVersion: '1.1.0',
 
     /* --- owner values: edit these three -------------------------------- */
@@ -92,7 +92,7 @@
     /* Pass mark used when a batch does not declare its own. */
     defaultPassMark: 70,
     /* Number of "latest additions" and "continue learning" entries on home. */
-    homeLatestCount: 6,
+    homeLatestCount: 5,
     /* Set true to log diagnostics to the console. Never sends anything. */
     debug: false
   };

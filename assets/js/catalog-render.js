@@ -242,6 +242,16 @@
     return String(topic.exercisesAdded || topic.lastReviewed || '');
   }
 
+  /* "15 Oct" from an ISO date, parsed by hand: new Date('2026-10-15') is UTC midnight,
+     which renders as the day before in any negative offset. */
+  function shortDate(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    if (!m) { return ''; }
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return Number(m[3]) + ' ' + months[Number(m[2]) - 1];
+  }
+
   function readiness(topic) {
     var stats = CM.util.exerciseStats(topic);
     var chapters = topic.chapters || [];
@@ -377,10 +387,13 @@
         });
         themeHtml += '</fieldset>';
 
+        /* The readiness labels come from the same table the coverage dashboard and the
+           badges use, so this list cannot drift from them again - it previously named
+           coverage.need0-3, keys that were deleted with the three-batch model. */
         themeHtml += '<fieldset><legend>' + esc(t('filter.batches')) + '</legend>';
-        [['', 'filter.anyReadiness'], ['complete', 'coverage.need3'],
-         ['partial', 'coverage.need1'], ['notReady', 'coverage.need2'],
-         ['none', 'coverage.need0']].forEach(function (pair) {
+        [['', 'filter.anyReadiness']].concat(Object.keys(READINESS).map(function (name) {
+          return [name, READINESS[name].key];
+        })).forEach(function (pair) {
           var checked = String(state.readiness || '') === pair[0] ? ' checked' : '';
           themeHtml += '<label><input type="radio" name="cm-readiness" value="' + pair[0] + '"' + checked + '>' +
                        '<span>' + esc(t(pair[1])) + '</span></label>';
@@ -611,7 +624,7 @@
     var statsMount = document.querySelector(opts.statsMount || '#cm-home-stats');
     var continueMount = document.querySelector(opts.continueMount || '#cm-home-continue');
     var latestMount = document.querySelector(opts.latestMount || '#cm-home-latest');
-    var gapsMount = document.querySelector(opts.gapsMount || '#cm-home-gaps');
+    var requestMount = document.querySelector(opts.requestMount || '#cm-home-request');
 
     return CM.store.getCatalog().then(function (catalog) {
       var totals = catalog.totals || {};
@@ -770,69 +783,113 @@
         }
       }
 
-      /* 3. Recently reviewed, newest change first. The date is when the topic's
-            exercises were last recorded, so publishing a batch moves that topic to the top
-            of this list on the next build without anyone touching a page. */
+      /* 3. Recently covered: the topics whose exercises were recorded most recently,
+            newest first, capped at CM.config.homeLatestCount (five). A ranked snapshot
+            rather than a list, because five is enough to show what is new. The date is
+            stamped by sync_exercises.py, so publishing a batch moves a topic to the top on
+            the next build without anyone touching a page. */
       if (latestMount) {
-        var sorted = catalog.topics.slice().sort(function (a, b) {
+        var covered = catalog.topics.slice().sort(function (a, b) {
           var cmp = topicDate(b).localeCompare(topicDate(a));
           if (cmp !== 0) { return cmp; }
           return String(a.title).localeCompare(String(b.title));
         }).slice(0, opts.latestCount || CM.config.homeLatestCount);
 
         latestMount.innerHTML =
-          '<ul class="cm-stack" style="list-style:none;padding:0;margin:0">' + sorted.map(function (topic) {
-            return '<li class="cm-row" style="justify-content:space-between">' +
-              '<span><a href="' + topicHref(topic.id) + '">' + esc(topic.title) + '</a> ' +
-                (topic.externalId ? '<span class="cm-badge cm-badge--id cm-badge--sm">' + esc(topic.externalId) + '</span>' : '') +
-              '</span>' +
-              '<span class="cm-small cm-dim">' + esc(topic.theme) + '</span>' +
-            '</li>';
-          }).join('') + '</ul>';
+          '<ol class="cm-covered" aria-label="' + esc(t('home.covered.label')) + '">' +
+            covered.map(function (topic, index) {
+              var stats = CM.util.exerciseStats(topic);
+              var pct = stats.total ? Math.round((stats.published / stats.total) * 100) : 0;
+              return '<li class="cm-covered__item" data-state="' + readiness(topic) + '">' +
+                '<span class="cm-covered__rank" aria-hidden="true">' + (index + 1) + '</span>' +
+                '<span class="cm-covered__body">' +
+                  '<a class="cm-covered__title" href="' + topicHref(topic.id) + '">' + esc(topic.title) + '</a>' +
+                  '<span class="cm-covered__meta">' +
+                    (topic.externalId
+                      ? '<span class="cm-badge cm-badge--id cm-badge--sm">' + esc(topic.externalId) + '</span>' : '') +
+                    '<span class="cm-covered__theme">' + esc(topic.theme || '') + '</span>' +
+                    '<span class="cm-covered__prog" title="' + esc(t('home.covered.ready', { ready: stats.published, total: stats.total })) + '">' +
+                      '<span class="cm-meter" aria-hidden="true">' +
+                        '<span class="cm-meter__fill" style="width:' + pct + '%"></span></span>' +
+                      '<span class="cm-vh">' + esc(t('home.covered.ready', { ready: stats.published, total: stats.total })) + '</span>' +
+                      '<span class="cm-covered__count" aria-hidden="true">' + stats.published + '/' + stats.total + '</span>' +
+                    '</span>' +
+                  '</span>' +
+                '</span>' +
+                '<time class="cm-covered__when" datetime="' + esc(topicDate(topic)) + '">' +
+                  esc(shortDate(topicDate(topic))) + '</time>' +
+              '</li>';
+            }).join('') +
+          '</ol>' +
+          '<p class="cm-small cm-mb0"><a class="cm-covered__cta" href="' + CM.util.url('pages/coverage.html') + '">' +
+            esc(t('home.covered.cta')) + '</a></p>';
       }
 
-      /* 4. "Still being written" teaser. Names the real numbers rather than
-            implying more is finished than actually is. */
-      if (gapsMount) {
+      /* 4. Ask for a topic. The old "Still being written" report becomes an invitation:
+            the catalog is documented ahead of the exercises, so the topics still waiting are
+            exactly the ones a learner can ask for. The five most recently documented of them
+            are one-click requests that open a prefilled GitHub issue, and the count comes
+            from the manifest, so the ask stays honest as batches land. */
+      if (requestMount) {
         var waiting = [];
-        var notReady = 0;
         catalog.topics.forEach(function (topic) {
-          var stats = CM.util.exerciseStats(topic);
-          notReady += (stats.total - stats.published);
-          if (readiness(topic) === 'none' || readiness(topic) === 'notReady') { waiting.push(topic); }
+          var bucket = readiness(topic);
+          if (bucket === 'none' || bucket === 'notReady') { waiting.push(topic); }
         });
-        /* Newest first, so a topic that has just been documented shows up here with its
-           exercises still to come, and a topic leaves the list as soon as its first batch
-           is published. Slicing the catalog order instead would show the same six topics
-           for ever, however much was written. */
         waiting.sort(function (a, b) {
           var cmp = topicDate(b).localeCompare(topicDate(a));
           if (cmp !== 0) { return cmp; }
           return String(a.title).localeCompare(String(b.title));
         });
 
-        var examples = waiting.slice(0, 6).map(function (topic) {
-          return '<li><a href="' + topicHref(topic.id) + '">' + esc(topic.title) + '</a></li>';
-        }).join('') || '<li class="cm-dim">Every topic has at least one exercise ready.</li>';
+        /* The repository link is an editable value in config.js. Until it is a real URL,
+           the panel still explains itself and simply does not offer the links. */
+        var repo = String(CM.config.repoUrl || '').replace(/\/+$/, '');
+        var canAsk = repo !== '' && repo.indexOf('<') === -1;
 
-        gapsMount.innerHTML =
-          '<div class="cm-card">' +
-            '<h2 class="cm-card__title">' + esc(t('home.gaps')) + '</h2>' +
-            '<p>' + esc(notReady + ' exercises are listed but not finished yet, across ' +
-              waiting.length + ' topics.') + '</p>' +
-            '<p class="cm-small cm-muted">' + esc('Topics still waiting for their first exercise:') + '</p>' +
-            '<ul class="cm-chips">' + examples + '</ul>' +
-            '<div class="cm-card__foot">' +
-              '<a class="cm-btn cm-btn--primary cm-btn--sm" href="' + CM.util.url('pages/coverage.html') + '">' +
-                esc(t('home.gapsCta')) + '</a>' +
-              '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + CM.util.url('pages/support.html') + '">' +
-                esc(t('donate.cta')) + '</a>' +
-            '</div>' +
+        function requestUrl(topic) {
+          if (!canAsk) { return ''; }
+          var body = '**Topic:** ' + (topic ? topic.title : '') +
+            '\n**Catalog:** ' + (topic ? (topic.type || '') : '') +
+            '\n**Why I want it:** \n';
+          return repo + '/issues/new?title=' +
+            encodeURIComponent('Topic request: ' + (topic ? topic.title : '')) +
+            '&body=' + encodeURIComponent(body);
+        }
+
+        var picks = waiting.slice(0, 5).map(function (topic) {
+          var label = esc(topic.title) +
+            ' <span class="cm-tiny cm-dim">' + esc(topic.externalId || topic.theme || '') + '</span>';
+          return '<li>' + (canAsk
+            ? '<a class="cm-request__pick" href="' + esc(requestUrl(topic)) + '" target="_blank" ' +
+                'rel="noopener noreferrer" aria-label="' +
+                esc(t('home.request.pick', { title: topic.title })) + '">' + label + '</a>'
+            : '<span class="cm-request__pick">' + label + '</span>') + '</li>';
+        }).join('');
+
+        requestMount.innerHTML =
+          '<div class="cm-card cm-request">' +
+            '<h3 class="cm-card__title cm-request__title">' + CM.nav.svg('target') +
+              esc(t('home.request.title')) + '</h3>' +
+            '<p class="cm-request__lede">' + esc(t('home.request.lede', { waiting: waiting.length })) + '</p>' +
+            (picks
+              ? '<p class="cm-small cm-dim cm-request__label">' + esc(t('home.request.picks')) + '</p>' +
+                '<ul class="cm-request__picks">' + picks + '</ul>'
+              : '') +
+            (canAsk
+              ? '<div class="cm-request__actions">' +
+                  '<a class="cm-btn cm-btn--primary cm-btn--sm" href="' + esc(requestUrl(null)) + '" ' +
+                    'target="_blank" rel="noopener noreferrer">' + esc(t('home.request.cta')) + '</a>' +
+                  '<a class="cm-btn cm-btn--ghost cm-btn--sm" href="' + esc(repo + '/issues?q=is%3Aissue') + '" ' +
+                    'target="_blank" rel="noopener noreferrer">' + esc(t('home.request.existing')) + '</a>' +
+                '</div>'
+              : '') +
+            '<p class="cm-small cm-dim cm-mb0">' + esc(t('home.request.note')) + '</p>' +
           '</div>';
       }
     })['catch'](function (err) {
       if (CM.config.debug) { console.error('[CM] home render failed', err); }
-      [statsMount, continueMount, latestMount, gapsMount].forEach(function (mount) {
+      [statsMount, continueMount, latestMount, requestMount].forEach(function (mount) {
         if (mount && !mount.innerHTML.trim()) {
           mount.innerHTML = '<div class="cm-state">' + CM.nav.svg('alert') +
             '<h3>' + esc(t('error.catalog.title')) + '</h3>' +

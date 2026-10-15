@@ -537,6 +537,73 @@ def check_unlinked_exercises(report: Report):
         report.ok("every exercise file on disk is listed by a topic")
 
 
+
+def check_i18n_keys(report: Report):
+    """Every string the shipped code asks the dictionary for must exist in it.
+
+    A missing key does not throw: `CM.i18n.t` falls back to the key itself, so the page
+    renders the literal text "coverage.need3" where a label belongs. That is exactly what
+    happened when the three-batch model was retired and its keys were deleted while the
+    filter sidebar still asked for them.
+
+    Literal `t('key')` calls are not enough to catch it, because keys also travel in arrays
+    and objects and reach `t()` later through a variable. So any quoted literal shaped like a
+    key is checked too, but only when its first segment is a namespace the dictionary already
+    knows - which keeps file names, storage keys and CSS values out of the results.
+    """
+    en_path = ROOT / "assets" / "i18n" / "en.json"
+    try:
+        known = json.loads(en_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as err:
+        report.fail(f"i18n: assets/i18n/en.json could not be read ({err})")
+        return
+
+    namespaces = {key.split(".")[0] for key in known}
+    # Every candidate must contain a dot: keys are namespaced, and the one dotless literal in
+    # the tree is the word "key" inside a comment about data-i18n.
+    called = re.compile(r"\bt\(\s*['\"]([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+)['\"]")
+    attribute = re.compile(r"data-i18n(?:-\w+)?=['\"]([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+)['\"]")
+    shaped = re.compile(r"['\"]([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)['\"]")
+    # A key built by concatenation, as in t('coverage.state.' + name). The family has to
+    # exist even though no single literal names it.
+    dynamic = re.compile(r"\bt\(\s*['\"]([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*\.)['\"]\s*\+")
+    # 'coverage.html' is shaped like a key and its first segment is a real namespace, so file
+    # names have to be excluded by extension or every internal link is reported as missing.
+    file_like = (".html", ".json", ".js", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp",
+                 ".xml", ".txt", ".ico", ".webmanifest", ".woff", ".woff2")
+
+    sources = [ROOT / "index.html", ROOT / "404.html"]
+    sources += sorted((ROOT / "pages").glob("*.html"))
+    sources += sorted((ROOT / "assets" / "js").glob("*.js"))
+
+    missing: dict[str, set[str]] = {}
+    for path in sources:
+        if not path.exists():
+            continue
+        body = path.read_text(encoding="utf-8", errors="replace")
+        wanted = set(called.findall(body)) | set(attribute.findall(body))
+        for literal in shaped.findall(body):
+            if literal.split(".")[0] in namespaces:
+                wanted.add(literal)
+        absent = {key for key in wanted
+                  if key not in known and not key.endswith(file_like)}
+        for prefix in dynamic.findall(body):
+            if not any(key.startswith(prefix) for key in known):
+                absent.add(prefix + "*")
+        if absent:
+            missing[path.relative_to(ROOT).as_posix()] = absent
+
+    if not missing:
+        report.ok("every i18n key the pages ask for exists in en.json")
+        return
+    for rel in sorted(missing):
+        keys = ", ".join(sorted(missing[rel])[:6])
+        more = f" (+{len(missing[rel]) - 6} more)" if len(missing[rel]) > 6 else ""
+        report.fail(
+            f"i18n: {rel} asks for key(s) missing from en.json: {keys}{more}. The page renders "
+            f"the key itself where the text should be, so the label reads as 'coverage.need3'."
+        )
+
 def check_icons(report: Report):
     """Every shipped page must declare the PNG tab icon, not an SVG and not a blank.
 
@@ -925,6 +992,7 @@ def main():
     check_legacy_figures(report)
     check_icons(report)
     check_unlinked_exercises(report)
+    check_i18n_keys(report)
     if not args.no_link_check:
         check_internal_links(report)
     check_catalog_fresh(report, topics)
