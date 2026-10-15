@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/sw-register.js
+   Cyber Pulse Academy - assets/js/sw-register.js
    Registers the service worker and offers an "Install app" button when the
    browser says the site is installable.
 
@@ -34,7 +34,7 @@
             if (!installing) { return; }
             installing.addEventListener('statechange', function () {
               if (installing.state === 'installed' && navigator.serviceWorker.controller) {
-                CM.a11y.toast('A new version of CyberPulseAcademy is ready. Reload to use it.', 'ok', 12000);
+                CM.a11y.toast('A new version of Cyber Pulse Academy is ready. Reload to use it.', 'ok', 12000);
               }
             });
           });
@@ -63,7 +63,7 @@
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then(function (choice) {
         if (choice && choice.outcome === 'accepted') {
-          CM.a11y.toast('Installed. CyberPulseAcademy will now open like an app.', 'ok');
+          CM.a11y.toast('Installed. Cyber Pulse Academy will now open like an app.', 'ok');
           var host = document.getElementById('cm-install');
           if (host) { host.hidden = true; }
         }

@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/i18n.js
+   Cyber Pulse Academy - assets/js/i18n.js
    Tiny translation helper. All UI strings live in assets/i18n/<locale>.json as
    flat dotted keys. Adding fr.json is a drop-in: no code changes at all.
    Retrofitting i18n after the HTML is written is painful, so it exists from

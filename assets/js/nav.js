@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/nav.js
+   Cyber Pulse Academy - assets/js/nav.js
    The single definition of the site chrome. Every page ships an empty
    <header id="cm-header"> and <footer id="cm-footer">; this file fills them.
 
@@ -9,7 +9,7 @@
    plain catalog links, and the sitemap gives crawlers the full graph, so the
    trade is deliberate and documented.
 
-   Also handles: theme toggle with persistence, the identity chip, mobile
+   Also handles: theme toggle with persistence, mobile
    drawer, active-link marking, and hover/focus prefetching of likely next
    pages so navigation feels instant on GitHub Pages.
    MIT licensed. See LICENSE.
@@ -237,7 +237,6 @@
             'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
             '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>' +
           '</svg></a>' +
-        '<button type="button" class="cm-chip-id" id="cm-identity-chip"></button>' +
         '<button type="button" class="cm-iconbtn" id="cm-theme-toggle" aria-pressed="false"></button>' +
         '<button type="button" class="cm-burger" id="cm-burger" aria-expanded="false" aria-controls="cm-drawer" ' +
           'aria-label="' + CM.util.esc(t('nav.openMenu')) + '">' + svg('menu') + '</button>' +
@@ -284,8 +283,6 @@
     });
     applyTheme(currentTheme());
 
-    /* --- identity chip --- */
-    CM.identity.renderChip(host.querySelector('#cm-identity-chip'));
 
     /* --- mobile drawer --- */
     var burger = host.querySelector('#cm-burger');
@@ -390,11 +387,11 @@
           '</a>' +
           '<p class="cm-small cm-muted">' + CM.util.esc(t('site.tagline')) + '</p>' +
           '<p class="cm-small cm-dim">' + CM.util.esc(t('footer.license')) + '</p>' +
+          /* The site asks for nothing, so there is no profile to edit; the one button that
+             remains clears everything this browser holds. */
           '<div class="cm-row cm-mt1">' +
-            '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-footer-identity">' +
-              svg('user') + CM.util.esc(t('identity.edit')) + '</button>' +
             '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm" id="cm-footer-delete">' +
-              CM.util.esc(t('identity.delete')) + '</button>' +
+              CM.util.esc(t('footer.deleteData')) + '</button>' +
           '</div>' +
         '</div>' +
         '<div>' + column(t('nav.primary'), FOOTER.catalogs) + '</div>' +
@@ -425,20 +422,16 @@
         '</p>' +
       '</div>';
 
-    var editBtn = host.querySelector('#cm-footer-identity');
-    if (editBtn) { editBtn.addEventListener('click', function () { CM.identity.open(); }); }
-
     var delBtn = host.querySelector('#cm-footer-delete');
     if (delBtn) {
       delBtn.addEventListener('click', function () {
         var confirmed = window.confirm(
-          'Delete your name, country, theme choice and every recorded score from this browser? This cannot be undone.'
+          'Delete your theme choice and every recorded score from this browser? This cannot be undone.'
         );
         if (!confirmed) { return; }
         CM.stats.deleteMyData();
-        CM.identity.renderChip(document.getElementById('cm-identity-chip'));
-        CM.a11y.toast(t('identity.deleted'), 'ok');
-        CM.a11y.announce(t('identity.deleted'));
+        CM.a11y.toast(t('footer.deleted'), 'ok');
+        CM.a11y.announce(t('footer.deleted'));
         document.dispatchEvent(new CustomEvent('cm:data-deleted'));
       });
     }
@@ -464,7 +457,7 @@
     renderFooter();
     wireGlobalShortcuts();
 
-    /* The theme toggle and identity chip need translated labels, so redraw
+    /* The theme toggle needs a translated label, so redraw
        them once the string bundle resolves. */
     if (CM.i18n) {
       CM.i18n.ready(function () {
@@ -473,10 +466,8 @@
       });
     }
 
-    document.addEventListener('cm:identity-changed', function () {
-      CM.identity.renderChip(document.getElementById('cm-identity-chip'));
-      CM.stats.announceUser();
-    });
+    /* The site holds no profile, so nothing has to be redrawn when one would have
+       changed. */
   }
 
   if (document.readyState === 'loading') {

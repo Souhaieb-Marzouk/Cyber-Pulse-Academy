@@ -1,12 +1,12 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/exam-hub.js
+   Cyber Pulse Academy - assets/js/exam-hub.js
    The exercise hub. Loads an exercise page inside a same-origin iframe,
-   hands it the student's identity, listens for a score, and never shows a
+   hands it the runtime settings, listens for a score, and never shows a
    silent blank frame.
 
    The contract an exercise page may implement:
 
-     parent -> batch   { type: "CYBERPULSE_INIT", username, country, batch,
+     parent -> batch   { type: "CYBERPULSE_INIT", batch, topicId, locale,
                          topicId, locale, theme }
      batch  -> parent   { type: "CYBERPULSE_SCORE", topicId, batch, score,
                          passed, total, percent }
@@ -169,11 +169,13 @@
   }
 
   function sendInit(iframe) {
-    var identity = CM.identity ? CM.identity.get() : null;
+    /* No name and no country are collected, so both fields travel empty. They stay in the
+       payload because every batch reads them the same way (`d.username || ''`), which keeps
+       one handshake shape for all of them while carrying nothing about the reader. */
     var payload = {
       type: 'CYBERPULSE_INIT',
-      username: identity ? identity.name : '',
-      country: identity ? identity.country : 'ZZ',
+      username: '',
+      country: '',
       batch: active.batch,
       topicId: active.topicId,
       locale: (CM.i18n && CM.i18n.locale) || 'en',
@@ -666,15 +668,11 @@
     });
   }
 
-  /* Starting an exercise always requires an identity. Reading never does. */
+  /* Starting an exercise asks the reader for nothing: no name, no country, no signup. The
+     gate that used to stand here collected a chosen name and a country code before the first
+     batch could be opened, and it has been removed along with the collection behind it. */
   function start(topic, index, path) {
-    CM.Identity.require().then(function (identity) {
-      if (!identity) {
-        CM.a11y.toast(t('identity.needFirst'), 'warn');
-        return;
-      }
-      loadExercise(topic, index, path);
-    });
+    loadExercise(topic, index, path);
   }
 
   CM.examHub = {

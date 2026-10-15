@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/share.js
+   Cyber Pulse Academy - assets/js/share.js
    Dynamic share text with the Web Share API and three fallbacks. A specific
    share outperforms a generic one by a wide margin, so the text names the
    topic, the question count and the score the student actually achieved.
@@ -110,7 +110,7 @@
     if (nativeBtn) {
       nativeBtn.addEventListener('click', function () {
         navigator.share({
-          title: context.title + ' on CyberPulseAcademy',
+          title: context.title + ' on Cyber Pulse Academy',
           text: currentText(),
           url: topicUrl()
         })['catch'](function () {

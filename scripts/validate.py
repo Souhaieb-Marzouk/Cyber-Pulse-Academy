@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The CI gate for CyberPulseAcademy.
+"""The CI gate for Cyber Pulse Academy.
 
 Community-submitted content must fail loudly here, with a readable message,
 rather than shipping and breaking the site quietly. This script is what makes
@@ -974,14 +974,14 @@ def check_no_placeholders(report: Report):
 # --------------------------------------------------------------------------- #
 
 def main():
-    parser = argparse.ArgumentParser(description="Validate the CyberPulseAcademy repository.")
+    parser = argparse.ArgumentParser(description="Validate the Cyber Pulse Academy repository.")
     parser.add_argument("--verbose", action="store_true", help="Print every passing check.")
     parser.add_argument("--no-link-check", action="store_true", help="Skip the internal link sweep.")
     args = parser.parse_args()
 
     report = Report()
 
-    print("CyberPulseAcademy validation")
+    print("Cyber Pulse Academy validation")
     print("=" * 68)
 
     topics = check_data(report)

@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/catalog-render.js
+   Cyber Pulse Academy - assets/js/catalog-render.js
    Renders every listing page from data/catalog.json. No page hard-codes a
    topic, a count, or a theme: if it appears on screen it came from the
    manifest.
@@ -252,6 +252,42 @@
     return Number(m[3]) + ' ' + months[Number(m[2]) - 1];
   }
 
+  /* The filter panel's fields, built once for every page that offers them: the listing
+     pages through catalogList, and mitre-techniques.html, which has its own grouped views
+     and its own state and so asks for the fields directly. The readiness labels come from
+     the READINESS table the badges and the coverage dashboard also use, so the three cannot
+     disagree - which is what went wrong when this list named coverage.need0-3 after those
+     keys had been deleted. */
+  function filterFields(options) {
+    var opts = options || {};
+    var themes = opts.themes || [];
+    var counts = opts.counts || {};
+    var selected = opts.selected || [];
+    var html = '<fieldset><legend>' + esc(t('filter.theme')) + '</legend>';
+    themes.forEach(function (theme) {
+      var checked = selected.indexOf(theme) !== -1 ? ' checked' : '';
+      html += '<label><input type="checkbox" data-cm-filter="theme" value="' + esc(theme) + '"' + checked + '>' +
+              '<span>' + esc(theme) + '</span>' +
+              '<span class="cm-filters__count">' + esc(String(counts[theme] === undefined ? '' : counts[theme])) + '</span></label>';
+    });
+    html += '</fieldset>';
+
+    html += '<fieldset><legend>' + esc(t('filter.batches')) + '</legend>';
+    [['', 'filter.anyReadiness']].concat(Object.keys(READINESS).map(function (name) {
+      return [name, READINESS[name].key];
+    })).forEach(function (pair) {
+      var checked = String(opts.readiness || '') === pair[0] ? ' checked' : '';
+      html += '<label><input type="radio" name="cm-readiness" data-cm-filter="readiness" value="' +
+              esc(pair[0]) + '"' + checked + '>' +
+              '<span>' + esc(t(pair[1])) + '</span></label>';
+    });
+    html += '</fieldset>';
+
+    html += '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm cm-btn--block" id="' +
+            esc(opts.clearId || 'cm-clear-filters') + '">' + esc(t('action.clearFilters')) + '</button>';
+    return html;
+  }
+
   function readiness(topic) {
     var stats = CM.util.exerciseStats(topic);
     var chapters = topic.chapters || [];
@@ -378,31 +414,13 @@
       sortSelect.value = state.sort;
 
       if (sidebar) {
-        var themeHtml = '<fieldset><legend>' + esc(t('filter.theme')) + '</legend>';
-        allThemes.forEach(function (theme) {
-          var checked = state.themes.indexOf(theme) !== -1 ? ' checked' : '';
-          themeHtml += '<label><input type="checkbox" value="' + esc(theme) + '"' + checked + '>' +
-                       '<span>' + esc(theme) + '</span>' +
-                       '<span class="cm-filters__count">' + themeCounts[theme] + '</span></label>';
+        sidebar.innerHTML = filterFields({
+          themes: allThemes,
+          counts: themeCounts,
+          selected: state.themes,
+          readiness: state.readiness,
+          clearId: 'cm-clear-filters-2'
         });
-        themeHtml += '</fieldset>';
-
-        /* The readiness labels come from the same table the coverage dashboard and the
-           badges use, so this list cannot drift from them again - it previously named
-           coverage.need0-3, keys that were deleted with the three-batch model. */
-        themeHtml += '<fieldset><legend>' + esc(t('filter.batches')) + '</legend>';
-        [['', 'filter.anyReadiness']].concat(Object.keys(READINESS).map(function (name) {
-          return [name, READINESS[name].key];
-        })).forEach(function (pair) {
-          var checked = String(state.readiness || '') === pair[0] ? ' checked' : '';
-          themeHtml += '<label><input type="radio" name="cm-readiness" value="' + pair[0] + '"' + checked + '>' +
-                       '<span>' + esc(t(pair[1])) + '</span></label>';
-        });
-        themeHtml += '</fieldset>';
-
-        themeHtml += '<button type="button" class="cm-btn cm-btn--ghost cm-btn--sm cm-btn--block" id="cm-clear-filters-2">' +
-                     esc(t('action.clearFilters')) + '</button>';
-        sidebar.innerHTML = themeHtml;
       }
 
       function render() {
@@ -912,6 +930,7 @@
        does. Without this they had no way to offer an "All ready" filter, which
        is why the filter menu on mitre-techniques.html lacked one. */
     readiness: readiness,
+    filterFields: filterFields,
     topicHref: topicHref,
     CATALOG_META: CATALOG_META,
     stripVendorLogos: stripVendorLogos

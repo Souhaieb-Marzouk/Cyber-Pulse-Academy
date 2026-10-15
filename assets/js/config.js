@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/config.js
+   Cyber Pulse Academy - assets/js/config.js
    THE ONE FILE THE SITE OWNER EDITS. Loaded first on every page.
    MIT licensed. See LICENSE.
 
@@ -53,9 +53,9 @@
      ------------------------------------------------------------------- */
   var CONFIG = {
     /* --- identity of the deployment ------------------------------------ */
-    siteName: 'CyberPulseAcademy',
+    siteName: 'Cyber Pulse Academy',
     siteTagline: 'Hands-on, extreme-difficulty cyber security study',
-    siteVersion: '1.11.0',
+    siteVersion: '1.12.0',
     catalogVersion: '1.1.0',
 
     /* --- owner values: edit these three -------------------------------- */

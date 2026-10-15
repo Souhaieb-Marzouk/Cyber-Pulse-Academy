@@ -42,13 +42,13 @@ TOPICS_DIR = ROOT / "topics"
 PAGES_DIR = ROOT / "pages"
 CONFIG_JS = ROOT / "assets" / "js" / "config.js"
 
-MITRE_BANNER = (    "ATT&CK\u00ae is a registered trademark of The MITRE Corporation. CyberPulseAcademy content is "
+MITRE_BANNER = (    "ATT&CK\u00ae is a registered trademark of The MITRE Corporation. Cyber Pulse Academy content is "
     "derived from publicly available ATT&CK data and is not official MITRE material. See "
     "MITRE's Terms of Use."
 )
 
 CERT_BANNER = (
-    "Unofficial Study Resource. CyberPulseAcademy is not affiliated with, endorsed by, or sponsored by "
+    "Unofficial Study Resource. Cyber Pulse Academy is not affiliated with, endorsed by, or sponsored by "
     "CompTIA, ISC2, ISACA, OffSec, EC-Council, GIAC, Microsoft, AWS, Google, Cisco, or any other "
     "vendor. Objectives summaries are paraphrased from publicly available exam objectives."
 )
@@ -145,7 +145,7 @@ def build_faqs(topic: dict) -> list[dict]:
 
     if is_cert:
         official = (
-            f"No. CyberPulseAcademy is an independent, community-run study resource. It is not affiliated "
+            f"No. Cyber Pulse Academy is an independent, community-run study resource. It is not affiliated "
             f"with, endorsed by, or sponsored by {topic.get('theme', 'the vendor')} or any other "
             f"vendor, and no vendor logo appears anywhere on this site. Objective summaries are "
             f"paraphrased from publicly available exam objectives."
@@ -159,7 +159,7 @@ def build_faqs(topic: dict) -> list[dict]:
         )
     else:
         official = (
-            "No. CyberPulseAcademy is independent and community-run. It is a free study resource and is "
+            "No. Cyber Pulse Academy is independent and community-run. It is a free study resource and is "
             "not affiliated with any vendor, certification body or training provider."
         )
 
@@ -178,7 +178,7 @@ def build_faqs(topic: dict) -> list[dict]:
             ),
         },
         {
-            "q": f"How hard are the {title} exercises on CyberPulseAcademy?",
+            "q": f"How hard are the {title} exercises on Cyber Pulse Academy?",
             "a": (
                 f"The exercises are graded {difficulty}. They are hands-on scenario work rather than "
                 f"definitions: reading logs and alerts, choosing the right next step, configuring or "
@@ -194,13 +194,13 @@ def build_faqs(topic: dict) -> list[dict]:
                 "same information for every topic on the site."
             ),
         },
-        {"q": f"Is CyberPulseAcademy official {'study material' if is_cert else 'training'}?", "a": official},
+        {"q": f"Is Cyber Pulse Academy official {'study material' if is_cert else 'training'}?", "a": official},
         {
-            "q": "Does CyberPulseAcademy track me?",
+            "q": "Does Cyber Pulse Academy track me?",
             "a": (
                 "No tracking cookies, no third-party scripts and no fingerprinting. The name and "
-                "country you enter are stored only in your own browser, and the statistics page states "
-                "plainly which mode the site is running in and what that means for your data."
+                "asked of you: the site keeps your theme choice and your own scores in this browser, and "
+                "collects nothing else."
             ),
         },
     ]
@@ -264,7 +264,7 @@ def relationships(topic: dict, index: dict) -> list[tuple[str, list[str]]]:
 
 def head_block(topic: dict, canonical: str, og_image: str, site_version: str) -> str:
     title = f"{topic.get('externalId', '')} {topic.get('title', '')}".strip()
-    meta_title = f"{title} \u2014 Practice Exam | CyberPulseAcademy"
+    meta_title = f"{title} \u2014 Practice Exam | Cyber Pulse Academy"
     description = re.sub(r"\s+", " ", str(topic.get("summary", ""))).strip()
     if len(description) > 300:
         description = description[:297].rsplit(" ", 1)[0] + "..."
@@ -280,13 +280,13 @@ def head_block(topic: dict, canonical: str, og_image: str, site_version: str) ->
 <meta name="theme-color" content="#070d16">
 <meta name="color-scheme" content="dark light">
 
-<meta property="og:site_name" content="CyberPulseAcademy">
+<meta property="og:site_name" content="Cyber Pulse Academy">
 <meta property="og:type" content="article">
 <meta property="og:title" content="{esc(title)} practice exam">
 <meta property="og:description" content="{esc(description[:200])}">
 <meta property="og:url" content="{esc(canonical)}">
 <meta property="og:image" content="{esc(og_image)}">
-<meta property="og:image:alt" content="{esc(title)} study page on CyberPulseAcademy">
+<meta property="og:image:alt" content="{esc(title)} study page on Cyber Pulse Academy">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{esc(title)} practice exam">
 <meta name="twitter:description" content="{esc(description[:200])}">
@@ -627,7 +627,7 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
         sources_html = (
             '<section class="cm-section" aria-labelledby="cm-sources"><h2 id="cm-sources">Sources</h2>'
             f'<ul class="cm-sources">{items}</ul>'
-            '<p class="cm-small cm-dim">External links open in a new tab. CyberPulseAcademy is not '
+            '<p class="cm-small cm-dim">External links open in a new tab. Cyber Pulse Academy is not '
             'responsible for the content of third-party sites.</p></section>'
         )
 
@@ -669,8 +669,8 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
                 "isAccessibleForFree": True,
                 "assesses": objectives[:6] or [f"{topic.get('title', '')} concepts and their real-world application"],
                 "about": [{"@type": "Thing", "name": t} for t in tags[:8]],
-                "provider": {"@type": "Organization", "name": "CyberPulseAcademy", "url": base_url},
-                "isPartOf": {"@type": "WebSite", "name": "CyberPulseAcademy", "url": base_url},
+                "provider": {"@type": "Organization", "name": "Cyber Pulse Academy", "url": base_url},
+                "isPartOf": {"@type": "WebSite", "name": "Cyber Pulse Academy", "url": base_url},
             },
             {
                 "@type": "FAQPage",
@@ -695,7 +695,7 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
     )
 
     share_fallback = (
-        f"I am studying {topic.get('title', '')} on CyberPulseAcademy, "
+        f"I am studying {topic.get('title', '')} on Cyber Pulse Academy, "
         f"{DIFFICULTY_LABEL.get(difficulty, 'Extreme').lower()} level."
     )
 
@@ -768,7 +768,7 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
 
     <aside class="cm-donate-card cm-mt3" aria-labelledby="cm-donate-mini">
       <h2 id="cm-donate-mini" class="cm-h3">Support more free content</h2>
-      <p class="cm-small cm-muted">CyberPulseAcademy is free, has no adverts and runs no third-party
+      <p class="cm-small cm-muted">Cyber Pulse Academy is free, has no adverts and runs no third-party
       tracking. Voluntary support funds new exercise batches. It is never required and never gates
       content.</p>
       <a class="cm-btn cm-btn--primary cm-btn--sm" href="../pages/support.html">Support this project</a>
@@ -787,7 +787,6 @@ def render_topic(topic: dict, index: dict, catalog: dict, site_version: str, rep
 <script src="../assets/js/store.js?v={esc(site_version)}"></script>
 <script src="../assets/js/a11y.js?v={esc(site_version)}"></script>
 <script src="../assets/js/nav.js?v={esc(site_version)}"></script>
-<script src="../assets/js/identity.js?v={esc(site_version)}"></script>
 <script src="../assets/js/stats.js?v={esc(site_version)}"></script>
 <script src="../assets/js/catalog-render.js?v={esc(site_version)}"></script>
 <script src="../assets/js/exam-hub.js?v={esc(site_version)}"></script>

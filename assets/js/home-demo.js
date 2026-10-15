@@ -270,7 +270,7 @@
     };
 
     var HINTS = [
-      'CyberPulseAcademy preview shell — a few commands answer, nothing runs.',
+      'Cyber Pulse Academy preview shell — a few commands answer, nothing runs.',
       'Type help, or tap a command below.'
     ];
 

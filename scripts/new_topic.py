@@ -53,22 +53,22 @@ ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 # the shipped seed content so every topic reads identically.
 ATTRIBUTION = {
     "certification": (
-        "Objectives summary paraphrased from publicly available exam objectives. CyberPulseAcademy is not "
+        "Objectives summary paraphrased from publicly available exam objectives. Cyber Pulse Academy is not "
         "affiliated with, endorsed by, or sponsored by {vendor}."
     ),
     "tactic": (
         "Tactic content is derived from the publicly available MITRE ATT&CK knowledge base. ATT&CK is "
-        "a registered trademark of The MITRE Corporation. CyberPulseAcademy is not affiliated with, "
+        "a registered trademark of The MITRE Corporation. Cyber Pulse Academy is not affiliated with, "
         "endorsed by, or sponsored by MITRE, and this content is not official MITRE material."
     ),
     "technique": (
         "Technique content is derived from the publicly available MITRE ATT&CK knowledge base. ATT&CK "
-        "is a registered trademark of The MITRE Corporation. CyberPulseAcademy is not affiliated with, "
+        "is a registered trademark of The MITRE Corporation. Cyber Pulse Academy is not affiliated with, "
         "endorsed by, or sponsored by MITRE, and this content is not official MITRE material."
     ),
     "mitigation": (
         "Mitigation content is derived from the publicly available MITRE ATT&CK knowledge base. "
-        "ATT&CK is a registered trademark of The MITRE Corporation. CyberPulseAcademy is not affiliated "
+        "ATT&CK is a registered trademark of The MITRE Corporation. Cyber Pulse Academy is not affiliated "
         "with, endorsed by, or sponsored by MITRE, and this content is not official MITRE material."
     ),
     "detection": (
@@ -78,7 +78,7 @@ ATTRIBUTION = {
     "group": (
         "Group summaries are derived from publicly available threat intelligence reporting and the "
         "MITRE ATT&CK knowledge base. ATT&CK is a registered trademark of The MITRE Corporation. "
-        "Attribution statements reflect third-party reporting, not the position of CyberPulseAcademy."
+        "Attribution statements reflect third-party reporting, not the position of Cyber Pulse Academy."
     ),
 }
 
@@ -362,7 +362,7 @@ def run(script: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Scaffold a new CyberPulseAcademy topic and rebuild the site data.",
+        description="Scaffold a new Cyber Pulse Academy topic and rebuild the site data.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

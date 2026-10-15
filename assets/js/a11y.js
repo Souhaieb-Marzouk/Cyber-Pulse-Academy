@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/a11y.js
+   Cyber Pulse Academy - assets/js/a11y.js
    Accessibility layer. Loaded on every page, before the feature modules.
 
      * prefers-reduced-motion is respected both in CSS and by suppressing

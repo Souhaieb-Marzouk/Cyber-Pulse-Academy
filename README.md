@@ -1,4 +1,4 @@
-# CyberPulseAcademy
+# Cyber Pulse Academy
 
 **Learn cyber security by doing it, not by reading about it.**
 

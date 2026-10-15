@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/store.js
+   Cyber Pulse Academy - assets/js/store.js
    THE DATA FACADE. Every read of catalog data in the whole site goes through
    this file. No UI module is allowed to fetch data/catalog.json itself.
 

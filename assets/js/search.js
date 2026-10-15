@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/search.js
+   Cyber Pulse Academy - assets/js/search.js
    Client-side search over catalog.json. No server, no index file to rebuild,
    no external search service. Powers pages/search.html and the "no results"
    state everywhere else.

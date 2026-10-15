@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - assets/js/seo.js
+   Cyber Pulse Academy - assets/js/seo.js
    Injects per-topic structured data and social metadata at runtime.
 
    The static <title>, meta description, canonical and Open Graph tags are
@@ -60,7 +60,7 @@
     });
 
     faqs.push({
-      q: 'How hard are the ' + topic.title + ' practice exercises on CyberPulseAcademy?',
+      q: 'How hard are the ' + topic.title + ' practice exercises on Cyber Pulse Academy?',
       a: 'The exercises are graded ' + difficulty + '. Each topic has three independent batches: one focused on detection and triage, one on hands-on response and configuration, and one adversarial batch written from the attacker perspective with ATT&CK mapping and report drafting. You need roughly 70 percent to pass a batch.'
     });
 
@@ -70,17 +70,17 @@
     });
 
     faqs.push({
-      q: 'Is CyberPulseAcademy official ' + (isCert ? topic.theme + ' study material' : isMitre ? 'MITRE ATT&CK content' : 'training') + '?',
+      q: 'Is Cyber Pulse Academy official ' + (isCert ? topic.theme + ' study material' : isMitre ? 'MITRE ATT&CK content' : 'training') + '?',
       a: isCert
-        ? 'No. CyberPulseAcademy is an independent, community-run study resource. It is not affiliated with, endorsed by, or sponsored by ' + topic.theme + ' or any other vendor, and no vendor logo appears anywhere on this site. Objective summaries are paraphrased from publicly available exam objectives.'
+        ? 'No. Cyber Pulse Academy is an independent, community-run study resource. It is not affiliated with, endorsed by, or sponsored by ' + topic.theme + ' or any other vendor, and no vendor logo appears anywhere on this site. Objective summaries are paraphrased from publicly available exam objectives.'
         : isMitre
           ? 'No. ATT&CK is a registered trademark of The MITRE Corporation. Content here is derived from the publicly available ATT&CK knowledge base and from community-authored detection guidance. It is not official MITRE material and MITRE has not reviewed or approved it.'
-          : 'No. CyberPulseAcademy is independent and community-run. It is a free study resource and is not affiliated with any vendor, certification body or training provider.'
+          : 'No. Cyber Pulse Academy is independent and community-run. It is a free study resource and is not affiliated with any vendor, certification body or training provider.'
     });
 
     faqs.push({
-      q: 'Does CyberPulseAcademy track me?',
-      a: 'No tracking cookies, no third-party scripts and no fingerprinting. The name and country you enter are stored only in your own browser, and the statistics page states plainly which mode the site is running in and what that means for your data.'
+      q: 'Does Cyber Pulse Academy track me?',
+      a: 'No tracking cookies, no third-party scripts and no fingerprinting, and nothing is asked of you: the site keeps your theme choice and your own scores in your browser and collects nothing else.'
     });
 
     return faqs;
@@ -121,10 +121,10 @@
       }),
       provider: {
         '@type': 'Organization',
-        name: 'CyberPulseAcademy',
+        name: 'Cyber Pulse Academy',
         url: siteUrl
       },
-      isPartOf: { '@type': 'WebSite', name: 'CyberPulseAcademy', url: siteUrl }
+      isPartOf: { '@type': 'WebSite', name: 'Cyber Pulse Academy', url: siteUrl }
     };
     if (topic.externalId) {
       quiz.alternateName = topic.externalId + ' ' + topic.title;
@@ -155,7 +155,7 @@
         isAccessibleForFree: true,
         educationalCredentialAwarded: topic.externalId || topic.title,
         teaches: (topic.objectives || []).slice(0, 10),
-        provider: { '@type': 'Organization', name: 'CyberPulseAcademy', url: siteUrl },
+        provider: { '@type': 'Organization', name: 'Cyber Pulse Academy', url: siteUrl },
         hasCourseInstance: {
           '@type': 'CourseInstance',
           courseMode: 'online',
@@ -261,7 +261,7 @@
         isAccessibleForFree: true,
         educationalCredentialAwarded: topic.externalId || topic.title,
         teaches: (topic.objectives || []).slice(0, 10),
-        provider: { '@type': 'Organization', name: 'CyberPulseAcademy', url: CM.ROOT },
+        provider: { '@type': 'Organization', name: 'Cyber Pulse Academy', url: CM.ROOT },
         hasCourseInstance: {
           '@type': 'CourseInstance',
           courseMode: 'online',

@@ -1,5 +1,5 @@
 /* ============================================================================
-   CyberPulseAcademy - service-worker.js
+   Cyber Pulse Academy - service-worker.js
 
    Why this exists: studying on a commute with no signal is a real use case for
    a study platform, and offline shell support is cheap on GitHub Pages. A
@@ -28,7 +28,7 @@
 /* Bump this string whenever the shell changes. It is the only thing that
    invalidates already-installed clients, so forgetting it means users keep the
    old shell until the browser next updates it. */
-const SHELL_VERSION = '1.11.0';
+const SHELL_VERSION = '1.12.0';
 const SHELL_CACHE = 'cm-shell-v' + SHELL_VERSION;
 const DATA_CACHE = 'cm-data-v' + SHELL_VERSION;
 const PAGE_CACHE = 'cm-pages-v' + SHELL_VERSION;
@@ -46,7 +46,6 @@ const SHELL_ASSETS = [
   './assets/js/store.js',
   './assets/js/a11y.js',
   './assets/js/nav.js',
-  './assets/js/identity.js',
   './assets/js/stats.js',
   './assets/js/catalog-render.js',
   './assets/js/home-demo.js',
