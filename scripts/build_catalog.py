@@ -626,7 +626,6 @@ def build_sitemap(catalog, base_url, exercise_paths):
         add(f"pages/{page_for_type(topic_type)}", today, "weekly", "0.9")
     for extra in (
         "pages/coverage.html",
-        "pages/stats.html",
         "pages/contributors.html",
         "pages/about.html",
         "pages/support.html",

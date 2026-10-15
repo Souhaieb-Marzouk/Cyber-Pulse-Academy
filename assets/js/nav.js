@@ -74,7 +74,6 @@
       ]
     },
     { key: 'nav.coverage', href: 'pages/coverage.html' },
-    { key: 'nav.stats', href: 'pages/stats.html' },
     { key: 'nav.support', href: 'pages/support.html' },
     { key: 'nav.about', href: 'pages/about.html' }
   ];
@@ -89,7 +88,6 @@
     project: [
       { key: 'nav.about', href: 'pages/about.html' },
       { key: 'nav.coverage', href: 'pages/coverage.html' },
-      { key: 'nav.stats', href: 'pages/stats.html' },
       { key: 'nav.contributors', href: 'pages/contributors.html' }
     ],
     catalogs: [

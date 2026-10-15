@@ -1,17 +1,22 @@
 /* Home-page exercise previews.
  *
- * Three small, real interactions in place of the old filmed demo: a log viewer whose
- * filter works, a shell that answers a fixed set of commands, and an ordering exercise
- * that marks itself. Nothing here touches the network, the store or the statistics
- * provider, and every control is a real button or input so the keyboard works without
- * extra code.
+ * Three small, real interactions in place of the old filmed demo: a log viewer whose filter
+ * works, a shell that answers a fixed set of commands, and an ordering exercise that marks
+ * itself. Each one also plays on its own, the way the old animation did, and stops the
+ * moment the visitor touches it so it becomes a real exercise they can drive.
  *
- * Two deliberate choices:
- *   - The controller class is added only after this file has wired the tab strip, which
- *     is what turns three stacked panels into tabs. Without JavaScript a visitor sees all
- *     three exercises rather than one empty box.
- *   - Each of the four sections checks its own markup and returns quietly if it is not
- *     there, so removing one panel later cannot take the other two down with it.
+ * Deliberate choices:
+ *   - The controller class is added only after this file has wired the tab strip, which is
+ *     what turns three stacked panels into tabs. Without JavaScript a visitor sees all three
+ *     exercises rather than one empty box.
+ *   - Only the visible panel animates, and only while it is on screen. Off-screen timers
+ *     are useless work, and three running cycles at once would fight for attention.
+ *   - `prefers-reduced-motion: reduce` means no self-playing at all: the panels stay still
+ *     and wait to be used.
+ *   - While a panel animates, its live region is switched off, so a screen reader is not
+ *     read every typed character and every printed line. Taking over turns it back on.
+ *   - Each section checks its own markup and returns quietly if it is not there, so removing
+ *     one panel later cannot take the other two down with it.
  */
 (function () {
   'use strict';
@@ -21,14 +26,95 @@
     return;
   }
 
-  /* ---------------------------------------------------------------- tabs */
+  var reduceMotion = !!(window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  /* ------------------------------------------------------- cancellable timer ---------- */
+  /* Each panel owns one player. Halting sets a flag as well as clearing the timer, so a
+     callback already queued cannot restart the cycle it belonged to. */
+  function Player() {
+    this.stopped = false;
+    this.timer = null;
+  }
+
+  Player.prototype.wait = function (ms, fn) {
+    var self = this;
+    this.timer = window.setTimeout(function () {
+      if (!self.stopped) {
+        fn();
+      }
+    }, ms);
+  };
+
+  Player.prototype.halt = function () {
+    this.stopped = true;
+    if (this.timer !== null) {
+      window.clearTimeout(this.timer);
+      this.timer = null;
+    }
+  };
+
+  /* A panel that can play itself, be paused when it is off screen, and be taken over. */
+  function Auto(panel, live, cycle, onTakeOver) {
+    this.panel = panel;
+    this.live = live || [];
+    this.cycle = cycle;
+    this.onTakeOver = onTakeOver;
+    this.chip = panel ? panel.querySelector('.cm-demo__auto') : null;
+    this.player = new Player();
+    this.taken = false;
+    this.playing = false;
+  }
+
+  Auto.prototype.play = function () {
+    if (this.taken || reduceMotion || !this.cycle || this.playing) {
+      return;
+    }
+    this.playing = true;
+    this.live.forEach(function (el) { el.setAttribute('aria-live', 'off'); });
+    if (this.chip) {
+      this.chip.hidden = false;
+    }
+    this.cycle(this.player);
+  };
+
+  Auto.prototype.pause = function () {
+    if (!this.playing) {
+      return;
+    }
+    this.playing = false;
+    this.player.halt();
+    this.player = new Player();                 // a fresh token for the next run
+    if (!this.taken) {
+      this.live.forEach(function (el) { el.setAttribute('aria-live', 'polite'); });
+    }
+    if (this.chip) {
+      this.chip.hidden = true;
+    }
+  };
+
+  Auto.prototype.takeOver = function () {
+    if (this.taken) {
+      return;
+    }
+    this.taken = true;
+    this.pause();
+    this.live.forEach(function (el) { el.setAttribute('aria-live', 'polite'); });
+    if (this.onTakeOver) {
+      this.onTakeOver();
+    }
+  };
+
+  /* ---------------------------------------------------------------------- tabs -------- */
   var tabStrip = root.querySelector('.cm-demo__tabs');
   var tabs = Array.prototype.slice.call(root.querySelectorAll('.cm-demo__tab'));
   var panels = tabs.map(function (tab) {
     return document.getElementById(tab.getAttribute('aria-controls'));
   });
+  var activeIndex = 0;
 
   function selectTab(index, moveFocus) {
+    activeIndex = index;
     tabs.forEach(function (tab, i) {
       var on = i === index;
       tab.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -41,6 +127,7 @@
     if (moveFocus && tabs[index]) {
       tabs[index].focus();
     }
+    sync();
   }
 
   if (tabStrip && tabs.length && panels.every(Boolean)) {
@@ -64,15 +151,15 @@
       }
     });
 
-    selectTab(0, false);
     root.classList.add('cm-demo--tabbed');
   }
 
-  /* ------------------------------------------------------- log viewer */
+  /* ---------------------------------------------------------------- log viewer ------- */
   var logInput = document.getElementById('cm-log-filter');
   var logBody = document.getElementById('cm-log-body');
   var logCount = document.getElementById('cm-log-count');
   var logNote = document.getElementById('cm-log-note');
+  var logAuto = null;
 
   if (logInput && logBody && logCount && logNote) {
     var logRows = Array.prototype.slice.call(logBody.rows);
@@ -104,13 +191,46 @@
     logInput.addEventListener('input', applyLogFilter);
     logInput.addEventListener('search', applyLogFilter);
     applyLogFilter();
+
+    /* Types a query a character at a time, the way someone narrows a log by hand. */
+    var logCycle = function (player) {
+      var queries = ['4625', '4[.]15'];
+      var which = 0;
+
+      var typeQuery = function (text, i, done) {
+        logInput.value = text.slice(0, i);
+        applyLogFilter();
+        if (i < text.length) {
+          player.wait(120, function () { typeQuery(text, i + 1, done); });
+        } else {
+          done();
+        }
+      };
+
+      var step = function () {
+        var query = queries[which % queries.length];
+        which += 1;
+        typeQuery(query, 0, function () {
+          player.wait(2200, function () {
+            logInput.value = '';
+            applyLogFilter();
+            player.wait(900, step);
+          });
+        });
+      };
+
+      step();
+    };
+
+    logAuto = new Auto(panels[0], [logCount], logCycle, null);
   }
 
-  /* ---------------------------------------------------------- terminal */
+  /* ----------------------------------------------------------------- terminal -------- */
   var termOut = document.getElementById('cm-term-out');
   var termForm = document.getElementById('cm-term-form');
   var termInput = document.getElementById('cm-term-input');
   var termChips = document.getElementById('cm-term-chips');
+  var termAuto = null;
 
   if (termOut && termForm && termInput) {
     var COMMANDS = {
@@ -149,6 +269,11 @@
       'clear': ''
     };
 
+    var HINTS = [
+      'CyberPulseAcademy preview shell — a few commands answer, nothing runs.',
+      'Type help, or tap a command below.'
+    ];
+
     var writeLine = function (text, kind) {
       var line = document.createElement('div');
       if (kind === 'cmd') {
@@ -164,6 +289,7 @@
         line.textContent = text;
       }
       termOut.appendChild(line);
+      termOut.scrollTop = termOut.scrollHeight;
     };
 
     var runCommand = function (raw) {
@@ -183,7 +309,6 @@
         writeLine('bash: ' + cmd.replace(/[<>]/g, '') + ': command not found', 'out');
         writeLine('type help for the commands this preview answers', 'hint');
       }
-      termOut.scrollTop = termOut.scrollHeight;
     };
 
     termForm.addEventListener('submit', function (event) {
@@ -203,17 +328,66 @@
       });
     }
 
-    writeLine('CyberPulseAcademy preview shell — a few commands answer, nothing runs.', 'hint');
-    writeLine('Type help, or tap a command below.', 'hint');
+    HINTS.forEach(function (line) { writeLine(line, 'hint'); });
     runCommand('whoami');
+
+    /* Types a command, then prints its output one line at a time. */
+    var termCycle = function (player) {
+      var script = ['whoami', 'ps aux', 'netstat -tunp'];
+      var index = 0;
+
+      var typeCommand = function (text, i, done) {
+        termInput.value = text.slice(0, i);
+        if (i < text.length) {
+          player.wait(85, function () { typeCommand(text, i + 1, done); });
+        } else {
+          done();
+        }
+      };
+
+      var printLines = function (lines, done) {
+        var i = 0;
+        var next = function () {
+          if (i >= lines.length) {
+            done();
+            return;
+          }
+          writeLine(lines[i], 'out');
+          i += 1;
+          player.wait(135, next);
+        };
+        next();
+      };
+
+      var step = function () {
+        if (index > 0 && index % script.length === 0) {
+          termOut.innerHTML = '';
+          HINTS.forEach(function (line) { writeLine(line, 'hint'); });
+        }
+        var cmd = script[index % script.length];
+        index += 1;
+        typeCommand(cmd, 0, function () {
+          writeLine(cmd, 'cmd');
+          termInput.value = '';
+          printLines(COMMANDS[cmd.toLowerCase()].split('\n'), function () {
+            player.wait(1600, step);
+          });
+        });
+      };
+
+      step();
+    };
+
+    termAuto = new Auto(panels[1], [termOut], termCycle, null);
   }
 
-  /* ----------------------------------------------------- ordering drill */
+  /* ------------------------------------------------------- ordering and ranking ------ */
   var rankList = document.getElementById('cm-rank');
   var rankCheck = document.getElementById('cm-rank-check');
   var rankReset = document.getElementById('cm-rank-reset');
   var rankResult = document.getElementById('cm-rank-result');
   var rankNote = document.getElementById('cm-rank-note');
+  var rankAuto = null;
 
   if (rankList && rankCheck && rankReset && rankResult && rankNote) {
     var RANK_NOTE = 'Failed logons, then a success from the same address, then persistence as a '
@@ -238,7 +412,7 @@
       });
     };
 
-    var moveRow = function (row, direction) {
+    var moveRow = function (row, direction, moveFocus) {
       if (!row) {
         return;
       }
@@ -254,20 +428,15 @@
       rankResult.textContent = '';
       rankNote.hidden = true;
       paintRank(false);
-      var button = row.querySelector('.cm-rank__move[data-dir="' + direction + '"]');
-      if (button) {
-        button.focus();
+      if (moveFocus) {
+        var button = row.querySelector('.cm-rank__move[data-dir="' + direction + '"]');
+        if (button) {
+          button.focus();
+        }
       }
     };
 
-    rankList.addEventListener('click', function (event) {
-      var button = event.target.closest ? event.target.closest('.cm-rank__move') : null;
-      if (button) {
-        moveRow(button.closest('.cm-rank__row'), button.getAttribute('data-dir'));
-      }
-    });
-
-    rankCheck.addEventListener('click', function () {
+    var checkRank = function () {
       var rows = rankRows();
       var right = rows.filter(function (row, i) {
         return Number(row.getAttribute('data-key')) === i + 1;
@@ -277,15 +446,104 @@
       var solved = right === rows.length;
       rankNote.hidden = !solved;
       rankNote.textContent = solved ? RANK_NOTE : '';
-    });
+    };
 
-    rankReset.addEventListener('click', function () {
+    var resetRank = function () {
       originalOrder.forEach(function (row) { rankList.appendChild(row); });
       rankResult.textContent = '';
       rankNote.hidden = true;
       paintRank(false);
+    };
+
+    rankList.addEventListener('click', function (event) {
+      var button = event.target.closest ? event.target.closest('.cm-rank__move') : null;
+      if (button) {
+        moveRow(button.closest('.cm-rank__row'), button.getAttribute('data-dir'), true);
+      }
     });
 
+    rankCheck.addEventListener('click', checkRank);
+    rankReset.addEventListener('click', resetRank);
+
     paintRank(false);
+
+    /* Solves the puzzle one swap at a time, then marks it, then shuffles it back. */
+    var rankCycle = function (player) {
+      var oneMove = function () {
+        var rows = rankRows();
+        for (var i = 0; i < rows.length; i++) {
+          if (Number(rows[i].getAttribute('data-key')) !== i + 1) {
+            for (var j = i + 1; j < rows.length; j++) {
+              if (Number(rows[j].getAttribute('data-key')) === i + 1) {
+                moveRow(rows[j], 'up', false);
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      };
+
+      var step = function () {
+        if (oneMove()) {
+          player.wait(560, step);
+          return;
+        }
+        checkRank();
+        player.wait(2300, function () {
+          resetRank();
+          player.wait(1000, step);
+        });
+      };
+
+      step();
+    };
+
+    rankAuto = new Auto(panels[2], [rankResult], rankCycle, function () {
+      /* Hand back a clean slate: the order stays where the animation left it, but the
+         marks and the result line are cleared so the visitor starts their own attempt. */
+      rankResult.textContent = '';
+      rankNote.hidden = true;
+      paintRank(false);
+    });
+  }
+
+  /* ------------------------------------------------------------- play, pause, take over */
+  var autos = [logAuto, termAuto, rankAuto];
+  var onScreen = !('IntersectionObserver' in window);
+
+  function sync() {
+    autos.forEach(function (auto, i) {
+      if (!auto) {
+        return;
+      }
+      if (onScreen && i === activeIndex && !document.hidden) {
+        auto.play();
+      } else {
+        auto.pause();
+      }
+    });
+  }
+
+  autos.forEach(function (auto) {
+    if (!auto || !auto.panel) {
+      return;
+    }
+    /* Capture phase, so the visitor's own click or keystroke stops the animation before it
+       reaches the control they are using. */
+    ['pointerdown', 'keydown'].forEach(function (type) {
+      auto.panel.addEventListener(type, function () { auto.takeOver(); }, true);
+    });
+  });
+
+  if (autos.some(Boolean)) {
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) {
+        onScreen = entries[0].isIntersecting;
+        sync();
+      }, { threshold: 0.25 }).observe(root);
+    }
+    document.addEventListener('visibilitychange', sync);
+    sync();
   }
 })();
