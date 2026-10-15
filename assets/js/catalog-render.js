@@ -235,6 +235,13 @@
     complete: { key: 'coverage.state.complete',  cls: 'cm-badge--ok',    sym: '\u2713' }
   };
 
+  /* When a topic's exercises last changed. scripts/sync_exercises.py writes
+     exercisesAdded as it records a batch; topics that predate the field fall back to their
+     review date rather than dropping out of the ordering altogether. */
+  function topicDate(topic) {
+    return String(topic.exercisesAdded || topic.lastReviewed || '');
+  }
+
   function readiness(topic) {
     var stats = CM.util.exerciseStats(topic);
     var chapters = topic.chapters || [];
@@ -763,10 +770,12 @@
         }
       }
 
-      /* 3. Latest additions, newest review date first. */
+      /* 3. Recently reviewed, newest change first. The date is when the topic's
+            exercises were last recorded, so publishing a batch moves that topic to the top
+            of this list on the next build without anyone touching a page. */
       if (latestMount) {
         var sorted = catalog.topics.slice().sort(function (a, b) {
-          var cmp = String(b.lastReviewed || '').localeCompare(String(a.lastReviewed || ''));
+          var cmp = topicDate(b).localeCompare(topicDate(a));
           if (cmp !== 0) { return cmp; }
           return String(a.title).localeCompare(String(b.title));
         }).slice(0, opts.latestCount || CM.config.homeLatestCount);
@@ -792,6 +801,16 @@
           notReady += (stats.total - stats.published);
           if (readiness(topic) === 'none' || readiness(topic) === 'notReady') { waiting.push(topic); }
         });
+        /* Newest first, so a topic that has just been documented shows up here with its
+           exercises still to come, and a topic leaves the list as soon as its first batch
+           is published. Slicing the catalog order instead would show the same six topics
+           for ever, however much was written. */
+        waiting.sort(function (a, b) {
+          var cmp = topicDate(b).localeCompare(topicDate(a));
+          if (cmp !== 0) { return cmp; }
+          return String(a.title).localeCompare(String(b.title));
+        });
+
         var examples = waiting.slice(0, 6).map(function (topic) {
           return '<li><a href="' + topicHref(topic.id) + '">' + esc(topic.title) + '</a></li>';
         }).join('') || '<li class="cm-dim">Every topic has at least one exercise ready.</li>';

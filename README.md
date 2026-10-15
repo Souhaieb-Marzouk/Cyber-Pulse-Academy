@@ -82,14 +82,20 @@ python scripts/validate.py                  # the checks; the repository must be
 
 `sync_exercises.py` fills the reserved slot for each tier it finds, adds the slot when a
 tier has no entry yet, reports files it cannot match instead of guessing, and takes
-`--check` (write nothing, exit 1 if work is unlinked) or `--dry-run`.
+`--check` (write nothing, exit 1 if work is unlinked) or `--dry-run`. It also stamps the
+topic with today's date in `lastReviewed` and in `exercisesAdded`, which is the date the
+home page's "Recently reviewed" list is ordered by (`build_catalog.py` carries the field
+into the manifest, and `data/schema/topic.schema.json` declares it).
 
 **Why the home-page numbers cannot drift.** Every figure on the home page — the coverage
 bars, their colours and the percentages beside them — is derived from `data/catalog.json`,
 which is derived from the topic JSON files. Nothing is typed in by hand: the build injects
 the values into the static HTML, and `assets/js/catalog-render.js` recomputes them from the
 manifest when the page loads. Add a batch, record it, rebuild, and the bars, the colours and
-the percentages move on their own. The one thing that does *not* happen by itself is the
+the percentages move on their own. The two home-page lists behave the same way: "Recently
+reviewed" ranks topics by when their exercises last changed, and "Still being written" counts
+what is still reserved but unwritten and names the most recently changed topics that are
+waiting. The one thing that does *not* happen by itself is the
 recording step, which is what the two commands above are for — and `validate.py` fails if an
 exercise file exists that no topic lists, so a missed step cannot ship quietly.
 

@@ -207,18 +207,10 @@
 
     host.innerHTML =
       '<div class="cm-wrap cm-header__bar">' +
-        '<a class="cm-brand" href="' + relHref('index.html') + '">' +
-          /* The navbar uses the shield mark, not the full lockup. The lockup
-             carries the words "CYBER PULSE ACADEMY" beneath the shield, and at
-             navbar scale those words are about three pixels tall, so the whole
-             thing reads as a smudge. The mark alone stays legible. The full
-             lockup is used in the footer, where there is room for it.
-             The alt text carries the site name, which is what gives the link
-             its accessible name for a screen reader and its tooltip on hover. */
-          '<img class="cm-brand__logo" src="' + CM.util.url('assets/img/logo-mark.png') + '" ' +
-            'alt="' + CM.util.esc(t('site.name')) + ', home" ' +
-            'width="40" height="40" decoding="async">' +
-        '</a>' +
+        /* The navbar carries no brand mark. It was the navbar-scaled mark alone, 40px
+           square, and it spent bar space without showing a readable wordmark; "Home" in
+           the list below is the way back to the index. The full lockup is still in the
+           footer, where there is room for it. */
         '<nav class="cm-nav" aria-label="' + CM.util.esc(t('nav.primary')) + '">' +
           '<ul class="cm-nav__list">' + items + '</ul>' +
         '</nav>' +

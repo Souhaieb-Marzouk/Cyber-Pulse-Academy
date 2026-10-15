@@ -592,6 +592,10 @@ def lean_topic(topic):
         "tags": topic.get("tags") or [],
         "summary": summary[:INDEX_SUMMARY_CHARS],
         "hasBeginner": bool(topic.get("beginner")),
+        # Stamped by scripts/sync_exercises.py when a batch is recorded. The home page's
+        # "Recently reviewed" list is ordered by it, falling back to lastReviewed for the
+        # topics that predate the field.
+        "exercisesAdded": topic.get("exercisesAdded"),
         # A chapter list is a certification concept, so it stays empty elsewhere.
         "exercises": exercises,
         "chapters": chapters,

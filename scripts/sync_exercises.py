@@ -141,6 +141,10 @@ def sync_topic_slots(topic: dict, folder: Path, today: str):
         changes.append(f"{TIER_LABEL[tier]}: added {rel}")
     if changes:
         topic["lastReviewed"] = today
+        # When this topic's exercise set last changed. The home page's "Recently reviewed"
+        # list sorts on it, so recording a batch is what moves a topic to the top of that
+        # list - nobody edits a page to make it happen.
+        topic["exercisesAdded"] = today
     return changes, notes
 
 
@@ -178,6 +182,10 @@ def sync_chapter_slots(topic: dict, folder: Path, today: str):
             changes.append(f"chapter {number} {TIER_LABEL[slug]}: added {rel}")
     if changes:
         topic["lastReviewed"] = today
+        # When this topic's exercise set last changed. The home page's "Recently reviewed"
+        # list sorts on it, so recording a batch is what moves a topic to the top of that
+        # list - nobody edits a page to make it happen.
+        topic["exercisesAdded"] = today
     return changes, notes
 
 
