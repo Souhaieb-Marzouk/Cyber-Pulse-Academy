@@ -833,18 +833,36 @@
           '</div>';
       }
 
+      /* How far one catalog has come, said three ways: the bar length, the percentage
+         and the tier colour. The thresholds are duplicated in scripts/generate_pages.py,
+         which paints the same colours into the static markup, so the strip does not
+         change colour the moment this script loads. */
+      function coverageTier(pct, readyCount) {
+        if (!readyCount) { return 'none'; }
+        if (pct >= 100) { return 'complete'; }
+        if (pct >= 50) { return 'strong'; }
+        if (pct >= 20) { return 'building'; }
+        if (pct >= 5) { return 'early'; }
+        return 'starting';
+      }
+
       /* One catalog: how much of it a learner can start today, against how much is
-         documented. The meter is decorative - the two figures carry the meaning -
-         so it is hidden from assistive technology rather than described twice. */
+         documented. The bar and the chip repeat what the two figures already say, so
+         both are hidden from assistive technology; the tier is announced in words
+         instead, because colour is the one thing a screen reader cannot read. */
       function coverageCard(key, label, href) {
         var readyCount = totals[key + 'Ready'] || 0;
         var documented = totals[key] || 0;
         var pct = documented > 0 ? Math.round((readyCount / documented) * 100) : 0;
-        return '<a class="cm-stat' + (readyCount ? '' : ' cm-stat--zero') + '" href="' + esc(href) + '">' +
+        var tier = coverageTier(pct, readyCount);
+        return '<a class="cm-stat' + (readyCount ? '' : ' cm-stat--zero') +
+          '" data-cm-catalog="' + esc(key) + '" data-cm-tier="' + tier + '" href="' + esc(href) + '">' +
+          '<span class="cm-stat__pct" aria-hidden="true">' + pct + '%</span>' +
           '<span class="cm-stat__num">' + fmtInt(readyCount) + '</span>' +
           '<span class="cm-stat__label">' + esc(label) + '</span>' +
           '<span class="cm-stat__sub">' + esc(t('home.stats.coveredOf', { total: fmtInt(documented) })) + '</span>' +
           '<span class="cm-meter" aria-hidden="true"><span class="cm-meter__fill" style="width:' + pct + '%"></span></span>' +
+          '<span class="cm-vh">' + esc(t('home.stats.tier.' + tier)) + '</span>' +
           '</a>';
       }
 
@@ -893,6 +911,13 @@
                 coverageCard('groups', t('home.stats.groups'), 'pages/mitre-groups.html') +
               '</div>' +
               '<p class="cm-small cm-dim">' + esc(t('home.stats.coverageNote')) + '</p>' +
+              '<ul class="cm-legend" aria-hidden="true">' +
+                '<li data-cm-tier="complete"><i></i>' + esc(t('home.stats.tier.complete')) + '</li>' +
+                '<li data-cm-tier="strong"><i></i>' + esc(t('home.stats.tier.strong')) + '</li>' +
+                '<li data-cm-tier="building"><i></i>' + esc(t('home.stats.tier.building')) + '</li>' +
+                '<li data-cm-tier="early"><i></i>' + esc(t('home.stats.tier.early')) + '</li>' +
+                '<li data-cm-tier="starting"><i></i>' + esc(t('home.stats.tier.starting')) + '</li>' +
+              '</ul>' +
             '</section>' +
             '<section class="cm-stats__group">' +
               '<h2 class="cm-stats__head">' + esc(t('home.stats.head.you')) + '</h2>' +

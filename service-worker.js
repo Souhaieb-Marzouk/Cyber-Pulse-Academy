@@ -28,7 +28,7 @@
 /* Bump this string whenever the shell changes. It is the only thing that
    invalidates already-installed clients, so forgetting it means users keep the
    old shell until the browser next updates it. */
-const SHELL_VERSION = '1.6.0';
+const SHELL_VERSION = '1.7.0';
 const SHELL_CACHE = 'cm-shell-v' + SHELL_VERSION;
 const DATA_CACHE = 'cm-data-v' + SHELL_VERSION;
 const PAGE_CACHE = 'cm-pages-v' + SHELL_VERSION;
@@ -49,6 +49,7 @@ const SHELL_ASSETS = [
   './assets/js/identity.js',
   './assets/js/stats.js',
   './assets/js/catalog-render.js',
+  './assets/js/home-demo.js',
   './assets/js/exam-hub.js',
   './assets/js/search.js',
   './assets/js/share.js',

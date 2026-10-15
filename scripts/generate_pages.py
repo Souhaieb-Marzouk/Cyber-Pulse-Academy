@@ -826,6 +826,12 @@ COUNT_RE = re.compile(r'(<([a-z]+)[^>]*\bdata-cm-count="([A-Za-z]+)"[^>]*>)(.*?)
 METER_TAG_RE = re.compile(r'<[a-z]+[^>]*\bdata-cm-meter="[A-Za-z]+"[^>]*>', re.S)
 METER_ATTR_RE = re.compile(r'\bdata-cm-meter="([A-Za-z]+)"')
 METER_STYLE_RE = re.compile(r'style="[^"]*"')
+# The card that holds a bar, and the places the tier is written into it.
+CARD_TAG_RE = re.compile(r'<a[^>]*\bdata-cm-catalog="[A-Za-z]+"[^>]*>', re.S)
+CARD_ATTR_RE = re.compile(r'\bdata-cm-catalog="([A-Za-z]+)"')
+CARD_TIER_RE = re.compile(r'\bdata-cm-tier="[a-z]+"')
+PCT_TAG_RE = re.compile(r'(<span class="cm-stat__pct"[^>]*data-cm-pct="([A-Za-z]+)"[^>]*>)([^<]*)(</span>)')
+TIERWORD_TAG_RE = re.compile(r'(<span class="cm-vh" data-cm-tierword="([A-Za-z]+)">)([^<]*)(</span>)')
 # The build marker on <html>, kept in step with the ?v= stamps by stamp_versions().
 BUILD_RE = re.compile(r'data-cm-build="[^"]*"')
 ASSET_RE = re.compile(r'((?:src|href)=")([^":#?][^":]*?\.(?:css|js))(\?v=[^"]*)?(")')
@@ -920,13 +926,34 @@ def normalise_absolute_urls(base_url: str, repo_url: str, verbose: bool = False)
     return changed
 
 
+def coverage_tier(pct: int, ready: int) -> str:
+    """The colour band for a coverage percentage.
+
+    The same thresholds live in assets/js/catalog-render.js; if one moves, the other
+    must move with it or the homepage will change colour when the script loads.
+    """
+    if not ready:
+        return "none"
+    if pct >= 100:
+        return "complete"
+    if pct >= 50:
+        return "strong"
+    if pct >= 20:
+        return "building"
+    if pct >= 5:
+        return "early"
+    return "starting"
+
+
 def inject_meters(text: str, totals: dict) -> str:
-    """Size every coverage bar from the catalogue.
+    """Size and colour every coverage bar from the catalogue.
 
     A bar carries data-cm-meter="<catalog>" and its width is derived from
-    "<catalog>Ready" against "<catalog>". Deriving it here means the bar can never
-    disagree with the two figures printed beside it, and a visitor without
-    JavaScript still sees the right proportion.
+    "<catalog>Ready" against "<catalog>"; the card around it carries
+    data-cm-catalog="<catalog>", which is where the tier, the percentage chip and the
+    spoken tier label are written. Deriving all of it here means the strip can never
+    disagree with the two figures printed beside it, and a visitor without JavaScript
+    still sees the right proportion and colour.
     """
 
     def fix_tag(match):
@@ -942,7 +969,38 @@ def inject_meters(text: str, totals: dict) -> str:
             return METER_STYLE_RE.sub(f'style="width:{pct}%"', tag, count=1)
         return tag[:-1] + f' style="width:{pct}%">'
 
-    return METER_TAG_RE.sub(fix_tag, text)
+    def fix_card(match):
+        tag = match.group(0)
+        name = CARD_ATTR_RE.search(tag).group(1)
+        ready = totals.get(f"{name}Ready", 0) or 0
+        documented = totals.get(name, 0) or 0
+        pct = int(ready * 100 / documented + 0.5) if documented else 0
+        tier = coverage_tier(pct, ready)
+        if CARD_TIER_RE.search(tag):
+            return CARD_TIER_RE.sub(f'data-cm-tier="{tier}"', tag, count=1)
+        return tag[:-1] + f' data-cm-tier="{tier}">'
+
+    def fix_pct(match):
+        name = match.group(2)
+        ready = totals.get(f"{name}Ready", 0) or 0
+        documented = totals.get(name, 0) or 0
+        pct = int(ready * 100 / documented + 0.5) if documented else 0
+        return f"{match.group(1)}{pct}%{match.group(4)}"
+
+    def fix_tierword(match):
+        name = match.group(2)
+        ready = totals.get(f"{name}Ready", 0) or 0
+        documented = totals.get(name, 0) or 0
+        pct = int(ready * 100 / documented + 0.5) if documented else 0
+        tier = coverage_tier(pct, ready)
+        words = {"complete": "Coverage: complete.", "strong": "Coverage: over half.",
+                 "building": "Coverage: building.", "early": "Coverage: early.",
+                 "starting": "Coverage: just started.", "none": "Coverage: nothing published yet."}
+        return f"{match.group(1)}{words[tier]}{match.group(4)}"
+
+    text = CARD_TAG_RE.sub(fix_card, text)
+    text = PCT_TAG_RE.sub(fix_pct, text)
+    return TIERWORD_TAG_RE.sub(fix_tierword, METER_TAG_RE.sub(fix_tag, text))
 
 
 def inject_counts(catalog: dict) -> int:

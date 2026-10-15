@@ -60,3 +60,37 @@ Then open <http://localhost:8000/>. Use `python3` on macOS and Linux. Any static
 `.nojekyll` is present so GitHub Pages serves every folder as-is.
 
 ---
+
+## Adding an exercise
+
+**One file, with any name:**
+
+```bash
+python scripts/new_exercise.py --topic firewall --title "Reading firewall logs" \
+    --path "exercises/keywords/firewall/firewall-logs.html" --minutes 20
+```
+
+**A whole batch drop**, named by the convention the generator produces
+(`exercises/<catalog>/<EXTERNAL_ID>/<EXTERNAL_ID>_<TIER>.html`):
+
+```bash
+python scripts/sync_exercises.py            # record every new batch on its topic
+python scripts/build_catalog.py             # rebuild data/catalog.json, sitemap.xml, robots.txt
+python scripts/generate_pages.py            # rebuild the study pages and the injected figures
+python scripts/validate.py                  # the checks; the repository must be publishable
+```
+
+`sync_exercises.py` fills the reserved slot for each tier it finds, adds the slot when a
+tier has no entry yet, reports files it cannot match instead of guessing, and takes
+`--check` (write nothing, exit 1 if work is unlinked) or `--dry-run`.
+
+**Why the home-page numbers cannot drift.** Every figure on the home page — the coverage
+bars, their colours and the percentages beside them — is derived from `data/catalog.json`,
+which is derived from the topic JSON files. Nothing is typed in by hand: the build injects
+the values into the static HTML, and `assets/js/catalog-render.js` recomputes them from the
+manifest when the page loads. Add a batch, record it, rebuild, and the bars, the colours and
+the percentages move on their own. The one thing that does *not* happen by itself is the
+recording step, which is what the two commands above are for — and `validate.py` fails if an
+exercise file exists that no topic lists, so a missed step cannot ship quietly.
+
+---

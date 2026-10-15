@@ -495,6 +495,48 @@ ICON_HREF = re.compile(r"href=[\"']([^\"']+)[\"']", re.I)
 APPLE_LINK = re.compile(r"<link[^>]*\brel=[\"']apple-touch-icon[\"'][^>]*>", re.I)
 
 
+def check_unlinked_exercises(report: Report):
+    """Every exercise file on disk must be listed by a topic.
+
+    An unclaimed file is invisible rather than broken: it still passes the size, icon,
+    metadata and defanging checks, but no topic lists it, so it is not counted anywhere
+    and the coverage bars on the home page do not move for it. Because nothing else
+    complains, this check exists to make the omission loud. `scripts/sync_exercises.py`
+    links a whole batch drop at once.
+    """
+    claimed = set()
+    for path in (ROOT / "data").rglob("*.json"):
+        if path.relative_to(ROOT).as_posix().startswith("data/schema/"):
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        entries = list(data.get("exercises") or [])
+        for chapter in data.get("chapters") or []:
+            entries += list(chapter.get("exercises") or [])
+        for entry in entries:
+            claimed.add(str(entry.get("path", "")))
+
+    unlinked = sorted(
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "exercises").rglob("*.html")
+        if path.relative_to(ROOT).as_posix() not in claimed
+    ) if (ROOT / "exercises").is_dir() else []
+
+    if unlinked:
+        for rel in unlinked[:8]:
+            report.fail(
+                f"unlinked: {rel} exists on disk but no topic lists it, so it is not counted "
+                f"anywhere and the home-page coverage does not move for it. Run "
+                f"python scripts/sync_exercises.py, then rebuild."
+            )
+        if len(unlinked) > 8:
+            report.fail(f"unlinked: and {len(unlinked) - 8} more file(s) with the same problem")
+    else:
+        report.ok("every exercise file on disk is listed by a topic")
+
+
 def check_icons(report: Report):
     """Every shipped page must declare the PNG tab icon, not an SVG and not a blank.
 
@@ -882,6 +924,7 @@ def main():
     check_iocs(report)
     check_legacy_figures(report)
     check_icons(report)
+    check_unlinked_exercises(report)
     if not args.no_link_check:
         check_internal_links(report)
     check_catalog_fresh(report, topics)
