@@ -280,7 +280,7 @@
 
   /* ------------------------------------------------------------- rendering */
   /* The exercise list itself is rendered as static HTML by
-     scripts/generate_pages.py. That keeps every exercise crawlable and readable
+     the build tooling. That keeps every exercise crawlable and readable
      with JavaScript switched off. This function only attaches behaviour to the
      buttons, so there is exactly one place that knows a topic's exercises exist
      and exactly one place that makes them clickable. */

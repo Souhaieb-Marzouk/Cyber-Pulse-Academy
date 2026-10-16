@@ -63,29 +63,27 @@ Then open <http://localhost:8000/>. Use `python3` on macOS and Linux. Any static
 
 ## Adding an exercise
 
-**One file, with any name:**
+This repository holds the finished site: the generated topic pages, the manifest, the exercise
+batches and the assets. The **build tooling that produces them is not published**, so a download
+gives you a working site rather than the machinery behind it. Adding an exercise therefore means
+editing the data and committing the result, both of which are described here.
 
-```bash
-python scripts/new_exercise.py --topic firewall --title "Reading firewall logs" \
-    --path "exercises/keywords/firewall/firewall-logs.html" --minutes 20
-```
+An exercise batch is four standalone HTML files plus the slot that records them, one per
+difficulty tier. The naming convention the generator produces is:
 
-**A whole batch drop**, named by the convention the generator produces
-(`exercises/<catalog>/<EXTERNAL_ID>/<EXTERNAL_ID>_<TIER>.html`):
+    exercises/<catalog>/<EXTERNAL_ID>/<EXTERNAL_ID>_<TIER>.html
+    exercises/certifications/<track>/<section> - <title> - <TIER>.html
 
-```bash
-python scripts/sync_exercises.py            # record every new batch on its topic
-python scripts/build_catalog.py             # rebuild data/catalog.json, sitemap.xml, robots.txt
-python scripts/generate_pages.py            # rebuild the study pages and the injected figures
-python scripts/validate.py                  # the checks; the repository must be publishable
-```
+and a topic's slots live in its own file under `data/<catalog>/`, one `{title, path, difficulty,
+kind, status, summary}` object per tier inside `exercises`, or inside a chapter's `exercises` for
+a certification. `data/schema/topic.schema.json` is the contract, including the `exercisesAdded`
+date the home page orders its "Recently covered" list by.
 
-`sync_exercises.py` fills the reserved slot for each tier it finds, adds the slot when a
-tier has no entry yet, reports files it cannot match instead of guessing, and takes
-`--check` (write nothing, exit 1 if work is unlinked) or `--dry-run`. It also stamps the
-topic with today's date in `lastReviewed` and in `exercisesAdded`, which is the date the
-home page's "Recently reviewed" list is ordered by (`build_catalog.py` carries the field
-into the manifest, and `data/schema/topic.schema.json` declares it).
+The repository is then rebuilt and checked with the project's build tooling, which links each
+file to its slot, regenerates `data/catalog.json`, the study pages, the sitemap and the Open
+Graph cards, and runs the validation gate. Every exercise file on disk must be claimed by a
+topic: if one is not, the published catalogue does not count it and the coverage bars on the home
+page do not move for it.
 
 **Why the home-page numbers cannot drift.** Every figure on the home page — the coverage
 bars, their colours and the percentages beside them — is derived from `data/catalog.json`,

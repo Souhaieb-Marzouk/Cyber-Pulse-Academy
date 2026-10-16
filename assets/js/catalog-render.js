@@ -235,7 +235,7 @@
     complete: { key: 'coverage.state.complete',  cls: 'cm-badge--ok',    sym: '\u2713' }
   };
 
-  /* When a topic's exercises last changed. scripts/sync_exercises.py writes
+  /* When a topic's exercises last changed. The build tooling writes
      exercisesAdded as it records a batch; topics that predate the field fall back to their
      review date rather than dropping out of the ordering altogether. */
   function topicDate(topic) {
@@ -365,7 +365,7 @@
       if (topics.length === 0) {
         mount.innerHTML = '<div class="cm-state">' + CM.nav.svg('info') +
           '<h3>' + esc('Nothing here yet') + '</h3>' +
-          '<p>' + esc('This catalog has no entries in the manifest. Run scripts/build_catalog.py after adding data files.') + '</p></div>';
+          '<p>' + esc('This catalog has no entries in the manifest. Rebuild the catalog after adding data files.') + '</p></div>';
         return;
       }
 
@@ -665,7 +665,7 @@
       }
 
       /* How far one catalog has come, said three ways: the bar length, the percentage
-         and the tier colour. The thresholds are duplicated in scripts/generate_pages.py,
+         and the tier colour. The thresholds are duplicated in the build tooling,
          which paints the same colours into the static markup, so the strip does not
          change colour the moment this script loads. */
       function coverageTier(pct, readyCount) {

@@ -321,7 +321,7 @@
     /* Coverage buckets, recomputed from batch status so the dashboard never
        lies even if catalog.json is briefly stale. */
     /* Buckets for the coverage page. Mirrors the logic in catalog-render.js and
-       in scripts/build_catalog.py: a certification only counts as complete when
+       in the build tooling: a certification only counts as complete when
        every chapter has at least one exercise. */
     getCoverage: function () {
       return Store.getCatalog().then(function (cat) {

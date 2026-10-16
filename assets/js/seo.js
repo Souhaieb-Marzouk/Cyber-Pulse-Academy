@@ -3,7 +3,7 @@
    Injects per-topic structured data and social metadata at runtime.
 
    The static <title>, meta description, canonical and Open Graph tags are
-   written into each generated topic page by scripts/generate_pages.py, because
+   written into each generated topic page by the build tooling, because
    crawlers and link unfurlers must see them without executing JavaScript.
    This module adds the JSON-LD graph, which is richer than a template can
    reasonably be, and repairs the tags if a page is ever served from an
@@ -205,7 +205,7 @@
     CM.Store.getTopic(topicId).then(function (topic) {
       if (!topic) { return; }
       return CM.Store.getCatalog().then(function (catalog) {
-        /* scripts/generate_pages.py already wrote a static Quiz + FAQPage +
+        /* The build tooling already wrote a static Quiz + FAQPage +
            BreadcrumbList graph into the page, exactly so that crawlers and
            link unfurlers see it without running JavaScript. This module only
            adds what cannot be known at build time (the Course node) and

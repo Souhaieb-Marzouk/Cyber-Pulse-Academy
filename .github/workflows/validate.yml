@@ -1,23 +1,20 @@
-# CyberPulseAcademy - the validation gate.
+# Cyber Pulse Academy - the validation gate.
 #
-# This entire workflow is Python standard library only. That is why there is no
-# "pip install" step anywhere below, and it is deliberate rather than an
-# oversight: a contributor can reproduce every check CI runs on their own
-# machine with nothing installed but Python itself, and no network access:
+# The build tooling is NOT in this repository. It lives in a private repository and is checked
+# out into .tooling/ below, which works because every script resolves the project root as the
+# parent of its own directory (ROOT = SCRIPT_DIR.parent), so .tooling/validate.py validates
+# this repository.
 #
-#     python scripts/validate.py
-#     python scripts/build_catalog.py --check
-#     python scripts/generate_pages.py
-#     python scripts/generate_og.py
+# That arrangement exists on purpose: somebody who downloads this project gets the site, not
+# the machinery that generates it. The consequence is that the tooling steps need the secret
+# TOOLING_TOKEN, a fine-grained token with read-only access to the tooling repository. Without
+# it - which includes every pull request from a fork, since forks cannot read secrets - the two
+# checks that need no tooling still run, and the rest are skipped with a message rather than a
+# red X.
 #
-# The single optional dependency in this project (Pillow, see
-# scripts/requirements.txt) is used only by `generate_og.py --png`, which this
-# workflow never runs. CI must not require an optional extra to be installed,
-# so the OG step here is the SVG-only default.
-#
-# Adding a dependency to this gate would break that promise for every future
-# contributor, so a new third-party import in scripts/ should be treated as a
-# defect rather than an inconvenience to paper over here.
+# The tooling itself is Python standard library only, so nothing below installs a package. The
+# single optional dependency in the project (Pillow, for generate_og.py --png, declared in the
+# tooling repository's requirements.txt) is never installed here.
 
 name: Validate
 
@@ -27,13 +24,13 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Read-only by default. Nothing in this workflow writes to the repository, and
-# saying so explicitly means a compromised step cannot push.
+# Read-only by default. Nothing in this workflow writes to the repository, and saying so
+# explicitly means a compromised step cannot push.
 permissions:
   contents: read
 
-# Superseded runs on the same ref are cancelled: an older push's result is
-# worthless once a newer one exists.
+# Superseded runs on the same ref are cancelled: an older push's result is worthless once a
+# newer one exists.
 concurrency:
   group: validate-${{ github.ref }}
   cancel-in-progress: true
@@ -51,20 +48,39 @@ jobs:
         with:
           python-version: '3.12'
 
+      # ------------------------------------------------------------------ tooling
+      # The private build tooling, fetched at run time. It never enters the repository: the
+      # checkout writes into .tooling/, which is ignored.
+      - name: Check out the private build tooling
+        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: Souhaieb-Marzouk/cyber-pulse-academy-tooling
+          token: ${{ secrets.TOOLING_TOKEN }}
+          path: .tooling
+
+      - name: Note the missing tooling token
+        if: ${{ secrets.TOOLING_TOKEN == '' }}
+        run: |
+          echo "::notice title=Build tooling not available::The secret TOOLING_TOKEN is not set, so the private build tooling could not be fetched. The size and tier checks below still run; the schema, link and generated-output checks did not. This is expected for pull requests from forks, which cannot read secrets."
+
       - name: Run the validation gate
-        run: python scripts/validate.py
+        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        run: python .tooling/validate.py
 
       - name: Prove data/catalog.json is not stale
-        run: python scripts/build_catalog.py --check
+        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        run: python .tooling/build_catalog.py --check
 
       - name: Regenerate pages and fail on uncommitted drift
+        if: ${{ secrets.TOOLING_TOKEN != '' }}
         run: |
-          python scripts/generate_pages.py
+          python .tooling/generate_pages.py
           if ! git diff --quiet -- topics/ pages/ index.html 404.html; then
-            echo "::error title=Generated files are stale::Generated output differs from what is committed. Run these three commands locally, then commit the result:"
-            echo "    python scripts/build_catalog.py"
-            echo "    python scripts/generate_pages.py"
-            echo "    python scripts/generate_og.py"
+            echo "::error title=Generated files are stale::Generated output differs from what is committed. Run the build tooling locally, then commit the result:"
+            echo "    python .tooling/build_catalog.py"
+            echo "    python .tooling/generate_pages.py"
+            echo "    python .tooling/generate_og.py"
             echo
             echo "Files that changed when the generator was re-run:"
             git --no-pager diff --stat -- topics/ pages/ index.html 404.html
@@ -76,6 +92,21 @@ jobs:
           fi
           echo "Generated topic pages, count stamps and ?v= stamps are all current."
 
+      - name: Summarise the external URL allow-list decision
+        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        run: |
+          python .tooling/validate.py --verbose 2>&1 | tee /tmp/cm-validate-verbose.txt
+          echo
+          echo "External URL policy from the validation gate:"
+          grep -E "external|allow-list" /tmp/cm-validate-verbose.txt || true
+          echo
+          echo "A host that is not in ALLOWED_HOSTS or NAMESPACE_HOSTS fails the job above,"
+          echo "with the offending host and the files that reference it. Hosts are added to"
+          echo "that set only as a deliberate, reviewed decision, because each one is a"
+          echo "third-party dependency the site then loads or links to."
+
+      # ------------------------------------------------------------------ no tooling
+      # These two checks are inline, so they run for everyone, tooling or not.
       - name: Enforce the 250 KB per-file budget on HTML
         run: |
           python - <<'PY'
@@ -87,7 +118,7 @@ jobs:
           over = []
           for path in sorted(root.rglob("*.html")):
               parts = path.relative_to(root).parts
-              if any(part in {".git", "node_modules", "assets"} for part in parts):
+              if any(part in {".git", "node_modules", "assets", ".tooling"} for part in parts):
                   continue
               size = path.stat().st_size
               if size > CAP:
@@ -100,23 +131,11 @@ jobs:
               print()
               print("The budget exists so a single page cannot become a slow download")
               print("on a phone. Split the page, or move repeated markup into the")
-              print("shared scripts, then run python scripts/validate.py locally.")
+              print("shared assets, then rebuild with the build tooling.")
               sys.exit(1)
 
           print("Every HTML file is within the 250 KB per-file budget.")
           PY
-
-      - name: Summarise the external URL allow-list decision
-        run: |
-          python scripts/validate.py --verbose 2>&1 | tee /tmp/cm-validate-verbose.txt
-          echo
-          echo "External URL policy from scripts/validate.py:"
-          grep -E "external|allow-list" /tmp/cm-validate-verbose.txt || true
-          echo
-          echo "A host that is not in ALLOWED_HOSTS or NAMESPACE_HOSTS fails the job"
-          echo "above, with the offending host and the files that reference it. Hosts"
-          echo "are added to that set only as a deliberate, reviewed decision, because"
-          echo "each one is a third-party dependency the site then loads or links to."
 
       - name: Assert every non-certification topic reserves the four difficulty tiers
         run: |
@@ -164,9 +183,3 @@ jobs:
 
           print(f"All {total} non-certification topics hold exactly the four difficulty tiers.")
           PY
-
-      - name: Prove the OG generator works without Pillow
-        run: |
-          python scripts/generate_og.py
-          python -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('PIL') is None else 1)" \
-            && echo "Confirmed: Pillow is not installed, and the SVG-only OG pass still succeeded."
