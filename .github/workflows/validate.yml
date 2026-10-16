@@ -9,12 +9,15 @@
 # the machinery that generates it. The consequence is that the tooling steps need the secret
 # TOOLING_TOKEN, a fine-grained token with read-only access to the tooling repository. Without
 # it - which includes every pull request from a fork, since forks cannot read secrets - the two
-# checks that need no tooling still run, and the rest are skipped with a message rather than a
-# red X.
+# checks that need no tooling still run and the rest are skipped with a notice, not a red cross.
 #
-# The tooling itself is Python standard library only, so nothing below installs a package. The
-# single optional dependency in the project (Pillow, for generate_og.py --png, declared in the
-# tooling repository's requirements.txt) is never installed here.
+# One rule that matters here: the `secrets` context cannot be used in an `if:` conditional.
+# GitHub rejects the whole workflow at validation time with "Unrecognized named-value: 'secrets'".
+# So the first step below turns the secret into an output, and every later step tests that
+# output instead. The token itself is only ever read in an `env:` or `with:` block, which is
+# where it is allowed.
+#
+# The tooling is Python standard library only, so nothing below installs a package.
 
 name: Validate
 
@@ -48,32 +51,42 @@ jobs:
         with:
           python-version: '3.12'
 
-      # ------------------------------------------------------------------ tooling
+      # Is the tooling token configured? One step answers it, and every step that needs the
+      # tooling tests steps.tooling.outputs.available. A fork pull request cannot read secrets,
+      # so this reports "false" there and the tooling steps are skipped rather than failed.
+      - name: Check whether the build tooling token is configured
+        id: tooling
+        env:
+          TOOLING_TOKEN: ${{ secrets.TOOLING_TOKEN }}
+        run: |
+          if [ -n "$TOOLING_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "The build tooling token is configured; the tooling steps will run."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Build tooling not available::The secret TOOLING_TOKEN is not set, so the private build tooling could not be fetched. The HTML size budget and the four-tier check below still run; the schema, link and generated-output checks did not. This is expected for pull requests from forks, which cannot read secrets."
+          fi
+
       # The private build tooling, fetched at run time. It never enters the repository: the
       # checkout writes into .tooling/, which is ignored.
       - name: Check out the private build tooling
-        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        if: steps.tooling.outputs.available == 'true'
         uses: actions/checkout@v4
         with:
           repository: Souhaieb-Marzouk/cyber-pulse-academy-tooling
           token: ${{ secrets.TOOLING_TOKEN }}
           path: .tooling
 
-      - name: Note the missing tooling token
-        if: ${{ secrets.TOOLING_TOKEN == '' }}
-        run: |
-          echo "::notice title=Build tooling not available::The secret TOOLING_TOKEN is not set, so the private build tooling could not be fetched. The size and tier checks below still run; the schema, link and generated-output checks did not. This is expected for pull requests from forks, which cannot read secrets."
-
       - name: Run the validation gate
-        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        if: steps.tooling.outputs.available == 'true'
         run: python .tooling/validate.py
 
       - name: Prove data/catalog.json is not stale
-        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        if: steps.tooling.outputs.available == 'true'
         run: python .tooling/build_catalog.py --check
 
       - name: Regenerate pages and fail on uncommitted drift
-        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        if: steps.tooling.outputs.available == 'true'
         run: |
           python .tooling/generate_pages.py
           if ! git diff --quiet -- topics/ pages/ index.html 404.html; then
@@ -93,7 +106,7 @@ jobs:
           echo "Generated topic pages, count stamps and ?v= stamps are all current."
 
       - name: Summarise the external URL allow-list decision
-        if: ${{ secrets.TOOLING_TOKEN != '' }}
+        if: steps.tooling.outputs.available == 'true'
         run: |
           python .tooling/validate.py --verbose 2>&1 | tee /tmp/cm-validate-verbose.txt
           echo
@@ -105,7 +118,6 @@ jobs:
           echo "that set only as a deliberate, reviewed decision, because each one is a"
           echo "third-party dependency the site then loads or links to."
 
-      # ------------------------------------------------------------------ no tooling
       # These two checks are inline, so they run for everyone, tooling or not.
       - name: Enforce the 250 KB per-file budget on HTML
         run: |
