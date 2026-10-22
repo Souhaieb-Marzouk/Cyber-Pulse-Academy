@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="../../assets/img/logo.png" type="image/png">
+<title>T1578.001 — MEDIUM practice exam</title>
+<script type="application/json" id="cm-exercise-meta">{"topicId":"t1578.001","batch":2,"title":"T1578.001 Modify Cloud Compute Infrastructure: Create Snapshot — MEDIUM","difficulty":"medium","questionCount":16,"estimatedMinutes":32,"passMark":70}</script>
+<script type="application/json" id="exam-config">{"timerSeconds":1920,"partLabel":null}</script>
+<script type="application/json" id="exam-data">[{"id":"m01","type":"logq","answerType":"multi","qshort":"Correlate the deploy-bot events","scenario":"Two CloudTrail lines from the same morning sit in the queue. Nothing fired an alert yet. Your lead asks: \"Before you judge it — what can you actually prove from these two lines together?\"","summary":"Two log lines — what can you prove?","question":"Select the TWO conclusions that the two lines support together.","log":["{ \"eventTime\": \"2026-10-12T09:12:44Z\", \"eventName\": \"CreateSnapshot\", \"userName\": \"deploy-bot\", \"requestParameters\": { \"volumeId\": \"vol-0c3e9f22a1b4d7007\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]24\" }","{ \"eventTime\": \"2026-10-12T09:19:03Z\", \"eventName\": \"CreateVolume\", \"userName\": \"deploy-bot\", \"requestParameters\": { \"snapshotId\": \"snap-0f77c21e5a3b9d110\", \"availabilityZone\": \"eu-west-1b\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]24\" }","{ \"eventTime\": \"2026-10-12T09:19:51Z\", \"eventName\": \"AttachVolume\", \"userName\": \"deploy-bot\", \"requestParameters\": { \"instanceId\": \"i-0d44e2b8a9c1f5e60\", \"volumeId\": \"vol-0f22b8d4c1e7a3990\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]24\" }"],"logIntro":"The pipeline documentation lists deploy-bot as the CI/CD automation user, but no pipeline ran this morning.","options":["The same identity (deploy-bot) created a snapshot and then created and attached a volume","This snapshot-then-mount sequence is exactly the pattern detection strategy DET0423 correlates","The snapshot was deleted after the copy was made","The source IP address proves deploy-bot is an attacker"],"correct":[0,1],"hint":"Two conclusions come from reading the sequence; one option claims proof that a single IP can never give.","explain":"Reading the three lines in time order shows one identity doing the full chain: CreateSnapshot, then CreateVolume from a snapshot, then AttachVolume — that is the <b>snapshot-then-mount sequence<\/b> AN1187 tells defenders to correlate, so both selected statements hold. But an IP address alone never proves malice (shared runners, VPNs and automation make IP attribution weak), and nothing in the lines shows a deletion. The missing context — no pipeline scheduled at 09:12 — is what makes it worth escalating, not the IP.","study":"analytic AN1187: correlate snapshot creation with instance creation and mounting"},{"id":"m02","type":"mcq","qshort":"Why copy the volume you cannot log into","scenario":"Red-team debrief. The operator had a foothold on web-01, but the interesting data lives on a separate EBS volume attached to db-01, where they had no login. They still ended up reading the volume's files within an hour.","summary":"Debrief — how the unreachable volume was read","question":"From the attacker's perspective, what is the advantage of the snapshot path here?","options":["They read the copied data on an instance they control, without ever logging into db-01","Snapshot creation switches off logging on db-01 for an hour","The snapshot encrypts the files so defenders cannot read them later","The snapshot moves the volume into the attacker's own AWS account automatically"],"correct":[0],"hint":"Remember the mechanic from the technique description: the copy is a new object they can mount anywhere.","explain":"The snapshot is a <b>new object<\/b>: once it exists, the attacker can create a volume from it and mount that volume on web-01 (or any instance they control), then read the files there — never touching db-01 itself. That is the bypass the ATT&CK description captures. Snapshots do not disable logging, do not auto-encrypt-to-attacker, and do not move to another account by themselves (moving the data out needs an extra step like sharing the snapshot).","study":"the ATT&CK T1578.001 description: bypassing restrictions that prevent access","attackerView":"I never need credentials on the target host — I need one API permission and a place to mount the copy.","defenderView":"Volume-attach events on hosts that never owned that volume are my strongest correlation signal."},{"id":"m03","type":"slots","mode":"match","qshort":"Map API events to sub-techniques","scenario":"The detection team wants alert labels mapped to ATT&amp;CK sub-techniques before the new dashboard ships. You get four event names and four sub-technique cards.","summary":"Dashboard work — four events, four sub-techniques","question":"Drag each event name onto the sub-technique it maps to.","bins":["T1578.001 — Create Snapshot","T1578.002 — Create Cloud Instance","T1578.003 — Delete Cloud Instance","T1578.005 — Modify Cloud Compute Configurations"],"items":["CreateSnapshot (CloudTrail)","RunInstances (CloudTrail)","TerminateInstances (CloudTrail)","AuthorizeSecurityGroupIngress (opens inbound SSH)"],"answers":[0,1,2,3],"hint":"Three verbs: create, delete, modify. The fourth verb copies.","explain":"CreateSnapshot copies a disk — <b>T1578.001<\/b>. RunInstances spins up a machine — <b>T1578.002<\/b>. TerminateInstances destroys one — <b>T1578.003<\/b>. AuthorizeSecurityGroupIngress changes a firewall configuration, like the 'firewall policy that allows SSH access' in the ATT&CK description — <b>T1578.005<\/b>. An attacker using this technique usually leaves all four event types in one short window, which is why dashboards label them as a family.","study":"the sibling sub-techniques listed on the ATT&CK T1578 page"},{"id":"m04","type":"slots","mode":"fill","qshort":"The three suspicious sequences","scenario":"You are drafting the detection wiki page from analytic AN1187. Three words dropped out of the key sentence.","summary":"Wiki page — AN1187 key sentence","question":"Fill the three blanks from the word bank.","sentence":"Suspicious sequences include snapshot creation by unexpected or newly ___ IAM users, snapshots taken from sensitive volumes without preceding ___ activity, or snapshots immediately followed by mounting to ___ instances.","answerBlanks":["created","change-control","unauthorized"],"items":["created","change-control","unauthorized","deleted","encrypted","foreign"],"hint":"Blank 1 is about identity age, blank 2 about paperwork, blank 3 about where the copy lands.","explain":"These are the three red flags straight from <b>AN1187<\/b>: a <b>newly created<\/b> identity taking snapshots, a sensitive volume copied <b>without change-control<\/b> (no approved change behind it), and a snapshot <b>mounted to an unauthorized<\/b> instance. 'Deleted', 'encrypted' and 'foreign' are words that sound right but appear nowhere in the analytic — do not drift into keyword matching.","study":"analytic AN1187 on the ATT&CK T1578.001 page"},{"id":"m05","type":"branch","qshort":"Decision tree: svc-helpdesk incident","scenario":"You are the on-call responder. Work the incident one decision at a time — each answer unlocks the next step.","summary":"On-call incident — three decisions","question":"Choose the best action at every step of the incident.","steps":[{"question":"02:14 UTC — CloudTrail shows CreateSnapshot by IAM user svc-helpdesk. The user account was created 40 minutes ago and nobody on the cloud team recognises it. What do you do first?","options":["Pull every event for svc-helpdesk in the last hour and check who created the user","Delete the snapshot immediately so the data cannot be read","Reboot the instance the volume is attached to","Email all staff asking if anyone made a backup at 02:14"],"correct":0,"why":"Identity plus context first: what else this new user did tells you the scope. Deleting now destroys evidence."},{"question":"The pull shows: CreateUser 01:34 from an unknown IP, then CreateSnapshot 02:14, then CreateVolume + AttachVolume to instance i-0f11c2a9 (a new instance), then ModifySnapshotAttribute adding access for account 210987654321. What is the best next action?","artifact":{"label":"Artefact — event timeline for svc-helpdesk","mono":true,"text":"01:34:12  CreateUser            svc-helpdesk      203[.]0[.]113[.]9\n02:14:11  CreateSnapshot        vol-0aa7c3f1\n02:17:38  CreateVolume          from snap-0f77c21e\n02:18:02  AttachVolume          i-0f11c2a9\n02:19:44  ModifySnapshotAttribute  add account 210987654321"},"options":["Remove the cross-account share and revoke svc-helpdesk keys, keep everything else intact","Terminate i-0f11c2a9 and delete the snapshot and the volume","Change the root account password and go back to sleep","Wait a full day to see if it happens again"],"correct":0,"why":"Least-aggressive containment: stop the leak (share) and the actor (keys) while preserving evidence. Deleting now loses what you need for review."},{"question":"For the incident report, which ATT&amp;CK mapping is correct for this chain?","options":["T1578.001 Create Snapshot, chained with T1578.002 Create Cloud Instance","T1578.004 Revert Cloud Instance only","T1110 Brute Force and T1078 Valid Accounts only","No ATT&amp;CK mapping fits — snapshots are always benign"],"correct":0,"why":"The snapshot is T1578.001; the new attacker instance is T1578.002. Reverting (T1578.004) never happened."}],"hint":"The responder's rule: scope first, contain without destroying evidence, then map.","explain":"This is the standard flow: <b>scope<\/b> (all events of the new identity), <b>contain with the least aggressive action that stops the harm<\/b> (remove the share, revoke keys), then <b>map<\/b> the chain to T1578.001 + T1578.002. Note the near-misses: deleting evidence feels decisive but cripples the investigation, and waiting a day with an active leak is indefensible.","study":"incident response flow for cloud snapshot abuse","attackerView":"A fresh identity, one permission, three API calls — and the disk is mine.","defenderView":"Correlate identity age, change records and the mount target before you act, then act fast and surgically."},{"id":"m06","type":"triage","qshort":"Triage the overnight queue","scenario":"Night shift handover: four snapshot-related alerts, no notes. Escalate = investigate now, Watch = record and monitor, Close = known and documented.","summary":"Handover — four alerts, no notes","question":"Assign the right action to each alert.","actions":[{"k":"escalate","icon":"&#9650;","w":"Escalate"},{"k":"watch","icon":"&#9679;","w":"Watch"},{"k":"close","icon":"&#9675;","w":"Close"}],"alerts":[{"title":"Alert R-201","tag":"CreateDBSnapshot","meta":"03:40:02 UTC · user jenkins-ci · proddb-01","text":"Snapshot of the production database by the CI service account. The data-pipeline runbook schedules exactly this job at 03:40, owner on file.","correct":"close","why":"Known automation, known schedule, documented owner — a textbook benign snapshot."},{"title":"Alert R-202","tag":"CreateSnapshot","meta":"01:12:30 UTC · user svc-helpdesk · account age 40 minutes","text":"Brand-new IAM user (created 00:32, unknown to the cloud team) created a snapshot of a finance reporting volume.","correct":"escalate","why":"New identity plus a sensitive volume — two of the AN1187 red flags at once."},{"title":"Alert R-203","tag":"CreateSnapshot","meta":"22:04:11 UTC · user senior-dba · prod-reporting","text":"The senior DBA snapshotted the reporting volume with no change record. She has done manual backups like this three times before, always outside the calendar.","correct":"watch","why":"A real pattern, mildly out of process: record it and nudge the DBA to file change tickets; not an emergency."},{"title":"Alert R-204","tag":"CreateSnapshot","meta":"11:15:00 UTC · user terraform-ci · app-tier","text":"Infrastructure pipeline snapshotted app-tier volumes during change window CHG-3312, which is approved for this week.","correct":"close","why":"Approved change window plus known pipeline identity — fully documented activity."}],"hint":"Grade identity risk first, then check the paperwork trail.","explain":"The queue mixes the four classic cases: documented automation (Close, R-201 and R-204), a <b>fresh identity touching a sensitive volume<\/b> (Escalate, R-202 — identity age is one of the strongest AN1187 signals), and a known human working slightly outside process (Watch, R-203 — a governance nudge, not an incident). Real SOC triage is exactly this: separate the three benign shapes quickly so the one true positive gets your full attention.","study":"analytic AN1187 red flags: new identities, missing change control"},{"id":"m07","type":"mcq","qshort":"What ModifySnapshotAttribute did","scenario":"In the same timeline as the svc-helpdesk case, one more event appears and nobody is sure what it means: eventName ModifySnapshotAttribute, with createVolumePermission added for AWS account 210987654321.","summary":"Timeline — the unclear event explained","question":"What did this event actually do?","options":["It let account 210987654321 create a volume from that snapshot","It renamed the snapshot to match the new account","It moved the snapshot into another AWS region","It deleted the snapshot's oldest restore point"],"correct":[0],"hint":"createVolumePermission is literally who may build a volume from the snapshot.","explain":"<b>ModifySnapshotAttribute<\/b> with createVolumePermission is AWS's <b>snapshot sharing<\/b>: the named account can now create a volume from it and read the full disk contents. This is the classic exfiltration step that follows a malicious snapshot, and it is why AN1187 treats mounting and sharing as the suspicious 'next moves'. Renames, region moves and restore-point cleanups are different operations entirely.","study":"the sharing step that follows snapshot creation in cloud attacks"},{"id":"m08","type":"multi","qshort":"What AN1187 cross-references","scenario":"A junior asks what context the detection strategy actually uses to separate backups from abuse. You quote the analytic. Five answers are proposed; three are in the text.","summary":"Detection tuning — what context AN1187 uses","question":"Select the THREE context types AN1187 says to cross-reference.","options":["User behavior of the identity behind the call","IP geolocation of the caller","Automation context (is a scheduled job responsible?)","Endpoint process trees from the virtual machines","Email attachment statistics for the tenant","Web proxy category ratings for the account owner"],"correct":[0,1,2],"hint":"All three correct answers live in the cloud control plane; the wrong ones come from other tool families.","explain":"AN1187 names <b>user behavior, IP geolocation and automation context<\/b> as the cross-references that separate benign backup operations from adversary-driven snapshot exploitation. Endpoint process trees, email stats and proxy ratings are real telemetry families — just not for this analytic, which watches the cloud control plane where snapshots live. Keeping the analytic's own scope in mind is how detection engineers avoid bolting on noisy, irrelevant conditions.","study":"the final sentence of analytic AN1187"},{"id":"m09","type":"slots","mode":"categorize","qshort":"Benign or suspicious snapshots","scenario":"Four snapshot events from four different accounts land in the morning review. Sort each one before the stand-up.","summary":"Morning review — four events to classify","question":"Drag each event to the right bucket.","bins":["Suspicious — treat as a possible T1578.001","Benign — documented or routine"],"items":["Snapshot by IAM user fresh-deploy-2, account created 40 minutes ago","Snapshot one minute after a policy change granted the role ec2:* permissions","Snapshot by terraform-ci during approved pipeline run CHG-3312","Snapshot by the DLM backup policy at its scheduled 02:00 slot"],"answers":[0,0,1,1],"hint":"Ask of each event: is the identity fresh or elevated, and is there paperwork?","explain":"The two suspicious ones combine <b>identity anomalies<\/b> with the snapshot: a 40-minute-old account, and a snapshot that appears <b>right after<\/b> the identity gained broad ec2 rights (a stolen policy edit turning into data access). The two benign ones have the paperwork and history that AN1187's automation context expects: an approved pipeline and a scheduled DLM job. Same API call, very different stories — the story is in the context.","study":"AN1187: suspicious vs benign snapshot sequences"},{"id":"m10","type":"mcq","qshort":"Copy or revert?","scenario":"Forensics shows the database server's disk returned to the exact state it had two days ago — before the attacker arrived. The attacker did this on purpose before leaving.","summary":"Forensics — the disk went back in time","question":"Which sub-technique matches this behaviour?","options":["T1578.004 — Revert Cloud Instance","T1578.001 — Create Snapshot","T1578.003 — Delete Cloud Instance","T1578.005 — Modify Cloud Compute Configurations"],"correct":[0],"hint":"Nothing was copied out and nothing was destroyed — the machine was rolled back.","explain":"Rolling a machine back to an earlier snapshot to erase your own traces is <b>T1578.004 Revert Cloud Instance<\/b> — the ATT&CK page for T1578.001 explicitly contrasts the two: creating a snapshot is about <b>gaining access<\/b> to data, reverting is about <b>removing evidence<\/b> of presence. Copying out (T1578.001) and deleting entirely (T1578.003) both leave different artefacts.","study":"the contrast between T1578.001 and T1578.004 in the ATT&CK description"},{"id":"m11","type":"slots","mode":"order","qshort":"Containment sequence","scenario":"The svc-helpdesk snapshot was shared to an outside account, confirmed. Your lead wants the containment plan ordered correctly before you touch anything: stop the bleeding, keep the evidence.","summary":"Containment plan — order the five actions","question":"Drag the containment actions into the right order.","bins":["Action 1","Action 2","Action 3","Action 4","Action 5"],"items":["Remove the cross-account share on the snapshot","Revoke the compromised IAM user's keys and sessions","Restrict the snapshot but keep it as evidence","Delete the attacker's new instance","Write the incident report and notify the data owner"],"answers":[0,1,2,3,4],"hint":"First stop the data leaving, then stop the actor, then clean up, then document.","explain":"Order matters: the <b>share removal<\/b> stops the copy being read by the outside account right now; revoking keys stops the actor making a new copy; <b>restricting (not deleting) the snapshot<\/b> preserves the evidence for later review; deleting the attacker instance comes after you no longer need it live; and the report closes the loop with the data owner. Deleting the snapshot first — a very common instinct — is the classic evidence-destroying mistake.","study":"containment ordering for cloud data-exposure incidents"},{"id":"m12","type":"terminal","qshort":"Create a volume from the snapshot","scenario":"Evidence review: your IR lead authorised creating a working copy of snapshot snap-033cmsn8bf9ekg2k on your analysis instance. The volume must live in availability zone us-east-1a. You have the AWS CLI. No syntax help this time — you know the family of commands.","summary":"Evidence copy — volume from snapshot via CLI","question":"Type the AWS CLI command that creates the volume, press Enter, then Check.","prompt":"analyst@ir-workstation:~$","placeholder":"type the aws command and press Enter","toolTest":"^aws ec2 create-volume\\b","expected":"aws ec2 create-volume --snapshot-id snap-033cmsn8bf9ekg2k --availability-zone us-east-1a","elements":[{"re":"aws ec2 create-volume","label":"uses the right action (create-volume)","need":"aws ec2 create-volume"},{"re":"snap-033cmsn8bf9ekg2k","label":"references the correct snapshot ID","need":"--snapshot-id snap-033cmsn8bf9ekg2k"},{"re":"--availability-zone ?us-east-1a","label":"pins the volume to us-east-1a","need":"--availability-zone us-east-1a"}],"parts":[["aws ec2 create-volume","the action that builds a new EBS volume"],["--snapshot-id snap-033cmsn8bf9ekg2k","the snapshot the volume is restored from"],["--availability-zone us-east-1a","where the volume must live to be attachable to your instance"]],"hint":"It is the mirror of create-snapshot: same tool family, source instead of target.","explain":"You restored the snapshot into a usable volume: <b>create-volume<\/b> with <b>--snapshot-id<\/b> (the source) and <b>--availability-zone<\/b> (must match the instance that will attach it). This is the exact mechanic from the ATT&CK description — 'create an instance, mount the snapshot' — except here a defender does it deliberately, inside an approved zone. The attacker version uses the same calls, which is why CreateVolume events matter so much in the correlation.","study":"the create-volume call used in the snapshot-then-mount chain","attackerView":"create-volume is step two of my chain — it turns the silent copy into something I can read.","defenderView":"Every CreateVolume-from-snapshot event should map to an owner or a change record — otherwise correlate."},{"id":"m13","type":"slots","mode":"match","qshort":"Match the ATT&CK object IDs","scenario":"Your GRC colleague collected four ATT&amp;CK object IDs from the T1578.001 page and wants to know what each one is before the audit meeting.","summary":"Audit prep — four IDs explained","question":"Match each ATT&amp;CK object to what it is.","bins":["A mitigation","A detection strategy","An analytic","A technique page section name"],"items":["M1047 — routinely check who can create snapshots","DET0423 — the strategy for detecting this technique","AN1187 — the correlation logic describing suspicious sequences","T1578 — the parent behaviour this sub-technique belongs to"],"answers":[0,1,2,3],"hint":"M-prefixed objects are controls; DET-prefixed are strategies; AN-prefixed are their logic.","explain":"MITRE IDs carry their type: <b>M1047<\/b> is a mitigation (an Audit control), <b>DET0423<\/b> is the detection strategy for this technique, and <b>AN1187<\/b> is the analytic inside it — the actual correlation logic. <b>T1578<\/b> is the parent technique; its page is where the family of five sub-techniques is listed. Speaking these types fluently is daily work when coordinating with GRC and detection engineering.","study":"the object types referenced on the ATT&CK T1578.001 page"},{"id":"m14","type":"logq","answerType":"multi","qshort":"Find what auto-repair did","scenario":"You get a bigger log slice. Use the filter box to isolate the events of user auto-repair, then answer. Two statements are true.","summary":"Log slice — isolate auto-repair","question":"After filtering, select the TWO statements the log supports about auto-repair.","log":["{ \"eventTime\": \"2026-10-14T04:01:10Z\", \"eventName\": \"CreateSnapshot\", \"userName\": \"backup-svc\", \"requestParameters\": { \"volumeId\": \"vol-0d11a2b3\" }, \"sourceIPAddress\": \"203[.]0[.]113[.]7\" }","{ \"eventTime\": \"2026-10-14T04:06:51Z\", \"eventName\": \"CreateSnapshot\", \"userName\": \"auto-repair\", \"requestParameters\": { \"volumeId\": \"vol-0f77c21e\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]60\" }","{ \"eventTime\": \"2026-10-14T04:07:02Z\", \"eventName\": \"CreateVolume\", \"userName\": \"auto-repair\", \"requestParameters\": { \"snapshotId\": \"snap-044d21f9\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]60\" }","{ \"eventTime\": \"2026-10-14T04:09:44Z\", \"eventName\": \"DescribeInstances\", \"userName\": \"monitor-ro\", \"sourceIPAddress\": \"203[.]0[.]113[.]71\" }","{ \"eventTime\": \"2026-10-14T04:12:18Z\", \"eventName\": \"AttachVolume\", \"userName\": \"auto-repair\", \"requestParameters\": { \"instanceId\": \"i-09e7b1c4\", \"volumeId\": \"vol-0c22e8f1\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]60\" }","{ \"eventTime\": \"2026-10-14T04:30:00Z\", \"eventName\": \"CreateSnapshot\", \"userName\": \"backup-svc\", \"requestParameters\": { \"volumeId\": \"vol-0d11a2b3\" }, \"sourceIPAddress\": \"203[.]0[.]113[.]7\" }"],"logIntro":"Tip: type auto-repair into the filter box to see only that identity's events.","options":["auto-repair created a snapshot and then created a volume from a snapshot","auto-repair attached a volume to an instance","auto-repair terminated an instance","auto-repair reset a user's password"],"correct":[0,1],"hint":"Filter first. Then check which event names actually appear for that user.","explain":"Filtering on <b>auto-repair<\/b> leaves three events: CreateSnapshot, CreateVolume (from a snapshot) and AttachVolume. That is the full <b>snapshot-then-mount chain<\/b> — so both selected statements are supported. TerminateInstances and password-reset events simply do not exist in the slice; confirming absence with a filter before you claim it is basic log hygiene.","study":"correlating the three-step chain in CloudTrail with a log filter"},{"id":"m15","type":"mcq","qshort":"What a snapshot actually captures","scenario":"During the incident call, a manager asks: \"So this snapshot the attacker made — what exactly did they get?\"","summary":"Incident call — scope the exposure","question":"Which statement correctly answers the manager?","options":["The disk contents of the copied volume at one moment in time","The live memory of the running instance at that moment","All network traffic passing through the instance","The IAM roles and permissions attached to the instance"],"correct":[0],"hint":"Back to the definition: point-in-time copy of a compute component — which one?","explain":"A snapshot copies <b>the disk at one moment<\/b>: files, installed software, anything stored on that volume. It does <b>not<\/b> capture live memory (RAM), does not record network traffic, and does not include IAM role attachments — those live in the control plane, not the disk. Scoping an exposure correctly means knowing these edges: secrets in files are at risk, keys only in memory are not.","study":"the definition of snapshot in the ATT&CK T1578.001 description"},{"id":"m16","type":"multi","qshort":"Which mitigations does ATT&CK list","scenario":"You are pasting the mitigation list into a control matrix. Six MITRE mitigation names are proposed; exactly two appear on the T1578.001 page.","summary":"Control matrix — two real mitigations","question":"Select the TWO mitigations the ATT&CK T1578.001 page lists.","options":["M1047 — Audit","M1018 — User Account Management","M1040 — Encrypt Sensitive Information","M1053 — Data Backup","M1032 — Multi-Factor Authentication","M1035 — Limit Access to Resource Over Network"],"correct":[0,1],"hint":"One is about checking permissions regularly, one about limiting them. The others are real mitigations — just not for this technique.","explain":"The page lists exactly <b>M1047 Audit<\/b> and <b>M1018 User Account Management<\/b>. The other four are genuine MITRE mitigation names that sound relevant — encryption, backups, MFA, network limits — but they are not what ATT&amp;CK prescribes for this technique. In control-matrix work, copying 'sensible-sounding' mitigations instead of the listed ones is how audits drift from the framework.","study":"the Mitigations table on the ATT&CK T1578.001 page"}]</script>
+<style>
+:root{
+  --bg-page:#0b1020; --bg-surface:#121a2e; --bg-surface-2:#0f1729;
+  --border:#243049; --text-primary:#e6ecff; --text-secondary:#a9b4d0; --text-mono:#c8ffd4;
+  --accent-blue:#5aa9ff; --accent-amber:#ffb454; --accent-green:#57d38c;
+  --state-correct:#57d38c; --state-partial:#ffb454; --state-incorrect:#ff6b6b;
+  --state-skipped:#a9b4d0; --state-paused:#9d7bff;
+  --sev-easy:#57d38c; --sev-medium:#ffb454; --sev-hard:#ff8a3d; --sev-extreme:#ff6b6b;
+  --sev-current:var(--sev-easy);
+  /* derived surface & text tokens (every rule below consumes variables only) */
+  --surface-hover:#16223c; --surface-chip:#1a2743; --surface-chip-placed:#15301f;
+  --surface-head:#101830; --surface-syntax:#0d1424;
+  --text-faint:#8b96b8;
+  --btn-grad-a:#1c3a2b; --btn-grad-b:#123021; --on-accent:#dfffe9;
+  --ok-dim:rgba(87,211,140,.08); --amber-dim:rgba(255,180,84,.08); --red-dim:rgba(255,107,107,.08);
+  --ok-glow:rgba(87,211,140,.35); --ok-glow-soft:rgba(87,211,140,.12);
+  --amber-glow:rgba(255,180,84,.3); --amber-glow-soft:rgba(255,180,84,.12);
+  --red-glow-soft:rgba(255,107,107,.12);
+  --cert-grad:linear-gradient(160deg,rgba(87,211,140,.10),rgba(87,211,140,.02));
+  --fail-grad:linear-gradient(160deg,rgba(255,107,107,.10),rgba(255,107,107,.02));
+  --shadow-card:0 6px 18px rgba(0,0,0,.35); --shadow-head:0 4px 14px rgba(0,0,0,.45);
+  --cover-veil:rgba(11,16,32,.96); --sheen:rgba(255,255,255,.22);
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --radius:8px; --radius-sm:5px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg-page);color:var(--text-primary);font-family:var(--font-body);font-size:16px;line-height:1.55;min-height:100vh}
+:focus{outline:2px solid var(--accent-blue);outline-offset:2px;border-radius:3px}
+.chip,.opt,.slotzone,.abtn,.blankbtn,.btn,.hbtn,.term input,.logtools input,#btn-check,#btn-next,#btn-finish{scroll-margin-top:110px}
+button{font-family:var(--font-body);cursor:pointer}
+.mono{font-family:var(--font-mono)}
+.hidden{display:none !important}
+.wrap{max-width:960px;margin:0 auto;padding:16px 16px 64px}
+
+/* ---------- cards & panels ---------- */
+.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:18px 20px;margin:16px 0}
+.card h2{margin:0 0 10px;font-size:20px;color:var(--text-primary)}
+.card h3{margin:0 0 8px;font-size:16px;color:var(--text-primary)}
+.subcard{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:10px 0}
+.subcard .artlabel{font-family:var(--font-mono);font-size:12.5px;letter-spacing:.06em;color:var(--accent-blue);text-transform:uppercase;display:block;margin-bottom:6px}
+p{margin:8px 0}
+.muted{color:var(--text-secondary)}
+.small{font-size:14px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:5px 0}
+
+/* ---------- code / logs ---------- */
+pre.code{font-family:var(--font-mono);font-size:14px;color:var(--text-mono);background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;overflow:auto;margin:8px 0;white-space:pre-wrap;word-break:break-word}
+.code .k{color:var(--accent-blue)} .code .s{color:var(--accent-amber)} .code .n{color:var(--state-correct)} .code .c{color:var(--text-faint)} .code .p{color:var(--sev-hard)} .code .b{color:var(--state-paused)}
+
+/* ---------- badges ---------- */
+.badge{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px;padding:3px 10px;border-radius:999px;border:1px solid;white-space:nowrap}
+.b-easy{color:var(--sev-easy);border-color:var(--sev-easy);background:var(--ok-dim)}
+.b-medium{color:var(--sev-medium);border-color:var(--sev-medium);background:var(--amber-dim)}
+.b-hard{color:var(--sev-hard);border-color:var(--sev-hard);background:var(--amber-dim)}
+.b-extreme{color:var(--sev-extreme);border-color:var(--sev-extreme);background:var(--red-dim)}
+
+/* ---------- intro ---------- */
+.introhead{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin:16px 0}
+.introhead h1{margin:0 0 6px;font-size:24px;line-height:1.25}
+.introhead .objline{color:var(--accent-blue);font-family:var(--font-mono);font-size:14px;margin:2px 0 10px}
+.factrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.fact{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:14px}
+.fact b{color:var(--text-primary)}
+.fact .lbl{display:block;font-size:12px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em}
+.kwgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px}
+.btnrow{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-surface-2);color:var(--text-primary);padding:10px 20px;font-size:15px;font-weight:600;min-height:44px;min-width:44px}
+.btn:hover{filter:brightness(1.15)}
+.btn.primary{background:linear-gradient(135deg,var(--btn-grad-a),var(--btn-grad-b));border-color:var(--accent-green);color:var(--on-accent)}
+.btn.primary:hover{box-shadow:0 0 14px var(--ok-glow)}
+.btn.danger{border-color:var(--state-incorrect);color:var(--state-incorrect);background:var(--red-dim)}
+.btn.warn{border-color:var(--accent-amber);color:var(--accent-amber);background:var(--amber-dim)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- sticky exam header ---------- */
+.examhead{position:sticky;top:0;z-index:50;background:var(--surface-head);border-bottom:1px solid var(--border);box-shadow:var(--shadow-head)}
+.examhead .row{max-width:1040px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:8px 14px}
+.hitem{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--text-secondary)}
+.hitem b{color:var(--text-primary);font-family:var(--font-mono)}
+.hbtn{background:var(--bg-surface-2);border:1px solid var(--border);color:var(--text-primary);border-radius:var(--radius-sm);padding:7px 12px;font-size:13.5px;font-weight:600;min-height:44px}
+.hbtn:hover{filter:brightness(1.2)}
+.hbtn:disabled{opacity:.4;cursor:not-allowed}
+.tstate{font-family:var(--font-mono);font-size:13px;border-radius:999px;padding:2px 10px;border:1px solid var(--border)}
+.t-running{color:var(--accent-green);border-color:var(--accent-green)}
+.t-paused{color:var(--state-paused);border-color:var(--state-paused)}
+.t-ended{color:var(--state-incorrect);border-color:var(--state-incorrect)}
+.progress{max-width:1040px;margin:0 auto;height:6px;background:var(--bg-surface-2);border-radius:999px;overflow:hidden}
+.progress .fill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--sev-current),var(--accent-blue));transition:width .5s ease;position:relative}
+.progress .fill::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,var(--sheen) 50%,transparent 70%);animation:sheen 2.6s linear infinite}
+@keyframes sheen{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.progress .fill::after{animation:none}.progress .fill{transition:none}*{transition:none !important;animation:none !important}}
+
+/* ---------- exercise blocks ---------- */
+.block{background:var(--bg-surface);border:1px solid var(--border);border-left:4px solid var(--accent-blue);border-radius:var(--radius);padding:14px 18px;margin:14px 0}
+.block.q{border-left-color:var(--accent-amber)}
+.block.a{border-left-color:var(--accent-green)}
+.blockhead{display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.08em;font-size:13.5px;text-transform:uppercase;margin-bottom:8px}
+.blockhead.blue{color:var(--accent-blue)} .blockhead.amber{color:var(--accent-amber)} .blockhead.green{color:var(--accent-green)}
+.blockhead .toggle{margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-secondary);border-radius:var(--radius-sm);font-size:12px;padding:3px 10px}
+.qtext{font-weight:700;font-size:17px;margin:2px 0}
+.stepsline{font-family:var(--font-mono);font-size:12.5px;color:var(--accent-amber);margin-bottom:6px;letter-spacing:.05em}
+
+/* ---------- options ---------- */
+.opt{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:8px 0;font-size:15.5px;color:var(--text-primary);min-height:44px}
+.opt:hover{background:var(--surface-hover)}
+.opt .olabel{font-family:var(--font-mono);font-weight:700;color:var(--text-secondary);flex:0 0 auto}
+.opt.selected{border-left:4px solid var(--accent-green);box-shadow:0 0 0 1px var(--accent-green) inset,0 0 12px var(--ok-glow-soft)}
+.opt.selected .olabel{color:var(--accent-green)}
+.opt.selmark{margin-left:auto;color:var(--accent-green);font-weight:700;font-size:13px}
+.opt:disabled{opacity:.85}
+.opt.correct-reveal{border-left:4px solid var(--state-correct)}
+.opt.wrong-reveal{border-left:4px solid var(--state-incorrect)}
+
+/* ---------- slots / drag & drop ---------- */
+.slotsarea{display:grid;gap:12px}
+.slotzone{background:var(--bg-surface-2);border:1px dashed var(--border);border-radius:var(--radius-sm);padding:10px 12px;min-height:52px}
+.slotzone.over{border-color:var(--accent-green);box-shadow:0 0 0 1px var(--accent-green) inset}
+.slotzone .slotname{font-size:13.5px;font-weight:700;color:var(--accent-blue);margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.slotname .idx{font-family:var(--font-mono);color:var(--text-secondary);font-weight:400}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-chip);border:1px solid var(--border);border-radius:999px;padding:6px 12px;margin:4px 6px 4px 0;font-size:14px;color:var(--text-primary);cursor:grab;min-height:44px}
+.chip:active{cursor:grabbing}
+.chip.pick{border-color:var(--accent-amber);box-shadow:0 0 10px var(--amber-glow)}
+.chip.placed{background:var(--surface-chip-placed);border-color:var(--accent-green)}
+.chip .rm{background:none;border:none;color:var(--text-secondary);font-size:13px;padding:0 2px}
+.chip .rm:hover{color:var(--state-incorrect)}
+.bank{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-top:12px}
+.bank .banklabel{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:4px}
+.fillline{font-size:16px;line-height:2.2}
+.blankbtn{font-family:var(--font-mono);background:var(--bg-surface-2);border:1px dashed var(--border);border-bottom:2px solid var(--accent-amber);color:var(--text-mono);border-radius:4px;padding:3px 12px;min-height:44px;min-width:90px;font-size:14.5px}
+.blankbtn.filled{border-style:solid;border-color:var(--accent-green)}
+.draghelp{font-size:12.5px;color:var(--text-secondary);margin-top:6px}
+
+/* ---------- log viewer ---------- */
+.logtools{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.logtools input{flex:1 1 220px;background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-mono);font-family:var(--font-mono);font-size:14px;padding:8px 10px;min-height:38px}
+.logbox{font-family:var(--font-mono);font-size:13.5px;background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;max-height:300px;overflow:auto;color:var(--text-mono)}
+.logbox .ln{white-space:pre-wrap;word-break:break-word;padding:1px 0}
+.logbox .no{color:var(--text-faint);margin-right:10px;user-select:none}
+
+/* ---------- terminal ---------- */
+.term{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:14.5px}
+.term .scroll{padding:12px;min-height:90px;max-height:240px;overflow:auto;color:var(--text-mono)}
+.term .inline{display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);padding:10px 12px}
+.term .pr{color:var(--accent-green);white-space:nowrap}
+.term input{flex:1;background:transparent;border:none;color:var(--text-mono);font-family:var(--font-mono);font-size:14.5px;min-height:32px}
+.term .sysline{color:var(--text-faint)}
+.term .okline{color:var(--accent-green)}
+.term .errline{color:var(--state-incorrect)}
+.syntaxpanel{background:var(--surface-syntax);border:1px solid var(--border);border-left:3px solid var(--accent-blue);border-radius:var(--radius-sm);padding:10px 14px;margin:10px 0;font-size:14px}
+.syntaxpanel .t{color:var(--accent-blue);font-weight:700;font-size:12.5px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ---------- triage ---------- */
+.alertcard{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:10px 0}
+.alertcard .atitle{font-weight:700;color:var(--text-primary);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.alertcard .ameta{font-family:var(--font-mono);font-size:12.5px;color:var(--text-secondary);margin:3px 0 6px}
+.actionrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.abtn{border:1px solid var(--border);background:transparent;color:var(--text-secondary);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:600;min-height:44px}
+.abtn.picked{color:var(--accent-amber);border-color:var(--accent-amber);background:var(--amber-dim);box-shadow:0 0 0 1px var(--accent-amber) inset}
+
+/* ---------- hint & feedback ---------- */
+.hintbox{border:1px solid var(--accent-amber);border-left:4px solid var(--accent-amber);background:var(--amber-dim);border-radius:var(--radius-sm);padding:10px 14px;margin:12px 0;color:var(--text-primary)}
+.hintbox .t{color:var(--accent-amber);font-weight:700;font-size:13px;letter-spacing:.05em}
+.feedback{border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin:14px 0;background:var(--bg-surface)}
+.feedback .fhead{font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px;letter-spacing:.03em}
+.feedback.good{border-color:var(--state-correct);box-shadow:0 0 14px var(--ok-glow-soft)}
+.feedback.good .fhead{color:var(--state-correct)}
+.feedback.part{border-color:var(--state-partial);box-shadow:0 0 14px var(--amber-glow-soft)}
+.feedback.part .fhead{color:var(--state-partial)}
+.feedback.bad{border-color:var(--state-incorrect);box-shadow:0 0 14px var(--red-glow-soft)}
+.feedback.bad .fhead{color:var(--state-incorrect)}
+.feedback.bad .fhead.danger{color:var(--state-incorrect)}
+.creditline{font-family:var(--font-mono);font-size:14px;color:var(--text-secondary);margin:4px 0 8px}
+.itemrows{margin:8px 0}
+.itemrow{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin:6px 0;background:var(--bg-surface-2);font-size:14.5px}
+.itemrow .ic{font-weight:800;flex:0 0 auto}
+.itemrow.ok .ic{color:var(--state-correct)} .itemrow.ok{border-left:3px solid var(--state-correct)}
+.itemrow.no .ic{color:var(--state-incorrect)} .itemrow.no{border-left:3px solid var(--state-incorrect)}
+.itemrow.miss .ic{color:var(--state-skipped)} .itemrow.miss{border-left:3px solid var(--state-skipped)}
+.perspline{font-size:14.5px;border-top:1px dashed var(--border);margin-top:10px;padding-top:8px}
+.perspline .pv{font-weight:700}
+.perspline.red .pv{color:var(--accent-blue)} .perspline.blue .pv{color:var(--state-correct)}
+
+/* ---------- review & results ---------- */
+.skipitem{display:flex;align-items:center;gap:10px;background:var(--bg-surface-2);border:1px solid var(--border);border-left:4px solid var(--state-skipped);border-radius:var(--radius-sm);padding:10px 14px;margin:8px 0}
+.skipitem .t{flex:1}
+.skipitem .warn{color:var(--state-skipped);font-weight:700}
+.resultgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0}
+.rescard{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px}
+.rescard .num{font-size:26px;font-weight:800;font-family:var(--font-mono)}
+.rescard .lbl{font-size:13px;color:var(--text-secondary)}
+.rescard.ok{border-left:3px solid var(--state-correct)} .rescard.ok .num{color:var(--state-correct)}
+.rescard.part{border-left:3px solid var(--state-partial)} .rescard.part .num{color:var(--state-partial)}
+.rescard.bad{border-left:3px solid var(--state-incorrect)} .rescard.bad .num{color:var(--state-incorrect)}
+.rescard.skip{border-left:3px solid var(--state-skipped)} .rescard.skip .num{color:var(--state-skipped)}
+.cert{border:2px solid var(--state-correct);border-radius:var(--radius);background:var(--cert-grad);padding:26px 22px;text-align:center;margin:16px 0}
+.cert .big{font-size:30px;font-weight:800;color:var(--state-correct);letter-spacing:.1em}
+.cert .sub{color:var(--text-secondary);margin-top:6px}
+.failcert{border:2px solid var(--state-incorrect);border-radius:var(--radius);background:var(--fail-grad);padding:26px 22px;text-align:center;margin:16px 0}
+.failcert .big{font-size:30px;font-weight:800;color:var(--state-incorrect);letter-spacing:.1em}
+.failcert .sub{color:var(--text-secondary);margin-top:6px}
+.bigscore{font-family:var(--font-mono);font-size:40px;font-weight:800;text-align:center;margin:8px 0}
+.pausecover{position:fixed;inset:0;background:var(--cover-veil);z-index:100;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
+.pausecover .inner{max-width:460px}
+.pausecover .ic{font-size:44px;color:var(--state-paused)}
+.pausecover h2{color:var(--state-paused)}
+.greetline{font-size:13px;color:var(--text-secondary)}
+.navrow{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+.notice{font-size:13.5px;color:var(--accent-amber);border:1px dashed var(--accent-amber);border-radius:var(--radius-sm);padding:8px 12px;margin:10px 0}
+@media (max-width:640px){ body{font-size:15px} .wrap{padding:10px 10px 48px} .card{padding:14px} .examhead .row{gap:8px} }
+
+:root{--sev-current:var(--sev-medium)}
+
+</style>
+</head>
+<body>
+<!-- ============ INTRO SCREEN ============ -->
+<div id="intro" class="wrap">
+  <div class="introhead">
+    <h1>T1578.001 — MEDIUM practice exam</h1>
+    <div class="objline">MITRE ATT&amp;CK Enterprise · Sub-technique <b>T1578.001</b> — Modify Cloud Compute Infrastructure: Create Snapshot · Sub-technique of T1578 · Tactic: Defense Impairment · Platform: IaaS</div>
+    <div class="factrow">
+      <div class="fact"><span class="lbl">Severity</span><span class="badge b-medium" id="intro-sev"><span aria-hidden="true">&#9679;</span> MEDIUM</span></div>
+      <div class="fact"><span class="lbl">Exercises</span><b>16</b></div>
+      <div class="fact"><span class="lbl">Estimated time</span><b>about 32 minutes</b></div>
+      <div class="fact"><span class="lbl">Timer budget</span><b class="mono">32:00</b> countdown</div>
+      <div class="fact"><span class="lbl">Pass mark</span><b>70%</b></div>
+    </div>
+    <p class="greetline" id="greet"></p>
+  </div>
+
+  <div class="card">
+    <h2><span aria-hidden="true">&#127891;</span> What you will learn here</h2>
+    
+<p>You already met the basics: <b>T1578.001</b> is the ATT&amp;CK sub-technique where an adversary creates a <b>point-in-time copy</b> (a snapshot) of a cloud disk, virtual hard drive, or volume, to <b>evade defenses</b> and reach data the normal rules block. This exam pushes one level deeper.</p>
+<p>Here you work like a real cloud-aware analyst. You will read pairs of log events and <b>correlate</b> them — the ATT&amp;CK detection strategy <b>DET0423</b> says the signal is not one event but a <b>sequence</b>: snapshot creation followed by instance creation and mounting. You will compare benign automation (backup jobs, infrastructure pipelines) with adversary patterns (new identities, missing change records, cross-account sharing), because on a real shift the two look almost the same at first glance.</p>
+<p>You will also use the technique's family: the parent <b>T1578</b> and its siblings <b>T1578.002 Create Cloud Instance</b>, <b>T1578.003 Delete Cloud Instance</b>, <b>T1578.004 Revert Cloud Instance</b> and <b>T1578.005 Modify Cloud Compute Configurations</b>. Attackers chain them; defenders must tell them apart in logs.</p>
+<p>Who uses all this at work? The <b>SOC analyst</b> triages snapshot alerts. The <b>detection engineer</b> turns analytic AN1187 into a SIEM rule. The <b>incident responder</b> decides what to contain first without destroying evidence. The <b>cloud security engineer</b> implements mitigations <b>M1018</b> (least-privilege snapshot permissions) and <b>M1047</b> (routine permission audits). The <b>CTI analyst</b> reports that tools like <b>Pacu</b> can create EBS and RDS snapshots. Each exercise below is a small version of one of those real tasks.</p>
+
+  </div>
+
+  <div class="card">
+    <h2><span aria-hidden="true">&#128273;</span> Keywords covered in this exam</h2>
+    <p class="muted small">Every exercise below is built from these concepts. They come directly from the ATT&amp;CK page for T1578.001 and its linked objects.</p>
+    <div class="kwgrid">
+      <div class="subcard"><h3 style="color:var(--accent-blue)">Technique mechanics</h3><ul style="margin:4px 0"><li>Snapshot as a point-in-time copy — and what it does NOT capture (live memory, traffic)</li><li>Bypassing access restrictions by mounting the copy elsewhere</li><li>Snapshot sharing via ModifySnapshotAttribute (cross-account exposure)</li></ul></div>
+<div class="subcard"><h3 style="color:var(--accent-blue)">Family and tactic</h3><ul style="margin:4px 0"><li>Parent T1578 — Modify Cloud Compute Infrastructure</li><li>T1578.002 Create Cloud Instance · T1578.003 Delete Cloud Instance</li><li>T1578.004 Revert Cloud Instance vs T1578.001 — copying vs wiping evidence</li><li>T1578.005 Modify Cloud Compute Configurations (firewall rules)</li><li>Tactic: Defense Impairment</li></ul></div>
+<div class="subcard"><h3 style="color:var(--accent-blue)">Detection logic (DET0423 / AN1187)</h3><ul style="margin:4px 0"><li>Correlating snapshot creation with instance creation and mounting</li><li>Suspicious sequences: new/unexpected IAM users, sensitive volumes without change control, unauthorized mounts</li><li>Cross-referencing user behavior, IP geolocation, automation context</li></ul></div>
+<div class="subcard"><h3 style="color:var(--accent-blue)">Telemetry and platforms</h3><ul style="margin:4px 0"><li>Cloud audit logs (CloudTrail) event pairs and fields</li><li>IaaS coverage — same pattern in AWS and Azure CLI forms</li></ul></div>
+<div class="subcard"><h3 style="color:var(--accent-blue)">Mitigations</h3><ul style="margin:4px 0"><li>M1018 User Account Management — least privilege, entitlement reviews</li><li>M1047 Audit — routine permission checks</li></ul></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span aria-hidden="true">&#128221;</span> How this exam works</h2>
+    
+<ul>
+<li><b>Pass mark:</b> 70%. Below that, read the explanations and retake — questions and answers shuffle on every attempt.</li>
+<li><b>Exercise types in this file:</b> multiple choice, multi-select with partial credit, drag &amp; drop (sorting, matching, ordering, fill-in-the-blank), a decision-tree incident, a SOC alert-triage queue, a filterable log viewer, and one terminal task where you must pick the right command options yourself.</li>
+<li><b>Timer:</b> a 32:00 countdown runs in the header. The <b>Pause</b> button hides the exercise and stops the timer.</li>
+<li><b>Check buys unlimited feedback time:</b> pressing <b>Check</b> stops the timer automatically ("PAUSED — reviewing feedback"), shows the explanation, and the timer resumes only on <b>Next</b> (or Final Submit on the last exercise).</li>
+<li><b>Partial credit:</b> multi-answer exercises score <b>(H − W) / N</b> — correct picks add, wrong picks subtract. The feedback shows each item as correct, wrong, or missed.</li>
+<li><b>Hints:</b> one per exercise, costs 10% of that exercise's credit. <b>Skip:</b> moves the exercise to a pool you can revisit before submitting; skipped-and-never-answered exercises are excluded from the score.</li>
+</ul>
+
+    <div class="btnrow">
+      <button id="btn-start" class="btn primary"><span aria-hidden="true">&#9654;</span> Start the exam</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ EXAM SCREEN ============ -->
+<div id="exam" class="hidden">
+  <header class="examhead">
+    <div class="row">
+      <span class="hitem" id="h-count"></span>
+      <span class="badge" id="h-sev"></span>
+      <span class="hitem" id="h-timer"></span>
+      <span class="tstate" id="h-tstate"></span>
+      <span class="hitem" id="h-score"></span>
+      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <button id="btn-hint" class="hbtn" title="Show a hint (costs 10% of this exercise's credit)"><span aria-hidden="true">&#128161;</span> Hint</button>
+        <button id="btn-pause" class="hbtn" title="Manual pause — hides the exercise and stops the timer"><span aria-hidden="true">&#10074;&#10074;</span> Pause</button>
+        <button id="btn-skip" class="hbtn" title="Move this exercise to the skipped pool"><span aria-hidden="true">&#9888;</span> Skip</button>
+      </span>
+    </div>
+    <div class="progress"><div class="fill" id="pbar"></div></div>
+  </header>
+
+  <div class="wrap" style="max-width:920px">
+    <div id="perwarn" class="notice hidden"></div>
+
+    <div class="block">
+      <div class="blockhead blue"><span aria-hidden="true">&#128203;</span> Scenario
+        <button class="toggle" id="scen-toggle">&#94; Collapse</button>
+      </div>
+      <div id="scen-sum" class="muted small" style="margin-bottom:6px"></div>
+      <div id="scen-body"></div>
+    </div>
+
+    <div class="block q">
+      <div class="blockhead amber"><span aria-hidden="true">&#10067;</span> Question</div>
+      <p id="ex-step" class="stepsline"></p>
+      <p id="ex-q" class="qtext"></p>
+    </div>
+
+    <div class="block a">
+      <div class="blockhead green"><span aria-hidden="true">&#9997;</span> Your answer</div>
+      <div id="ex-ans"></div>
+    </div>
+
+    <div id="hintbox" class="hintbox hidden"></div>
+    <div id="fb" class="feedback hidden"></div>
+
+    <div class="navrow">
+      <button id="btn-check" class="btn primary"><span aria-hidden="true">&#10003;</span> Check</button>
+      <button id="btn-next" class="btn primary hidden">Next &#8594;</button>
+      <button id="btn-finish" class="btn primary hidden"><span aria-hidden="true">&#9632;</span> Final Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ REVIEW SKIPPED SCREEN ============ -->
+<div id="review" class="wrap hidden">
+  <div class="card">
+    <h2><span aria-hidden="true">&#9888;</span> Review skipped exercises</h2>
+    <p>You skipped the exercises below. You can return to any of them and answer it — as many times as you need — as long as the timer has not ended. The timer keeps running while this screen is open.</p>
+    <p class="muted small">If you submit now, every exercise that is still skipped and unanswered is <b>excluded from your score</b>: it does not count as correct, wrong, or part of the total.</p>
+    <div id="rev-list"></div>
+    <div class="btnrow">
+      <button id="btn-review-submit" class="btn primary"><span aria-hidden="true">&#10003;</span> Submit exam and see results</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ RESULTS SCREEN ============ -->
+<div id="results" class="wrap hidden">
+  <div id="res-panel" class="cert"></div>
+  <div class="card">
+    <h2><span aria-hidden="true">&#9733;</span> Your score</h2>
+    <div class="bigscore" id="res-score"></div>
+    <div id="res-grid" class="resultgrid"></div>
+  </div>
+  <div class="card">
+    <h2><span aria-hidden="true">&#9201;</span> Time and attempt details</h2>
+    <div id="res-pause" class="resultgrid"></div>
+    <div class="btnrow">
+      <button id="btn-retake" class="btn warn"><span aria-hidden="true">&#8635;</span> Retake Exam</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MANUAL PAUSE COVER ============ -->
+<div id="pausecover" class="pausecover hidden">
+  <div class="inner">
+    <div class="ic" aria-hidden="true">&#10074;&#10074;</div>
+    <h2>&#10074;&#10074; PAUSED — manual</h2>
+    <p id="pc-txt"></p>
+    <button id="btn-resume" class="btn primary"><span aria-hidden="true">&#9654;</span> Resume</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== shared exam engine — T1578.001 CyberPulseAcademy batches ===== */
+var META = JSON.parse(document.getElementById('cm-exercise-meta').textContent);
+try { var CFGX = JSON.parse(document.getElementById('exam-config').textContent);
+  Object.keys(CFGX).forEach(function(k){ META[k]=CFGX[k]; }); } catch(e) {}
+var EXS = JSON.parse(document.getElementById('exam-data').textContent);
+/* JSON cannot hold RegExp literals — compile pattern strings once at load */
+EXS.forEach(function(ex){
+  ['toolTest','destructive','dangerous'].forEach(function(k){
+    if (typeof ex[k] === 'string') ex[k] = new RegExp(ex[k]);
+  });
+  if (ex.elements) ex.elements.forEach(function(e){ if (typeof e.re === 'string') e.re = new RegExp(e.re); });
+});
+var SEVCLASS = {easy:'b-easy', medium:'b-medium', hard:'b-hard', 'extremely-hard':'b-extreme'};
+var SEVWORD = {easy:'EASY', medium:'MEDIUM', hard:'HARD', 'extremely-hard':'EXTREMELY HARD'};
+
+var S = {
+  view: 'intro',
+  order: [],            // exercise indices in play order
+  pos: 0,               // position within order
+  credit: {},           // origIndex -> credit value
+  answered: {},         // origIndex -> true once Check pressed
+  skipped: {},          // origIndex -> true while in skipped pool
+  wasSkipped: {},       // origIndex -> true if ever skipped (for feedback note)
+  hintUsed: {},         // origIndex -> bool
+  st: {},               // origIndex -> per-exercise runtime state
+  timer: { state:'RUNNING', remain: 0, perRemain: 0, perTotal: 0, perOn: false,
+           manualMs: 0, autoMs: 0, segStart: 0 },
+  scoreSum: 0, answeredCount: 0,
+  reported: false,
+  reviewing: false,
+  init: null,
+  completed: false
+};
+
+/* ---------- helpers ---------- */
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, html){ var e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function shuffle(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function fmt(s){ s=Math.max(0,Math.round(s)); var m=Math.floor(s/60), r=s%60; return (m<10?'0':'')+m+':'+(r<10?'0':'')+r; }
+function fmtMs(ms){ return fmt(ms/1000); }
+
+/* minimal monospace syntax highlighter for logs / code (dark palette) */
+function hl(raw){
+  var t = esc(raw);
+  t = t.replace(/("[^"\\]*?")(\s*:)/g, '<span class="k">$1</span>$2');   /* json keys */
+  t = t.replace(/:\s*("[^"\\]*?")/g, ': <span class="s">$1</span>');          /* string values */
+  t = t.replace(/\b(CreateSnapshot|CreateVolume|AttachVolume|RunInstances|TerminateInstances|ModifySnapshotAttribute|CreateDBSnapshot|create-snapshot|create-volume|describe-snapshots|modify-snapshot-attribute|describeDBSnapshots|CreateDBInstance|DeleteSnapshot|ModifyDBSnapshotAttribute|lookup-events|PutRolePolicy|AttachUserPolicy|CreateUser|CreateAccessKey|GetUser)\b/g,'<span class="n">$1</span>');
+  t = t.replace(/\b(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\b/g,'<span class="c">$1</span>');
+  t = t.replace(/\b\d{1,3}\[\.\]\d{1,3}\[\.\]\d{1,3}\[\.\]\d{1,3}\b/g,'<span class="p">$&</span>');
+  t = t.replace(/\b(true|false|null)\b/g,'<span class="b">$1</span>');
+  t = t.replace(/(--[a-zA-Z-]+)/g,'<span class="k">$1</span>');
+  return t;
+}
+function artifactsHTML(sc){
+  var out='';
+  if (typeof sc === 'string'){ out = '<p>'+sc+'</p>'; }
+  else {
+    sc.forEach(function(a){
+      out += '<div class="subcard"><span class="artlabel">'+esc(a.label)+'</span>'+
+             (a.mono ? '<pre class="code">'+hl(a.text)+'</pre>' : '<div>'+a.text+'</div>')+'</div>';
+    });
+  }
+  return out;
+}
+
+/* ---------- scoring core: max(0,(H-W)/N) ---------- */
+function scoreSel(sel, corr){
+  var N=corr.length, H=0, W=0;
+  corr.forEach(function(i){ if(sel.indexOf(i)>=0) H++; });
+  sel.forEach(function(i){ if(corr.indexOf(i)<0) W++; });
+  return Math.max(0,(H-W)/N);
+}
+
+/* ---------- timer state machine ----------
+   RUNNING | PAUSED_MANUAL | PAUSED_AUTO_CHECK | ENDED
+   Pause accounting: a time segment opens when the timer ENTERS a pause state
+   and is booked when it LEAVES it, so the results screen reports the real
+   time spent in each pause state (running time is never booked as pause). */
+function bookPause(){
+  var t=S.timer;
+  if (t.segStart){
+    var d=Date.now()-t.segStart;
+    if (t.state==='PAUSED_MANUAL') t.manualMs+=d;
+    else if (t.state==='PAUSED_AUTO_CHECK') t.autoMs+=d;
+    t.segStart=0;
+  }
+}
+function toRunning(){
+  var t=S.timer;
+  if (t.state!=='RUNNING'){ bookPause(); t.state='RUNNING'; renderHeader(); }
+}
+function toManualPause(){
+  var t=S.timer;
+  if (t.state==='PAUSED_MANUAL' || t.state==='ENDED') return;
+  bookPause();                                   /* closes an open auto-check segment */
+  t.resumeTo = t.state;                          /* PAUSED_AUTO_CHECK or RUNNING */
+  t.state='PAUSED_MANUAL';
+  t.segStart=Date.now();                         /* open the manual-pause segment */
+  renderHeader(); showPauseCover('manual');
+}
+function toAutoCheck(){
+  var t=S.timer;
+  if (t.state!=='RUNNING') return;
+  t.state='PAUSED_AUTO_CHECK';
+  t.segStart=Date.now();                         /* open the auto-check segment */
+  renderHeader();
+}
+function resumeFromManual(){
+  var t=S.timer;
+  if (t.state!=='PAUSED_MANUAL') return;
+  $('pausecover').classList.add('hidden');
+  bookPause();                                   /* book the manual-pause duration */
+  if (t.resumeTo==='PAUSED_AUTO_CHECK'){ t.state='PAUSED_AUTO_CHECK'; t.segStart=Date.now(); }
+  else { t.state='RUNNING'; }
+  renderHeader();
+}
+function toEnded(){
+  var t=S.timer;
+  bookPause();                                   /* close any open pause segment */
+  t.state='ENDED'; renderHeader();
+}
+
+function tick(){
+  var t=S.timer;
+  if (t.state==='RUNNING'){
+    t.remain -= 1;
+    if (t.perOn && t.state==='RUNNING'){ t.perRemain -= 1; if (t.perRemain<=0){ perExpire(); } }
+    if (t.remain<=0){ t.remain=0; finishByTimeout(); }
+  }
+  renderHeader();
+}
+function startTimers(){
+  S.timer.remain = META.timerSeconds;
+  if (S.timer.perOn){ S.timer.perRemain = S.timer.perTotal; }
+  if (!S._int){ S._int = setInterval(tick, 1000); }
+}
+
+/* ---------- header ---------- */
+function renderHeader(){
+  var t=S.timer;
+  var idxEl=$('h-count'), sevEl=$('h-sev'), timEl=$('h-timer'), scEl=$('h-score'), stEl=$('h-tstate');
+  if (idxEl) idxEl.innerHTML = 'Exercise <b>'+(Math.min(S.pos+1,S.order.length))+'</b> of <b>'+S.order.length+'</b>';
+  if (sevEl){ sevEl.className='badge '+SEVCLASS[META.difficulty]; sevEl.setAttribute('aria-label','Severity '+SEVWORD[META.difficulty]);
+    sevEl.innerHTML = '<span aria-hidden="true">&#9679;</span> '+SEVWORD[META.difficulty]+(META.partLabel?' <span class="small">('+esc(META.partLabel)+')</span>':''); }
+  if (timEl) timEl.innerHTML = '<span aria-hidden="true">&#9201;</span> <b>'+fmt(t.remain)+'</b>'+(t.perOn ? ' <span class="small" style="color:var(--accent-amber)">| task '+fmt(t.perRemain)+'</span>' : '');
+  var pct = S.answeredCount>0 ? Math.round((S.scoreSum/S.answeredCount)*100) : 0;
+  if (scEl) scEl.innerHTML = '<span aria-hidden="true">&#9733;</span> <b>'+(Math.round(S.scoreSum*10)/10).toFixed(1)+'</b> / '+S.answeredCount+' <span class="small">('+pct+'%)</span>';
+  if (stEl){
+    var map = { RUNNING:['&#9654;','RUNNING','t-running'], PAUSED_MANUAL:['&#10074;&#10074;','PAUSED — manual (press Resume)','t-paused'],
+                PAUSED_AUTO_CHECK:['&#10074;&#10074;','PAUSED — reviewing feedback (resumes on Next)','t-paused'], ENDED:['&#9632;','ENDED','t-ended'] };
+    var m = map[t.state] || map.RUNNING;
+    stEl.className='tstate '+m[2]; stEl.innerHTML='<span aria-hidden="true">'+m[0]+'</span> '+m[1];
+    stEl.setAttribute('aria-label','Timer '+m[1]);
+  }
+  var done=0; S.order.forEach(function(ix){ if(S.answered[ix]||S.skipped[ix]) done++; });
+  var f=$('pbar'); if (f) f.style.width = (S.order.length? Math.round(done/S.order.length*100):0)+'%';
+}
+
+/* ---------- greeting / handshake ---------- */
+window.addEventListener('message', function(event){
+  if (!event.data || typeof event.data !== 'object') return;
+  if (event.data.type !== 'CYBERPULSE_INIT' && event.data.type !== 'CYBERMASTERY_INIT') return;
+  S.init = event.data;
+  var g=$('greet');
+  if (g){
+    var name = (event.data.username && String(event.data.username).trim()) ? String(event.data.username).trim() : '';
+    g.textContent = name ? ('Signed in as '+name+(event.data.country&&event.data.country!=='ZZ' ? ' ('+event.data.country+')' : '')) : '';
+  }
+  /* theme is always 'dark' — the exam is dark-only by contract; no visual change is applied. */
+});
+function reportScore(){
+  if (S.reported) return; S.reported=true;
+  var percent = S.answeredCount>0 ? Math.round((S.scoreSum/S.answeredCount)*100) : 0;
+  try {
+    parent.postMessage({
+      type:'CYBERPULSE_SCORE', topicId: META.topicId, batch: META.batch,
+      score: Math.round(S.scoreSum), total: S.answeredCount,
+      percent: percent, passed: percent >= META.passMark
+    }, location.origin);
+  } catch(e) { /* opened directly — nothing to report to */ }
+}
+
+/* ---------- intro flow ---------- */
+function startExam(){
+  /* shuffle exercise order, keep terminal exercises non-adjacent */
+  var ord = shuffle(S.order);
+  function fixAdj(o){
+    for (var i=1;i<o.length;i++){
+      if (EXS[o[i]].type==='terminal' && EXS[o[i-1]].type==='terminal'){
+        for (var j=0;j<o.length;j++){
+          if (j!==i && j!==i-1 && EXS[o[j]].type!=='terminal'){
+            var t=o[i]; o[i]=o[j]; o[j]=t; break;
+          }
+        }
+      }
+    }
+    return o;
+  }
+  S.order = fixAdj(ord);
+  S.pos=0; S.scoreSum=0; S.answeredCount=0; S.reported=false; S.reviewing=false;
+  S.credit={}; S.answered={}; S.skipped={}; S.wasSkipped={}; S.hintUsed={}; S.st={};
+  S.timer={ state:'RUNNING', remain: META.timerSeconds, perRemain:0, perTotal:0, perOn:false,
+            manualMs:0, autoMs:0, segStart:0, resumeTo:null };
+  S.completed=false;
+  $('intro').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('exam').classList.remove('hidden');
+  $('pausecover').classList.add('hidden');
+  renderExercise();
+  startTimers();
+  renderHeader();
+}
+/* ---------- exercise rendering ---------- */
+function curEx(){ return EXS[S.order[S.pos]]; }
+function curIx(){ return S.order[S.pos]; }
+
+function renderExercise(){
+  var ex=curEx(), ix=curIx();
+  var st=S.st[ix];
+  if (!st){ st = S.st[ix] = initExState(ex); }
+  /* scenario */
+  $('scen-body').innerHTML = artifactsHTML(ex.scenario);
+  $('scen-sum').textContent = ex.summary || 'Scenario';
+  $('scen-body').classList.remove('hidden');
+  $('scen-toggle').textContent = '⌃ Collapse';
+  /* question */
+  $('ex-q').textContent = ex.question;
+  $('ex-step').textContent = (ex.type==='branch') ? ('STEP '+(st.step+1)+' OF '+ex.steps.length) : '';
+  /* answer widget */
+  var host=$('ex-ans'); host.innerHTML='';
+  buildWidget[ex.type](ex, st, host);
+  /* buttons */
+  $('btn-check').disabled = false;
+  $('btn-check').classList.remove('hidden');
+  $('btn-next').classList.add('hidden');
+  $('btn-finish').classList.add('hidden');
+  $('btn-hint').disabled = !!S.hintUsed[ix];
+  $('btn-skip').disabled = false;
+  $('fb').classList.add('hidden');
+  $('hintbox').classList.add('hidden');
+  $('perwarn').classList.add('hidden');
+  if (ex.perExerciseTimer){
+    S.timer.perOn=true; S.timer.perTotal=ex.perExerciseTimer; S.timer.perRemain=ex.perExerciseTimer;
+    $('perwarn').innerHTML='<span aria-hidden="true">&#8987;</span> This task has a reduced per-exercise timer of '+fmt(ex.perExerciseTimer)+'. The main exam timer is also running. Both stop while you review feedback.';
+    $('perwarn').classList.remove('hidden');
+  } else { S.timer.perOn=false; }
+  if (S.wasSkipped[ix]) { /* resumed from skip pool — fine */ }
+  renderHeader();
+  window.scrollTo(0,0);
+}
+function initExState(ex){
+  var st={};
+  if (ex.type==='mcq' || ex.type==='multi' || (ex.type==='logq')){
+    st.opts = shuffle(ex.options.map(function(o,i){ return {t:o, i:i}; }));
+    st.sel = [];
+  } else if (ex.type==='slots'){
+    st.items = shuffle(ex.items.map(function(o,i){ return {t:o, i:i}; }));
+    st.place = ex.items.map(function(){ return -1; });   /* item -> bin */
+    st.pick = -1;
+  } else if (ex.type==='terminal'){
+    st.lines = [];
+  } else if (ex.type==='branch'){
+    st.step = 0; st.choices = [];
+    /* shuffle each step's options for display; grading maps back to original indexes */
+    st.stepOpts = ex.steps.map(function(sp){
+      return shuffle(sp.options.map(function(o,i){ return {t:o, i:i}; }));
+    });
+  } else if (ex.type==='triage'){
+    st.alerts = ex.alerts; st.sel = ex.alerts.map(function(){ return null; });
+  }
+  return st;
+}
+
+/* ---------- hint ---------- */
+function useHint(){
+  var ix=curIx();
+  if (S.hintUsed[ix]) return;
+  S.hintUsed[ix]=true;
+  var h=$('hintbox');
+  h.innerHTML='<div class="t"><span aria-hidden="true">&#128161;</span> HINT — using it costs 10% of this exercise\'s credit</div><p>'+curEx().hint+'</p>';
+  h.classList.remove('hidden');
+  $('btn-hint').disabled=true;
+}
+
+/* ---------- pause cover ---------- */
+function showPauseCover(kind){
+  var c=$('pausecover');
+  $('pc-txt').textContent = kind==='manual'
+    ? 'You pressed Pause. The exercise is hidden and the timer is stopped. Press Resume when you are ready to continue.'
+    : 'Paused.';
+  c.classList.remove('hidden');
+}
+
+/* ---------- grading ---------- */
+function gradeCurrent(){
+  var ex=curEx(), ix=curIx(), st=S.st[ix];
+  if (S.answered[ix]) return;
+  /* Check's first action: enter the Check-triggered auto-pause BEFORE any feedback is rendered */
+  toAutoCheck();
+  var res = builders_check[ex.type](ex, st);   /* {credit, rows:[{ic,cls,txt}], correctText} */
+  var credit = res.credit;
+  if (S.hintUsed[ix]) credit = Math.max(0, credit - 0.10);
+  credit = Math.max(0, Math.min(1, credit));
+  S.credit[ix]=credit; S.answered[ix]=true; S.scoreSum+=credit; S.answeredCount++;
+  /* lock widget */
+  lockWidget[ex.type](ex, st, $('ex-ans'));
+  $('btn-check').disabled=true;
+  $('btn-hint').disabled=true;
+  $('btn-skip').disabled=true;
+  /* feedback */
+  var fb=$('fb'), head, cls;
+  var pct=Math.round(credit*100);
+  if (credit>=0.999){ cls='good'; head='<span aria-hidden="true">&#10003;</span> CORRECT'; }
+  else if (credit>0){ cls='part'; head='<span aria-hidden="true">&#10003;</span> PARTIALLY CORRECT'; }
+  else { cls='bad'; head='<span aria-hidden="true">&#10007;</span> INCORRECT'; }
+  fb.className='feedback '+cls;
+  var N=res.N, H=res.H, W=res.W;
+  var creditline = (N>1 || ex.type==='terminal')
+    ? '<div class="creditline">credit '+credit.toFixed(2)+' — '+(H>0?H:0)+'/'+N+' items'+(W>0?' · '+W+' wrong item'+(W>1?'s':''):'')+(S.hintUsed[ix]?' · includes −0.10 hint penalty':'')+'</div>'
+    : (S.hintUsed[ix] ? '<div class="creditline">includes −0.10 hint penalty</div>' : '');
+  var rows = res.rows.map(function(r){ return '<div class="itemrow '+r.cls+'"><span class="ic" aria-hidden="true">'+r.ic+'</span><span><b>'+r.w+'</b> '+r.txt+'</span></div>'; }).join('');
+  var persp='';
+  if (ex.attackerView || ex.defenderView){
+    persp = '<div class="perspline red"><span class="pv">Attacker view:</span> '+ex.attackerView+'</div>'+
+            '<div class="perspline blue"><span class="pv">Defender view:</span> '+ex.defenderView+'</div>';
+  }
+  fb.innerHTML='<div class="fhead" aria-label="'+(credit>=0.999?'Correct':(credit>0?'Partially correct':'Incorrect'))+'">'+head+'</div>'+creditline+
+    (rows?'<div class="itemrows">'+rows+'</div>':'')+
+    '<p><b>Correct answer:</b> '+res.correctText+'</p>'+
+    '<p>'+res.explain+'</p>'+persp+
+    '<p class="muted small"><span aria-hidden="true">&#128218;</span> What to study: '+ex.study+'</p>';
+  fb.classList.remove('hidden');
+  /* swap buttons */
+  $('btn-check').classList.add('hidden');
+  if (S.pos < S.order.length-1){ $('btn-next').classList.remove('hidden'); $('btn-next').focus(); }
+  else { $('btn-finish').classList.remove('hidden'); $('btn-finish').focus(); }
+  renderHeader();
+}
+
+function nextExercise(){
+  S.timer.perOn=false;
+  /* review mode: Next returns to the review-skipped screen; the timer resumes there */
+  if (S.reviewing){ S.reviewing=false; showReview(); return; }
+  var wasAuto = (S.timer.state==='PAUSED_AUTO_CHECK');
+  if (S.pos < S.order.length-1){ S.pos++; renderExercise(); if (wasAuto){ toRunning(); } }
+}
+function finishExam(){
+  S.timer.perOn=false;
+  /* remaining unanswered become skipped-excluded */
+  S.order.forEach(function(ix){ if(!S.answered[ix]) S.skipped[ix]=true; });
+  var anySkipped = S.order.some(function(ix){ return S.skipped[ix] && !S.answered[ix]; });
+  if (anySkipped && !S.completed){ showReview(); return; }
+  showResults();
+}
+function skipCurrent(){
+  var ix=curIx();
+  if (S.answered[ix]) return;
+  S.skipped[ix]=true; S.wasSkipped[ix]=true;
+  S.timer.perOn=false;
+  /* review mode: skipping again just returns to the review pool */
+  if (S.reviewing){ showReview(); return; }
+  var nxt=-1;
+  for (var i=0;i<S.order.length;i++){ var o=S.order[i]; if(!S.answered[o] && !S.skipped[o]){ nxt=i; break; } }
+  if (nxt>=0){ S.pos=nxt; renderExercise(); }
+  else { showReview(); }
+}
+
+/* ---------- review skipped screen ---------- */
+function showReview(){
+  var list=$('rev-list'); list.innerHTML='';
+  var any=false;
+  S.order.forEach(function(ix,i){
+    if (S.skipped[ix] && !S.answered[ix]){
+      any=true;
+      var it=el('div','skipitem');
+      it.innerHTML='<span class="warn" aria-hidden="true">&#9888;</span><span class="warn">Skipped</span><span class="t">'+esc(shortTitle(EXS[ix]))+'</span>';
+      var b=el('button','btn warn','Return to it');
+      b.addEventListener('click', function(){
+        if (S.timer.state==='ENDED' || S.timer.remain<=0){ return; }
+        S.pos=i; S.reviewing=true; S.view='exam';
+        $('review').classList.add('hidden'); $('exam').classList.remove('hidden');
+        renderExercise();
+      });
+      it.appendChild(b); list.appendChild(it);
+    }
+  });
+  if (!any) list.innerHTML='<p class="muted">No skipped exercises remain. Everything was answered.</p>';
+  $('exam').classList.add('hidden');
+  $('review').classList.remove('hidden');
+  S.view='review'; S.reviewing=false;
+  toRunning();   /* the review screen never stops the timer (resumes any open auto-check pause) */
+  renderHeader();
+}
+function shortTitle(ex){
+  var t = (typeof ex.scenario==='string') ? ex.scenario.slice(0,70) : (ex.scenario && ex.scenario[0] ? (ex.scenario[0].label||'Scenario') : 'Scenario');
+  return (ex.qshort || t.replace(/<[^>]+>/g,''));
+}
+function submitFromReview(){
+  showResults();
+}
+
+/* ---------- results ---------- */
+function showResults(){
+  S.completed=true;
+  S.reviewing=false;
+  toEnded();
+  var fully=0, partial=0, zero=0, skippedN=0;
+  S.order.forEach(function(ix){
+    if (S.answered[ix]){ var c=S.credit[ix]; if (c>=0.999) fully++; else if (c>0) partial++; else zero++; }
+    else skippedN++;
+  });
+  var avg=partial>0 ? (S.order.reduce(function(a,ix){ return a + ((S.answered[ix] && S.credit[ix]>0 && S.credit[ix]<0.999)?S.credit[ix]:0); },0)/partial) : 0;
+  var sumR = Math.round(S.scoreSum*10)/10;
+  var percent = S.answeredCount>0 ? Math.round((S.scoreSum/S.answeredCount)*100) : 0;
+  var passed = percent >= META.passMark;
+  $('res-score').textContent = sumR.toFixed(1)+' / '+S.answeredCount+'  ('+percent+'%)';
+  $('res-grid').innerHTML =
+    '<div class="rescard ok"><div class="num">'+fully+'</div><div class="lbl">&#10003; Fully correct</div></div>'+
+    '<div class="rescard part"><div class="num">'+partial+'</div><div class="lbl">&#10003; Partially correct'+(partial>0?' — avg '+avg.toFixed(2):'')+'</div></div>'+
+    '<div class="rescard bad"><div class="num">'+zero+'</div><div class="lbl">&#10007; Fully incorrect</div></div>'+
+    '<div class="rescard skip"><div class="num">'+skippedN+'</div><div class="lbl">&#9888; Skipped — excluded</div></div>';
+  $('res-pause').innerHTML = '<div class="rescard"><div class="num">'+fmtMs(S.timer.manualMs)+'</div><div class="lbl">&#9203; Time paused manually</div></div>'+
+                             '<div class="rescard"><div class="num">'+fmtMs(S.timer.autoMs)+'</div><div class="lbl">&#128260; Time reviewing feedback</div></div>'+
+                             '<div class="rescard"><div class="num">'+SEVWORD[META.difficulty]+'</div><div class="lbl">'+esc(META.title)+'</div></div>';
+  var panel=$('res-panel');
+  if (passed){
+    panel.className='cert';
+    panel.innerHTML='<div class="big" aria-label="PASS">&#10003; PASS</div><div class="sub">You reached '+percent+'%, above the '+META.passMark+'% pass mark. Well done — you can now explain T1578.001 at this level with confidence.</div>';
+  } else {
+    panel.className='failcert';
+    panel.innerHTML='<div class="big" aria-label="FAIL">&#10007; FAIL</div><div class="sub">You reached '+percent+'%, below the '+META.passMark+'% pass mark. Review the explanations, then retake the exam. Questions and answers will be shuffled again.</div>';
+  }
+  $('exam').classList.add('hidden');
+  $('review').classList.add('hidden');
+  $('results').classList.remove('hidden');
+  S.view='results';
+  renderHeader();
+  window.scrollTo(0,0);
+  reportScore();
+}
+function retake(){
+  $('results').classList.add('hidden');
+  startExam();
+}
+
+/* ================================================================
+   WIDGET BUILDERS
+   ================================================================ */
+var buildWidget = {};
+var builders_check = {};
+var lockWidget = {};
+
+function optionLetters(n){ return 'ABCDEFGHIJ'.slice(0,n).split(''); }
+
+/* ---------- mcq ---------- */
+buildWidget.mcq = function(ex, st, host){
+  var L=optionLetters(st.opts.length);
+  st.opts.forEach(function(o,i){
+    var b=el('button','opt');
+    b.type='button';
+    b.innerHTML='<span class="olabel">'+L[i]+'.</span><span>'+o.t+'</span><span class="selmark hidden">&#9679; Selected</span>';
+    b.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      st.sel=[o.i];
+      Array.prototype.forEach.call(host.querySelectorAll('.opt'),function(x){ x.classList.remove('selected'); x.querySelector('.selmark').classList.add('hidden'); });
+      b.classList.add('selected'); b.querySelector('.selmark').classList.remove('hidden');
+    });
+    host.appendChild(b);
+  });
+};
+builders_check.mcq = function(ex, st){
+  var corr=ex.correct, sel=st.sel;
+  var credit=scoreSel(sel, corr);
+  var rows=[];
+  ex.options.forEach(function(o,i){
+    var ok=corr.indexOf(i)>=0, picked=sel.indexOf(i)>=0;
+    if (ok && picked) rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:o});
+    else if (ok && !picked) rows.push({ic:'&#9675;',cls:'miss',w:'Missed',txt:o});
+    else if (!ok && picked) rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:o});
+  });
+  return {credit:credit, rows:rows, N:corr.length, H:corr.filter(function(i){return sel.indexOf(i)>=0;}).length, W:sel.filter(function(i){return corr.indexOf(i)<0;}).length,
+          correctText:esc(ex.options[corr[0]]), explain:ex.explain};
+};
+lockWidget.mcq = function(ex, st, host){
+  Array.prototype.forEach.call(host.querySelectorAll('.opt'),function(b,i){
+    b.disabled=true;
+    var oi=st.opts[i].i;
+    if (ex.correct.indexOf(oi)>=0) b.classList.add('correct-reveal');
+    else if (st.sel.indexOf(oi)>=0) b.classList.add('wrong-reveal');
+  });
+};
+
+/* ---------- multi ---------- */
+buildWidget.multi = function(ex, st, host){
+  var note=el('p','muted small','Select <b>all</b> options that apply. Partial credit: correct picks add, wrong picks subtract.');
+  note.innerHTML='<span aria-hidden="true">&#9432;</span> '+note.innerHTML;
+  host.appendChild(note);
+  var L=optionLetters(st.opts.length);
+  st.opts.forEach(function(o,i){
+    var b=el('button','opt');
+    b.type='button';
+    b.setAttribute('aria-pressed','false');
+    b.innerHTML='<span class="olabel">'+L[i]+'.</span><span>'+o.t+'</span><span class="selmark hidden">&#9679; Selected</span>';
+    b.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      var p=st.sel.indexOf(o.i);
+      if (p>=0){ st.sel.splice(p,1); b.classList.remove('selected'); b.querySelector('.selmark').classList.add('hidden'); b.setAttribute('aria-pressed','false'); }
+      else { st.sel.push(o.i); b.classList.add('selected'); b.querySelector('.selmark').classList.remove('hidden'); b.setAttribute('aria-pressed','true'); }
+    });
+    host.appendChild(b);
+  });
+};
+builders_check.multi = builders_check.mcq;
+lockWidget.multi = lockWidget.mcq;
+
+/* ---------- slots (categorize / match / order / rank / fill) ---------- */
+buildWidget.slots = function(ex, st, host){
+  var mode=ex.mode;
+  if (mode==='fill'){
+    var html='<div class="fillline">';
+    var parts=ex.sentence.split('___');
+    parts.forEach(function(p,i){
+      html+=p;
+      if (i<parts.length-1){
+        html+='<button type="button" class="blankbtn" data-blank="'+i+'" aria-label="blank '+(i+1)+'">___</button>';
+      }
+    });
+    html+='</div>';
+    host.innerHTML=html;
+    var bank=el('div','bank');
+    bank.innerHTML='<div class="banklabel"><span aria-hidden="true">&#127890;</span> Word bank — click a word, then click a blank (or drag)</div>';
+    st.items.forEach(function(o,i){
+      var c=el('button','chip');
+      c.type='button'; c.setAttribute('draggable','true'); c.dataset.item=i;
+      c.innerHTML=o.t;
+      c.addEventListener('click', function(){
+        if (S.answered[curIx()]) return;
+        Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(x){x.classList.remove('pick');});
+        st.pick=i; c.classList.add('pick');
+      });
+      bank.appendChild(c);
+    });
+    host.appendChild(bank);
+    host.appendChild(el('p','draghelp','Click a word, then click the blank to fill it. Click a filled blank to empty it again. Drag & drop also works.'));
+    Array.prototype.forEach.call(host.querySelectorAll('.blankbtn'),function(b){
+      var bi=parseInt(b.dataset.blank,10);
+      b.addEventListener('click', function(){
+        if (S.answered[curIx()]) return;
+        if (st.pick<0){
+          var cur=st.place[bi]; /* place[blank] = item index */
+          if (cur>=0){ st.place[bi]=-1; b.textContent='___'; b.classList.remove('filled'); }
+          return;
+        }
+        var prev=st.place.indexOf(st.pick);
+        if (prev>=0 && prev!==bi){ var pb=host.querySelector('.blankbtn[data-blank="'+prev+'"]'); pb.textContent='___'; pb.classList.remove('filled'); st.place[prev]=-1; }
+        st.place[bi]=st.pick;
+        b.textContent=st.items[st.pick].t; b.classList.add('filled');
+        Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(x){x.classList.remove('pick');});
+        st.pick=-1;
+      });
+      b.addEventListener('dragover', function(ev){ ev.preventDefault(); b.classList.add('over'); });
+      b.addEventListener('dragleave', function(){ b.classList.remove('over'); });
+      b.addEventListener('drop', function(ev){
+        ev.preventDefault(); b.classList.remove('over');
+        if (S.answered[curIx()]) return;
+        var i=parseInt(ev.dataTransfer.getData('text/plain'),10);
+        if (isNaN(i)) return;
+        var prev=st.place.indexOf(i);
+        if (prev>=0 && prev!==bi){ var pb=host.querySelector('.blankbtn[data-blank="'+prev+'"]'); pb.textContent='___'; pb.classList.remove('filled'); st.place[prev]=-1; }
+        st.place[bi]=i;
+        b.textContent=st.items[i].t; b.classList.add('filled');
+      });
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(c){
+      c.addEventListener('dragstart', function(ev){ if (S.answered[curIx()]) {ev.preventDefault();return;} st.pick=parseInt(c.dataset.item,10); ev.dataTransfer.setData('text/plain', c.dataset.item); });
+    });
+    return;
+  }
+  /* categorize / match / order / rank */
+  var grid=el('div','slotsarea');
+  var nBins = ex.bins.length;
+  for (var b=0;b<nBins;b++){
+    var zone=el('div','slotzone');
+    var nm = (mode==='order'||mode==='rank') ? '<span class="idx">#'+(b+1)+'</span> ' : '';
+    zone.innerHTML='<div class="slotname">'+nm+esc(ex.bins[b])+'</div><div class="dropzone" data-bin="'+b+'"></div>';
+    grid.appendChild(zone);
+  }
+  host.appendChild(grid);
+  var bank=el('div','bank');
+  var label = (mode==='categorize') ? 'Items to sort' : (mode==='match' ? 'Items to match' : 'Items to place in order');
+  bank.innerHTML='<div class="banklabel"><span aria-hidden="true">&#127890;</span> '+label+' — click an item, then click a slot (or drag)</div><div class="bankitems"></div>';
+  host.appendChild(bank);
+  var bankItems=bank.querySelector('.bankitems');
+  function chipFor(o,idx){
+    var c=el('button','chip');
+    c.type='button'; c.setAttribute('draggable','true'); c.dataset.item=idx;
+    c.innerHTML='<span>'+o.t+'</span>';
+    c.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(x){x.classList.remove('pick');});
+      st.pick=idx; c.classList.add('pick');
+    });
+    c.addEventListener('dragstart', function(ev){ if (S.answered[curIx()]) {ev.preventDefault();return;} st.pick=idx; ev.dataTransfer.setData('text/plain', String(idx)); });
+    return c;
+  }
+  st.items.forEach(function(o,i){ bankItems.appendChild(chipFor(o,i)); });
+  function zoneOf(b){ return host.querySelector('.dropzone[data-bin="'+b+'"]'); }
+  function placeItem(itemIdx, bin){
+    var prev=st.place[itemIdx];
+    if (prev>=0){ var oldChip=zoneOf(prev).querySelector('.chip[data-item="'+itemIdx+'"]'); if(oldChip) oldChip.remove(); }
+    st.place[itemIdx]=bin;
+    var zi=zoneOf(bin);
+    /* find original item object index in st.items */
+    var chip=zi.querySelector('.chip[data-item="'+itemIdx+'"]');
+    if (!chip){ chip=chipFor(st.items[itemIdx], itemIdx); chip.classList.add('placed'); }
+    chip.title='Click the cross button to return this item to the bank';
+    if (!chip.querySelector('.rm')){
+      var rm=el('button','rm');
+      rm.type='button'; rm.setAttribute('aria-label','Return item to bank'); rm.innerHTML='&#10007;';
+      rm.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        if (S.answered[curIx()]) return;
+        st.place[itemIdx]=-1; chip.remove(); bankItems.appendChild(chip); chip.classList.remove('placed');
+      });
+      chip.appendChild(rm);
+    }
+    zi.appendChild(chip);
+  }
+  Array.prototype.forEach.call(host.querySelectorAll('.slotzone'),function(z){
+    var b=parseInt(z.querySelector('.dropzone').dataset.bin,10);
+    z.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      if (st.pick<0) return;
+      placeItem(st.pick,b);
+      Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(x){x.classList.remove('pick');});
+      st.pick=-1;
+    });
+    z.addEventListener('dragover', function(ev){ ev.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave', function(){ z.classList.remove('over'); });
+    z.addEventListener('drop', function(ev){
+      ev.preventDefault(); z.classList.remove('over');
+      if (S.answered[curIx()]) return;
+      var i=parseInt(ev.dataTransfer.getData('text/plain'),10);
+      if (isNaN(i)) return;
+      placeItem(i,b);
+    });
+  });
+};
+function slotsGrade(ex, st){
+  var rows=[], H=0, W=0, N;
+  if (ex.mode==='fill'){
+    N=ex.answerBlanks.length;
+    for (var bl=0; bl<N; bl++){
+      var placed=st.place[bl];
+      var word = placed>=0 ? st.items[placed].t : null;
+      if (word===ex.answerBlanks[bl]){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:'Blank '+(bl+1)+': '+esc(word)}); }
+      else if (word){ W++; rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:'Blank '+(bl+1)+': you placed "'+esc(word)+'" — correct is "'+esc(ex.answerBlanks[bl])+'"'}); }
+      else { rows.push({ic:'&#9675;',cls:'miss',w:'Missed',txt:'Blank '+(bl+1)+': correct is "'+esc(ex.answerBlanks[bl])+'"'}); }
+    }
+  } else {
+    N=ex.items.length;
+    for (var i=0;i<N;i++){
+      var p=st.place[i];
+      var it=ex.items[i];
+      if (p===ex.answers[i]){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:it+' &#8594; '+esc(ex.bins[ex.answers[i]])}); }
+      else if (p>=0){ W++; rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:it+' &#8594; you placed it in "'+esc(ex.bins[p])+'" — correct: "'+esc(ex.bins[ex.answers[i]])+'"'}); }
+      else { rows.push({ic:'&#9675;',cls:'miss',w:'Missed',txt:it+' &#8594; not placed — correct: "'+esc(ex.bins[ex.answers[i]])+'"'}); }
+    }
+  }
+  var credit=Math.max(0,(H-W)/N);
+  var correctText;
+  if (ex.mode==='fill'){
+    correctText = ex.answerBlanks.map(function(w,i){ return 'Blank '+(i+1)+': '+w; }).join(' · ');
+  } else {
+    correctText = ex.correctText || ex.items.map(function(it,i){ return it+' &#8594; '+ex.bins[ex.answers[i]]; }).join(' · ');
+  }
+  return {credit:credit, rows:rows, N:N, H:H, W:W, correctText:correctText, explain:ex.explain};
+}
+builders_check.slots = slotsGrade;
+lockWidget.slots = function(ex, st, host){ Array.prototype.forEach.call(host.querySelectorAll('button'),function(b){ b.disabled=true; }); };
+
+/* ---------- terminal ---------- */
+buildWidget.terminal = function(ex, st, host){
+  var w=el('div','');
+  var panel=ex.syntaxPanel ? '<div class="syntaxpanel"><div class="t"><span aria-hidden="true">&#128221;</span> Syntax reminder</div><pre class="code">'+hl(ex.syntaxPanel)+'</pre>'+(ex.sampleOut?'<div class="t" style="margin-top:8px"><span aria-hidden="true">&#128196;</span> Expected output shape</div><pre class="code">'+esc(ex.sampleOut)+'</pre>':'')+'</div>' : '';
+  w.innerHTML = panel +
+    '<div class="term"><div class="scroll" aria-live="polite"></div>'+
+    '<div class="inline"><span class="pr">'+esc(ex.prompt||'analyst@cloudsoc:~$')+'</span>'+
+    '<input type="text" spellcheck="false" aria-label="terminal input" placeholder="'+esc(ex.placeholder||'type a command and press Enter')+'"></div></div>'+
+    '<p class="draghelp">Press Enter to run the simulated command. Nothing real is executed. Press <b>Check</b> when your command is final — grading uses your last command.</p>';
+  host.appendChild(w);
+  var scroll=w.querySelector('.scroll'), input=w.querySelector('input');
+  st.lines=st.lines||[];
+  st.last='';
+  function echo(txt,cls){ var d=el('div', cls||''); d.textContent=txt; scroll.appendChild(d); scroll.scrollTop=scroll.scrollHeight; }
+  st.lines.forEach(function(l){ echo(l.t,l.c); });
+  function norm(s){ return s.replace(/\s+/g,' ').trim().toLowerCase(); }
+  function run(cmd){
+    st.last=cmd;
+    echo((ex.prompt||'analyst@cloudsoc:~$')+' '+cmd, '');
+    var n=norm(cmd);
+    var toolOk=false;
+    if (ex.toolTest && ex.toolTest.test(n)) toolOk=true;
+    if (!n){ echo('No command typed.', 'sysline'); return; }
+    if (ex.destructive && ex.destructive.test(n)){ echo('ERROR: that command changes or destroys state. In a live investigation this could destroy evidence. This simulation refuses to run it.', 'errline'); return; }
+    if (toolOk){
+      echo((ex.simOutput||'OK — command accepted by the simulation.'), 'okline');
+      if (ex.simNotes) ex.simNotes.forEach(function(x){ echo(x, 'sysline'); });
+    } else {
+      echo('command not found or wrong tool for this task: '+cmd.split(' ')[0], 'errline');
+    }
+  }
+  input.addEventListener('keydown', function(ev){ if (ev.key==='Enter'){ var v=input.value; input.value=''; run(v); } });
+  st._norm=norm;
+};
+builders_check.terminal = function(ex, st){
+  var typed = st.last || '';
+  var n = (st._norm||function(s){return s;})(typed);
+  var rows=[], H=0, W=0, N=ex.elements.length;
+  var dangerous = !!(ex.destructive && ex.destructive.test(n));
+  ex.elements.forEach(function(e2){
+    var ok = !dangerous && e2.re.test(n);
+    if (ok){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:e2.label}); }
+    else { rows.push({ic:'&#10007;',cls:'no',w:'Missing or wrong',txt:e2.label+' (needed: '+e2.need+')'}); }
+  });
+  if (dangerous){
+    rows.unshift({ic:'&#10007;',cls:'no',w:'DANGEROUS — NEAR MISS',
+      txt:'Your command changes or destroys state instead of answering the task safely. It scores 0 — in a live incident this could destroy evidence or widen the attacker\'s access.'});
+  }
+  var credit = dangerous ? 0 : Math.max(0,(H-W)/N);
+  var correctText='Canonical command: <span class="mono">'+esc(ex.expected)+'</span>';
+  var explain;
+  if (dangerous){
+    explain='<b>DANGEROUS — NEAR MISS.</b> Your command would change or destroy state instead of answering the question safely. In a live incident it could destroy evidence, so it is scored 0 even when parts of it look right. '+ex.explain;
+  } else {
+    explain=ex.explain;
+  }
+  explain += '<div class="subcard"><span class="artlabel">Canonical command — copyable</span><pre class="code">'+esc(ex.expected)+'</pre>'+
+    '<div class="small">'+ex.parts.map(function(p){ return '<div><span class="mono" style="color:var(--accent-blue)">'+esc(p[0])+'</span> — '+p[1]+'</div>'; }).join('')+'</div></div>';
+  return {credit:credit, rows:rows, N:N, H:H, W:W, correctText:correctText, explain:explain};
+};
+lockWidget.terminal = function(ex, st, host){
+  var i=host.querySelector('input'); if (i) i.disabled=true;
+};
+
+/* ---------- branch (decision tree) ---------- */
+buildWidget.branch = function(ex, st, host){
+  renderBranchStep(ex, st, host);
+};
+function renderBranchStep(ex, st, host){
+  var sp=ex.steps[st.step], opts=st.stepOpts[st.step];
+  host.innerHTML='';
+  if (sp.artifact){ var sc=el('div','subcard'); sc.innerHTML='<span class="artlabel">'+esc(sp.artifact.label)+'</span>'+(sp.artifact.mono?'<pre class="code">'+hl(sp.artifact.text)+'</pre>':'<div>'+sp.artifact.text+'</div>'); host.appendChild(sc); }
+  host.appendChild(el('p','qtext small',sp.question));
+  var L=optionLetters(opts.length);
+  opts.forEach(function(o,i){
+    var b=el('button','opt'); b.type='button';
+    b.innerHTML='<span class="olabel">'+L[i]+'.</span><span>'+o.t+'</span>';
+    b.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      st.choices[st.step]=o.i;   /* original option index */
+      st.step++;
+      $('ex-step').textContent='STEP '+(Math.min(st.step+1,ex.steps.length))+' OF '+ex.steps.length;
+      if (st.step>=ex.steps.length){
+        host.innerHTML='<p class="muted small"><span aria-hidden="true">&#10003;</span> All '+ex.steps.length+' decisions recorded. Press <b>Check</b> to see how your incident path scores.</p>';
+        $('ex-step').textContent='';
+      } else { renderBranchStep(ex, st, host); }
+    });
+    host.appendChild(b);
+  });
+}
+builders_check.branch = function(ex, st){
+  var rows=[], H=0, W=0, N=ex.steps.length;
+  ex.steps.forEach(function(sp,i){
+    var c=st.choices[i];
+    var picked = (c===undefined||c===null) ? 'no answer given' : sp.options[c];
+    if (c===sp.correct){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:'Step '+(i+1)+': '+esc(picked)}); }
+    else { W++; rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:'Step '+(i+1)+': you chose "'+esc(picked)+'" — better: "'+esc(sp.options[sp.correct])+'". '+esc(sp.why)}); }
+  });
+  var credit=Math.max(0,(H-W)/N);
+  var correctText=ex.steps.map(function(sp,i){ return 'Step '+(i+1)+': '+sp.options[sp.correct]; }).join(' · ');
+  return {credit:credit, rows:rows, N:N, H:H, W:W, correctText:correctText, explain:ex.explain};
+};
+lockWidget.branch = function(ex, st, host){ Array.prototype.forEach.call(host.querySelectorAll('button'),function(b){ b.disabled=true; }); };
+
+/* ---------- triage (SOC alert queue) ---------- */
+buildWidget.triage = function(ex, st, host){
+  host.appendChild(el('p','muted small','<span aria-hidden="true">&#9432;</span> Choose one action per alert. You can change your choice until you press Check. Partial credit per alert.'));
+  ex.alerts.forEach(function(a,i){
+    var c=el('div','alertcard');
+    var acts=ex.actions.map(function(act){ return '<button type="button" class="abtn" data-a="'+act.k+'">'+act.icon+' '+act.w+'</button>'; }).join('');
+    c.innerHTML='<div class="atitle"><span aria-hidden="true">&#128230;</span> '+esc(a.title)+(a.tag?' <span class="badge b-medium" style="font-size:11px">'+esc(a.tag)+'</span>':'')+'</div>'+
+      '<div class="ameta">'+a.meta+'</div><div>'+a.text+'</div>'+
+      '<div class="actionrow" data-i="'+i+'">'+acts+'</div>';
+    host.appendChild(c);
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('.actionrow'),function(row){
+    var i=parseInt(row.dataset.i,10);
+    Array.prototype.forEach.call(row.querySelectorAll('.abtn'),function(b){
+      b.addEventListener('click', function(){
+        if (S.answered[curIx()]) return;
+        st.sel[i]=b.dataset.a;
+        Array.prototype.forEach.call(row.querySelectorAll('.abtn'),function(x){x.classList.remove('picked');});
+        b.classList.add('picked');
+      });
+    });
+  });
+};
+builders_check.triage = function(ex, st){
+  var rows=[], H=0, W=0, N=ex.alerts.length;
+  var wmap={}; ex.actions.forEach(function(a){ wmap[a.k]=a.w; });
+  ex.alerts.forEach(function(a,i){
+    var s=st.sel[i];
+    if (s===a.correct){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:esc(a.title)+' — '+wmap[s]+' was right. '+esc(a.why)}); }
+    else if (s){ W++; rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:esc(a.title)+' — you chose '+wmap[s]+'. '+esc(a.why)}); }
+    else { rows.push({ic:'&#9675;',cls:'miss',w:'Missed',txt:esc(a.title)+' — no action chosen. '+esc(a.why)}); }
+  });
+  var credit=Math.max(0,(H-W)/N);
+  var correctText=ex.alerts.map(function(a,i){ return a.title+' &#8594; '+wmap[a.correct]; }).join(' · ');
+  return {credit:credit, rows:rows, N:N, H:H, W:W, correctText:correctText, explain:ex.explain};
+};
+lockWidget.triage = function(ex, st, host){ Array.prototype.forEach.call(host.querySelectorAll('.abtn'),function(b){ b.disabled=true; }); };
+
+/* ---------- logq (log viewer + question) ---------- */
+buildWidget.logq = function(ex, st, host){
+  var w=el('div','');
+  if (!ex.scenarioArts){
+    w.innerHTML='<div class="logtools"><label class="muted small" for="logfilter">Filter:</label>'+
+      '<input id="logfilter" type="text" placeholder="type to filter log lines (e.g. CreateSnapshot)"></div>'+
+      '<div class="logbox" id="logbox"></div>';
+  }
+  host.appendChild(w);
+  var box=w.querySelector('#logbox');
+  function render(f){
+    box.innerHTML='';
+    ex.log.forEach(function(line,i){
+      if (f && line.toLowerCase().indexOf(f.toLowerCase())<0) return;
+      var d=el('div','ln'); d.innerHTML='<span class="no">'+String(i+1).padStart(3,'0')+'</span>'+hl(line);
+      box.appendChild(d);
+    });
+    if (!box.children.length) box.innerHTML='<div class="ln sysline">no lines match this filter</div>';
+  }
+  if (box) render('');
+  var fin=w.querySelector('#logfilter');
+  if (fin) fin.addEventListener('input', function(ev){ render(ev.target.value); });
+  if (ex.logIntro) host.appendChild(el('p','muted small',ex.logIntro));
+  var sub=el('div',''); host.appendChild(sub);
+  (ex.answerType==='multi' ? buildWidget.multi : buildWidget.mcq)(ex, st, sub);
+};
+builders_check.logq = function(ex, st){ return builders_check[ex.answerType||'mcq'](ex, st); };
+lockWidget.logq = function(ex, st, host){
+  var f=host.querySelector('#logfilter'); if (f) f.disabled=true;
+  lockWidget[ex.answerType||'mcq'](ex, st, host.querySelector('div:last-child'));
+};
+
+/* ---------- per-exercise reduced timer expiry ---------- */
+function perExpire(){
+  var ex=curEx();
+  if (!ex.perExerciseTimer || S.answered[curIx()]) return;
+  var ix=curIx(), st=S.st[ix];
+  var res=builders_check[ex.type](ex, st);
+  var credit=0;
+  if (S.hintUsed[ix]) credit=Math.max(0, credit-0.10);
+  S.credit[ix]=credit; S.answered[ix]=true; S.scoreSum+=credit; S.answeredCount++;
+  lockWidget[ex.type](ex, st, $('ex-ans'));
+  $('btn-check').disabled=true;
+  $('btn-hint').disabled=true;
+  $('btn-skip').disabled=true;
+  var fb=$('fb');
+  fb.className='feedback bad';
+  fb.innerHTML='<div class="fhead" aria-label="Incorrect"><span aria-hidden="true">&#9203;</span> INCORRECT — per-exercise timer expired</div>'+
+    '<p>The reduced timer for this task ran out before you pressed Check. The exercise is scored as incorrect (credit 0). Read the explanation, then press Next.</p>'+
+    '<p><b>Correct answer:</b> '+res.correctText+'</p><p>'+res.explain+'</p>';
+  fb.classList.remove('hidden');
+  $('btn-check').classList.add('hidden');
+  toAutoCheck();
+  if (S.pos < S.order.length-1){ $('btn-next').classList.remove('hidden'); }
+  else { $('btn-finish').classList.remove('hidden'); }
+  renderHeader();
+}
+
+/* ---------- finish by main-timer timeout ---------- */
+function finishByTimeout(){
+  toEnded();
+  S.order.forEach(function(ix){ if(!S.answered[ix]) S.skipped[ix]=true; });
+  showResults();
+}
+
+/* ---------- boot ---------- */
+document.addEventListener('DOMContentLoaded', function(){
+  S.order = EXS.map(function(_,i){ return i; });
+  $('btn-start').addEventListener('click', startExam);
+  $('btn-hint').addEventListener('click', useHint);
+  $('btn-check').addEventListener('click', gradeCurrent);
+  $('btn-next').addEventListener('click', nextExercise);
+  $('btn-finish').addEventListener('click', finishExam);
+  $('btn-skip').addEventListener('click', skipCurrent);
+  $('btn-pause').addEventListener('click', toManualPause);
+  $('btn-resume').addEventListener('click', resumeFromManual);
+  $('btn-review-submit').addEventListener('click', submitFromReview);
+  $('btn-retake').addEventListener('click', retake);
+  $('scen-toggle').addEventListener('click', function(){
+    var b=$('scen-body');
+    var hid=b.classList.toggle('hidden');
+    $('scen-toggle').textContent = hid ? '⌄ Expand scenario' : '⌃ Collapse';
+  });
+  renderHeader();
+  var t=$('h-tstate'); if (t){ t.className='tstate t-running'; }
+});
+
+
+
+</script>
+</body>
+</html>

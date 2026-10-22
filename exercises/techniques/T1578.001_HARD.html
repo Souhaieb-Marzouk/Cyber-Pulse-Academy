@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="../../assets/img/logo.png" type="image/png">
+<title>T1578.001 — HARD practice exam</title>
+<script type="application/json" id="cm-exercise-meta">{"topicId":"t1578.001","batch":3,"title":"T1578.001 Modify Cloud Compute Infrastructure: Create Snapshot — HARD","difficulty":"hard","questionCount":16,"estimatedMinutes":40,"passMark":70}</script>
+<script type="application/json" id="exam-config">{"timerSeconds":2400,"partLabel":null}</script>
+<script type="application/json" id="exam-data">[{"id":"h01","type":"logq","answerType":"multi","scenarioArts":true,"qshort":"The 02:00 snapshot that was not the backup","scenario":[{"label":"Artefact 1 — CloudTrail extract, finance-prod account","mono":true,"text":"02:00:07  CreateSnapshot              user=backup-svc      vol-0f33c9a1   src=203[.]0[.]113[.]44\n02:03:19  ModifySnapshotAttribute      user=backup-svc      snap-0e55d1b2  createVolumePermission add account 771239451002\n02:07:55  DescribeSnapshots            user=backup-svc      src=203[.]0[.]113[.]44"},{"label":"Artefact 2 — automation context","mono":false,"text":"The nightly DLM backup policy runs at 02:00 under user <b>backup-svc<\/b> and has never issued a ModifySnapshotAttribute event in 14 months of logs."},{"label":"Artefact 3 — geo check","mono":false,"text":"203[.]0[.]113[.]44 geolocates to the corporate DC as usual. <b>Account 771239451002 is not in the vendor register<\/b> and no change record mentions it."}],"summary":"Finance-prod — the 02:00 window betrayed","question":"Select the TWO conclusions the artefacts support.","log":[],"options":["The 02:00 timing alone proves this is the scheduled backup job","The snapshot share to account 771239451002 is the strongest anomaly here","A ModifySnapshotAttribute from backup-svc is itself abnormal — the DLM job never issues one","The corporate DC source IP proves the activity is legitimate"],"correct":[1,2],"hint":"Two conclusions survive the artefacts; the other two give a single signal more power than it has.","explain":"The <b>share to an unregistered account<\/b> is the loudest anomaly, and the <b>ModifySnapshotAttribute itself<\/b> is abnormal for this identity — fourteen months of DLM history contain none. The traps are the two 'single-signal' conclusions: a familiar timestamp proves nothing (the attacker deliberately hid inside the 02:00 window), and a known source IP proves nothing (identity or infrastructure could be compromised — geo is a weak signal on its own). This is AN1187's cross-referencing discipline: no one artefact decides.","study":"AN1187: cross-referencing behavior, geolocation and automation context"},{"id":"h02","type":"mcq","qshort":"The DLM job that grew","scenario":"Tuning review: the nightly DLM backup policy — scheduled 02:00, owner on file, fourteen months of clean history — suddenly includes the finance reporting volume. The change was made three days ago by the storage team lead through an approved change request CHG-4188. Nothing else in the account looks off.","summary":"Tuning review — the alarm that grew","question":"What is the most defensible read of this change?","options":["A documented change by the storage lead added the volume — benign, but worth a note to the data owner","The DLM policy is compromised — disable it immediately","Any snapshot of a finance volume is inherently malicious","Someone impersonated the storage lead — start a phishing investigation now"],"correct":[0],"hint":"Check the paperwork before you check the panic. One wrong path: assuming change requests can never be abused.","explain":"This is the <b>looks-alarming-but-is-benign<\/b> trap: finance data, sudden scope growth, privileged actor. The paperwork resolves it — an <b>approved change request by the accountable team<\/b> is exactly the automation-and-change-control context AN1187 tells you to check. Correct posture: treat as benign, note it to the data owner, and keep the event in the tuned baseline. Treating every finance-volume snapshot as malicious would flood the queue with false positives within a week.","study":"change-control as the discriminator in AN1187"},{"id":"h03","type":"branch","qshort":"Decision tree: four-step IR on the shared snapshot","scenario":"Confirmed: snapshot snap-0e55d1b2 (finance volumes) was shared by user backup-svc to unregistered account 771239451002 at 02:03. The CISO wants it handled <b>without losing the evidence<\/b>. Four decisions.","summary":"CISO — handle it without losing evidence","question":"Make the four calls in order.","steps":[{"question":"02:41 UTC. First move?","options":["Freeze the exposure: remove the createVolumePermission share and revoke backup-svc sessions","Delete snap-0e55d1b2 so the outside account cannot ever read it","Shut down the finance application to stop everything","Wait for the morning shift to decide together"],"correct":0,"why":"Stop the exfiltration channel and the actor without destroying anything. Deleting the snapshot destroys evidence and does not undo any copy already made."},{"question":"The share is removed and sessions revoked. Legal asks what the outside account may already have copied.","artifact":{"label":"Artefact — CloudTrail, 00:00–02:41 UTC","mono":true,"text":"01:58:22  CreateSnapshot           backup-svc  vol-0f33c9a1\n02:03:19  ModifySnapshotAttribute  backup-svc  snap-0e55d1b2  add 771239451002\n02:26:40  (no events from account 771239451002 — cross-account CreateVolume would log here)\n02:31:05  ModifySnapshotAttribute  backup-svc  snap-0e55d1b2  remove 771239451002 (our fix)"},"options":["No cross-account CreateVolume appears before the fix — likely nothing was copied, but notify and keep monitoring","The outside account definitely downloaded the data — declare a full breach","The absence of events proves nothing happened and nothing more is needed","CloudTrail cannot log cross-account reads, so the question is unanswerable"],"correct":0,"why":"A cross-account copy would need a CreateVolume from the shared snapshot and would appear in the trail. It did not — so report the exposure honestly as exposure-without-confirmed-copy, and keep watching."},{"question":"Legal wants the snapshot preserved. Storage wants space back. What do you do with snap-0e55d1b2?","options":["Keep it: restrict access to the IR team and document the chain of custody","Delete it — the incident is over","Copy it to three extra regions 'just in case' and delete the original","Leave permissions as they are so investigators feel unrestricted"],"correct":0,"why":"Evidence value: the snapshot is the exact object the actor touched. Restrict access, keep integrity, document."},{"question":"Final report: which control failure let this happen, and which mitigation fixes it?","options":["backup-svc held unmonitored snapshot-share rights — M1047 Audit and M1018 least privilege address it","The firewall was open — M1035 fixes it","The data was not encrypted at rest — M1040 fixes it","Nothing failed; snapshot sharing is a normal operation that needs no control"],"correct":0,"why":"The failure is identity over-permission plus no routine entitlement review — precisely M1018 and M1047 on the ATT&CK page."}],"hint":"The responder's order: freeze exposure, scope what left, preserve, then name the control failure.","explain":"The four calls follow the senior-IR playbook: <b>least-aggressive containment first<\/b> (share removal plus session revocation beats deletion), <b>honest scoping<\/b> (exposure without confirmed copy — the cross-account CreateVolume absence matters, but you still notify), <b>evidence preservation with restrictions<\/b>, and a report that names the real control gap. M1047's routine entitlement checks would have flagged a backup identity holding share rights long before an attacker used them.","study":"M1047 Audit and M1018 User Account Management on the T1578.001 page","attackerView":"My favourite hour is the scheduled one: inside the backup window, my share looks like housekeeping.","defenderView":"For every identity that can snapshot, I also ask: can it share? That pairing is the real exposure."},{"id":"h04","type":"slots","mode":"categorize","qshort":"Signal or noise for DET0423","scenario":"You are building the tuning rules for DET0423. Five observations from the last week must each be classed: a correlation <b>signal<\/b> the analytic should fire on, or <b>context noise<\/b> it should absorb into the baseline.","summary":"Detection tuning — five observations to class","question":"Drag each observation to the right class.","bins":["Signal — DET0423 should fire","Context noise — absorb into baseline"],"items":["Snapshot created by an IAM user that is 12 minutes old","Snapshot of the PCI database volume with no change record behind it","The nightly DLM job's 02:00 snapshot of the same three volumes, as every night","Snapshot mounted (CreateVolume + AttachVolume) onto an instance outside the owning team","The backup job's snapshot ran four minutes late one night"],"answers":[0,0,1,0,1],"hint":"Identity age, missing paperwork and strange mount targets are signals; schedule jitter is not.","explain":"Three of the five are AN1187's own red flags: a <b>12-minute-old identity<\/b>, a <b>sensitive volume without change-control<\/b>, and a <b>mount to an unauthorized instance<\/b>. The two noise items are the scheduled job behaving as scheduled (its exact minute is irrelevant) and harmless runtime jitter — firing on those would bury the real signals by Thursday. Tuning is precisely this sorting, done ruthlessly.","study":"analytic AN1187: what counts as a suspicious sequence vs benign backup operation"},{"id":"h05","type":"slots","mode":"match","qshort":"Pacu modules and their purposes","scenario":"The ATT&amp;CK page names <b>Pacu (S1091)<\/b>: it can create snapshots of EBS volumes and RDS instances. The IR team found four Pacu module names in a compromised workstation's shell history. Explain what each was doing there.","summary":"IR finding — four Pacu modules in shell history","question":"Match each Pacu module to its purpose.","bins":["Discover what the identity may do","Find candidate volumes and snapshots","Snapshot a volume and share it out for exfiltration","Abuse database snapshots to read data"],"items":["iam__enum_permissions","ebs__enum_volumes_snapshots_ec2","ebs__download_volumes","rds__exploit_snapshots"],"answers":[0,1,2,3],"hint":"Read each module name as verb first: enum = find, download = take out, exploit = abuse, iam = identity.","explain":"The four modules are the attacker workflow in miniature: <b>iam__enum_permissions<\/b> maps what the stolen identity may do; <b>ebs__enum_volumes_snapshots_ec2<\/b> lists candidate disks; <b>ebs__download_volumes<\/b> snapshots a volume and shares it to the operator's own account — the exact T1578.001 abuse; <b>rds__exploit_snapshots<\/b> turns database snapshots into readable copies. Knowing the tooling behind the technique is CTI bread-and-butter: the ATT&CK page's procedure example points straight at it.","study":"the Pacu procedure example and its Rhino Security Labs reference on the ATT&CK page"},{"id":"h06","type":"mcq","qshort":"Which sibling owns RunInstances here","scenario":"Report review. A junior wrote: \"The attacker used RunInstances to build the copy target, so the whole chain maps to T1578.001.\" The chain: CreateSnapshot, RunInstances, AttachVolume, AuthorizeSecurityGroupIngress (SSH from anywhere), then SSH in.","summary":"Report review — correct the mapping","question":"What is the correct mapping for the RunInstances step?","options":["RunInstances maps to T1578.002 — Create Cloud Instance, a sibling chained with T1578.001","RunInstances maps to T1578.001 because it served the snapshot","RunInstances is not an ATT&CK-relevant event","RunInstances maps to T1578.004 — Revert Cloud Instance"],"correct":[0],"hint":"Sub-techniques label behaviours, not intentions. The behaviour is: building a new machine.","explain":"ATT&amp;CK maps <b>behaviours<\/b>, not motives: creating a new cloud instance is <b>T1578.002<\/b> even when it serves the snapshot chain. The full chain is T1578.001 (snapshot) + T1578.002 (instance) + T1578.005 (firewall modification) — exactly the sequence the T1578.001 description narrates. Writing it all as one technique is the most common junior-report error; the firewall step is a separate technique from the copy.","study":"the sibling sub-techniques on the ATT&CK T1578 page"},{"id":"h07","type":"terminal","qshort":"Enumerate account-owned snapshots","scenario":"You are on an IR bridge. Scope question from the lead: \"Show me every EBS snapshot this account owns — I need to know if there are others like snap-0e55d1b2.\" You have the AWS CLI, read-only IR credentials, and no syntax help.","summary":"IR bridge — list account-owned snapshots","question":"Type the command that lists the account's own snapshots, press Enter, then Check.","prompt":"responder@ir-bridge:~$","placeholder":"type the aws command and press Enter","toolTest":"^aws ec2 describe-snapshots\\b","expected":"aws ec2 describe-snapshots --owner-ids self","elements":[{"re":"aws ec2 describe-snapshots","label":"uses the read-only enumeration action (describe-snapshots)","need":"aws ec2 describe-snapshots"},{"re":"--owner-ids","label":"limits results with the owner filter flag","need":"--owner-ids"},{"re":"--owner-ids +self|self","label":"sets the owner to 'self' (this account)","need":"--owner-ids self"}],"parts":[["aws ec2 describe-snapshots","the read-only call that lists EBS snapshots"],["--owner-ids self","restricts the list to snapshots owned by this account — without it, results include shared/public snapshots from everywhere"]],"destructive":"delete-|terminate-|reset-|modify-|create-|put-|attach-","hint":"One wrong path: describe-images lists AMIs, not snapshots. Another: describe-volumes lists the live disks.","explain":"<b>describe-snapshots --owner-ids self<\/b> is the scoping call: read-only, lists every snapshot the account owns. The near-misses matter: <b>describe-volumes<\/b> lists live disks (not copies), <b>describe-images<\/b> lists machine images (AMIs), and dropping <b>--owner-ids self<\/b> returns snapshots shared into the account from all over, drowning your answer. Note the simulation also refuses state-changing commands — on a real bridge, you never experiment with write commands from the evidence account.","study":"read-only scoping commands for EBS snapshot review","attackerView":"The same describe call is my recon step: I enumerate first, copy second.","defenderView":"A snapshot inventory with owners is the fastest way to spot the copy that has no owner."},{"id":"h08","type":"logq","answerType":"multi","scenarioArts":true,"qshort":"Reconstruct the attacker's actions","scenario":[{"label":"Artefact 1 — CloudTrail, identity contractor-temp","mono":true,"text":"10:02:11  CreateSnapshot        vol-0b81c7e2 (finance-2026)\n10:04:03  RunInstances          (attacker-c2, t3.micro)\n10:05:44  CreateVolume          from snap-0d91a2f5\n10:06:18  AttachVolume          vol-0c44e9b1 -> i-attacker-c2\n10:07:02  AuthorizeSecurityGroupIngress  tcp/22 from 203[.]0[.]113[.]9"},{"label":"Artefact 2 — IAM policy diff for contractor-temp","mono":true,"text":"+ ec2:CreateSnapshot\n+ ec2:CreateVolume\n+ ec2:AttachVolume\n(was: read-only describe rights)"},{"label":"Artefact 3 — chat excerpt, #cloud-ops","mono":false,"text":"storage-lead: why is finance-2026 in a snapshot list? we did not schedule anything today"}],"summary":"Three artefacts — reconstruct the actions","question":"Select the FOUR actions the artefacts prove the attacker performed.","log":[],"options":["Created a snapshot of the finance-2026 volume","Created and attached a volume from that snapshot to a new instance","Opened inbound SSH access to the new instance from an external IP","Expanded their own permissions before acting (CreateSnapshot/CreateVolume/AttachVolume appeared)","Deleted the finance-2026 volume after copying it","Disabled CloudTrail logging for the account"],"correct":[0,1,2,3],"hint":"Two of the six options would have left event types that the artefacts simply do not contain.","explain":"The trail shows the full chain: snapshot (<b>T1578.001<\/b>), instance (<b>T1578.002<\/b>), create-volume + attach (the mounting step), and a security-group rule opening SSH (<b>T1578.005<\/b>). The policy diff proves the identity's rights were expanded first — likely the attacker's own doing. The two rejections are silent-negative checks: <b>no DeleteVolume and no StopLogging events exist<\/b> in the artefacts, and claiming them without events is how incident reports get torn apart in review.","study":"chain reconstruction from CloudTrail with negative-evidence discipline"},{"id":"h09","type":"mcq","qshort":"The least aggressive correct action","scenario":"Same incident, ten minutes later: contractor-temp's snapshot is shared to 771239451002 and attached to their instance. The bridge argues about the response. The CISO's constraint: <b>stop the access, destroy nothing<\/b>.","summary":"Bridge argument — stop access, destroy nothing","question":"Which action satisfies the CISO's constraint?","options":["Remove the cross-account share and detach the volume from the attacker instance","Delete the snapshot and the attacker instance at once","Terminate the whole finance application tier","Change the AWS account root password and monitor overnight"],"correct":[0],"hint":"One option destroys evidence; one is wildly disproportionate; one barely touches the attacker.","explain":"The least aggressive action that fully stops access is <b>un-sharing the snapshot and detaching the volume<\/b> — reversible, evidence-preserving, immediate. Deleting the snapshot destroys the primary evidence (and looks decisive, which is why it is the classic wrong answer); killing the application tier harms the business for no gain; the root password does nothing about an active IAM session. 'Least aggressive that stops the harm' is the rule the CISO constraint encodes.","study":"containment proportionality in cloud incidents"},{"id":"h10","type":"logq","answerType":"multi","qshort":"The breakglass session in the logs","scenario":"Hunt task: the identity <b>assumed-role/BreakglassSession<\/b> should only ever appear during documented emergency drills. Use the filter box to isolate its events, then answer. Two statements hold.","summary":"Hunt — the breakglass session","question":"After filtering, select the TWO statements the log supports.","log":["{ \"eventTime\": \"2026-10-15T01:11:02Z\", \"eventName\": \"CreateUser\", \"userName\": \"assumed-role/BreakglassSession\", \"requestParameters\": { \"userName\": \"svc-ftp-2\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]77\" }","{ \"eventTime\": \"2026-10-15T01:12:40Z\", \"eventName\": \"PutRolePolicy\", \"userName\": \"assumed-role/BreakglassSession\", \"requestParameters\": { \"roleName\": \"svc-ftp-2\", \"policyName\": \"inline-1\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]77\" }","{ \"eventTime\": \"2026-10-15T01:14:55Z\", \"eventName\": \"CreateSnapshot\", \"userName\": \"svc-ftp-2\", \"requestParameters\": { \"volumeId\": \"vol-0c33b8a1\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]77\" }","{ \"eventTime\": \"2026-10-15T01:16:12Z\", \"eventName\": \"CreateSnapshot\", \"userName\": \"backup-svc\", \"requestParameters\": { \"volumeId\": \"vol-0d11a2b3\" }, \"sourceIPAddress\": \"203[.]0[.]113[.]44\" }","{ \"eventTime\": \"2026-10-15T01:19:03Z\", \"eventName\": \"ModifySnapshotAttribute\", \"userName\": \"svc-ftp-2\", \"requestParameters\": { \"snapshotId\": \"snap-0f22b9e4\" }, \"sourceIPAddress\": \"198[.]51[.]100[.]77\" }"],"logIntro":"No drill is documented for tonight.","options":["The breakglass role minted a new identity (svc-ftp-2) that then created a snapshot and shared one","The activity chain used a fresh identity to distance the snapshot actions from the breakglass role","The breakglass role itself directly created both snapshots","backup-svc and svc-ftp-2 are clearly the same automation stack"],"correct":[0,1],"hint":"Follow the identity chain, not just the event names. One option confuses two different users on purpose.","explain":"Filter on BreakglassSession and the pattern emerges: the emergency role <b>created a new user and granted it rights<\/b>, and the snapshot + share actions were then performed by that fresh identity — identity-laundering that keeps the privileged role's own log line count low. The decoy option mistakes the two 01:16 CreateSnapshot events for the same actor; backup-svc's call is from the corporate DC address and is the scheduled job. Identity chaining is why AN1187 weights <b>unexpected or newly created IAM users<\/b> so heavily.","study":"newly created IAM users as an AN1187 red flag"},{"id":"h11","type":"slots","mode":"rank","qshort":"Rank volumes for snapshot monitoring","scenario":"Detection budget reality: you can tune tight alerting on only a few volume classes first. Rank the four volumes by <b>priority for snapshot monitoring<\/b> — most urgent first.","summary":"Detection budget — rank four volume classes","question":"Drag the volumes into priority order (1 = monitor first).","bins":["Priority 1","Priority 2","Priority 3","Priority 4"],"items":["PCI-database volume — regulated payment data, 4 analysts have access","Legacy jump-host volume — holds cached admin credentials, 40 engineers have access","Dev scratch volume — synthetic test data only","Backup-archive volume — already-encrypted backups, single automation identity writes it"],"answers":[1,0,2,3],"hint":"Blend sensitivity with identity exposure breadth: cached credentials and wide access beat pristine test data.","explain":"A defensible ranking: <b>jump-host volume first<\/b> — cached admin credentials plus 40 identities is the widest fast path (a snapshot copy leaks credentials without touching the host); <b>PCI database second<\/b> — highest regulatory impact, but narrower access; dev scratch third (nothing to steal, but snapshots of it make good cover for blending in); encrypted backup archive last — the single automation identity and encryption reduce both likelihood and impact. Any ranking that puts dev scratch or the archive first inverts the risk logic; expect to justify every position in review.","study":"risk-based prioritisation for snapshot telemetry"},{"id":"h12","type":"mcq","qshort":"Share out or mount in-place?","scenario":"Red-team theory session. The operator already holds EC2 admin rights inside the target account. Debates: exfiltrate the disk by <b>sharing the snapshot to an external account<\/b>, or <b>mounting a volume in-place<\/b> on an instance inside the target account and copying over the network.","summary":"Red team — exfiltration route choice","question":"What is the strongest argument for the external-share route?","options":["The full copy leaves the account in one API-visible step, instead of many network transfers inside monitored infrastructure","Sharing leaves no CloudTrail event at all, unlike in-place mounting","Shared snapshots are invisible to IAM policies and guardrails","In-place mounting is impossible without the account root user"],"correct":[0],"hint":"One option claims invisibility that logging flatly denies; another claims an impossibility that is not true.","explain":"The share route is one <b>ModifySnapshotAttribute<\/b> — after that, the copy is readable from infrastructure the attacker already controls, with no bulk traffic crossing the target account's monitored network. The trap options overreach: sharing <b>is<\/b> logged (that ModifySnapshotAttribute is exactly what DET0423-style analytics watch), guardrails and SCPs absolutely can block sharing, and in-place mounting needs only ordinary EC2 rights — the account root is not required. Trade-offs, not magic, is the honest read.","study":"attacker trade-offs of snapshot sharing vs in-place mounting","attackerView":"One API call, then the data is on my side of the fence — quiet and complete.","defenderView":"Cross-account sharing is rare in my estate: I alert on every instance of it, tuned only by the vendor register."},{"id":"h13","type":"slots","mode":"fill","qshort":"Tuning checklist sentence","scenario":"The detection wiki's tuning checklist lost four words. Rebuild it from the analytic before the tuning workshop.","summary":"Wiki — tuning checklist rebuilt","question":"Fill the four blanks from the word bank.","sentence":"Before labelling a snapshot malicious, cross-reference ___ behavior, IP ___, and ___ context — and confirm whether an approved ___ record exists.","answerBlanks":["user","geolocation","automation","change-control"],"items":["user","geolocation","automation","change-control","endpoint","billing"],"hint":"All four words come from the analytic and its red-flag list; two others belong to different tool families.","explain":"The checklist restates AN1187: <b>user behavior, IP geolocation, automation context<\/b>, plus the <b>change-control<\/b> check from the suspicious-sequence list (sensitive volumes copied without a preceding change). 'Endpoint' and 'billing' are context from other domains — useful elsewhere, not in this analytic. A detection engineer who keeps the checklist to the analytic's own terms gets a rule that fires rarely and correctly.","study":"analytic AN1187, both sentences"},{"id":"h14","type":"branch","qshort":"Dual perspective: the same hour, red and blue","scenario":"One scenario, two helmets. You play the defender first, then the attacker, then the defender again. Answer as each role.","summary":"Dual perspective — three decisions, two helmets","question":"Make the three role-appropriate calls.","steps":[{"question":"BLUE: Your DET0423 correlation fires: snapshot of vol-0b81c7e2 at 10:02, volume created from it at 10:05, attached to i-attacker-c2 at 10:06. What is your first analytical conclusion?","options":["The full snapshot-then-mount chain completed — treat as active data exposure, not a lone anomaly","A single CreateSnapshot is normal backup behaviour; wait for more data","The correlation is a false positive because backups always look like this","Escalate only if the volume belongs to finance"],"correct":0,"why":"The sequence is the technique — the whole point of the correlation. Waiting turns exposure into exfiltration."},{"question":"RED: You are the operator; defenders just paged on your correlation. Your next objective is staying long enough to finish. Which follow-up behaviour avoids the strongest current signal?","options":["Stop creating new snapshots from this identity; switch to reading data already mounted on your instance","Create three more snapshots from the same identity to blend with the noise","Delete CloudTrail's trail to hide everything so far","Run the snapshots from the corporate DC address to look like the backup job"],"correct":0,"why":"The correlation is identity-paired events; halting new snapshot activity from that identity removes the live signal. More snapshots feed the detector; StopLogging is loud and irreversible; IP mimicry does not fix the event pairing."},{"question":"BLUE (later): The attacker is quiet now. Which compensating detection closes the gap their quietness exploits?","options":["Alert on volume-attach events where the volume's provenance (a snapshot) has no owner or change record","Alert on every CreateSnapshot in the account regardless of context","Disable snapshot permissions for everyone permanently","Move the workload to another cloud provider"],"correct":0,"why":"The attacker still needs to read what they copied: a mount with no provenance is the residual signal. Blanket alerts drown you; disabling permissions is the control question, not a detection."}],"hint":"Blue thinks in correlations and residual signals; red thinks in which log lines they can stop producing.","explain":"The dual view is the technique's whole story: the defender's strength is the <b>correlated sequence<\/b>, the attacker's weakness is that every step prints. When the operator stops printing (blue step 2), the residual signal is the <b>orphaned mount<\/b> — a volume whose provenance has no owner. This back-and-forth is exactly how detection engineers think when they harden an analytic against a living adversary.","study":"correlation analytics vs attacker adaptation","attackerView":"Every extra API call is another line in their correlation window — quiet is survival.","defenderView":"When they go quiet, hunt the artefacts they cannot unmake: the mount, the share, the orphan."},{"id":"h15","type":"terminal","qshort":"Revoke the snapshot share precisely","scenario":"Containment, executed by you: snapshot snap-0a1b2c3d4e5f6a7b8 was shared to AWS account 210987654321. Legal approved removing exactly that share — <b>nothing else may change<\/b>. You have the AWS CLI. No syntax help.","summary":"Containment — revoke one snapshot share","question":"Type the command that removes the share for that account only, press Enter, then Check.","prompt":"responder@ir-bridge:~$","placeholder":"type the aws command and press Enter","toolTest":"^aws ec2 modify-snapshot-attribute\\b","expected":"aws ec2 modify-snapshot-attribute --snapshot-id snap-0a1b2c3d4e5f6a7b8 --operation-type remove --attribute createVolumePermission --user-ids 210987654321","elements":[{"re":"aws ec2 modify-snapshot-attribute","label":"targets the snapshot's attribute (modify-snapshot-attribute)","need":"aws ec2 modify-snapshot-attribute"},{"re":"snap-0a1b2c3d4e5f6a7b8","label":"names the correct snapshot","need":"--snapshot-id snap-0a1b2c3d4e5f6a7b8"},{"re":"--operation-type +remove|remove","label":"removes (not adds) the permission","need":"--operation-type remove"},{"re":"--attribute +createvolumepermission|createvolumepermission","label":"edits createVolumePermission — the share that matters","need":"--attribute createVolumePermission"},{"re":"--user-ids +210987654321|210987654321","label":"removes only account 210987654321","need":"--user-ids 210987654321"}],"parts":[["aws ec2 modify-snapshot-attribute","the only call that edits a snapshot's sharing permissions"],["--snapshot-id snap-0a1b2c3d4e5f6a7b8","the exact object legal approved touching"],["--operation-type remove","revokes; 'add' would extend the leak"],["--attribute createVolumePermission","the specific permission that lets another account build a volume from the snapshot"],["--user-ids 210987654321","surgical scope: this account only, nothing else changes"]],"destructive":"delete-|terminate-|reset-snapshot","hint":"One wrong path: 'add' with the same flags is the attacker's command — check the operation direction before you press Enter.","explain":"The surgical revocation names the object, the <b>direction<\/b> (remove), the <b>attribute<\/b> (createVolumePermission) and the <b>exact account<\/b>. The near-miss that matters: the identical command with <b>--operation-type add<\/b> is precisely how the attacker granted access — running it during an incident would widen the leak (the simulation refuses state-changing operations for this reason). Note also what was not done: the snapshot itself was not deleted, because evidence survives containment.","study":"ModifySnapshotAttribute used defensively for share revocation","attackerView":"This command, with 'add' instead of 'remove', was my exfiltration step.","defenderView":"Revoke narrowly, log the action, keep the object — evidence and containment in one move."},{"id":"h16","type":"mcq","qshort":"The Pacu user-agent in CloudTrail","scenario":"Triage: one CreateSnapshot event's user-agent field reads <b>pacu/0.5.4 (Rhino Security Labs)<\/b> instead of the usual aws-cli/console strings. The call came from a fresh IAM user you have never seen.","summary":"Triage — the unusual user-agent","question":"What does the user-agent most specifically indicate?","options":["The call was made with the open-source AWS exploitation framework Pacu — consistent with deliberate abuse of T1578.001","The call came from an internal CI pipeline that names itself oddly","AWS support generated the event during maintenance","The user-agent field proves the attacker's home address"],"correct":[0],"hint":"The ATT&CK page names exactly one tool for this technique — and the string is not an AWS official agent.","explain":"<b>Pacu<\/b> is the open-source AWS exploitation framework the ATT&amp;CK page cites as its procedure example (S1091): it can create snapshots of EBS volumes and RDS instances. Its user-agent string in CloudTrail is a high-value signal precisely because legitimate tooling does not send it. The other options are the usual deflections — an internal pipeline would use the aws-cli or SDK agent strings, AWS support does not create snapshots in your account silently, and a user-agent says nothing about anyone's location. Combine it with the fresh identity and this alert jumps every queue.","study":"the Pacu (S1091) procedure example on the ATT&CK T1578.001 page"}]</script>
+<style>
+:root{
+  --bg-page:#0b1020; --bg-surface:#121a2e; --bg-surface-2:#0f1729;
+  --border:#243049; --text-primary:#e6ecff; --text-secondary:#a9b4d0; --text-mono:#c8ffd4;
+  --accent-blue:#5aa9ff; --accent-amber:#ffb454; --accent-green:#57d38c;
+  --state-correct:#57d38c; --state-partial:#ffb454; --state-incorrect:#ff6b6b;
+  --state-skipped:#a9b4d0; --state-paused:#9d7bff;
+  --sev-easy:#57d38c; --sev-medium:#ffb454; --sev-hard:#ff8a3d; --sev-extreme:#ff6b6b;
+  --sev-current:var(--sev-easy);
+  /* derived surface & text tokens (every rule below consumes variables only) */
+  --surface-hover:#16223c; --surface-chip:#1a2743; --surface-chip-placed:#15301f;
+  --surface-head:#101830; --surface-syntax:#0d1424;
+  --text-faint:#8b96b8;
+  --btn-grad-a:#1c3a2b; --btn-grad-b:#123021; --on-accent:#dfffe9;
+  --ok-dim:rgba(87,211,140,.08); --amber-dim:rgba(255,180,84,.08); --red-dim:rgba(255,107,107,.08);
+  --ok-glow:rgba(87,211,140,.35); --ok-glow-soft:rgba(87,211,140,.12);
+  --amber-glow:rgba(255,180,84,.3); --amber-glow-soft:rgba(255,180,84,.12);
+  --red-glow-soft:rgba(255,107,107,.12);
+  --cert-grad:linear-gradient(160deg,rgba(87,211,140,.10),rgba(87,211,140,.02));
+  --fail-grad:linear-gradient(160deg,rgba(255,107,107,.10),rgba(255,107,107,.02));
+  --shadow-card:0 6px 18px rgba(0,0,0,.35); --shadow-head:0 4px 14px rgba(0,0,0,.45);
+  --cover-veil:rgba(11,16,32,.96); --sheen:rgba(255,255,255,.22);
+  --font-body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --radius:8px; --radius-sm:5px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg-page);color:var(--text-primary);font-family:var(--font-body);font-size:16px;line-height:1.55;min-height:100vh}
+:focus{outline:2px solid var(--accent-blue);outline-offset:2px;border-radius:3px}
+.chip,.opt,.slotzone,.abtn,.blankbtn,.btn,.hbtn,.term input,.logtools input,#btn-check,#btn-next,#btn-finish{scroll-margin-top:110px}
+button{font-family:var(--font-body);cursor:pointer}
+.mono{font-family:var(--font-mono)}
+.hidden{display:none !important}
+.wrap{max-width:960px;margin:0 auto;padding:16px 16px 64px}
+
+/* ---------- cards & panels ---------- */
+.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-card);padding:18px 20px;margin:16px 0}
+.card h2{margin:0 0 10px;font-size:20px;color:var(--text-primary)}
+.card h3{margin:0 0 8px;font-size:16px;color:var(--text-primary)}
+.subcard{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:10px 0}
+.subcard .artlabel{font-family:var(--font-mono);font-size:12.5px;letter-spacing:.06em;color:var(--accent-blue);text-transform:uppercase;display:block;margin-bottom:6px}
+p{margin:8px 0}
+.muted{color:var(--text-secondary)}
+.small{font-size:14px}
+ul,ol{margin:8px 0;padding-left:22px}
+li{margin:5px 0}
+
+/* ---------- code / logs ---------- */
+pre.code{font-family:var(--font-mono);font-size:14px;color:var(--text-mono);background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;overflow:auto;margin:8px 0;white-space:pre-wrap;word-break:break-word}
+.code .k{color:var(--accent-blue)} .code .s{color:var(--accent-amber)} .code .n{color:var(--state-correct)} .code .c{color:var(--text-faint)} .code .p{color:var(--sev-hard)} .code .b{color:var(--state-paused)}
+
+/* ---------- badges ---------- */
+.badge{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13px;padding:3px 10px;border-radius:999px;border:1px solid;white-space:nowrap}
+.b-easy{color:var(--sev-easy);border-color:var(--sev-easy);background:var(--ok-dim)}
+.b-medium{color:var(--sev-medium);border-color:var(--sev-medium);background:var(--amber-dim)}
+.b-hard{color:var(--sev-hard);border-color:var(--sev-hard);background:var(--amber-dim)}
+.b-extreme{color:var(--sev-extreme);border-color:var(--sev-extreme);background:var(--red-dim)}
+
+/* ---------- intro ---------- */
+.introhead{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin:16px 0}
+.introhead h1{margin:0 0 6px;font-size:24px;line-height:1.25}
+.introhead .objline{color:var(--accent-blue);font-family:var(--font-mono);font-size:14px;margin:2px 0 10px}
+.factrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.fact{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:14px}
+.fact b{color:var(--text-primary)}
+.fact .lbl{display:block;font-size:12px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em}
+.kwgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px}
+.btnrow{display:flex;flex-wrap:wrap;gap:12px;margin-top:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-surface-2);color:var(--text-primary);padding:10px 20px;font-size:15px;font-weight:600;min-height:44px;min-width:44px}
+.btn:hover{filter:brightness(1.15)}
+.btn.primary{background:linear-gradient(135deg,var(--btn-grad-a),var(--btn-grad-b));border-color:var(--accent-green);color:var(--on-accent)}
+.btn.primary:hover{box-shadow:0 0 14px var(--ok-glow)}
+.btn.danger{border-color:var(--state-incorrect);color:var(--state-incorrect);background:var(--red-dim)}
+.btn.warn{border-color:var(--accent-amber);color:var(--accent-amber);background:var(--amber-dim)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- sticky exam header ---------- */
+.examhead{position:sticky;top:0;z-index:50;background:var(--surface-head);border-bottom:1px solid var(--border);box-shadow:var(--shadow-head)}
+.examhead .row{max-width:1040px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:8px 14px}
+.hitem{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--text-secondary)}
+.hitem b{color:var(--text-primary);font-family:var(--font-mono)}
+.hbtn{background:var(--bg-surface-2);border:1px solid var(--border);color:var(--text-primary);border-radius:var(--radius-sm);padding:7px 12px;font-size:13.5px;font-weight:600;min-height:44px}
+.hbtn:hover{filter:brightness(1.2)}
+.hbtn:disabled{opacity:.4;cursor:not-allowed}
+.tstate{font-family:var(--font-mono);font-size:13px;border-radius:999px;padding:2px 10px;border:1px solid var(--border)}
+.t-running{color:var(--accent-green);border-color:var(--accent-green)}
+.t-paused{color:var(--state-paused);border-color:var(--state-paused)}
+.t-ended{color:var(--state-incorrect);border-color:var(--state-incorrect)}
+.progress{max-width:1040px;margin:0 auto;height:6px;background:var(--bg-surface-2);border-radius:999px;overflow:hidden}
+.progress .fill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--sev-current),var(--accent-blue));transition:width .5s ease;position:relative}
+.progress .fill::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,var(--sheen) 50%,transparent 70%);animation:sheen 2.6s linear infinite}
+@keyframes sheen{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.progress .fill::after{animation:none}.progress .fill{transition:none}*{transition:none !important;animation:none !important}}
+
+/* ---------- exercise blocks ---------- */
+.block{background:var(--bg-surface);border:1px solid var(--border);border-left:4px solid var(--accent-blue);border-radius:var(--radius);padding:14px 18px;margin:14px 0}
+.block.q{border-left-color:var(--accent-amber)}
+.block.a{border-left-color:var(--accent-green)}
+.blockhead{display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.08em;font-size:13.5px;text-transform:uppercase;margin-bottom:8px}
+.blockhead.blue{color:var(--accent-blue)} .blockhead.amber{color:var(--accent-amber)} .blockhead.green{color:var(--accent-green)}
+.blockhead .toggle{margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-secondary);border-radius:var(--radius-sm);font-size:12px;padding:3px 10px}
+.qtext{font-weight:700;font-size:17px;margin:2px 0}
+.stepsline{font-family:var(--font-mono);font-size:12.5px;color:var(--accent-amber);margin-bottom:6px;letter-spacing:.05em}
+
+/* ---------- options ---------- */
+.opt{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:8px 0;font-size:15.5px;color:var(--text-primary);min-height:44px}
+.opt:hover{background:var(--surface-hover)}
+.opt .olabel{font-family:var(--font-mono);font-weight:700;color:var(--text-secondary);flex:0 0 auto}
+.opt.selected{border-left:4px solid var(--accent-green);box-shadow:0 0 0 1px var(--accent-green) inset,0 0 12px var(--ok-glow-soft)}
+.opt.selected .olabel{color:var(--accent-green)}
+.opt.selmark{margin-left:auto;color:var(--accent-green);font-weight:700;font-size:13px}
+.opt:disabled{opacity:.85}
+.opt.correct-reveal{border-left:4px solid var(--state-correct)}
+.opt.wrong-reveal{border-left:4px solid var(--state-incorrect)}
+
+/* ---------- slots / drag & drop ---------- */
+.slotsarea{display:grid;gap:12px}
+.slotzone{background:var(--bg-surface-2);border:1px dashed var(--border);border-radius:var(--radius-sm);padding:10px 12px;min-height:52px}
+.slotzone.over{border-color:var(--accent-green);box-shadow:0 0 0 1px var(--accent-green) inset}
+.slotzone .slotname{font-size:13.5px;font-weight:700;color:var(--accent-blue);margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.slotname .idx{font-family:var(--font-mono);color:var(--text-secondary);font-weight:400}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-chip);border:1px solid var(--border);border-radius:999px;padding:6px 12px;margin:4px 6px 4px 0;font-size:14px;color:var(--text-primary);cursor:grab;min-height:44px}
+.chip:active{cursor:grabbing}
+.chip.pick{border-color:var(--accent-amber);box-shadow:0 0 10px var(--amber-glow)}
+.chip.placed{background:var(--surface-chip-placed);border-color:var(--accent-green)}
+.chip .rm{background:none;border:none;color:var(--text-secondary);font-size:13px;padding:0 2px}
+.chip .rm:hover{color:var(--state-incorrect)}
+.bank{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-top:12px}
+.bank .banklabel{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:4px}
+.fillline{font-size:16px;line-height:2.2}
+.blankbtn{font-family:var(--font-mono);background:var(--bg-surface-2);border:1px dashed var(--border);border-bottom:2px solid var(--accent-amber);color:var(--text-mono);border-radius:4px;padding:3px 12px;min-height:44px;min-width:90px;font-size:14.5px}
+.blankbtn.filled{border-style:solid;border-color:var(--accent-green)}
+.draghelp{font-size:12.5px;color:var(--text-secondary);margin-top:6px}
+
+/* ---------- log viewer ---------- */
+.logtools{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.logtools input{flex:1 1 220px;background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-mono);font-family:var(--font-mono);font-size:14px;padding:8px 10px;min-height:38px}
+.logbox{font-family:var(--font-mono);font-size:13.5px;background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;max-height:300px;overflow:auto;color:var(--text-mono)}
+.logbox .ln{white-space:pre-wrap;word-break:break-word;padding:1px 0}
+.logbox .no{color:var(--text-faint);margin-right:10px;user-select:none}
+
+/* ---------- terminal ---------- */
+.term{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:14.5px}
+.term .scroll{padding:12px;min-height:90px;max-height:240px;overflow:auto;color:var(--text-mono)}
+.term .inline{display:flex;align-items:center;gap:8px;border-top:1px solid var(--border);padding:10px 12px}
+.term .pr{color:var(--accent-green);white-space:nowrap}
+.term input{flex:1;background:transparent;border:none;color:var(--text-mono);font-family:var(--font-mono);font-size:14.5px;min-height:32px}
+.term .sysline{color:var(--text-faint)}
+.term .okline{color:var(--accent-green)}
+.term .errline{color:var(--state-incorrect)}
+.syntaxpanel{background:var(--surface-syntax);border:1px solid var(--border);border-left:3px solid var(--accent-blue);border-radius:var(--radius-sm);padding:10px 14px;margin:10px 0;font-size:14px}
+.syntaxpanel .t{color:var(--accent-blue);font-weight:700;font-size:12.5px;text-transform:uppercase;letter-spacing:.06em}
+
+/* ---------- triage ---------- */
+.alertcard{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin:10px 0}
+.alertcard .atitle{font-weight:700;color:var(--text-primary);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.alertcard .ameta{font-family:var(--font-mono);font-size:12.5px;color:var(--text-secondary);margin:3px 0 6px}
+.actionrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.abtn{border:1px solid var(--border);background:transparent;color:var(--text-secondary);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:600;min-height:44px}
+.abtn.picked{color:var(--accent-amber);border-color:var(--accent-amber);background:var(--amber-dim);box-shadow:0 0 0 1px var(--accent-amber) inset}
+
+/* ---------- hint & feedback ---------- */
+.hintbox{border:1px solid var(--accent-amber);border-left:4px solid var(--accent-amber);background:var(--amber-dim);border-radius:var(--radius-sm);padding:10px 14px;margin:12px 0;color:var(--text-primary)}
+.hintbox .t{color:var(--accent-amber);font-weight:700;font-size:13px;letter-spacing:.05em}
+.feedback{border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin:14px 0;background:var(--bg-surface)}
+.feedback .fhead{font-weight:800;font-size:16px;display:flex;align-items:center;gap:8px;letter-spacing:.03em}
+.feedback.good{border-color:var(--state-correct);box-shadow:0 0 14px var(--ok-glow-soft)}
+.feedback.good .fhead{color:var(--state-correct)}
+.feedback.part{border-color:var(--state-partial);box-shadow:0 0 14px var(--amber-glow-soft)}
+.feedback.part .fhead{color:var(--state-partial)}
+.feedback.bad{border-color:var(--state-incorrect);box-shadow:0 0 14px var(--red-glow-soft)}
+.feedback.bad .fhead{color:var(--state-incorrect)}
+.feedback.bad .fhead.danger{color:var(--state-incorrect)}
+.creditline{font-family:var(--font-mono);font-size:14px;color:var(--text-secondary);margin:4px 0 8px}
+.itemrows{margin:8px 0}
+.itemrow{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin:6px 0;background:var(--bg-surface-2);font-size:14.5px}
+.itemrow .ic{font-weight:800;flex:0 0 auto}
+.itemrow.ok .ic{color:var(--state-correct)} .itemrow.ok{border-left:3px solid var(--state-correct)}
+.itemrow.no .ic{color:var(--state-incorrect)} .itemrow.no{border-left:3px solid var(--state-incorrect)}
+.itemrow.miss .ic{color:var(--state-skipped)} .itemrow.miss{border-left:3px solid var(--state-skipped)}
+.perspline{font-size:14.5px;border-top:1px dashed var(--border);margin-top:10px;padding-top:8px}
+.perspline .pv{font-weight:700}
+.perspline.red .pv{color:var(--accent-blue)} .perspline.blue .pv{color:var(--state-correct)}
+
+/* ---------- review & results ---------- */
+.skipitem{display:flex;align-items:center;gap:10px;background:var(--bg-surface-2);border:1px solid var(--border);border-left:4px solid var(--state-skipped);border-radius:var(--radius-sm);padding:10px 14px;margin:8px 0}
+.skipitem .t{flex:1}
+.skipitem .warn{color:var(--state-skipped);font-weight:700}
+.resultgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0}
+.rescard{background:var(--bg-surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px}
+.rescard .num{font-size:26px;font-weight:800;font-family:var(--font-mono)}
+.rescard .lbl{font-size:13px;color:var(--text-secondary)}
+.rescard.ok{border-left:3px solid var(--state-correct)} .rescard.ok .num{color:var(--state-correct)}
+.rescard.part{border-left:3px solid var(--state-partial)} .rescard.part .num{color:var(--state-partial)}
+.rescard.bad{border-left:3px solid var(--state-incorrect)} .rescard.bad .num{color:var(--state-incorrect)}
+.rescard.skip{border-left:3px solid var(--state-skipped)} .rescard.skip .num{color:var(--state-skipped)}
+.cert{border:2px solid var(--state-correct);border-radius:var(--radius);background:var(--cert-grad);padding:26px 22px;text-align:center;margin:16px 0}
+.cert .big{font-size:30px;font-weight:800;color:var(--state-correct);letter-spacing:.1em}
+.cert .sub{color:var(--text-secondary);margin-top:6px}
+.failcert{border:2px solid var(--state-incorrect);border-radius:var(--radius);background:var(--fail-grad);padding:26px 22px;text-align:center;margin:16px 0}
+.failcert .big{font-size:30px;font-weight:800;color:var(--state-incorrect);letter-spacing:.1em}
+.failcert .sub{color:var(--text-secondary);margin-top:6px}
+.bigscore{font-family:var(--font-mono);font-size:40px;font-weight:800;text-align:center;margin:8px 0}
+.pausecover{position:fixed;inset:0;background:var(--cover-veil);z-index:100;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
+.pausecover .inner{max-width:460px}
+.pausecover .ic{font-size:44px;color:var(--state-paused)}
+.pausecover h2{color:var(--state-paused)}
+.greetline{font-size:13px;color:var(--text-secondary)}
+.navrow{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+.notice{font-size:13.5px;color:var(--accent-amber);border:1px dashed var(--accent-amber);border-radius:var(--radius-sm);padding:8px 12px;margin:10px 0}
+@media (max-width:640px){ body{font-size:15px} .wrap{padding:10px 10px 48px} .card{padding:14px} .examhead .row{gap:8px} }
+
+:root{--sev-current:var(--sev-hard)}
+
+</style>
+</head>
+<body>
+<!-- ============ INTRO SCREEN ============ -->
+<div id="intro" class="wrap">
+  <div class="introhead">
+    <h1>T1578.001 — HARD practice exam</h1>
+    <div class="objline">MITRE ATT&amp;CK Enterprise · Sub-technique <b>T1578.001</b> — Modify Cloud Compute Infrastructure: Create Snapshot · Sub-technique of T1578 · Tactic: Defense Impairment · Platform: IaaS</div>
+    <div class="factrow">
+      <div class="fact"><span class="lbl">Severity</span><span class="badge b-hard" id="intro-sev"><span aria-hidden="true">&#9679;</span> HARD</span></div>
+      <div class="fact"><span class="lbl">Exercises</span><b>16</b></div>
+      <div class="fact"><span class="lbl">Estimated time</span><b>about 40 minutes</b></div>
+      <div class="fact"><span class="lbl">Timer budget</span><b class="mono">40:00</b> countdown</div>
+      <div class="fact"><span class="lbl">Pass mark</span><b>70%</b></div>
+    </div>
+    <p class="greetline" id="greet"></p>
+  </div>
+
+  <div class="card">
+    <h2><span aria-hidden="true">&#127891;</span> What you will learn here</h2>
+    
+<p>This is the <b>HARD</b> tier for <b>T1578.001 — Create Snapshot</b> (sub-technique of <b>T1578 Modify Cloud Compute Infrastructure</b>, tactic <b>Defense Impairment</b>, platform <b>IaaS</b>). You already know the definition: an adversary creates a <b>point-in-time copy</b> of a VM disk, virtual hard drive or volume to <b>evade defenses</b> and bypass restrictions that block access to running compute infrastructure.</p>
+<p>At this level the exercises stop being definitions and start being work. Scenarios give you <b>several artefacts at once</b> — CloudTrail extracts, IAM policy diffs, change-calendar entries, chat messages — and expect you to correlate them the way analytic <b>AN1187</b> does: correlate snapshot creation with instance creation and mounting, then separate benign automation from adversary exploitation using <b>user behavior, IP geolocation and automation context</b>. Expect near-miss answers: at least two options will look technically defensible, and only one survives the specific facts you were given.</p>
+<p>Real-world procedure examples are now in scope. The ATT&amp;CK page names <b>Pacu (S1091)</b>, the open-source AWS exploitation framework from Rhino Security Labs, which can create snapshots of <b>EBS volumes and RDS instances</b> — you will meet its modules in evidence. You will also decide containment <b>order</b>, pick the <b>least aggressive</b> action that stops the harm, and occasionally conclude that the scary-looking event is actually the scheduled backup job.</p>
+<p>This tier mirrors the daily judgement calls of a <b>senior SOC analyst</b>, a <b>cloud-focused incident responder</b> and a <b>detection engineer</b> tuning DET0423 — plus the red-team side: why an operator shares a snapshot out of the account instead of mounting it locally, and what that trade-off leaves in the logs. The two mitigations, <b>M1047 Audit</b> and <b>M1018 User Account Management</b>, appear as live decisions, not vocabulary.</p>
+
+  </div>
+
+  <div class="card">
+    <h2><span aria-hidden="true">&#128273;</span> Keywords covered in this exam</h2>
+    <p class="muted small">Every exercise below is built from these concepts. They come directly from the ATT&amp;CK page for T1578.001 and its linked objects.</p>
+    <div class="kwgrid">
+      <div class="subcard"><h3 style="color:var(--accent-blue)">Correlation and detection (DET0423 / AN1187)</h3><ul style="margin:4px 0"><li>Snapshot creation correlated with instance creation and mounting</li><li>Red flags: new/unexpected IAM users, sensitive volumes without change control, unauthorized mounts</li><li>Cross-references: user behavior, IP geolocation, automation context</li><li>Benign look-alikes: scheduled DLM jobs, CI pipelines, approved change windows</li></ul></div>
+<div class="subcard"><h3 style="color:var(--accent-blue)">Real-world tooling (S1091 Pacu)</h3><ul style="margin:4px 0"><li>Pacu can create snapshots of EBS volumes and RDS instances</li><li>Pacu modules: enumeration, EBS snapshot duplication/exfiltration, RDS snapshot abuse, IAM permission discovery</li><li>User-agent evidence in CloudTrail events</li></ul></div>
+<div class="subcard"><h3 style="color:var(--accent-blue)">Attacker economics and trade-offs</h3><ul style="margin:4px 0"><li>Sharing a snapshot to an external account vs mounting a volume in-place</li><li>What a snapshot contains — and what it never contains</li><li>Chain mapping onto T1578.001 / T1578.002 / T1578.005</li></ul></div>
+<div class="subcard"><h3 style="color:var(--accent-blue)">Evidence and containment</h3><ul style="margin:4px 0"><li>Preserve-then-contain: least aggressive action that stops the harm</li><li>Containment order: stop the leak, stop the actor, keep the evidence, clean up, report</li><li>Monitoring priorities across volume classes</li></ul></div>
+<div class="subcard"><h3 style="color:var(--accent-blue)">Controls (M1047 / M1018)</h3><ul style="margin:4px 0"><li>M1047 Audit — routine entitlement checks on snapshot capability</li><li>M1018 User Account Management — least privilege, few admin roles, periodic reviews</li></ul></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span aria-hidden="true">&#128221;</span> How this exam works</h2>
+    
+<ul>
+<li><b>Pass mark:</b> 70%. The exercises here reward justification, not recall — most wrong options are defensible somewhere else.</li>
+<li><b>Exercise types in this file:</b> artifact-correlation logs with partial credit, near-miss multiple choice, multi-select, drag &amp; drop (sorting, matching, ordering, ranking, fill-in-the-blank), two decision-tree incidents (one dual blue/red perspective), a filterable log viewer, and <b>two</b> terminal tasks (one read-only enumeration, one surgical remediation — they are separated in the file).</li>
+<li><b>Timer:</b> a 40:00 countdown runs in the header. <b>Pause</b> hides the exercise and stops the timer.</li>
+<li><b>Check buys unlimited feedback time:</b> pressing <b>Check</b> stops the timer automatically ("PAUSED — reviewing feedback"). It resumes only on <b>Next</b> (or Final Submit on the last exercise).</li>
+<li><b>Partial credit:</b> multi-item exercises score <b>(H − W) / N</b>; the feedback lists every item as correct, wrong or missed.</li>
+<li><b>Hints:</b> one per exercise, −10% of that exercise's credit; they remove one wrong path, they never name the answer. <b>Skip:</b> moves the exercise to a review pool; skipped-and-never-answered exercises are excluded from the score.</li>
+</ul>
+
+    <div class="btnrow">
+      <button id="btn-start" class="btn primary"><span aria-hidden="true">&#9654;</span> Start the exam</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ EXAM SCREEN ============ -->
+<div id="exam" class="hidden">
+  <header class="examhead">
+    <div class="row">
+      <span class="hitem" id="h-count"></span>
+      <span class="badge" id="h-sev"></span>
+      <span class="hitem" id="h-timer"></span>
+      <span class="tstate" id="h-tstate"></span>
+      <span class="hitem" id="h-score"></span>
+      <span style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <button id="btn-hint" class="hbtn" title="Show a hint (costs 10% of this exercise's credit)"><span aria-hidden="true">&#128161;</span> Hint</button>
+        <button id="btn-pause" class="hbtn" title="Manual pause — hides the exercise and stops the timer"><span aria-hidden="true">&#10074;&#10074;</span> Pause</button>
+        <button id="btn-skip" class="hbtn" title="Move this exercise to the skipped pool"><span aria-hidden="true">&#9888;</span> Skip</button>
+      </span>
+    </div>
+    <div class="progress"><div class="fill" id="pbar"></div></div>
+  </header>
+
+  <div class="wrap" style="max-width:920px">
+    <div id="perwarn" class="notice hidden"></div>
+
+    <div class="block">
+      <div class="blockhead blue"><span aria-hidden="true">&#128203;</span> Scenario
+        <button class="toggle" id="scen-toggle">&#94; Collapse</button>
+      </div>
+      <div id="scen-sum" class="muted small" style="margin-bottom:6px"></div>
+      <div id="scen-body"></div>
+    </div>
+
+    <div class="block q">
+      <div class="blockhead amber"><span aria-hidden="true">&#10067;</span> Question</div>
+      <p id="ex-step" class="stepsline"></p>
+      <p id="ex-q" class="qtext"></p>
+    </div>
+
+    <div class="block a">
+      <div class="blockhead green"><span aria-hidden="true">&#9997;</span> Your answer</div>
+      <div id="ex-ans"></div>
+    </div>
+
+    <div id="hintbox" class="hintbox hidden"></div>
+    <div id="fb" class="feedback hidden"></div>
+
+    <div class="navrow">
+      <button id="btn-check" class="btn primary"><span aria-hidden="true">&#10003;</span> Check</button>
+      <button id="btn-next" class="btn primary hidden">Next &#8594;</button>
+      <button id="btn-finish" class="btn primary hidden"><span aria-hidden="true">&#9632;</span> Final Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ REVIEW SKIPPED SCREEN ============ -->
+<div id="review" class="wrap hidden">
+  <div class="card">
+    <h2><span aria-hidden="true">&#9888;</span> Review skipped exercises</h2>
+    <p>You skipped the exercises below. You can return to any of them and answer it — as many times as you need — as long as the timer has not ended. The timer keeps running while this screen is open.</p>
+    <p class="muted small">If you submit now, every exercise that is still skipped and unanswered is <b>excluded from your score</b>: it does not count as correct, wrong, or part of the total.</p>
+    <div id="rev-list"></div>
+    <div class="btnrow">
+      <button id="btn-review-submit" class="btn primary"><span aria-hidden="true">&#10003;</span> Submit exam and see results</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ RESULTS SCREEN ============ -->
+<div id="results" class="wrap hidden">
+  <div id="res-panel" class="cert"></div>
+  <div class="card">
+    <h2><span aria-hidden="true">&#9733;</span> Your score</h2>
+    <div class="bigscore" id="res-score"></div>
+    <div id="res-grid" class="resultgrid"></div>
+  </div>
+  <div class="card">
+    <h2><span aria-hidden="true">&#9201;</span> Time and attempt details</h2>
+    <div id="res-pause" class="resultgrid"></div>
+    <div class="btnrow">
+      <button id="btn-retake" class="btn warn"><span aria-hidden="true">&#8635;</span> Retake Exam</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MANUAL PAUSE COVER ============ -->
+<div id="pausecover" class="pausecover hidden">
+  <div class="inner">
+    <div class="ic" aria-hidden="true">&#10074;&#10074;</div>
+    <h2>&#10074;&#10074; PAUSED — manual</h2>
+    <p id="pc-txt"></p>
+    <button id="btn-resume" class="btn primary"><span aria-hidden="true">&#9654;</span> Resume</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ===== shared exam engine — T1578.001 CyberPulseAcademy batches ===== */
+var META = JSON.parse(document.getElementById('cm-exercise-meta').textContent);
+try { var CFGX = JSON.parse(document.getElementById('exam-config').textContent);
+  Object.keys(CFGX).forEach(function(k){ META[k]=CFGX[k]; }); } catch(e) {}
+var EXS = JSON.parse(document.getElementById('exam-data').textContent);
+/* JSON cannot hold RegExp literals — compile pattern strings once at load */
+EXS.forEach(function(ex){
+  ['toolTest','destructive','dangerous'].forEach(function(k){
+    if (typeof ex[k] === 'string') ex[k] = new RegExp(ex[k]);
+  });
+  if (ex.elements) ex.elements.forEach(function(e){ if (typeof e.re === 'string') e.re = new RegExp(e.re); });
+});
+var SEVCLASS = {easy:'b-easy', medium:'b-medium', hard:'b-hard', 'extremely-hard':'b-extreme'};
+var SEVWORD = {easy:'EASY', medium:'MEDIUM', hard:'HARD', 'extremely-hard':'EXTREMELY HARD'};
+
+var S = {
+  view: 'intro',
+  order: [],            // exercise indices in play order
+  pos: 0,               // position within order
+  credit: {},           // origIndex -> credit value
+  answered: {},         // origIndex -> true once Check pressed
+  skipped: {},          // origIndex -> true while in skipped pool
+  wasSkipped: {},       // origIndex -> true if ever skipped (for feedback note)
+  hintUsed: {},         // origIndex -> bool
+  st: {},               // origIndex -> per-exercise runtime state
+  timer: { state:'RUNNING', remain: 0, perRemain: 0, perTotal: 0, perOn: false,
+           manualMs: 0, autoMs: 0, segStart: 0 },
+  scoreSum: 0, answeredCount: 0,
+  reported: false,
+  reviewing: false,
+  init: null,
+  completed: false
+};
+
+/* ---------- helpers ---------- */
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, html){ var e=document.createElement(tag); if(cls) e.className=cls; if(html!==undefined) e.innerHTML=html; return e; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function shuffle(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function fmt(s){ s=Math.max(0,Math.round(s)); var m=Math.floor(s/60), r=s%60; return (m<10?'0':'')+m+':'+(r<10?'0':'')+r; }
+function fmtMs(ms){ return fmt(ms/1000); }
+
+/* minimal monospace syntax highlighter for logs / code (dark palette) */
+function hl(raw){
+  var t = esc(raw);
+  t = t.replace(/("[^"\\]*?")(\s*:)/g, '<span class="k">$1</span>$2');   /* json keys */
+  t = t.replace(/:\s*("[^"\\]*?")/g, ': <span class="s">$1</span>');          /* string values */
+  t = t.replace(/\b(CreateSnapshot|CreateVolume|AttachVolume|RunInstances|TerminateInstances|ModifySnapshotAttribute|CreateDBSnapshot|create-snapshot|create-volume|describe-snapshots|modify-snapshot-attribute|describeDBSnapshots|CreateDBInstance|DeleteSnapshot|ModifyDBSnapshotAttribute|lookup-events|PutRolePolicy|AttachUserPolicy|CreateUser|CreateAccessKey|GetUser)\b/g,'<span class="n">$1</span>');
+  t = t.replace(/\b(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\b/g,'<span class="c">$1</span>');
+  t = t.replace(/\b\d{1,3}\[\.\]\d{1,3}\[\.\]\d{1,3}\[\.\]\d{1,3}\b/g,'<span class="p">$&</span>');
+  t = t.replace(/\b(true|false|null)\b/g,'<span class="b">$1</span>');
+  t = t.replace(/(--[a-zA-Z-]+)/g,'<span class="k">$1</span>');
+  return t;
+}
+function artifactsHTML(sc){
+  var out='';
+  if (typeof sc === 'string'){ out = '<p>'+sc+'</p>'; }
+  else {
+    sc.forEach(function(a){
+      out += '<div class="subcard"><span class="artlabel">'+esc(a.label)+'</span>'+
+             (a.mono ? '<pre class="code">'+hl(a.text)+'</pre>' : '<div>'+a.text+'</div>')+'</div>';
+    });
+  }
+  return out;
+}
+
+/* ---------- scoring core: max(0,(H-W)/N) ---------- */
+function scoreSel(sel, corr){
+  var N=corr.length, H=0, W=0;
+  corr.forEach(function(i){ if(sel.indexOf(i)>=0) H++; });
+  sel.forEach(function(i){ if(corr.indexOf(i)<0) W++; });
+  return Math.max(0,(H-W)/N);
+}
+
+/* ---------- timer state machine ----------
+   RUNNING | PAUSED_MANUAL | PAUSED_AUTO_CHECK | ENDED
+   Pause accounting: a time segment opens when the timer ENTERS a pause state
+   and is booked when it LEAVES it, so the results screen reports the real
+   time spent in each pause state (running time is never booked as pause). */
+function bookPause(){
+  var t=S.timer;
+  if (t.segStart){
+    var d=Date.now()-t.segStart;
+    if (t.state==='PAUSED_MANUAL') t.manualMs+=d;
+    else if (t.state==='PAUSED_AUTO_CHECK') t.autoMs+=d;
+    t.segStart=0;
+  }
+}
+function toRunning(){
+  var t=S.timer;
+  if (t.state!=='RUNNING'){ bookPause(); t.state='RUNNING'; renderHeader(); }
+}
+function toManualPause(){
+  var t=S.timer;
+  if (t.state==='PAUSED_MANUAL' || t.state==='ENDED') return;
+  bookPause();                                   /* closes an open auto-check segment */
+  t.resumeTo = t.state;                          /* PAUSED_AUTO_CHECK or RUNNING */
+  t.state='PAUSED_MANUAL';
+  t.segStart=Date.now();                         /* open the manual-pause segment */
+  renderHeader(); showPauseCover('manual');
+}
+function toAutoCheck(){
+  var t=S.timer;
+  if (t.state!=='RUNNING') return;
+  t.state='PAUSED_AUTO_CHECK';
+  t.segStart=Date.now();                         /* open the auto-check segment */
+  renderHeader();
+}
+function resumeFromManual(){
+  var t=S.timer;
+  if (t.state!=='PAUSED_MANUAL') return;
+  $('pausecover').classList.add('hidden');
+  bookPause();                                   /* book the manual-pause duration */
+  if (t.resumeTo==='PAUSED_AUTO_CHECK'){ t.state='PAUSED_AUTO_CHECK'; t.segStart=Date.now(); }
+  else { t.state='RUNNING'; }
+  renderHeader();
+}
+function toEnded(){
+  var t=S.timer;
+  bookPause();                                   /* close any open pause segment */
+  t.state='ENDED'; renderHeader();
+}
+
+function tick(){
+  var t=S.timer;
+  if (t.state==='RUNNING'){
+    t.remain -= 1;
+    if (t.perOn && t.state==='RUNNING'){ t.perRemain -= 1; if (t.perRemain<=0){ perExpire(); } }
+    if (t.remain<=0){ t.remain=0; finishByTimeout(); }
+  }
+  renderHeader();
+}
+function startTimers(){
+  S.timer.remain = META.timerSeconds;
+  if (S.timer.perOn){ S.timer.perRemain = S.timer.perTotal; }
+  if (!S._int){ S._int = setInterval(tick, 1000); }
+}
+
+/* ---------- header ---------- */
+function renderHeader(){
+  var t=S.timer;
+  var idxEl=$('h-count'), sevEl=$('h-sev'), timEl=$('h-timer'), scEl=$('h-score'), stEl=$('h-tstate');
+  if (idxEl) idxEl.innerHTML = 'Exercise <b>'+(Math.min(S.pos+1,S.order.length))+'</b> of <b>'+S.order.length+'</b>';
+  if (sevEl){ sevEl.className='badge '+SEVCLASS[META.difficulty]; sevEl.setAttribute('aria-label','Severity '+SEVWORD[META.difficulty]);
+    sevEl.innerHTML = '<span aria-hidden="true">&#9679;</span> '+SEVWORD[META.difficulty]+(META.partLabel?' <span class="small">('+esc(META.partLabel)+')</span>':''); }
+  if (timEl) timEl.innerHTML = '<span aria-hidden="true">&#9201;</span> <b>'+fmt(t.remain)+'</b>'+(t.perOn ? ' <span class="small" style="color:var(--accent-amber)">| task '+fmt(t.perRemain)+'</span>' : '');
+  var pct = S.answeredCount>0 ? Math.round((S.scoreSum/S.answeredCount)*100) : 0;
+  if (scEl) scEl.innerHTML = '<span aria-hidden="true">&#9733;</span> <b>'+(Math.round(S.scoreSum*10)/10).toFixed(1)+'</b> / '+S.answeredCount+' <span class="small">('+pct+'%)</span>';
+  if (stEl){
+    var map = { RUNNING:['&#9654;','RUNNING','t-running'], PAUSED_MANUAL:['&#10074;&#10074;','PAUSED — manual (press Resume)','t-paused'],
+                PAUSED_AUTO_CHECK:['&#10074;&#10074;','PAUSED — reviewing feedback (resumes on Next)','t-paused'], ENDED:['&#9632;','ENDED','t-ended'] };
+    var m = map[t.state] || map.RUNNING;
+    stEl.className='tstate '+m[2]; stEl.innerHTML='<span aria-hidden="true">'+m[0]+'</span> '+m[1];
+    stEl.setAttribute('aria-label','Timer '+m[1]);
+  }
+  var done=0; S.order.forEach(function(ix){ if(S.answered[ix]||S.skipped[ix]) done++; });
+  var f=$('pbar'); if (f) f.style.width = (S.order.length? Math.round(done/S.order.length*100):0)+'%';
+}
+
+/* ---------- greeting / handshake ---------- */
+window.addEventListener('message', function(event){
+  if (!event.data || typeof event.data !== 'object') return;
+  if (event.data.type !== 'CYBERPULSE_INIT' && event.data.type !== 'CYBERMASTERY_INIT') return;
+  S.init = event.data;
+  var g=$('greet');
+  if (g){
+    var name = (event.data.username && String(event.data.username).trim()) ? String(event.data.username).trim() : '';
+    g.textContent = name ? ('Signed in as '+name+(event.data.country&&event.data.country!=='ZZ' ? ' ('+event.data.country+')' : '')) : '';
+  }
+  /* theme is always 'dark' — the exam is dark-only by contract; no visual change is applied. */
+});
+function reportScore(){
+  if (S.reported) return; S.reported=true;
+  var percent = S.answeredCount>0 ? Math.round((S.scoreSum/S.answeredCount)*100) : 0;
+  try {
+    parent.postMessage({
+      type:'CYBERPULSE_SCORE', topicId: META.topicId, batch: META.batch,
+      score: Math.round(S.scoreSum), total: S.answeredCount,
+      percent: percent, passed: percent >= META.passMark
+    }, location.origin);
+  } catch(e) { /* opened directly — nothing to report to */ }
+}
+
+/* ---------- intro flow ---------- */
+function startExam(){
+  /* shuffle exercise order, keep terminal exercises non-adjacent */
+  var ord = shuffle(S.order);
+  function fixAdj(o){
+    for (var i=1;i<o.length;i++){
+      if (EXS[o[i]].type==='terminal' && EXS[o[i-1]].type==='terminal'){
+        for (var j=0;j<o.length;j++){
+          if (j!==i && j!==i-1 && EXS[o[j]].type!=='terminal'){
+            var t=o[i]; o[i]=o[j]; o[j]=t; break;
+          }
+        }
+      }
+    }
+    return o;
+  }
+  S.order = fixAdj(ord);
+  S.pos=0; S.scoreSum=0; S.answeredCount=0; S.reported=false; S.reviewing=false;
+  S.credit={}; S.answered={}; S.skipped={}; S.wasSkipped={}; S.hintUsed={}; S.st={};
+  S.timer={ state:'RUNNING', remain: META.timerSeconds, perRemain:0, perTotal:0, perOn:false,
+            manualMs:0, autoMs:0, segStart:0, resumeTo:null };
+  S.completed=false;
+  $('intro').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('exam').classList.remove('hidden');
+  $('pausecover').classList.add('hidden');
+  renderExercise();
+  startTimers();
+  renderHeader();
+}
+/* ---------- exercise rendering ---------- */
+function curEx(){ return EXS[S.order[S.pos]]; }
+function curIx(){ return S.order[S.pos]; }
+
+function renderExercise(){
+  var ex=curEx(), ix=curIx();
+  var st=S.st[ix];
+  if (!st){ st = S.st[ix] = initExState(ex); }
+  /* scenario */
+  $('scen-body').innerHTML = artifactsHTML(ex.scenario);
+  $('scen-sum').textContent = ex.summary || 'Scenario';
+  $('scen-body').classList.remove('hidden');
+  $('scen-toggle').textContent = '⌃ Collapse';
+  /* question */
+  $('ex-q').textContent = ex.question;
+  $('ex-step').textContent = (ex.type==='branch') ? ('STEP '+(st.step+1)+' OF '+ex.steps.length) : '';
+  /* answer widget */
+  var host=$('ex-ans'); host.innerHTML='';
+  buildWidget[ex.type](ex, st, host);
+  /* buttons */
+  $('btn-check').disabled = false;
+  $('btn-check').classList.remove('hidden');
+  $('btn-next').classList.add('hidden');
+  $('btn-finish').classList.add('hidden');
+  $('btn-hint').disabled = !!S.hintUsed[ix];
+  $('btn-skip').disabled = false;
+  $('fb').classList.add('hidden');
+  $('hintbox').classList.add('hidden');
+  $('perwarn').classList.add('hidden');
+  if (ex.perExerciseTimer){
+    S.timer.perOn=true; S.timer.perTotal=ex.perExerciseTimer; S.timer.perRemain=ex.perExerciseTimer;
+    $('perwarn').innerHTML='<span aria-hidden="true">&#8987;</span> This task has a reduced per-exercise timer of '+fmt(ex.perExerciseTimer)+'. The main exam timer is also running. Both stop while you review feedback.';
+    $('perwarn').classList.remove('hidden');
+  } else { S.timer.perOn=false; }
+  if (S.wasSkipped[ix]) { /* resumed from skip pool — fine */ }
+  renderHeader();
+  window.scrollTo(0,0);
+}
+function initExState(ex){
+  var st={};
+  if (ex.type==='mcq' || ex.type==='multi' || (ex.type==='logq')){
+    st.opts = shuffle(ex.options.map(function(o,i){ return {t:o, i:i}; }));
+    st.sel = [];
+  } else if (ex.type==='slots'){
+    st.items = shuffle(ex.items.map(function(o,i){ return {t:o, i:i}; }));
+    st.place = ex.items.map(function(){ return -1; });   /* item -> bin */
+    st.pick = -1;
+  } else if (ex.type==='terminal'){
+    st.lines = [];
+  } else if (ex.type==='branch'){
+    st.step = 0; st.choices = [];
+    /* shuffle each step's options for display; grading maps back to original indexes */
+    st.stepOpts = ex.steps.map(function(sp){
+      return shuffle(sp.options.map(function(o,i){ return {t:o, i:i}; }));
+    });
+  } else if (ex.type==='triage'){
+    st.alerts = ex.alerts; st.sel = ex.alerts.map(function(){ return null; });
+  }
+  return st;
+}
+
+/* ---------- hint ---------- */
+function useHint(){
+  var ix=curIx();
+  if (S.hintUsed[ix]) return;
+  S.hintUsed[ix]=true;
+  var h=$('hintbox');
+  h.innerHTML='<div class="t"><span aria-hidden="true">&#128161;</span> HINT — using it costs 10% of this exercise\'s credit</div><p>'+curEx().hint+'</p>';
+  h.classList.remove('hidden');
+  $('btn-hint').disabled=true;
+}
+
+/* ---------- pause cover ---------- */
+function showPauseCover(kind){
+  var c=$('pausecover');
+  $('pc-txt').textContent = kind==='manual'
+    ? 'You pressed Pause. The exercise is hidden and the timer is stopped. Press Resume when you are ready to continue.'
+    : 'Paused.';
+  c.classList.remove('hidden');
+}
+
+/* ---------- grading ---------- */
+function gradeCurrent(){
+  var ex=curEx(), ix=curIx(), st=S.st[ix];
+  if (S.answered[ix]) return;
+  /* Check's first action: enter the Check-triggered auto-pause BEFORE any feedback is rendered */
+  toAutoCheck();
+  var res = builders_check[ex.type](ex, st);   /* {credit, rows:[{ic,cls,txt}], correctText} */
+  var credit = res.credit;
+  if (S.hintUsed[ix]) credit = Math.max(0, credit - 0.10);
+  credit = Math.max(0, Math.min(1, credit));
+  S.credit[ix]=credit; S.answered[ix]=true; S.scoreSum+=credit; S.answeredCount++;
+  /* lock widget */
+  lockWidget[ex.type](ex, st, $('ex-ans'));
+  $('btn-check').disabled=true;
+  $('btn-hint').disabled=true;
+  $('btn-skip').disabled=true;
+  /* feedback */
+  var fb=$('fb'), head, cls;
+  var pct=Math.round(credit*100);
+  if (credit>=0.999){ cls='good'; head='<span aria-hidden="true">&#10003;</span> CORRECT'; }
+  else if (credit>0){ cls='part'; head='<span aria-hidden="true">&#10003;</span> PARTIALLY CORRECT'; }
+  else { cls='bad'; head='<span aria-hidden="true">&#10007;</span> INCORRECT'; }
+  fb.className='feedback '+cls;
+  var N=res.N, H=res.H, W=res.W;
+  var creditline = (N>1 || ex.type==='terminal')
+    ? '<div class="creditline">credit '+credit.toFixed(2)+' — '+(H>0?H:0)+'/'+N+' items'+(W>0?' · '+W+' wrong item'+(W>1?'s':''):'')+(S.hintUsed[ix]?' · includes −0.10 hint penalty':'')+'</div>'
+    : (S.hintUsed[ix] ? '<div class="creditline">includes −0.10 hint penalty</div>' : '');
+  var rows = res.rows.map(function(r){ return '<div class="itemrow '+r.cls+'"><span class="ic" aria-hidden="true">'+r.ic+'</span><span><b>'+r.w+'</b> '+r.txt+'</span></div>'; }).join('');
+  var persp='';
+  if (ex.attackerView || ex.defenderView){
+    persp = '<div class="perspline red"><span class="pv">Attacker view:</span> '+ex.attackerView+'</div>'+
+            '<div class="perspline blue"><span class="pv">Defender view:</span> '+ex.defenderView+'</div>';
+  }
+  fb.innerHTML='<div class="fhead" aria-label="'+(credit>=0.999?'Correct':(credit>0?'Partially correct':'Incorrect'))+'">'+head+'</div>'+creditline+
+    (rows?'<div class="itemrows">'+rows+'</div>':'')+
+    '<p><b>Correct answer:</b> '+res.correctText+'</p>'+
+    '<p>'+res.explain+'</p>'+persp+
+    '<p class="muted small"><span aria-hidden="true">&#128218;</span> What to study: '+ex.study+'</p>';
+  fb.classList.remove('hidden');
+  /* swap buttons */
+  $('btn-check').classList.add('hidden');
+  if (S.pos < S.order.length-1){ $('btn-next').classList.remove('hidden'); $('btn-next').focus(); }
+  else { $('btn-finish').classList.remove('hidden'); $('btn-finish').focus(); }
+  renderHeader();
+}
+
+function nextExercise(){
+  S.timer.perOn=false;
+  /* review mode: Next returns to the review-skipped screen; the timer resumes there */
+  if (S.reviewing){ S.reviewing=false; showReview(); return; }
+  var wasAuto = (S.timer.state==='PAUSED_AUTO_CHECK');
+  if (S.pos < S.order.length-1){ S.pos++; renderExercise(); if (wasAuto){ toRunning(); } }
+}
+function finishExam(){
+  S.timer.perOn=false;
+  /* remaining unanswered become skipped-excluded */
+  S.order.forEach(function(ix){ if(!S.answered[ix]) S.skipped[ix]=true; });
+  var anySkipped = S.order.some(function(ix){ return S.skipped[ix] && !S.answered[ix]; });
+  if (anySkipped && !S.completed){ showReview(); return; }
+  showResults();
+}
+function skipCurrent(){
+  var ix=curIx();
+  if (S.answered[ix]) return;
+  S.skipped[ix]=true; S.wasSkipped[ix]=true;
+  S.timer.perOn=false;
+  /* review mode: skipping again just returns to the review pool */
+  if (S.reviewing){ showReview(); return; }
+  var nxt=-1;
+  for (var i=0;i<S.order.length;i++){ var o=S.order[i]; if(!S.answered[o] && !S.skipped[o]){ nxt=i; break; } }
+  if (nxt>=0){ S.pos=nxt; renderExercise(); }
+  else { showReview(); }
+}
+
+/* ---------- review skipped screen ---------- */
+function showReview(){
+  var list=$('rev-list'); list.innerHTML='';
+  var any=false;
+  S.order.forEach(function(ix,i){
+    if (S.skipped[ix] && !S.answered[ix]){
+      any=true;
+      var it=el('div','skipitem');
+      it.innerHTML='<span class="warn" aria-hidden="true">&#9888;</span><span class="warn">Skipped</span><span class="t">'+esc(shortTitle(EXS[ix]))+'</span>';
+      var b=el('button','btn warn','Return to it');
+      b.addEventListener('click', function(){
+        if (S.timer.state==='ENDED' || S.timer.remain<=0){ return; }
+        S.pos=i; S.reviewing=true; S.view='exam';
+        $('review').classList.add('hidden'); $('exam').classList.remove('hidden');
+        renderExercise();
+      });
+      it.appendChild(b); list.appendChild(it);
+    }
+  });
+  if (!any) list.innerHTML='<p class="muted">No skipped exercises remain. Everything was answered.</p>';
+  $('exam').classList.add('hidden');
+  $('review').classList.remove('hidden');
+  S.view='review'; S.reviewing=false;
+  toRunning();   /* the review screen never stops the timer (resumes any open auto-check pause) */
+  renderHeader();
+}
+function shortTitle(ex){
+  var t = (typeof ex.scenario==='string') ? ex.scenario.slice(0,70) : (ex.scenario && ex.scenario[0] ? (ex.scenario[0].label||'Scenario') : 'Scenario');
+  return (ex.qshort || t.replace(/<[^>]+>/g,''));
+}
+function submitFromReview(){
+  showResults();
+}
+
+/* ---------- results ---------- */
+function showResults(){
+  S.completed=true;
+  S.reviewing=false;
+  toEnded();
+  var fully=0, partial=0, zero=0, skippedN=0;
+  S.order.forEach(function(ix){
+    if (S.answered[ix]){ var c=S.credit[ix]; if (c>=0.999) fully++; else if (c>0) partial++; else zero++; }
+    else skippedN++;
+  });
+  var avg=partial>0 ? (S.order.reduce(function(a,ix){ return a + ((S.answered[ix] && S.credit[ix]>0 && S.credit[ix]<0.999)?S.credit[ix]:0); },0)/partial) : 0;
+  var sumR = Math.round(S.scoreSum*10)/10;
+  var percent = S.answeredCount>0 ? Math.round((S.scoreSum/S.answeredCount)*100) : 0;
+  var passed = percent >= META.passMark;
+  $('res-score').textContent = sumR.toFixed(1)+' / '+S.answeredCount+'  ('+percent+'%)';
+  $('res-grid').innerHTML =
+    '<div class="rescard ok"><div class="num">'+fully+'</div><div class="lbl">&#10003; Fully correct</div></div>'+
+    '<div class="rescard part"><div class="num">'+partial+'</div><div class="lbl">&#10003; Partially correct'+(partial>0?' — avg '+avg.toFixed(2):'')+'</div></div>'+
+    '<div class="rescard bad"><div class="num">'+zero+'</div><div class="lbl">&#10007; Fully incorrect</div></div>'+
+    '<div class="rescard skip"><div class="num">'+skippedN+'</div><div class="lbl">&#9888; Skipped — excluded</div></div>';
+  $('res-pause').innerHTML = '<div class="rescard"><div class="num">'+fmtMs(S.timer.manualMs)+'</div><div class="lbl">&#9203; Time paused manually</div></div>'+
+                             '<div class="rescard"><div class="num">'+fmtMs(S.timer.autoMs)+'</div><div class="lbl">&#128260; Time reviewing feedback</div></div>'+
+                             '<div class="rescard"><div class="num">'+SEVWORD[META.difficulty]+'</div><div class="lbl">'+esc(META.title)+'</div></div>';
+  var panel=$('res-panel');
+  if (passed){
+    panel.className='cert';
+    panel.innerHTML='<div class="big" aria-label="PASS">&#10003; PASS</div><div class="sub">You reached '+percent+'%, above the '+META.passMark+'% pass mark. Well done — you can now explain T1578.001 at this level with confidence.</div>';
+  } else {
+    panel.className='failcert';
+    panel.innerHTML='<div class="big" aria-label="FAIL">&#10007; FAIL</div><div class="sub">You reached '+percent+'%, below the '+META.passMark+'% pass mark. Review the explanations, then retake the exam. Questions and answers will be shuffled again.</div>';
+  }
+  $('exam').classList.add('hidden');
+  $('review').classList.add('hidden');
+  $('results').classList.remove('hidden');
+  S.view='results';
+  renderHeader();
+  window.scrollTo(0,0);
+  reportScore();
+}
+function retake(){
+  $('results').classList.add('hidden');
+  startExam();
+}
+
+/* ================================================================
+   WIDGET BUILDERS
+   ================================================================ */
+var buildWidget = {};
+var builders_check = {};
+var lockWidget = {};
+
+function optionLetters(n){ return 'ABCDEFGHIJ'.slice(0,n).split(''); }
+
+/* ---------- mcq ---------- */
+buildWidget.mcq = function(ex, st, host){
+  var L=optionLetters(st.opts.length);
+  st.opts.forEach(function(o,i){
+    var b=el('button','opt');
+    b.type='button';
+    b.innerHTML='<span class="olabel">'+L[i]+'.</span><span>'+o.t+'</span><span class="selmark hidden">&#9679; Selected</span>';
+    b.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      st.sel=[o.i];
+      Array.prototype.forEach.call(host.querySelectorAll('.opt'),function(x){ x.classList.remove('selected'); x.querySelector('.selmark').classList.add('hidden'); });
+      b.classList.add('selected'); b.querySelector('.selmark').classList.remove('hidden');
+    });
+    host.appendChild(b);
+  });
+};
+builders_check.mcq = function(ex, st){
+  var corr=ex.correct, sel=st.sel;
+  var credit=scoreSel(sel, corr);
+  var rows=[];
+  ex.options.forEach(function(o,i){
+    var ok=corr.indexOf(i)>=0, picked=sel.indexOf(i)>=0;
+    if (ok && picked) rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:o});
+    else if (ok && !picked) rows.push({ic:'&#9675;',cls:'miss',w:'Missed',txt:o});
+    else if (!ok && picked) rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:o});
+  });
+  return {credit:credit, rows:rows, N:corr.length, H:corr.filter(function(i){return sel.indexOf(i)>=0;}).length, W:sel.filter(function(i){return corr.indexOf(i)<0;}).length,
+          correctText:esc(ex.options[corr[0]]), explain:ex.explain};
+};
+lockWidget.mcq = function(ex, st, host){
+  Array.prototype.forEach.call(host.querySelectorAll('.opt'),function(b,i){
+    b.disabled=true;
+    var oi=st.opts[i].i;
+    if (ex.correct.indexOf(oi)>=0) b.classList.add('correct-reveal');
+    else if (st.sel.indexOf(oi)>=0) b.classList.add('wrong-reveal');
+  });
+};
+
+/* ---------- multi ---------- */
+buildWidget.multi = function(ex, st, host){
+  var note=el('p','muted small','Select <b>all</b> options that apply. Partial credit: correct picks add, wrong picks subtract.');
+  note.innerHTML='<span aria-hidden="true">&#9432;</span> '+note.innerHTML;
+  host.appendChild(note);
+  var L=optionLetters(st.opts.length);
+  st.opts.forEach(function(o,i){
+    var b=el('button','opt');
+    b.type='button';
+    b.setAttribute('aria-pressed','false');
+    b.innerHTML='<span class="olabel">'+L[i]+'.</span><span>'+o.t+'</span><span class="selmark hidden">&#9679; Selected</span>';
+    b.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      var p=st.sel.indexOf(o.i);
+      if (p>=0){ st.sel.splice(p,1); b.classList.remove('selected'); b.querySelector('.selmark').classList.add('hidden'); b.setAttribute('aria-pressed','false'); }
+      else { st.sel.push(o.i); b.classList.add('selected'); b.querySelector('.selmark').classList.remove('hidden'); b.setAttribute('aria-pressed','true'); }
+    });
+    host.appendChild(b);
+  });
+};
+builders_check.multi = builders_check.mcq;
+lockWidget.multi = lockWidget.mcq;
+
+/* ---------- slots (categorize / match / order / rank / fill) ---------- */
+buildWidget.slots = function(ex, st, host){
+  var mode=ex.mode;
+  if (mode==='fill'){
+    var html='<div class="fillline">';
+    var parts=ex.sentence.split('___');
+    parts.forEach(function(p,i){
+      html+=p;
+      if (i<parts.length-1){
+        html+='<button type="button" class="blankbtn" data-blank="'+i+'" aria-label="blank '+(i+1)+'">___</button>';
+      }
+    });
+    html+='</div>';
+    host.innerHTML=html;
+    var bank=el('div','bank');
+    bank.innerHTML='<div class="banklabel"><span aria-hidden="true">&#127890;</span> Word bank — click a word, then click a blank (or drag)</div>';
+    st.items.forEach(function(o,i){
+      var c=el('button','chip');
+      c.type='button'; c.setAttribute('draggable','true'); c.dataset.item=i;
+      c.innerHTML=o.t;
+      c.addEventListener('click', function(){
+        if (S.answered[curIx()]) return;
+        Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(x){x.classList.remove('pick');});
+        st.pick=i; c.classList.add('pick');
+      });
+      bank.appendChild(c);
+    });
+    host.appendChild(bank);
+    host.appendChild(el('p','draghelp','Click a word, then click the blank to fill it. Click a filled blank to empty it again. Drag & drop also works.'));
+    Array.prototype.forEach.call(host.querySelectorAll('.blankbtn'),function(b){
+      var bi=parseInt(b.dataset.blank,10);
+      b.addEventListener('click', function(){
+        if (S.answered[curIx()]) return;
+        if (st.pick<0){
+          var cur=st.place[bi]; /* place[blank] = item index */
+          if (cur>=0){ st.place[bi]=-1; b.textContent='___'; b.classList.remove('filled'); }
+          return;
+        }
+        var prev=st.place.indexOf(st.pick);
+        if (prev>=0 && prev!==bi){ var pb=host.querySelector('.blankbtn[data-blank="'+prev+'"]'); pb.textContent='___'; pb.classList.remove('filled'); st.place[prev]=-1; }
+        st.place[bi]=st.pick;
+        b.textContent=st.items[st.pick].t; b.classList.add('filled');
+        Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(x){x.classList.remove('pick');});
+        st.pick=-1;
+      });
+      b.addEventListener('dragover', function(ev){ ev.preventDefault(); b.classList.add('over'); });
+      b.addEventListener('dragleave', function(){ b.classList.remove('over'); });
+      b.addEventListener('drop', function(ev){
+        ev.preventDefault(); b.classList.remove('over');
+        if (S.answered[curIx()]) return;
+        var i=parseInt(ev.dataTransfer.getData('text/plain'),10);
+        if (isNaN(i)) return;
+        var prev=st.place.indexOf(i);
+        if (prev>=0 && prev!==bi){ var pb=host.querySelector('.blankbtn[data-blank="'+prev+'"]'); pb.textContent='___'; pb.classList.remove('filled'); st.place[prev]=-1; }
+        st.place[bi]=i;
+        b.textContent=st.items[i].t; b.classList.add('filled');
+      });
+    });
+    Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(c){
+      c.addEventListener('dragstart', function(ev){ if (S.answered[curIx()]) {ev.preventDefault();return;} st.pick=parseInt(c.dataset.item,10); ev.dataTransfer.setData('text/plain', c.dataset.item); });
+    });
+    return;
+  }
+  /* categorize / match / order / rank */
+  var grid=el('div','slotsarea');
+  var nBins = ex.bins.length;
+  for (var b=0;b<nBins;b++){
+    var zone=el('div','slotzone');
+    var nm = (mode==='order'||mode==='rank') ? '<span class="idx">#'+(b+1)+'</span> ' : '';
+    zone.innerHTML='<div class="slotname">'+nm+esc(ex.bins[b])+'</div><div class="dropzone" data-bin="'+b+'"></div>';
+    grid.appendChild(zone);
+  }
+  host.appendChild(grid);
+  var bank=el('div','bank');
+  var label = (mode==='categorize') ? 'Items to sort' : (mode==='match' ? 'Items to match' : 'Items to place in order');
+  bank.innerHTML='<div class="banklabel"><span aria-hidden="true">&#127890;</span> '+label+' — click an item, then click a slot (or drag)</div><div class="bankitems"></div>';
+  host.appendChild(bank);
+  var bankItems=bank.querySelector('.bankitems');
+  function chipFor(o,idx){
+    var c=el('button','chip');
+    c.type='button'; c.setAttribute('draggable','true'); c.dataset.item=idx;
+    c.innerHTML='<span>'+o.t+'</span>';
+    c.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(x){x.classList.remove('pick');});
+      st.pick=idx; c.classList.add('pick');
+    });
+    c.addEventListener('dragstart', function(ev){ if (S.answered[curIx()]) {ev.preventDefault();return;} st.pick=idx; ev.dataTransfer.setData('text/plain', String(idx)); });
+    return c;
+  }
+  st.items.forEach(function(o,i){ bankItems.appendChild(chipFor(o,i)); });
+  function zoneOf(b){ return host.querySelector('.dropzone[data-bin="'+b+'"]'); }
+  function placeItem(itemIdx, bin){
+    var prev=st.place[itemIdx];
+    if (prev>=0){ var oldChip=zoneOf(prev).querySelector('.chip[data-item="'+itemIdx+'"]'); if(oldChip) oldChip.remove(); }
+    st.place[itemIdx]=bin;
+    var zi=zoneOf(bin);
+    /* find original item object index in st.items */
+    var chip=zi.querySelector('.chip[data-item="'+itemIdx+'"]');
+    if (!chip){ chip=chipFor(st.items[itemIdx], itemIdx); chip.classList.add('placed'); }
+    chip.title='Click the cross button to return this item to the bank';
+    if (!chip.querySelector('.rm')){
+      var rm=el('button','rm');
+      rm.type='button'; rm.setAttribute('aria-label','Return item to bank'); rm.innerHTML='&#10007;';
+      rm.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        if (S.answered[curIx()]) return;
+        st.place[itemIdx]=-1; chip.remove(); bankItems.appendChild(chip); chip.classList.remove('placed');
+      });
+      chip.appendChild(rm);
+    }
+    zi.appendChild(chip);
+  }
+  Array.prototype.forEach.call(host.querySelectorAll('.slotzone'),function(z){
+    var b=parseInt(z.querySelector('.dropzone').dataset.bin,10);
+    z.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      if (st.pick<0) return;
+      placeItem(st.pick,b);
+      Array.prototype.forEach.call(host.querySelectorAll('.chip'),function(x){x.classList.remove('pick');});
+      st.pick=-1;
+    });
+    z.addEventListener('dragover', function(ev){ ev.preventDefault(); z.classList.add('over'); });
+    z.addEventListener('dragleave', function(){ z.classList.remove('over'); });
+    z.addEventListener('drop', function(ev){
+      ev.preventDefault(); z.classList.remove('over');
+      if (S.answered[curIx()]) return;
+      var i=parseInt(ev.dataTransfer.getData('text/plain'),10);
+      if (isNaN(i)) return;
+      placeItem(i,b);
+    });
+  });
+};
+function slotsGrade(ex, st){
+  var rows=[], H=0, W=0, N;
+  if (ex.mode==='fill'){
+    N=ex.answerBlanks.length;
+    for (var bl=0; bl<N; bl++){
+      var placed=st.place[bl];
+      var word = placed>=0 ? st.items[placed].t : null;
+      if (word===ex.answerBlanks[bl]){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:'Blank '+(bl+1)+': '+esc(word)}); }
+      else if (word){ W++; rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:'Blank '+(bl+1)+': you placed "'+esc(word)+'" — correct is "'+esc(ex.answerBlanks[bl])+'"'}); }
+      else { rows.push({ic:'&#9675;',cls:'miss',w:'Missed',txt:'Blank '+(bl+1)+': correct is "'+esc(ex.answerBlanks[bl])+'"'}); }
+    }
+  } else {
+    N=ex.items.length;
+    for (var i=0;i<N;i++){
+      var p=st.place[i];
+      var it=ex.items[i];
+      if (p===ex.answers[i]){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:it+' &#8594; '+esc(ex.bins[ex.answers[i]])}); }
+      else if (p>=0){ W++; rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:it+' &#8594; you placed it in "'+esc(ex.bins[p])+'" — correct: "'+esc(ex.bins[ex.answers[i]])+'"'}); }
+      else { rows.push({ic:'&#9675;',cls:'miss',w:'Missed',txt:it+' &#8594; not placed — correct: "'+esc(ex.bins[ex.answers[i]])+'"'}); }
+    }
+  }
+  var credit=Math.max(0,(H-W)/N);
+  var correctText;
+  if (ex.mode==='fill'){
+    correctText = ex.answerBlanks.map(function(w,i){ return 'Blank '+(i+1)+': '+w; }).join(' · ');
+  } else {
+    correctText = ex.correctText || ex.items.map(function(it,i){ return it+' &#8594; '+ex.bins[ex.answers[i]]; }).join(' · ');
+  }
+  return {credit:credit, rows:rows, N:N, H:H, W:W, correctText:correctText, explain:ex.explain};
+}
+builders_check.slots = slotsGrade;
+lockWidget.slots = function(ex, st, host){ Array.prototype.forEach.call(host.querySelectorAll('button'),function(b){ b.disabled=true; }); };
+
+/* ---------- terminal ---------- */
+buildWidget.terminal = function(ex, st, host){
+  var w=el('div','');
+  var panel=ex.syntaxPanel ? '<div class="syntaxpanel"><div class="t"><span aria-hidden="true">&#128221;</span> Syntax reminder</div><pre class="code">'+hl(ex.syntaxPanel)+'</pre>'+(ex.sampleOut?'<div class="t" style="margin-top:8px"><span aria-hidden="true">&#128196;</span> Expected output shape</div><pre class="code">'+esc(ex.sampleOut)+'</pre>':'')+'</div>' : '';
+  w.innerHTML = panel +
+    '<div class="term"><div class="scroll" aria-live="polite"></div>'+
+    '<div class="inline"><span class="pr">'+esc(ex.prompt||'analyst@cloudsoc:~$')+'</span>'+
+    '<input type="text" spellcheck="false" aria-label="terminal input" placeholder="'+esc(ex.placeholder||'type a command and press Enter')+'"></div></div>'+
+    '<p class="draghelp">Press Enter to run the simulated command. Nothing real is executed. Press <b>Check</b> when your command is final — grading uses your last command.</p>';
+  host.appendChild(w);
+  var scroll=w.querySelector('.scroll'), input=w.querySelector('input');
+  st.lines=st.lines||[];
+  st.last='';
+  function echo(txt,cls){ var d=el('div', cls||''); d.textContent=txt; scroll.appendChild(d); scroll.scrollTop=scroll.scrollHeight; }
+  st.lines.forEach(function(l){ echo(l.t,l.c); });
+  function norm(s){ return s.replace(/\s+/g,' ').trim().toLowerCase(); }
+  function run(cmd){
+    st.last=cmd;
+    echo((ex.prompt||'analyst@cloudsoc:~$')+' '+cmd, '');
+    var n=norm(cmd);
+    var toolOk=false;
+    if (ex.toolTest && ex.toolTest.test(n)) toolOk=true;
+    if (!n){ echo('No command typed.', 'sysline'); return; }
+    if (ex.destructive && ex.destructive.test(n)){ echo('ERROR: that command changes or destroys state. In a live investigation this could destroy evidence. This simulation refuses to run it.', 'errline'); return; }
+    if (toolOk){
+      echo((ex.simOutput||'OK — command accepted by the simulation.'), 'okline');
+      if (ex.simNotes) ex.simNotes.forEach(function(x){ echo(x, 'sysline'); });
+    } else {
+      echo('command not found or wrong tool for this task: '+cmd.split(' ')[0], 'errline');
+    }
+  }
+  input.addEventListener('keydown', function(ev){ if (ev.key==='Enter'){ var v=input.value; input.value=''; run(v); } });
+  st._norm=norm;
+};
+builders_check.terminal = function(ex, st){
+  var typed = st.last || '';
+  var n = (st._norm||function(s){return s;})(typed);
+  var rows=[], H=0, W=0, N=ex.elements.length;
+  var dangerous = !!(ex.destructive && ex.destructive.test(n));
+  ex.elements.forEach(function(e2){
+    var ok = !dangerous && e2.re.test(n);
+    if (ok){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:e2.label}); }
+    else { rows.push({ic:'&#10007;',cls:'no',w:'Missing or wrong',txt:e2.label+' (needed: '+e2.need+')'}); }
+  });
+  if (dangerous){
+    rows.unshift({ic:'&#10007;',cls:'no',w:'DANGEROUS — NEAR MISS',
+      txt:'Your command changes or destroys state instead of answering the task safely. It scores 0 — in a live incident this could destroy evidence or widen the attacker\'s access.'});
+  }
+  var credit = dangerous ? 0 : Math.max(0,(H-W)/N);
+  var correctText='Canonical command: <span class="mono">'+esc(ex.expected)+'</span>';
+  var explain;
+  if (dangerous){
+    explain='<b>DANGEROUS — NEAR MISS.</b> Your command would change or destroy state instead of answering the question safely. In a live incident it could destroy evidence, so it is scored 0 even when parts of it look right. '+ex.explain;
+  } else {
+    explain=ex.explain;
+  }
+  explain += '<div class="subcard"><span class="artlabel">Canonical command — copyable</span><pre class="code">'+esc(ex.expected)+'</pre>'+
+    '<div class="small">'+ex.parts.map(function(p){ return '<div><span class="mono" style="color:var(--accent-blue)">'+esc(p[0])+'</span> — '+p[1]+'</div>'; }).join('')+'</div></div>';
+  return {credit:credit, rows:rows, N:N, H:H, W:W, correctText:correctText, explain:explain};
+};
+lockWidget.terminal = function(ex, st, host){
+  var i=host.querySelector('input'); if (i) i.disabled=true;
+};
+
+/* ---------- branch (decision tree) ---------- */
+buildWidget.branch = function(ex, st, host){
+  renderBranchStep(ex, st, host);
+};
+function renderBranchStep(ex, st, host){
+  var sp=ex.steps[st.step], opts=st.stepOpts[st.step];
+  host.innerHTML='';
+  if (sp.artifact){ var sc=el('div','subcard'); sc.innerHTML='<span class="artlabel">'+esc(sp.artifact.label)+'</span>'+(sp.artifact.mono?'<pre class="code">'+hl(sp.artifact.text)+'</pre>':'<div>'+sp.artifact.text+'</div>'); host.appendChild(sc); }
+  host.appendChild(el('p','qtext small',sp.question));
+  var L=optionLetters(opts.length);
+  opts.forEach(function(o,i){
+    var b=el('button','opt'); b.type='button';
+    b.innerHTML='<span class="olabel">'+L[i]+'.</span><span>'+o.t+'</span>';
+    b.addEventListener('click', function(){
+      if (S.answered[curIx()]) return;
+      st.choices[st.step]=o.i;   /* original option index */
+      st.step++;
+      $('ex-step').textContent='STEP '+(Math.min(st.step+1,ex.steps.length))+' OF '+ex.steps.length;
+      if (st.step>=ex.steps.length){
+        host.innerHTML='<p class="muted small"><span aria-hidden="true">&#10003;</span> All '+ex.steps.length+' decisions recorded. Press <b>Check</b> to see how your incident path scores.</p>';
+        $('ex-step').textContent='';
+      } else { renderBranchStep(ex, st, host); }
+    });
+    host.appendChild(b);
+  });
+}
+builders_check.branch = function(ex, st){
+  var rows=[], H=0, W=0, N=ex.steps.length;
+  ex.steps.forEach(function(sp,i){
+    var c=st.choices[i];
+    var picked = (c===undefined||c===null) ? 'no answer given' : sp.options[c];
+    if (c===sp.correct){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:'Step '+(i+1)+': '+esc(picked)}); }
+    else { W++; rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:'Step '+(i+1)+': you chose "'+esc(picked)+'" — better: "'+esc(sp.options[sp.correct])+'". '+esc(sp.why)}); }
+  });
+  var credit=Math.max(0,(H-W)/N);
+  var correctText=ex.steps.map(function(sp,i){ return 'Step '+(i+1)+': '+sp.options[sp.correct]; }).join(' · ');
+  return {credit:credit, rows:rows, N:N, H:H, W:W, correctText:correctText, explain:ex.explain};
+};
+lockWidget.branch = function(ex, st, host){ Array.prototype.forEach.call(host.querySelectorAll('button'),function(b){ b.disabled=true; }); };
+
+/* ---------- triage (SOC alert queue) ---------- */
+buildWidget.triage = function(ex, st, host){
+  host.appendChild(el('p','muted small','<span aria-hidden="true">&#9432;</span> Choose one action per alert. You can change your choice until you press Check. Partial credit per alert.'));
+  ex.alerts.forEach(function(a,i){
+    var c=el('div','alertcard');
+    var acts=ex.actions.map(function(act){ return '<button type="button" class="abtn" data-a="'+act.k+'">'+act.icon+' '+act.w+'</button>'; }).join('');
+    c.innerHTML='<div class="atitle"><span aria-hidden="true">&#128230;</span> '+esc(a.title)+(a.tag?' <span class="badge b-medium" style="font-size:11px">'+esc(a.tag)+'</span>':'')+'</div>'+
+      '<div class="ameta">'+a.meta+'</div><div>'+a.text+'</div>'+
+      '<div class="actionrow" data-i="'+i+'">'+acts+'</div>';
+    host.appendChild(c);
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('.actionrow'),function(row){
+    var i=parseInt(row.dataset.i,10);
+    Array.prototype.forEach.call(row.querySelectorAll('.abtn'),function(b){
+      b.addEventListener('click', function(){
+        if (S.answered[curIx()]) return;
+        st.sel[i]=b.dataset.a;
+        Array.prototype.forEach.call(row.querySelectorAll('.abtn'),function(x){x.classList.remove('picked');});
+        b.classList.add('picked');
+      });
+    });
+  });
+};
+builders_check.triage = function(ex, st){
+  var rows=[], H=0, W=0, N=ex.alerts.length;
+  var wmap={}; ex.actions.forEach(function(a){ wmap[a.k]=a.w; });
+  ex.alerts.forEach(function(a,i){
+    var s=st.sel[i];
+    if (s===a.correct){ H++; rows.push({ic:'&#10003;',cls:'ok',w:'Correct',txt:esc(a.title)+' — '+wmap[s]+' was right. '+esc(a.why)}); }
+    else if (s){ W++; rows.push({ic:'&#10007;',cls:'no',w:'Wrong',txt:esc(a.title)+' — you chose '+wmap[s]+'. '+esc(a.why)}); }
+    else { rows.push({ic:'&#9675;',cls:'miss',w:'Missed',txt:esc(a.title)+' — no action chosen. '+esc(a.why)}); }
+  });
+  var credit=Math.max(0,(H-W)/N);
+  var correctText=ex.alerts.map(function(a,i){ return a.title+' &#8594; '+wmap[a.correct]; }).join(' · ');
+  return {credit:credit, rows:rows, N:N, H:H, W:W, correctText:correctText, explain:ex.explain};
+};
+lockWidget.triage = function(ex, st, host){ Array.prototype.forEach.call(host.querySelectorAll('.abtn'),function(b){ b.disabled=true; }); };
+
+/* ---------- logq (log viewer + question) ---------- */
+buildWidget.logq = function(ex, st, host){
+  var w=el('div','');
+  if (!ex.scenarioArts){
+    w.innerHTML='<div class="logtools"><label class="muted small" for="logfilter">Filter:</label>'+
+      '<input id="logfilter" type="text" placeholder="type to filter log lines (e.g. CreateSnapshot)"></div>'+
+      '<div class="logbox" id="logbox"></div>';
+  }
+  host.appendChild(w);
+  var box=w.querySelector('#logbox');
+  function render(f){
+    box.innerHTML='';
+    ex.log.forEach(function(line,i){
+      if (f && line.toLowerCase().indexOf(f.toLowerCase())<0) return;
+      var d=el('div','ln'); d.innerHTML='<span class="no">'+String(i+1).padStart(3,'0')+'</span>'+hl(line);
+      box.appendChild(d);
+    });
+    if (!box.children.length) box.innerHTML='<div class="ln sysline">no lines match this filter</div>';
+  }
+  if (box) render('');
+  var fin=w.querySelector('#logfilter');
+  if (fin) fin.addEventListener('input', function(ev){ render(ev.target.value); });
+  if (ex.logIntro) host.appendChild(el('p','muted small',ex.logIntro));
+  var sub=el('div',''); host.appendChild(sub);
+  (ex.answerType==='multi' ? buildWidget.multi : buildWidget.mcq)(ex, st, sub);
+};
+builders_check.logq = function(ex, st){ return builders_check[ex.answerType||'mcq'](ex, st); };
+lockWidget.logq = function(ex, st, host){
+  var f=host.querySelector('#logfilter'); if (f) f.disabled=true;
+  lockWidget[ex.answerType||'mcq'](ex, st, host.querySelector('div:last-child'));
+};
+
+/* ---------- per-exercise reduced timer expiry ---------- */
+function perExpire(){
+  var ex=curEx();
+  if (!ex.perExerciseTimer || S.answered[curIx()]) return;
+  var ix=curIx(), st=S.st[ix];
+  var res=builders_check[ex.type](ex, st);
+  var credit=0;
+  if (S.hintUsed[ix]) credit=Math.max(0, credit-0.10);
+  S.credit[ix]=credit; S.answered[ix]=true; S.scoreSum+=credit; S.answeredCount++;
+  lockWidget[ex.type](ex, st, $('ex-ans'));
+  $('btn-check').disabled=true;
+  $('btn-hint').disabled=true;
+  $('btn-skip').disabled=true;
+  var fb=$('fb');
+  fb.className='feedback bad';
+  fb.innerHTML='<div class="fhead" aria-label="Incorrect"><span aria-hidden="true">&#9203;</span> INCORRECT — per-exercise timer expired</div>'+
+    '<p>The reduced timer for this task ran out before you pressed Check. The exercise is scored as incorrect (credit 0). Read the explanation, then press Next.</p>'+
+    '<p><b>Correct answer:</b> '+res.correctText+'</p><p>'+res.explain+'</p>';
+  fb.classList.remove('hidden');
+  $('btn-check').classList.add('hidden');
+  toAutoCheck();
+  if (S.pos < S.order.length-1){ $('btn-next').classList.remove('hidden'); }
+  else { $('btn-finish').classList.remove('hidden'); }
+  renderHeader();
+}
+
+/* ---------- finish by main-timer timeout ---------- */
+function finishByTimeout(){
+  toEnded();
+  S.order.forEach(function(ix){ if(!S.answered[ix]) S.skipped[ix]=true; });
+  showResults();
+}
+
+/* ---------- boot ---------- */
+document.addEventListener('DOMContentLoaded', function(){
+  S.order = EXS.map(function(_,i){ return i; });
+  $('btn-start').addEventListener('click', startExam);
+  $('btn-hint').addEventListener('click', useHint);
+  $('btn-check').addEventListener('click', gradeCurrent);
+  $('btn-next').addEventListener('click', nextExercise);
+  $('btn-finish').addEventListener('click', finishExam);
+  $('btn-skip').addEventListener('click', skipCurrent);
+  $('btn-pause').addEventListener('click', toManualPause);
+  $('btn-resume').addEventListener('click', resumeFromManual);
+  $('btn-review-submit').addEventListener('click', submitFromReview);
+  $('btn-retake').addEventListener('click', retake);
+  $('scen-toggle').addEventListener('click', function(){
+    var b=$('scen-body');
+    var hid=b.classList.toggle('hidden');
+    $('scen-toggle').textContent = hid ? '⌄ Expand scenario' : '⌃ Collapse';
+  });
+  renderHeader();
+  var t=$('h-tstate'); if (t){ t.className='tstate t-running'; }
+});
+
+
+
+</script>
+</body>
+</html>
