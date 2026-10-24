@@ -60,12 +60,12 @@
 
     /* --- owner values: edit these three -------------------------------- */
     repoUrl: 'https://github.com/Souhaieb-Marzouk/Cyber-Pulse-Academy',
-    statsEndpoint: '',
+    statsEndpoint: 'https://cpa-engagement.marzouk-souhaieb.workers.dev',
     donationButtonId: 'KNUSPQTVR9WCU',
 
     /* --- statistics ---------------------------------------------------- */
     /* "local" ships by default on purpose: see pages/privacy.html. */
-    statsProvider: 'local',
+    statsProvider: 'remote',
     /* Public, non-secret salt used to hash the username locally before it is
        ever counted. Change it, then never change it again, or historical
        unique-user counts will double. It is NOT a secret: it only stops the
