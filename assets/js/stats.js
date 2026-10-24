@@ -68,6 +68,14 @@
     }
     return order.map(function (key) {
       var row = byKey[key];
+      return {
+        topicId: row.topicId,
+        batch: row.batch,
+        runs: row.runs,
+        avgScore: row.scored ? Math.round((row.scoreSum / row.scored) * 10) / 10 : null,
+        passRate: row.decided ? Math.round((row.passes / row.decided) * 100) : null
+      };
+    });
   }
 
   function buildLocalSnapshot() {
