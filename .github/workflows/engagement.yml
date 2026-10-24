@@ -1,0 +1,118 @@
+name: engagement snapshot
+
+# Reads attempt counts from the owner-hosted endpoint, writes data/engagement.json, then REGENERATES
+# the pages, because the counts are rendered into the HTML at build time. Committing only the JSON
+# would leave topics/ stale and the validation gate would fail on generated drift.
+#
+# Does nothing until the repository variable ENGAGEMENT_ENDPOINT is set to your Worker URL.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"     # every six hours, off the hour
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: engagement
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the site
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Is the endpoint configured?
+        id: cfg
+        env:
+          ENDPOINT: ${{ vars.ENGAGEMENT_ENDPOINT }}
+        run: |
+          if [ -z "$ENDPOINT" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Counting is not live::ENGAGEMENT_ENDPOINT is not set. Nothing to fetch."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch /stats
+        id: fetch
+        if: steps.cfg.outputs.run == 'true'
+        env:
+          ENDPOINT: ${{ vars.ENGAGEMENT_ENDPOINT }}
+        run: |
+          code=$(curl -sS -m 30 -o /tmp/stats.json -w '%{http_code}' "$ENDPOINT/stats" || echo 000)
+          echo "HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::warning title=Endpoint unavailable::Keeping the previous snapshot instead of erasing it."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write data/engagement.json
+        if: steps.fetch.outputs.ok == 'true'
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, datetime
+          raw = json.load(open("/tmp/stats.json"))
+          clean = {}
+          for key, row in (raw.get("batches") or {}).items():
+              if not isinstance(row, dict):
+                  continue
+              n = row.get("attempts")
+              if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+                  continue
+              when = str(row.get("updated") or "")
+              try:
+                  datetime.date.fromisoformat(when)
+              except ValueError:
+                  when = ""
+              clean[key] = {"attempts": n, "updated": when}
+          out = {
+              "schema": 1,
+              "generatedAt": raw.get("generatedAt"),
+              "source": "owner endpoint /stats",
+              "note": "Per-batch attempt counts, one per person per batch per day. "
+                      "Missing key means not counted yet, which is not the same as zero.",
+              "batches": clean,
+          }
+          pathlib.Path("data/engagement.json").write_text(
+              json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          print(f"wrote {len(clean)} batch counters")
+          PY
+
+      # The private tooling, exactly as the validation gate fetches it. Without this the pages
+      # cannot be regenerated here and the counts would never reach the HTML.
+      - name: Check out the private build tooling
+        if: steps.fetch.outputs.ok == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: Souhaieb-Marzouk/cyber-pulse-academy-tooling
+          token: ${{ secrets.TOOLING_TOKEN }}
+          path: .tooling
+
+      - name: Regenerate the pages that carry the counts
+        if: steps.fetch.outputs.ok == 'true'
+        run: |
+          python .tooling/build_catalog.py
+          python .tooling/generate_pages.py
+
+      - name: Commit the snapshot and the pages together
+        if: steps.fetch.outputs.ok == 'true'
+        run: |
+          git config user.name  "engagement-bot"
+          git config user.email "engagement-bot@users.noreply.github.com"
+          if git diff --quiet -- data/engagement.json topics/ pages/; then
+            echo "no change"
+            exit 0
+          fi
+          git add data/engagement.json data/catalog.json topics/ pages/
+          git commit -m "data: refresh engagement snapshot"
+          git push
