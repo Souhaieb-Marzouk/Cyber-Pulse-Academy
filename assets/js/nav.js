@@ -240,7 +240,7 @@
           'href="https://discord.gg/gXy9UmG2vw" target="_blank" rel="noopener noreferrer" ' +
           'aria-label="' + CM.util.esc(t('discord.ctaLabel')) + '">' +
           DISCORD_ICON + '<span class="cm-discord-btn__label">' +
-          CM.util.esc(t('discord.cta')) + '</span></a>' +
+          CM.util.esc(t('nav.discord')) + '</span></a>' +
         '<a class="cm-iconbtn cm-iconbtn--star" id="cm-star-repo" ' +
           'href="' + CM.util.esc(String(CM.config.repoUrl || '#')) + '" ' +
           'target="_blank" rel="noopener noreferrer" ' +

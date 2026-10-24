@@ -55,7 +55,7 @@
     /* --- identity of the deployment ------------------------------------ */
     siteName: 'Cyber Pulse Academy',
     siteTagline: 'Hands-on, extreme-difficulty cyber security study',
-    siteVersion: '1.21.0',
+    siteVersion: '1.22.0',
     catalogVersion: '1.1.0',
 
     /* --- owner values: edit these three -------------------------------- */

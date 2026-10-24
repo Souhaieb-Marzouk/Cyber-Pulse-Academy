@@ -1353,5 +1353,34 @@ function afterRender(){
 }
 render();
 </script>
+<!-- cm-beacon: reports this attempt when the batch runs outside the hub -->
+<script>
+(function(){
+  if (window.parent !== window) { return; }              /* inside the hub, exam-hub reports it */
+  var m = /\/exercises\/(.+\.html)$/.exec(location.pathname);
+  if (!m || !window.fetch) { return; }
+  var path = 'exercises/' + m[1];
+  var sent = false;
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (_) { return; } }
+    if (!d || (d.type !== 'CYBERPULSE_SCORE' && d.type !== 'CYBERMASTERY_SCORE')) { return; }
+    if (sent) { return; }
+    var pct = (typeof d.percent === 'number') ? d.percent
+      : ((typeof d.score === 'number' && typeof d.total === 'number' && d.total > 0)
+          ? Math.round(d.score / d.total * 100) : null);
+    if (pct === null) { return; }
+    sent = true;
+    fetch('https://cpa-engagement.marzouk-souhaieb.workers.dev/event', {
+      method: 'POST', mode: 'cors', credentials: 'omit', keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: path, topicId: String(d.topicId || ''), percent: pct,
+        passed: (typeof d.passed === 'boolean') ? d.passed : pct >= 70
+      })
+    })['catch'](function () { sent = false; });
+  }, false);
+})();
+</script>
 </body>
 </html>
