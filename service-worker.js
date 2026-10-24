@@ -28,7 +28,7 @@
 /* Bump this string whenever the shell changes. It is the only thing that
    invalidates already-installed clients, so forgetting it means users keep the
    old shell until the browser next updates it. */
-const SHELL_VERSION = '1.13.0';
+const SHELL_VERSION = '1.14.0';
 const SHELL_CACHE = 'cm-shell-v' + SHELL_VERSION;
 const DATA_CACHE = 'cm-data-v' + SHELL_VERSION;
 const PAGE_CACHE = 'cm-pages-v' + SHELL_VERSION;
@@ -190,7 +190,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (isPageRequest(url, request)) {
-    event.respondWith(staleWhileRevalidate(PAGE_CACHE, request));
+    event.respondWith(networkFirst(PAGE_CACHE, request));
     return;
   }
   event.respondWith(networkFirst(SHELL_CACHE, request));
