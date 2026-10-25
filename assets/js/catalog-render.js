@@ -715,7 +715,8 @@
             '<section class="cm-stats__group">' +
               '<h2 class="cm-stats__head">' + esc(t('home.stats.head.library')) + '</h2>' +
               '<div class="cm-stats__grid cm-stats__grid--wide">' +
-                statBox(totals.topics, t('home.stats.topics'), '') +
+                statBox(totals.labs || 0, t('home.stats.labs'), '') +
+    statBox(totals.topics, t('home.stats.topics'), '') +
                 statBox(totals.catalogs || 7, t('home.stats.catalogs'), '') +
                 statBox(0, t('home.stats.ads'), '') +
               '</div>' +
