@@ -1,100 +1,88 @@
 # Cyber Pulse Academy
 
-**Learn cyber security by doing it, not by reading about it.**
+**Learn security by doing it, not by reading about it.**
 
-A free, non-commercial study site. Every topic opens with a plain-language explanation you can
-follow even with no security background, then gives you hands-on exercises where you read the
-evidence, decide what to do, and find out why the answer was right or wrong.
+C25,329 exercises across 2,061 study pages, free, with no account and nothing to install.
 
-Live site: **https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/**
+Most security material ends with a definition. This ends with a decision: a log on screen, four things
+you could do next, and a reason after you choose. The reading explains the idea; the exercise makes
+you use it.
 
-- No account, no sign-up, no email address
-- No adverts, no third-party scripts, no trackers, no cookies
-- Works on a phone, and keeps working offline once you have visited
-- 246 study pages across seven catalogs
-- Results are stored in your own browser only
+**[Start with one exercise](https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/)** — it takes a few minutes and it will tell you more about what you
+actually know than the last chapter you read.
 
 ---
 
-## What is in the site
+## What you get
 
-| Catalog | What it covers |
-|---|---|
-| **Keywords** | The everyday vocabulary of the job: firewall, MFA, ransomware, zero trust, SIEM, GDPR and around a hundred more, each explained from scratch |
-| **Certifications** | Study tracks for CompTIA, ISC2, ISACA, OffSec, EC-Council, GIAC, Microsoft, AWS, Google Cloud, Cisco and ISO. Each track is organised into chapters that follow the official exam domains, and each chapter lists its own exercises |
-| **ATT&CK Tactics** | The fourteen goals an attacker works towards, described by what a defender can actually see |
-| **ATT&CK Techniques** | The specific methods attackers use, each cross-linked to the defences and detections that address it |
-| **ATT&CK Mitigations** | The controls that stop attacks, described by how they are installed in practice and where they quietly fail |
-| **Detection Strategies** | How to spot a behaviour in logs: the telemetry, the logic, the false alarms and the tuning |
-| **Threat Groups** | Who is behind known campaigns, attributed to public reporting rather than stated as fact |
+### Study pages that start in plain language
+2,061 pages, one per technique, detection, tactic, group, mitigation, certification domain and
+keyword. Each one opens with what the thing is, in words that do not assume you have read the other
+2,061 pages yet, then moves to how it is used and where it fails.
 
-Every topic page has the same shape: a beginner explanation, the detailed technical explanation,
-the list of exercises that go with it, cross-references, sources, and answers to common questions.
+### Exercise batches you actually answer
+1,320 batches, 25,329 individual exercises. Every one is a scenario rather than a
+definition quiz: an alert to triage, a configuration to correct, a sequence to order, a decision to
+defend. Every answer ends with the reason it was right or wrong, because a score without an
+explanation teaches you nothing.
+
+### Four tiers, one ladder
+Each task exists at **MEDIUM** and **HARD**; technique and detection topics go further, adding
+**EASY** and **EXTREMELY HARD**. The ladder means you can start where you are and climb without
+changing sites, and the pass mark is **70%** on every batch, so a score means the same thing
+everywhere.
+
+### 123 certification tracks, mapped to the real syllabus
+From Security+, CISSP, CCSP and CySA+ to thirteen AWS tracks including Solutions Architect, Security
+Specialty, DevOps and the AI certifications. Each track is built chapter by chapter against the
+official objectives: a MEDIUM batch on the domain, a HARD batch that makes you apply it. Practice
+questions behave like the exam — they check whether you can apply the idea, not recite it.
+
+### MITRE ATT&CK, covered end to end
+15 tactics, 698 techniques, 697 detections, 180 threat groups and 44
+mitigations, each with its own page and its own practice where a batch has been written. If you are
+working through the framework rather than an exam, the mapping is already done.
+
+### 22 interactive labs
+Self-contained browser labs: a twelve-line incident log to narrow down, a shell that answers
+`ps aux`, `netstat -tunp` and `ls -la /tmp`, four events to put in the right order, a mitigation
+that only half works to reason about. No plugins, no installs, no account.
+
+### A score that tells you where to go next
+Every batch reports a percentage against the pass mark and a per-question breakdown. The coverage
+dashboard shows what is written and what is still being written, so you are never guessing whether a
+topic is finished or simply not started.
+
+### Search that reaches everything
+One search box across every page, technique, detection, group, mitigation, certification and keyword.
+Find the thing you are being asked about, then practise it.
+
+---
+
+## What it costs
+
+**Nothing.** The library is free and stays free: no paywall, no subscription, no advert, no sign-up,
+no account, no email. You open a page, you answer a question, you see why.
+
+Where money comes in at all, it is optional and separate: a donation that unlocks nothing, or a paid
+guided course for people who want a voice and a deadline. The library is the practice, and the practice
+is free.
 
 ---
 
-## Viewing the site on your own computer
+## Who it is for
 
-You must serve the folder over HTTP. Opening `index.html` by double-clicking it will show an empty
-page, because browsers block `fetch()` on `file://` and only allow a service worker over HTTP.
-
-```bash
-python -m http.server 8000
-```
-
-Then open <http://localhost:8000/>. Use `python3` on macOS and Linux. Any static file server works.
+- **Studying for a certification** and tired of questions that test recall instead of judgement.
+- **Working in a SOC** and wanting the reps between incidents, so the next alert is not the first time
+  you have seen that pattern.
+- **Moving into security** and needing something to point at that is not a certificate.
+- **Teaching** and wanting scenarios that are ready to hand out.
 
 ---
 
-## Publishing to GitHub Pages
+## Start here
 
-1. Create a repository on github.com. Make it **Public** and do not initialise it with a README,
-   a licence or a gitignore.
-2. Open **GitHub Desktop**, choose **File → Add local repository**, and pick this folder. Accept
-   when it offers to create a git repository.
-3. Commit, then click **Publish repository** and make sure **Keep this code private** is unchecked.
-4. On github.com go to **Settings → Pages**. Set **Source** to **Deploy from a branch**,
-   **Branch** to **main**, and **Folder** to **/ (root)**. Save.
-5. Wait about a minute. The site appears at `https://<your-user>.github.io/<your-repo>/`.
+Open **[https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/](https://souhaieb-marzouk.github.io/Cyber-Pulse-Academy/)**, pick the thing you are supposed to know, and answer one question. If you
+already know it, the next one is harder. If you do not, the reason after the answer is the lesson.
 
-`.nojekyll` is present so GitHub Pages serves every folder as-is.
-
----
-
-## Adding an exercise
-
-This repository holds the finished site: the generated topic pages, the manifest, the exercise
-batches and the assets. The **build tooling that produces them is not published**, so a download
-gives you a working site rather than the machinery behind it. Adding an exercise therefore means
-editing the data and committing the result, both of which are described here.
-
-An exercise batch is four standalone HTML files plus the slot that records them, one per
-difficulty tier. The naming convention the generator produces is:
-
-    exercises/<catalog>/<EXTERNAL_ID>/<EXTERNAL_ID>_<TIER>.html
-    exercises/certifications/<track>/<section> - <title> - <TIER>.html
-
-and a topic's slots live in its own file under `data/<catalog>/`, one `{title, path, difficulty,
-kind, status, summary}` object per tier inside `exercises`, or inside a chapter's `exercises` for
-a certification. `data/schema/topic.schema.json` is the contract, including the `exercisesAdded`
-date the home page orders its "Recently covered" list by.
-
-The repository is then rebuilt and checked with the project's build tooling, which links each
-file to its slot, regenerates `data/catalog.json`, the study pages, the sitemap and the Open
-Graph cards, and runs the validation gate. Every exercise file on disk must be claimed by a
-topic: if one is not, the published catalogue does not count it and the coverage bars on the home
-page do not move for it.
-
-**Why the home-page numbers cannot drift.** Every figure on the home page — the coverage
-bars, their colours and the percentages beside them — is derived from `data/catalog.json`,
-which is derived from the topic JSON files. Nothing is typed in by hand: the build injects
-the values into the static HTML, and `assets/js/catalog-render.js` recomputes them from the
-manifest when the page loads. Add a batch, record it, rebuild, and the bars, the colours and
-the percentages move on their own. The two home-page lists behave the same way: "Recently
-reviewed" ranks topics by when their exercises last changed, and "Still being written" counts
-what is still reserved but unwritten and names the most recently changed topics that are
-waiting. The one thing that does *not* happen by itself is the
-recording step, which is what the two commands above are for — and `validate.py` fails if an
-exercise file exists that no topic lists, so a missed step cannot ship quietly.
-
----
+Every figure on this page is read from the site's own catalogue.
