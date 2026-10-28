@@ -2,7 +2,6 @@
 // Exact SVG node data extracted from lucide-react v0.525.0 (ISC license).
 // Rendered by HuntUI.icon() as inline SVG: 24x24 viewBox, stroke=currentColor,
 // stroke-width 2, round caps/joins — identical geometry to the original lab.
-/* eslint-disable */
 const ICON_NODES = {
   "compass": [
     [

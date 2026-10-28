@@ -192,7 +192,7 @@
       }
       var dis = cardDisabled(id);
       var disNote = $('[data-obj-disabled-note]', card);
-      if (disNote) disNote.hidden = !(dis && !done && def.disabledNote);
+      if (disNote) disNote.hidden = !(dis && !done && disNoteText(id));
       if (disNote && dis && !done) setText(disNote, disNoteText(id));
 
       var hintBox = $('[data-obj-hints]', card);
@@ -525,14 +525,21 @@
         input.checked = locked && ans.pick === oi;
         var label = input.closest('.radio-card');
         if (label) {
-          label.classList.toggle('quiz-correct', locked && oi === q.correct);
-          label.classList.toggle('quiz-wrong', locked && ans.pick === oi && oi !== q.correct);
-          label.classList.toggle('quiz-dim', locked && ans.pick !== oi && oi !== q.correct);
-          var hasIcon = label.querySelector('.ic-emerald-600, .ic-rose-600');
-          if (locked && !hasIcon) {
+          /* R3 color contract (must stay in sync with the ui.js template):
+             highlight ONLY the submitted option — green if correct, red if wrong.
+             Unpicked options dim; the correct answer is NOT revealed in green and
+             NOT icon-marked when the student submitted a wrong pick. */
+          var picked = locked && ans.pick === oi;
+          label.classList.toggle('quiz-correct', picked && oi === q.correct);
+          label.classList.toggle('quiz-wrong', picked && oi !== q.correct);
+          label.classList.toggle('quiz-dim', locked && !picked);
+          var icon = label.querySelector('.ic-emerald-600, .ic-rose-600');
+          if (picked && !icon) {
             label.insertAdjacentHTML('beforeend',
               oi === q.correct ? UI.icon('check-circle-2', 16, 'ic-emerald-600')
-                               : (ans.pick === oi ? UI.icon('x-circle', 16, 'ic-rose-600') : ''));
+                               : UI.icon('x-circle', 16, 'ic-rose-600'));
+          } else if (!picked && icon) {
+            icon.remove();
           }
         }
       });
@@ -665,6 +672,40 @@
     }).join('');
     $('[data-cm-recap]').innerHTML = recap;
 
+    /* R8 — focus areas derived from the student's ACTUAL performance evidence:
+       wrong quiz items first (topic labels from data.js), then unfinished quiz
+       questions, then objectives that needed retries or hints. Empty only when
+       the run was genuinely flawless. */
+    var focusAreas = [];
+    quizIds.forEach(function (qid, qi) {
+      var a = st.quiz[qid];
+      if (a && !a.correct) {
+        focusAreas.push({ w: 0, txt: '<strong>' + D.QUIZ_TOPIC[qid] + '</strong> — quiz question ' + (qi + 1) +
+          ' answered incorrectly; re-read its explanation and the matching Knowledge Core section.' });
+      }
+    });
+    var missingQuiz = quizIds.filter(function (qid) { return !st.quiz[qid]; }).length;
+    if (missingQuiz > 0) {
+      focusAreas.push({ w: 1, txt: '<strong>Knowledge check unfinished</strong> — ' + missingQuiz +
+        ' question' + (missingQuiz === 1 ? '' : 's') + ' still open; the final score counts them.' });
+    }
+    der.objectives.forEach(function (o) {
+      var s = objState(o.id);
+      if (!s.done) return;
+      if (s.attempts > 1) {
+        focusAreas.push({ w: 2, txt: '<strong>' + UI.esc(o.title) + '</strong> (' + o.id + ') — ' + s.attempts +
+          ' attempts; re-read the teaching note the validator gave you.' });
+      } else if (s.hints > 0) {
+        focusAreas.push({ w: 3, txt: '<strong>' + UI.esc(o.title) + '</strong> (' + o.id + ') — solved with ' +
+          s.hints + ' hint' + (s.hints > 1 ? 's' : '') + '; try it cold in the other mode.' });
+      }
+    });
+    focusAreas.sort(function (a, b) { return a.w - b.w; });
+    var focusHtml = focusAreas.length === 0
+      ? '<p class="cm-focus-none">No weak spots detected — every objective on the first attempt with no hints, and every quiz question correct. The other difficulty mode is your next challenge.</p>'
+      : '<ul class="cm-focus-list">' + focusAreas.slice(0, 6).map(function (f) { return '<li>' + f.txt + '</li>'; }).join('') + '</ul>';
+    $('[data-cm-focus]').innerHTML = focusHtml;
+
     $('[data-modal-overlay]').hidden = false;
     $('[data-modal]').hidden = false;
     lockBody(true);
@@ -707,6 +748,8 @@
     $('[data-sheet]').hidden = false;
     var fab = $('[data-fab]');
     if (fab) fab.setAttribute('aria-expanded', 'true');
+    var closeBtn = $('.sheet-close');
+    if (closeBtn) closeBtn.focus(); /* R7/B6 — focus moves into the dialog */
   }
 
   function closeSheet() {
@@ -716,6 +759,7 @@
     sheet.hidden = true;
     var fab = $('[data-fab]');
     if (fab) fab.setAttribute('aria-expanded', 'false');
+    if (lastFocused && lastFocused.focus && lastFocused.isConnected) lastFocused.focus();
   }
 
   function openGlossary() {
@@ -761,6 +805,12 @@
   document.addEventListener('click', function (ev) {
     var t = ev.target;
     if (!(t instanceof Element)) return;
+
+    /* R7 — click-outside on the two dismissible overlay popups (parity with the
+       original Radix Dialog/Sheet). The reset AlertDialog intentionally stays
+       strict (buttons/Escape only), matching the original AlertDialog. */
+    if (t.matches('[data-modal-overlay]')) { closeModal(); return; }
+    if (t.matches('[data-sheet-overlay]')) { closeSheet(); return; }
 
     /* glossary outside click */
     if (!t.closest('.glossary')) closeGlossary();
@@ -948,6 +998,26 @@
       var sheet = $('[data-sheet]');
       if (sheet && !sheet.hidden) { closeSheet(); return; }
       closeGlossary();
+      return;
+    }
+    /* B6/R7 — keep keyboard focus inside the open dialog (parity with the
+       original Radix focus trap): Tab wraps within modal, reset dialog or
+       mobile sheet while it is open. */
+    if (ev.key === 'Tab') {
+      var dlg = null;
+      var candidates = [$('[data-reset-dialog]'), $('[data-modal]'), $('[data-sheet]')];
+      for (var i = 0; i < candidates.length; i++) {
+        if (candidates[i] && !candidates[i].hidden) { dlg = candidates[i]; break; }
+      }
+      if (!dlg) return;
+      var focusables = $all('button, input, select, a[href], [tabindex]:not([tabindex="-1"])', dlg)
+        .filter(function (el) { return !el.disabled && el.offsetParent !== null; });
+      if (focusables.length === 0) { ev.preventDefault(); return; }
+      var first = focusables[0];
+      var last = focusables[focusables.length - 1];
+      if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+      else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+      else if (!dlg.contains(document.activeElement)) { ev.preventDefault(); first.focus(); }
     }
   });
 

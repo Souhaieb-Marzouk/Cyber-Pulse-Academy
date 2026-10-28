@@ -1,5 +1,12 @@
 # IR Command Deck — CySA+ CS0-003 · Lesson 8.2 (static lab)
 
+**Build: v3 (audit v3 + cross-verified)** — includes the second- and third-audit
+fix sets: length-normalized knowledge-check options, evidence-derived FOCUS
+AREAS in the completion report, unrounded star scoring, `alertdialog` roles on
+confirmation modals, full checkbox accessible names, and correct-answer
+position rotation across all knowledge-check items (v3: every option position
+is used as the correct slot in Medium; R5 length parity preserved).
+
 A self-contained, dependency-free port of the interactive incident response
 training lab for **CompTIA CySA+ CS0-003, Lesson 8.2 — Performing Incident
 Response Activities**. One synthetic incident (Meridian Freight Systems), six

@@ -1,15 +1,18 @@
-# 4.1 - Exploring Leadership in Security Operations - LAB
+# CyberLab — SOC Modernization Sprint (static edition)
 
 An interactive, self-contained cybersecurity practice lab for:
 
 **CompTIA CySA+ CS0-003 · Lesson 4.1 — Exploring Leadership in Security Operations**
 (automation, SOAR playbooks, continuous compliance, and leadership metrics)
 
-This is the static port of the original Next.js lab: identical content, identical
-objectives and validation, identical scoring — with **zero build step, zero server,
-zero external dependencies**. All data is 100% synthetic (fictional org “Corvus
-Logistics”); the MITRE ATT&CK technique IDs referenced are real and used in a purely
-defensive context.
+This is the static port of the original Next.js lab: the same lab, objectives,
+validation and scoring — with **zero build step, zero server, zero external
+dependencies**. After the v3 audit pass it also ships the audit-mandated
+improvements: a fully compliant quiz color contract, performance-derived focus
+areas in the completion report, balanced multiple-choice options, de-clustered
+checklists, and hardened dialog/focus accessibility. All data is 100% synthetic
+(fictional org “Corvus Logistics”); the MITRE ATT&CK technique IDs referenced are
+real and used in a purely defensive context.
 
 ## Run it
 

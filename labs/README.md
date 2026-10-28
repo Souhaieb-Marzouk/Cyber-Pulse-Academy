@@ -35,3 +35,13 @@ A lab is named exactly like the exercise batches it sits beside, with the tier r
 
 One lab per section, grouped under the same chapters as the exercises. Discovery reads the folder
 name up to the first " - ", so the naming is what attaches a lab to its topic — nothing else to edit.
+
+## What a lab may not contain
+
+- **No external hosts.** Not a CDN, not an icon font, not a documentation link in a comment. Inline the
+  SVG, and name a project in words rather than linking to it. The validator fails the build on any host
+  that is not on its allowlist, and that check has caught `lucide.dev` three drops in a row.
+- **No captions or subtitles** in a lab; the browser's own text is the text.
+- **Nothing fetched at runtime.** A lab must work from a file:// URL and offline.
+- **One icon**, the site logo, at the depth of its own folder.
+

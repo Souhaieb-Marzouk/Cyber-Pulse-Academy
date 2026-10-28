@@ -212,6 +212,10 @@ function LabSelect(opts) {
   return {
     el: trigger,
     get value() { return value === NONE ? null : value },
+    setDisabled(d) {
+      trigger.disabled = !!d
+      if (open && trigger.disabled) closeMenu(false)
+    },
     setValue(v) {
       const nv = v ?? NONE
       if (nv === value) return
@@ -294,6 +298,9 @@ function AnswerChoice(opts) {
       refresh(v) {
         if (document.activeElement !== input) input.value = v ?? ''
       },
+      setDisabled(d) {
+        input.disabled = !!d
+      },
     }
   }
   const sel = LabSelect({
@@ -308,7 +315,7 @@ function AnswerChoice(opts) {
     itemClass: 'answer-choice-item',
   })
   wrap.append(sel.el)
-  return { el: wrap, refresh: (v) => sel.setValue(v), select: sel }
+  return { el: wrap, refresh: (v) => sel.setValue(v), select: sel, setDisabled: (d) => sel.setDisabled(d) }
 }
 
 // ── Small shared bits ─────────────────────────────────────────────────────────
@@ -413,6 +420,9 @@ function LabSwitch(opts) {
     el,
     set(on) {
       el.setAttribute('aria-checked', on ? 'true' : 'false')
+    },
+    setDisabled(d) {
+      el.disabled = !!d
     },
   }
 }

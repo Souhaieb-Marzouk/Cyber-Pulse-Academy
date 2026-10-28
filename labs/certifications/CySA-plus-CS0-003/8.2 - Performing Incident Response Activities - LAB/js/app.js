@@ -40,7 +40,7 @@ window.LAB = window.LAB || {};
     if (openModalState) closeModal();
     var opener = document.activeElement;
 
-    var panel = h('div', { class: 'modal-panel' + (opts.alert ? ' is-alert' : ''), role: 'dialog', 'aria-modal': 'true', tabindex: '-1' });
+    var panel = h('div', { class: 'modal-panel' + (opts.alert ? ' is-alert' : ''), role: opts.alert ? 'alertdialog' : 'dialog', 'aria-modal': 'true', tabindex: '-1' });
     panel.setAttribute('aria-labelledby', 'modal-title');
 
     var head = h('div', { class: 'modal-head' });
@@ -177,6 +177,33 @@ window.LAB = window.LAB || {};
     var nextList = h('ul', { class: 'next-list' });
     for (var n = 0; n < nextLines.length; n++) nextList.appendChild(h('li', { text: nextLines[n] }));
 
+    // R8: focus areas derived from THIS student's actual evidence (fails, hints, quiz misses)
+    var objList = mode === 'medium' ? LAB.OBJECTIVES_M : LAB.OBJECTIVES_H;
+    var weak = [];
+    for (var w = 0; w < objList.length; w++) {
+      var prog = s.objectives[objList[w].id];
+      if (prog && (prog.fails > 0 || prog.hintsUsed > 0)) weak.push({ o: objList[w], p: prog });
+    }
+    weak.sort(function (a, b) { return (b.p.fails + b.p.hintsUsed) - (a.p.fails + a.p.hintsUsed); });
+    var quizMissed = (s.quizScore || 0) < quizTotal;
+    var focusItems = weak.map(function (x) {
+      var msg = x.o.title + ' — ' + x.p.fails + ' failed check' + (x.p.fails === 1 ? '' : 's');
+      if (x.p.hintsUsed) msg += ', ' + x.p.hintsUsed + ' hint' + (x.p.hintsUsed === 1 ? '' : 's') + ' used';
+      return msg + ' (pillar ' + x.o.pillar + '). Rerun it and read the check feedback.';
+    });
+    if (quizMissed) {
+      var missed = quizTotal - (s.quizScore || 0);
+      focusItems.push('Knowledge check — ' + missed + ' item' + (missed === 1 ? '' : 's') + ' missed: re-read the ▸ CORRECT ANSWER explanations under Quality Control.');
+    }
+    var focusBox = h('div', { class: 'focus-box' }, h('p', { class: 'mono focus-h', text: 'FOCUS AREAS — SHARPEN THESE NEXT' }));
+    if (focusItems.length) {
+      var focusList = h('ul', { class: 'focus-list' });
+      for (var f = 0; f < focusItems.length; f++) focusList.appendChild(h('li', { text: focusItems[f] }));
+      focusBox.appendChild(focusList);
+    } else {
+      focusBox.appendChild(h('p', { class: 'focus-clean', text: 'Flawless run — zero failed checks, zero hints, full knowledge check. Nothing to patch: bank the pattern and take the other watch.' }));
+    }
+
     var resetBtn = h('button', { type: 'button', class: 'btn btn-rose-outline btn-min11' });
     resetBtn.appendChild(LAB.icon('RotateCcw', 'h-4 w-4 btn-ico'));
     resetBtn.appendChild(document.createTextNode(' RESET LAB'));
@@ -198,6 +225,7 @@ window.LAB = window.LAB || {};
         h('div', { class: 'pillar-box' },
           h('p', { class: 'mono pillar-h', text: 'MASTERY BY PILLAR' }),
           pillarRows),
+        focusBox,
         h('div', { class: 'next-box' },
           h('p', { class: 'mono next-h', text: 'WHERE TO GO NEXT' }),
           nextList),

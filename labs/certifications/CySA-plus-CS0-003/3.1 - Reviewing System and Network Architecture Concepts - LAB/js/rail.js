@@ -153,9 +153,14 @@ function ObjectiveCard(def, index) {
     title.textContent = def.title
     title.className = 'obj-title ' + (run.done ? 'txt-done' : '')
 
-    choicesRefs.forEach(({ ac, key }) => ac.refresh(s.answers[key] ?? null))
+    choicesRefs.forEach(({ ac, key }) => {
+      ac.refresh(s.answers[key] ?? null)
+      // R2: once this objective validates, its card answers are sealed
+      ac.setDisabled?.(run.done)
+    })
     multiRefs.forEach(({ input, opt }) => {
       input.checked = (s.multi[def.multi.key] ?? []).includes(opt.id)
+      input.disabled = run.done
     })
     if (def.multi) {
       const cnt = (s.multi[def.multi.key] ?? []).length
@@ -248,6 +253,46 @@ function CompletionModal() {
       }),
     )
 
+    // Focus areas (R8) — derived from the student's ACTUAL performance evidence:
+    // objectives that needed retries or hints, plus quiz items answered incorrectly.
+    const SHEET_LABELS = {
+      brief: 'Sheet 1 · Brief & Ref',
+      blueprint: 'Sheet 2 · Blueprint',
+      hosts: 'Sheet 3 · Host Evidence',
+      defense: 'Sheet 4 · Defense & Access',
+      quiz: 'Sheet 5 · Knowledge Check',
+      notes: 'Sheet 6 · Field Notes',
+    }
+    const focusObjectives = objs.filter((o) => {
+      const r = s.obj[o.id]
+      return r?.done && (!r.firstAttemptPass || r.hintsUsed > 0)
+    })
+    const focusQuiz = quiz.filter((q) => s.quiz[q.id] != null && s.quiz[q.id] !== q.correct)
+    const hasFocus = focusObjectives.length > 0 || focusQuiz.length > 0
+    const focusPanel = h('div', { class: 'completion-focus' + (hasFocus ? ' has-focus' : ' is-clean') },
+      h('p', { class: 'completion-kicker ' + (hasFocus ? 'rose' : 'green') },
+        h('span', { class: 'chip-icon', html: labIcon('target') }), 'Focus areas — where to concentrate next'),
+      hasFocus
+        ? h('div', { class: 'focus-body' },
+            focusObjectives.length
+              ? h('div', null,
+                  h('p', { class: 'focus-heading' }, 'Objectives that needed retries or hints:'),
+                  h('ul', { class: 'disc-list focus-list' },
+                    focusObjectives.map((o) => h('li', null,
+                      h('span', { class: 'focus-id' }, o.id), ` ${o.title} — re-study via ${SHEET_LABELS[o.sheet]} (${o.anchor})`))))
+              : null,
+            focusQuiz.length
+              ? h('div', null,
+                  h('p', { class: 'focus-heading' }, 'Knowledge-check items answered incorrectly:'),
+                  h('ul', { class: 'disc-list focus-list' },
+                    focusQuiz.map((q) => h('li', null, `“${q.question}” — re-read its explanation on ${SHEET_LABELS.quiz}`))))
+              : null,
+            h('p', { class: 'focus-note' }, 'These come straight from your own evidence above — re-run those objectives or re-read those explanations before moving on.'))
+        : sum.quizCorrect + focusQuiz.length === sum.quizTotal
+          ? h('p', { class: 'focus-clean' }, 'None — every objective passed on the first attempt with no hints, and every quiz item is correct. A clean sweep: move on to the other difficulty mode.')
+          : h('p', { class: 'focus-note' }, `No failed checks or hints recorded — the only open item is the Knowledge Check (${sum.quizCorrect + focusQuiz.length}/${sum.quizTotal} answered). Finish it on Sheet 5 to complete your picture.`),
+    )
+
     const box = Modal({
       onClose: () => { modal = null },
       boxClass: 'completion-box',
@@ -278,6 +323,7 @@ function CompletionModal() {
         h('p', { class: 'completion-kicker' }, 'Objective ledger'),
         ledger,
       ),
+      focusPanel,
       h('div', { class: 'completion-next' },
         h('p', { class: 'completion-kicker amber' }, h('span', { class: 'chip-icon', html: labIcon('bookMarked') }), 'Where to go next'),
         h('ul', { class: 'disc-list next-list' },

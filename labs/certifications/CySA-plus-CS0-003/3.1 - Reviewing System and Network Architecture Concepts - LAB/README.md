@@ -1,4 +1,4 @@
-# 3.1 - Reviewing System and Network Architecture Concepts - LAB
+# The Drafting Room — CySA+ CS0-003 · Lesson 3.1 static lab
 
 A fully static, dependency-free copy of the "Drafting Room" network security
 architecture training lab (CompTIA CySA+ CS0-003, Objective 1.1 — "Explain the

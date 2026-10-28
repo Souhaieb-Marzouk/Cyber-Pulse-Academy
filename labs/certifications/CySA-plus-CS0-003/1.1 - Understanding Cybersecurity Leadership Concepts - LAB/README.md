@@ -1,4 +1,4 @@
-# 1.1 - Understanding Cybersecurity Leadership Concepts - LAB
+# CyberLab — Case File CS0-003-1.1 · The Leadership Ledger (static build)
 
 An interactive practice lab for **CompTIA CySA+ CS0-003 — Lesson 1.1:
 Understanding Cybersecurity Leadership Concepts**. A fictional, defensive-only
@@ -62,3 +62,20 @@ js/app.js         bootstrap + render orchestration
 js/icons.js       inline SVG icons (lucide, ISC license)
 assets/           fonts (Geist, bundled) + favicon
 ```
+
+## v2 — audit v3 fixes included
+
+This copy contains every fix from the independent QA audit (v3, R1–R9):
+
+- Quiz (exit interview): correct answers rotate across positions A/B/C (R4);
+  option lengths balanced — the correct answer is never the giveaway (R5);
+  after submit only the selected option is colored — green if right, red if
+  wrong, and the correct answer is never revealed in green (R3).
+- Objectives: sequence pools, match dropdowns and multi-select lists are
+  shuffled so display order never reveals correct answers (R6).
+- Completion report: new "Focus areas" section derived from the student's
+  actual run — missed exit-interview topics, retried memos, hints used (R8).
+- Dialog close (X) affordance enlarged to a 44 × 44 px touch target (R7).
+
+Regenerated from the audited TypeScript original by
+`.zscripts/static-port/build-data.mjs` (1:1 fidelity harness, 26 bindings).

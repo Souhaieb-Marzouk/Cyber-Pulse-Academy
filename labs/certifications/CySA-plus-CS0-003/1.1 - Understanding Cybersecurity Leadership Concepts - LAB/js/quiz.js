@@ -102,7 +102,11 @@ function buildQuizWorkspace(mode) {
       var picked = labState.quizAnswers[q.id];
       li.querySelectorAll('.q-opt').forEach(function (row) {
         var input = row.querySelector('input');
-        var isCorrect = input.value === q.correct;
+        /* R3 color contract (audit v3): only the SELECTED option is colored after
+           submission — green if it was correct, red if it was wrong. The correct
+           answer is never revealed by color on a wrong submission; the explanation
+           text below still teaches it. */
+        var isCorrect = picked === input.value && input.value === q.correct;
         var isWrongPick = picked === input.value && input.value !== q.correct;
         row.classList.add('submitted');
         row.classList.toggle('is-correct', isCorrect);

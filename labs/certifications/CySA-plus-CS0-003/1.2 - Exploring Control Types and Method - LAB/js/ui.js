@@ -299,6 +299,12 @@
     var overlay = buildOverlay(opts);
     document.body.appendChild(overlay);
     openDialog = { el: overlay, opener: document.activeElement, dismissable: !!opts.dismissable };
+    // Dialog-style (dismissable) dialogs close on an overlay self-click —
+    // i.e. a click that lands on the overlay OUTSIDE the dialog panel.
+    // AlertDialog-style dialogs (reset/nudge) are click-proof by design.
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay && openDialog && openDialog.dismissable) closeDialog(true);
+    });
     // Focus the first focusable inside (prefer [data-autofocus])
     var target = overlay.querySelector("[data-autofocus]") || overlay.querySelector("button, input, [tabindex]");
     if (target) target.focus();

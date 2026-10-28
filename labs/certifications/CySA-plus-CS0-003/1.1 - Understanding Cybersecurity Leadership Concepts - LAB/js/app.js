@@ -767,6 +767,43 @@
       }
     );
     var s = currentStats();
+    /* R8 (audit v3) — focus areas derived from THIS run's actual evidence:
+       missed exit-interview questions, memo retries, hint usage. */
+    var focusAreas = [];
+    QUIZ.forEach(function (q) {
+      if (q.mode === mode && labState.quizAnswers[q.id] !== q.correct) {
+        focusAreas.push({
+          title: 'Exit interview — ' + (QUIZ_TOPICS[q.id] || q.prompt.slice(0, 48)),
+          detail:
+            'Missed on the knowledge check. Re-read its verdict on the desk, then revisit the matching Reference Shelf section before the exam.',
+        });
+      }
+    });
+    var weakByPillar = {};
+    objectives.forEach(function (o) {
+      var p = labState.progress[o.id];
+      if (!p || p.status !== 'filed') return;
+      var notes = [];
+      if (p.attempts > 1) notes.push('retried ×' + (p.attempts - 1));
+      if (p.hintsUsed > 0) notes.push(p.hintsUsed + ' hint' + (p.hintsUsed > 1 ? 's' : '') + ' used');
+      if (notes.length > 0) {
+        if (!weakByPillar[o.pillar]) weakByPillar[o.pillar] = [];
+        weakByPillar[o.pillar].push(o.code + ' (' + notes.join(', ') + ')');
+      }
+    });
+    Object.keys(weakByPillar).forEach(function (p) {
+      focusAreas.push({
+        title: p + ' ' + PILLARS[p].label + ': ' + weakByPillar[p].join(', '),
+        detail: 'Re-run these memos first-try in the other mode. Pillar focus: ' + PILLARS[p].desc.toLowerCase() + '.',
+      });
+    });
+    if (focusAreas.length === 0) {
+      focusAreas.push({
+        title: 'Clean sweep — no weak areas detected',
+        detail:
+          'Every memo filed first-try without hints and the full exit interview was correct. Keep the same scorecard discipline on the next lesson.',
+      });
+    }
     renderCompletionContent(completionDialog.panel, {
       mode: mode,
       score: s.score,
@@ -776,6 +813,7 @@
       quizCorrect: s.quizCorrect,
       quizTotal: s.quizTotal,
       pillarCounts: pillarCounts,
+      focusAreas: focusAreas,
     });
     /* close X (Radix DialogContent ships one) */
     if (!completionDialog.panel.querySelector('.dialog-close-x')) {

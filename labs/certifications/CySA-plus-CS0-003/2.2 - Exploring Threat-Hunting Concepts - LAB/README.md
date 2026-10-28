@@ -1,4 +1,4 @@
-# 2.2 - Exploring Threat-Hunting Concepts - LAB
+# The Threat Hunt Expedition — static lab
 
 An interactive practice lab for **CompTIA CySA+ (CS0-003), Lesson 2.2 — "Exploring Threat-Hunting Concepts"**.
 
@@ -53,3 +53,25 @@ js/ui.js            shared widgets (selects, seg buttons, order benches, modals�
 js/app.js           bootstrap, views and event wiring
 assets/             favicon + bundled Geist fonts (latin subsets)
 ```
+
+## v3 QA sync (audit v3)
+
+This build is synchronized with the framework lab's audit-v2/v3 QA pass. Changes shipped in
+this revision, all verified in-browser:
+
+- **R3 answer-reveal contract** — after checking an exam question, only the *selected* answer
+  is highlighted (green if it was correct, red if it was wrong). The correct option is never
+  revealed in green, by icon, or by screen-reader text on a wrong submission.
+- **R4 correct-answer rotation** — exam option order rotated so the correct index moves across
+  items (Medium {0:2, 1:2, 2:2, 3:1}; Hard {0:2, 1:2, 2:2, 3:2}, 0-based).
+- **R5 option-length discipline** — no correct answer is strictly the longest option; all
+  options stay parallel in length and structure.
+- **R6 pairing/order shuffles** — the intel-cycle and Kill-Chain bench pools, the Diamond rows
+  and the Hard route rows render in fixed deterministic shuffles, never in answer order.
+- **R8 completion report focus areas** — the completion modal now lists study focus areas
+  derived from the run's actual evidence (unverified objectives, retried/hinted objectives,
+  missed exam topics with manual chapter references).
+- **R7 popups** — the completion dialog gained a visible, keyboard-accessible 44px close (X)
+  button; ESC and click-outside keep working.
+- **Touch targets** — all interactive controls are now ≥ 44×44 px (spotlight "Take me there",
+  basecamp Resume/Discard, rail Check/Hint controls, dialog close).

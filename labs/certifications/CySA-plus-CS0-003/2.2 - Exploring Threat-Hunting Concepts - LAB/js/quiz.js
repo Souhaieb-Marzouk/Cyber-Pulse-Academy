@@ -1,7 +1,6 @@
 // ─── Threat Hunt Expedition — FIELD EXAM (block C5) ──────────────────────────
 // One-shot quiz console: once answered, the option set locks and the "Why"
 // feedback unlocks. Verbatim questions/options/explanations from data.js.
-/* eslint-disable */
 
 window.HuntQuiz = (function () {
   "use strict";
@@ -32,19 +31,24 @@ window.HuntQuiz = (function () {
 
     var optionsHtml = q.options
       .map(function (opt, oi) {
+        // R3 color contract: after Check, ONLY the selected answer is
+        // highlighted — green when it was correct, red when it was wrong.
+        // The correct option is NEVER revealed in green (nor by icon or
+        // screen-reader text) on a wrong submission; the "Why" feedback
+        // below still teaches the reasoning behind the right answer.
         var isChosen = chosen === oi;
-        var isCorrect = oi === q.correct;
+        var chosenIsCorrect = locked && isChosen && chosen === q.correct;
         var optCls = "opt";
         var dotCls = "";
         if (locked) {
-          if (isCorrect) { optCls = "opt opt-correct"; dotCls = " dot-correct"; }
+          if (isChosen && chosenIsCorrect) { optCls = "opt opt-correct"; dotCls = " dot-correct"; }
           else if (isChosen) { optCls = "opt opt-chosen-wrong"; dotCls = " dot-wrong"; }
           else { optCls = "opt opt-dim"; dotCls = " dot-dim"; }
         }
         var sr = "";
-        if (locked && isCorrect) {
-          sr = '<span class="sr-only">' + (isChosen ? " — correct, your answer" : " — this was the correct answer") + "</span>";
-        } else if (locked && isChosen && !isCorrect) {
+        if (chosenIsCorrect) {
+          sr = '<span class="sr-only"> — correct, your answer</span>';
+        } else if (locked && isChosen && !chosenIsCorrect) {
           sr = '<span class="sr-only"> — your answer, incorrect</span>';
         }
         return (
@@ -52,8 +56,8 @@ window.HuntQuiz = (function () {
           '" data-index="' + oi + '" aria-pressed="' + (isChosen ? "true" : "false") + '"' + (locked ? " disabled" : "") + ">" +
           '<span class="opt-dot' + dotCls + '" aria-hidden="true"></span>' +
           '<span class="opt-text">' + esc(opt) + "</span>" +
-          (locked && isCorrect ? '<span class="opt-mark" aria-hidden="true">' + icon("check", "h-4 w-4 mark-lime") + "</span>" : "") +
-          (locked && isChosen && !isCorrect ? '<span class="opt-mark" aria-hidden="true">' + icon("x", "h-4 w-4 mark-rose") + "</span>" : "") +
+          (chosenIsCorrect ? '<span class="opt-mark" aria-hidden="true">' + icon("check", "h-4 w-4 mark-lime") + "</span>" : "") +
+          (locked && isChosen && !chosenIsCorrect ? '<span class="opt-mark" aria-hidden="true">' + icon("x", "h-4 w-4 mark-rose") + "</span>" : "") +
           sr +
           "</button>"
         );

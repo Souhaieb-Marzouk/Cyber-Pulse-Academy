@@ -17,7 +17,7 @@
   // ── Sensors (the Sensor Bay) ────────────────────────────────────────────────
   var SENSORS = [
     { id: 'syslogRelay', name: 'Syslog Relay & Aggregator', zone: 'central', feed: 'logs', short: 'Forwards every enabled log source into one searchable stream', detail: 'The aggregation point of the whole console: a single relay that collects system, application and security logs and forwards them at a chosen minimum level. Its threshold decides whether you drown in DEBUG chatter or keep clean signal.' },
-    { id: 'ntpSync', name: 'NTP Time Sync', zone: 'central', feed: null, short: 'Keeps every host clock aligned so events can be correlated', detail: 'Aggregation without synchronized time produces confident nonsense: events from different hosts interleave in the wrong order and correlation fails. NTP is a visibility control, not an IT nicety.' },
+    { id: 'ntpSync', name: 'NTP Time Sync', zone: 'central', feed: null, short: 'Keeps every host clock aligned so events can be correlated', detail: 'Aggregation without synchronized time produces confident nonsense: events from different hosts interleave in the wrong order and correlation fails. NTP (Network Time Protocol) is a visibility control, not an IT nicety.' },
     { id: 'systemLogs', name: 'System Logs', zone: 'servers', feed: 'logs', short: 'OS-level events: services, cron, packages, drivers', detail: 'System logs record what the operating system and its services did — scheduled jobs, service starts, package changes. They are the baseline lens on any server.' },
     { id: 'appLogs', name: 'Application Logs', zone: 'servers', feed: 'logs', short: 'Events emitted by the software your business runs', detail: 'Application logs show software behavior: batch jobs, exports, errors. They are often the noisiest source — which is exactly why log levels and filtering matter.' },
     { id: 'securityLogs', name: 'Security Logs', zone: 'endpoints', feed: 'logs', short: 'Authentication, authorization and endpoint-security events', detail: 'Security logs capture logon successes and failures, authorization changes and endpoint-defense events. Almost every intrusion story starts here.' },
@@ -135,7 +135,7 @@
     { value: 'critical', label: 'Critical' }
   ];
 
-  // ── Glossary (15 terms) ─────────────────────────────────────────────────────
+  // ── Glossary (19 terms — audit v3 added ACL/DLP/EDR/SIEM for first-use coverage) ─────────────────────────────────────────────────────
   var GLOSSARY = [
     { term: 'Operational Visibility', def: 'Identifying, containing and protecting all data so teams can quickly spot and respond to unauthorized access — the foundation of security operations.' },
     { term: 'Data Source', def: 'Any instrument that records activity — logs, packet capture, FIM, scanners — from which security truth is collected.' },
@@ -151,7 +151,11 @@
     { term: 'File Integrity Monitoring', def: 'FIM — hashes critical files against the baseline and reports every out-of-baseline change.' },
     { term: 'Asset Inventory', def: 'The enumerated list of every device and data set on the estate — you cannot protect the unknown.' },
     { term: 'CASB', def: 'Cloud Access Security Broker — discovers which SaaS apps touch company data, sanctioned or not.' },
-    { term: 'Access Review', def: 'The record answering who accessed what, when, from where and how — also the auditor’s evidence.' }
+    { term: 'Access Review', def: 'The record answering who accessed what, when, from where and how — also the auditor’s evidence.' },
+    { term: 'ACL', def: 'Access Control List — the permission table on a file share or object that decides who can read, write or change it.' },
+    { term: 'DLP', def: 'Data Loss Prevention — controls that watch and block sensitive data leaving through exports, uploads or cloud sync.' },
+    { term: 'EDR', def: 'Endpoint Detection and Response — the agent-level sensor on workstations and servers that watches process and file activity.' },
+    { term: 'SIEM', def: 'Security Information and Event Management — the platform that aggregates, correlates and retains security logs for detection and audit.' }
   ];
 
   // ── Knowledge Core content ──────────────────────────────────────────────────
@@ -192,7 +196,7 @@
     { label: 'M1047 — Audit', href: 'https://attack.mitre.org/mitigations/M1047/', note: 'Comprehensive logging, correct levels, retention' },
     { label: 'M1018 — User Account Management', href: 'https://attack.mitre.org/mitigations/M1018/', note: 'Joiner-mover-leaver, least privilege' },
     { label: 'M1026 — Privileged Account Management', href: 'https://attack.mitre.org/mitigations/M1026/', note: 'Vaulting, no interactive service logons' },
-    { label: 'M1032 — Multi-factor Authentication', href: 'https://attack.mitre.org/mitigations/M1032/', note: 'Remote access without MFA is a door propped open' },
+    { label: 'M1032 — Multi-Factor Authentication', href: 'https://attack.mitre.org/mitigations/M1032/', note: 'Remote access without MFA is a door propped open' },
     { label: 'M1022 — Restrict File and Directory Permissions', href: 'https://attack.mitre.org/mitigations/M1022/', note: 'Need-to-know share ACLs' }
   ];
 
@@ -338,12 +342,14 @@
 
   var ASSET_TOTAL = 27;
 
-  // Filler rows that round the inventory out to 27 assets (ids AS-09 … AS-25)
+  // Filler rows that round the inventory out to 27 assets. Audit v2: filler ids
+  // skip AS-17 and AS-23 (real NAS-3 / LT-118 rows) so no id renders twice.
   var FILLER_KINDS = ['Workstation', 'Laptop', 'Printer', 'IP phone', 'Tablet'];
+  var FILLER_NUMBERS = [9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 24, 25, 26, 27];
   var FILLER_ASSETS = [];
   for (var fi = 0; fi < 17; fi++) {
     FILLER_ASSETS.push({
-      id: 'AS-' + String(fi + 9).padStart(2, '0'),
+      id: 'AS-' + String(FILLER_NUMBERS[fi]).padStart(2, '0'),
       kind: FILLER_KINDS[fi % 5],
       cls: 'Internal'
     });

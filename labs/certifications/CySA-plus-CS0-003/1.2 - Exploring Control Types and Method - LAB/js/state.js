@@ -22,7 +22,6 @@
       answers: {},
       results: {},
       quiz: { idx: 0, answers: {}, revealed: {}, done: false },
-      completionSeen: false,
     };
   }
 
@@ -199,6 +198,60 @@
     return { stars: stars, firstTryRate: firstTry, hints: hints };
   }
 
+  /* ─── Completion-report focus areas (R8) ──────────────────────────────────
+     Derived from the student's ACTUAL evidence: objective attempts, hint
+     usage, and missed quiz concepts. Nothing generic — a flawless run
+     reports that. */
+
+  function computeFocusAreas(mode, s, quizQuestions) {
+    var list = objectivesForMode(mode);
+    var areas = [];
+
+    list.forEach(function (o) {
+      var prog = s.progress[o.id];
+      if (!prog || !prog.done) return;
+      if (prog.attempts > 1) {
+        areas.push({
+          area: o.title + " (" + o.id + ")",
+          detail:
+            "Needed " +
+            prog.attempts +
+            " checks — re-run it once more without feedback so the " +
+            o.pillar.toLowerCase() +
+            " step is automatic.",
+        });
+      }
+      if (prog.hints > 0) {
+        areas.push({
+          area: o.title + " (" + o.id + ")",
+          detail: "Solved with hint tier " + prog.hints + " — rework it unaided; the exam gives no hints.",
+        });
+      }
+    });
+
+    var missed = quizQuestions.filter(function (q) {
+      return s.quiz.answers[q.id] !== q.correct;
+    });
+    missed.forEach(function (q) {
+      areas.push({
+        area: "Quiz: " + q.topic,
+        detail:
+          "Missed on the final check — reread the knowledge-core entry for " +
+          q.topic.toLowerCase() +
+          " and the question's explanation.",
+      });
+    });
+
+    if (areas.length === 0) {
+      areas.push({
+        area: "No weak spots flagged",
+        detail:
+          "Every objective passed first-try without hints and the check came back clean. Consolidate by classifying your own organization's controls on a blank grid.",
+      });
+    }
+    return areas;
+  }
+
   /* ─── Export ───────────────────────────────────────────────────────────── */
 
   CG.state = {
@@ -220,5 +273,6 @@
     ensureAnswers: ensureAnswers,
     resumePhase: resumePhase,
     computeStars: computeStars,
+    computeFocusAreas: computeFocusAreas,
   };
 })();

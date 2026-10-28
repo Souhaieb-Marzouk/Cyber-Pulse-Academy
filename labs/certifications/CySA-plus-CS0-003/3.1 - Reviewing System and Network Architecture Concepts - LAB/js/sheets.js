@@ -343,6 +343,8 @@ function SegPanel() {
       stateTxt.textContent = on ? 'on' : 'off'
       stateTxt.className = 'seg-state ' + (on ? 'txt-on' : 'txt-off')
       sw.set(on)
+      // R2: once M11 validates the policy, the switches are sealed
+      sw.setDisabled(!!s.obj['M11']?.done)
       sw.el.setAttribute('aria-label', `${r.label} — ${on ? 'enabled' : 'disabled'}`)
     }
     sync(LabStore.state)
@@ -388,6 +390,8 @@ function TelemetryRack(scope) {
     const sync = (s) => {
       const assigned = s.telemetry[l.id] ?? null
       sel.setValue(assigned)
+      // R2: once the rack is validated (M3+M4 in medium, H2 in hard), the wiring is sealed
+      sel.setDisabled(s.mode === 'hard' ? !!s.obj['H2']?.done : !!s.obj['M3']?.done && !!s.obj['M4']?.done)
       card.classList.toggle('is-assigned', !!assigned)
       const zone = ZONES.find((z) => z.id === assigned)
       arrow.textContent = assigned && zone ? `→ ${zone.name}` : ''
@@ -434,6 +438,8 @@ function SnippetTray(scope) {
     const sync = (s) => {
       const picked = s.answers[`snip-${sn.id}`] ?? null
       ac.refresh(picked)
+      // R2: once M7 validates the tray, the tags are sealed
+      ac.setDisabled(!!s.obj['M7']?.done)
       card.classList.toggle('is-correct', picked === sn.correct)
       card.classList.toggle('is-wrong', picked !== null && picked !== sn.correct)
       msgOk.classList.toggle('is-visible', picked === sn.correct)
@@ -472,6 +478,8 @@ function BehaviorMap(scope) {
     const sync = (s) => {
       const picked = s.answers[`bhv-${b.id}`] ?? null
       ac.refresh(picked)
+      // R2: once M8 validates the mapping, the answers are sealed
+      ac.setDisabled(!!s.obj['M8']?.done)
       const ok = picked === b.correct || (b.alt && picked === b.alt)
       row.classList.toggle('is-correct', ok)
       row.classList.toggle('is-wrong', picked !== null && !ok)
@@ -537,7 +545,12 @@ function RuleEditor(scope) {
 
   scope.sub(() => {
     const r = LabStore.state.rule
-    for (const k of Object.keys(fields)) fields[k].refresh(r[k])
+    const h5done = !!LabStore.state.obj['H5']?.done
+    for (const k of Object.keys(fields)) {
+      fields[k].refresh(r[k])
+      // R2: once H5 validates the rule, the fields are sealed
+      fields[k].setDisabled(h5done)
+    }
     compiledSpans.dataset.textContent = label(dsShort, r.dataset)
     compiledSpans.domain.textContent = label(domains, r.domain)
     compiledSpans.host.textContent = label(hosts, r.host)
@@ -671,6 +684,10 @@ function ArtifactCard(artifact, scope) {
 
   const sync = (s) => {
     const v = s.judgment[artifact.id] ?? null
+    // R2: verdicts seal once their objective validates (M5 medium / H3 hard)
+    const judged = s.mode === 'hard' ? !!s.obj['H3']?.done : !!s.obj['M5']?.done
+    btnSusp.disabled = judged
+    btnNorm.disabled = judged
     btnSusp.classList.toggle('is-active', v === 'suspicious')
     btnSusp.setAttribute('aria-pressed', v === 'suspicious' ? 'true' : 'false')
     btnNorm.classList.toggle('is-active', v === 'normal')
@@ -717,8 +734,11 @@ function SelinuxCard(scope) {
   )
   const sync = (s) => {
     pre.textContent = s.selinux.charAt(0).toUpperCase() + s.selinux.slice(1)
+    // R2: hardening state seals once its objective validates (M6 medium / H4 hard)
+    const hardened = s.mode === 'hard' ? !!s.obj['H4']?.done : !!s.obj['M6']?.done
     btns.forEach((b, i) => {
       const on = s.selinux === modes[i].id
+      b.disabled = hardened
       b.classList.toggle('is-active', on)
       b.setAttribute('aria-pressed', on ? 'true' : 'false')
     })
@@ -773,6 +793,7 @@ function ModulesCard(scope) {
     })
     flagBtns.forEach((b, i) => {
       const on = s.moduleFlagged === LINUX_MODULES[i].name
+      b.disabled = s.mode === 'hard' ? !!s.obj['H4']?.done : !!s.obj['M6']?.done
       b.classList.toggle('is-active', on)
       b.setAttribute('aria-pressed', on ? 'true' : 'false')
     })
@@ -810,6 +831,8 @@ function PermsCard(scope) {
   const ok = h('p', { class: 'mode-note green' }, '-rw------- deploy deploy — least privilege restored. Private keys are never group- or world-readable.')
   const sync = (s) => {
     ac.refresh(s.answers['lin-perms'] ?? null)
+    // R2: hardening state seals once its objective validates (M6 medium / H4 hard)
+    ac.setDisabled(s.mode === 'hard' ? !!s.obj['H4']?.done : !!s.obj['M6']?.done)
     ok.classList.toggle('is-visible', s.answers['lin-perms'] === '600')
   }
   sync(LabStore.state)
@@ -833,7 +856,11 @@ function JustificationCard(scope) {
     value: LabStore.state.answers['lin-just'] ?? null,
     onChange: (v) => LabStore.setAnswer('lin-just', v),
   })
-  const sync = (s) => ac.refresh(s.answers['lin-just'] ?? null)
+  const sync = (s) => {
+    ac.refresh(s.answers['lin-just'] ?? null)
+    // R2: once H4 validates, the memo answer is sealed
+    ac.setDisabled(!!s.obj['H4']?.done)
+  }
   sync(LabStore.state)
   scope.sub(sync)
   return h(
@@ -947,8 +974,12 @@ function DeviceCard(device) {
   )
   const sync = (s) => {
     const v = s.answers[`dev-${device.id}`] ?? null
+    // R2: once M9 validates the queue, the decisions are sealed
+    const locked = !!s.obj['M9']?.done
     pills.forEach((p, i) => {
       const on = v === DECISIONS[i].id
+      p.querySelector('input').disabled = locked
+      p.classList.toggle('is-locked', locked)
       p.classList.toggle('is-active', on)
       p.querySelector('input').checked = on
     })
@@ -972,6 +1003,8 @@ function TrustSort(scope) {
       const selected = s.multi['trust'] ?? []
       const checked = selected.includes(t.id)
       input.checked = checked
+      // R2: once M10 validates the sort, the selections are sealed
+      input.disabled = !!s.obj['M10']?.done
       count.textContent = checked ? `${selected.length}/3` : ''
     }
     sync(LabStore.state)
@@ -1014,6 +1047,9 @@ function Sequencer(scope) {
 
   function rebuild(s) {
     const chain = s.sequence
+    // R2: once H6 validates the chain, it is sealed
+    const locked = !!s.obj['H6']?.done
+    clearBtn.disabled = locked
     poolList.replaceChildren()
     const remaining = SEQUENCE_POOL.filter((a) => !chain.includes(a.id))
     if (remaining.length === 0) {
@@ -1021,6 +1057,7 @@ function Sequencer(scope) {
     }
     for (const a of remaining) {
       const b = h('button', { type: 'button', class: 'seq-pool-btn' }, a.label)
+      b.disabled = locked
       b.addEventListener('click', () => {
         LabStore.update((st) => ({ ...st, sequence: [...st.sequence, a.id] }))
         LabStore.announce(`${a.label} — appended to the response chain.`)
@@ -1037,6 +1074,7 @@ function Sequencer(scope) {
         h('span', { class: 'seq-step-label' }, labelOf(id)),
         h('span', { class: 'chip-icon dim', html: labIcon('xCircle') }),
       )
+      b.disabled = locked
       b.addEventListener('click', () => {
         LabStore.update((st) => ({ ...st, sequence: st.sequence.filter((x) => x !== id) }))
         LabStore.announce('Step removed.')
@@ -1116,7 +1154,9 @@ function QuizItem(item, index, scope) {
     const isCorrect = picked === item.correct
     opts.forEach(({ input, label }) => {
       const isPicked = picked === input.value
-      const showRight = locked && input.value === item.correct
+      // R3 color contract: only the SELECTED answer is highlighted after lock —
+      // a wrong selection must never reveal the correct option.
+      const showRight = locked && isPicked && input.value === item.correct
       const showWrong = locked && isPicked && input.value !== item.correct
       input.disabled = locked
       label.classList.toggle('is-right', showRight)

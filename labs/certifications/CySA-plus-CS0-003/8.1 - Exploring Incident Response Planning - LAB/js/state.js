@@ -79,6 +79,9 @@ function makeInitialState() {
     quizSubmitted: false,
     /** Score recorded at the FIRST submission — retry attempts never overwrite it. */
     quizFiledScore: null,
+    /** Answer snapshot of the FIRST (filed) submission — powers the focus-area report.
+     *  Audit v2 (R8). */
+    quizFiledAnswers: {},
     /** True while a practice attempt is open (colors cleared, answers editable). */
     quizPractice: false,
 
@@ -95,6 +98,60 @@ function makeInitialState() {
 
 var STORAGE_KEY = 'cyberlab-irp-cs003-8-1';
 var STORAGE_VERSION = 1;
+
+/* Audit v3 (R2): once an objective is FILED, the answer fields it owns are
+   locked. Mirrors the original's LOCKED_BY table in store.ts — the store
+   refuses any mutation to a locked key, so no control (mouse, keyboard or
+   future widget) can re-select or edit an already-checked answer. */
+var LOCKED_BY = {
+  medium: {
+    phaseOrder: ['M1'],
+    activityPhase: ['M2'],
+    roleMatch: ['M3'],
+    crewMedium: ['M4'],
+    incSev: ['M5'],
+    incEsc: ['M5'],
+    dutyEsc: ['M11'],
+    planMatchM: ['M6'],
+    commsCh: ['M7'],
+    commsTim: ['M7'],
+    commsAud: ['M7'],
+    exMatchM: ['M8'],
+    exOrder: ['M8'],
+    retDurM: ['M9'],
+    holdTarget: ['M9'],
+    playPick: ['M10'],
+    playOrder: ['M10'],
+    charterPick: ['M12'],
+  },
+  hard: {
+    phaseOrder: ['H1'],
+    eventPhase: ['H1'],
+    crewHard: ['H2'],
+    incSev: ['H3'],
+    incEsc: ['H3'],
+    queueOrder: ['H3'],
+    exStageH: ['H4'],
+    planMatchH: ['H5'],
+    commsActionH: ['H6'],
+    retActionH: ['H7'],
+    custodyPick: ['H7'],
+    auditMark: ['H8'],
+    warPick: ['H9'],
+  },
+};
+
+/* True when every objective that owns `key` (in the current mode) is filed. */
+function fieldLocked(s, key) {
+  var table = s.mode === 'hard' ? LOCKED_BY.hard : LOCKED_BY.medium;
+  var owners = table[key];
+  if (!owners || owners.length === 0) return false;
+  for (var i = 0; i < owners.length; i++) {
+    var o = s.obj[owners[i]];
+    if (!o || !o.done) return false;
+  }
+  return true;
+}
 
 var LabStore = (function () {
   var state = makeInitialState();
@@ -182,11 +239,12 @@ var LabStore = (function () {
       notify(state, state); /* full-pristine patch → subscriber rebuilds the view */
     },
 
-    /* generic list helpers */
-    setPhaseOrder: function (o) { store.set({ phaseOrder: o }); },
-    setExOrder: function (o) { store.set({ exOrder: o }); },
-    setPlayOrder: function (o) { store.set({ playOrder: o }); },
-    setQueueOrder: function (o) { store.set({ queueOrder: o }); },
+    /* generic list helpers — Audit v3 (R2): mutators refuse changes to
+       fields owned by a FILED objective. */
+    setPhaseOrder: function (o) { if (!fieldLocked(state, 'phaseOrder')) store.set({ phaseOrder: o }); },
+    setExOrder: function (o) { if (!fieldLocked(state, 'exOrder')) store.set({ exOrder: o }); },
+    setPlayOrder: function (o) { if (!fieldLocked(state, 'playOrder')) store.set({ playOrder: o }); },
+    setQueueOrder: function (o) { if (!fieldLocked(state, 'queueOrder')) store.set({ queueOrder: o }); },
 
     LIST_KEYS: ['charterPick', 'crewMedium', 'crewHard', 'playPick', 'auditMark'],
     FIELD_KEYS: ['activityPhase', 'eventPhase', 'roleMatch', 'incSev', 'incEsc', 'dutyEsc',
@@ -194,6 +252,7 @@ var LabStore = (function () {
       'exMatchM', 'exStageH', 'retDurM', 'retActionH'],
 
     toggleIn: function (key, id) {
+      if (fieldLocked(state, key)) return; /* Audit v3 (R2) */
       var arr = state[key] || [];
       var idx = arr.indexOf(id);
       var next = idx === -1 ? arr.concat([id]) : arr.filter(function (x) { return x !== id; });
@@ -203,6 +262,7 @@ var LabStore = (function () {
     },
 
     setField: function (key, field, value) {
+      if (fieldLocked(state, key)) return; /* Audit v3 (R2) */
       /* Object.assign mirrors the original's {...spread, [field]: value}:
          existing keys keep their position, new keys append */
       var patch = {};
@@ -211,9 +271,10 @@ var LabStore = (function () {
       store.set(patch);
     },
 
-    setHoldTarget: function (v) { store.set({ holdTarget: v }); },
-    setCustodyPick: function (v) { store.set({ custodyPick: v }); },
+    setHoldTarget: function (v) { if (!fieldLocked(state, 'holdTarget')) store.set({ holdTarget: v }); },
+    setCustodyPick: function (v) { if (!fieldLocked(state, 'custodyPick')) store.set({ custodyPick: v }); },
     setWarPick: function (inject, option) {
+      if (fieldLocked(state, 'warPick')) return; /* Audit v3 (R2) */
       var patchOpt = {};
       patchOpt[inject] = option;
       store.set({ warPick: Object.assign({}, state.warPick, patchOpt) });
@@ -227,11 +288,13 @@ var LabStore = (function () {
       store.set({ quizAnswers: Object.assign({}, state.quizAnswers, patchAns) });
     },
 
-    /* First submission files the score; retry attempts are practice-only. */
+    /* First submission files the score AND snapshots the graded answers (R8 focus report);
+       retry attempts are practice-only and change neither. */
     submitQuiz: function () {
       var patch = { quizSubmitted: true, quizPractice: false };
       if (state.quizFiledScore === null || state.quizFiledScore === undefined) {
         patch.quizFiledScore = LabEngine.computeQuizScore(state);
+        patch.quizFiledAnswers = Object.assign({}, state.quizAnswers);
       }
       store.set(patch);
     },

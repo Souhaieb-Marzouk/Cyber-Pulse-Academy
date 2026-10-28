@@ -3,7 +3,6 @@
 // ObjectivesRail, the six stations, Debrief and Completion dialogs).
 // Behavior contract: same phases, same validation, same persistence semantics,
 // same reset/mode-switch confirms as the original lab.
-/* eslint-disable */
 
 window.App = (function () {
   "use strict";
@@ -27,10 +26,24 @@ window.App = (function () {
   };
   var root = null;
 
+  // R6: order-bench pools and row lists render in fixed deterministic shuffles
+  // (never the canonical answer order), mirroring the framework lab.
   var BENCHES = {
-    cycleOrder: { label: "Intelligence cycle — in order", pool: D.intelCyclePhases },
-    killChain: { label: "Cyber Kill Chain — in order", pool: D.killChainPhases },
+    cycleOrder: {
+      label: "Intelligence cycle — in order",
+      pool: D.intelCyclePoolOrder.map(function (id) {
+        return D.intelCyclePhases.filter(function (p) { return p.id === id; })[0];
+      }),
+    },
+    killChain: {
+      label: "Cyber Kill Chain — in order",
+      pool: D.killChainPoolOrder.map(function (id) {
+        return D.killChainPhases.filter(function (p) { return p.id === id; })[0];
+      }),
+    },
   };
+  var ROUTE_DISPLAY_ORDER = ["r4", "r1", "r5", "r2", "r6", "r3"];
+  var DIAMOND_DISPLAY_ORDER = ["d-infra", "d-vic", "d-adv", "d-cap"];
 
   // ── state ops (mirror HuntLab.tsx) ─────────────────────────────────────────
 
@@ -115,7 +128,7 @@ window.App = (function () {
     refreshOpsChrome();
   }
 
-  function useHint(id) {
+  function consumeHint(id) {
     var prev = S.objectives[id] || St.emptyProgress();
     var isHard = S.mode === "hard";
     S.objectives[id] = Object.assign({}, prev, {
@@ -646,7 +659,8 @@ window.App = (function () {
           '<div class="stack-3">' + products + "</div>" + m5Counter
         );
     } else {
-      var routes = D.routeItems.map(function (it) {
+      var routes = ROUTE_DISPLAY_ORDER.map(function (id) {
+        var it = D.routeItems.filter(function (r) { return r.id === id; })[0];
         return UI.choiceRow(it.label, "routeItems", it.id, S.env.routeItems[it.id] || "", D.intelCyclePhases.map(function (p) { return { id: p.id, label: p.label }; }), { compact: true });
       }).join("");
       var routedH6 = D.routeItems.filter(function (r) { return S.env.routeItems[r.id]; }).length;
@@ -923,7 +937,8 @@ window.App = (function () {
       widgets +=
         UI.widgetCard("Order the Kill Chain", "Seven phases, seven chances to break an intrusion. Slot them in order.", "OBJ-M11",
           UI.orderBench("Cyber Kill Chain — in order", "killChain", BENCHES.killChain.pool, S.env.killChain));
-      var diamond = D.diamondItems.map(function (it) {
+      var diamond = DIAMOND_DISPLAY_ORDER.map(function (id) {
+        var it = D.diamondItems.filter(function (d) { return d.id === id; })[0];
         return UI.choiceRow(it.label, "diamond", it.id, S.env.diamond[it.id] || "", D.diamondVertices, { compact: true });
       }).join("");
       widgets +=
@@ -1175,6 +1190,15 @@ window.App = (function () {
     var nextSteps = D.debriefData.nextSteps.map(function (s, i) {
       return '<li class="next-li"><span class="next-num">' + String(i + 1).padStart(2, "0") + "</span>" + esc(s) + "</li>";
     }).join("");
+    // R8: focus areas derived from THIS run's evidence (unverified objectives,
+    // retries/hints, missed exam topics) — never generic filler.
+    var focusItems = (st.focusAreas || []).map(function (f) {
+      return (
+        '<li class="focus-li"><span class="focus-dot" aria-hidden="true"></span><div>' +
+        '<p class="focus-title">' + esc(f.title) + "</p>" +
+        '<p class="focus-detail">' + esc(f.detail) + "</p></div></li>"
+      );
+    }).join("");
 
     return (
       '<p class="comp-kicker">Expedition log · final entry</p>' +
@@ -1192,6 +1216,9 @@ window.App = (function () {
       '<section aria-label="Mastery recap by pillar" class="comp-section">' +
       '<h3 class="comp-section-title">Mastery recap by pillar</h3>' +
       '<div class="pillar-stack">' + pillarRows + "</div></section>" +
+      '<section aria-label="Focus areas" class="comp-section comp-focus mt-4">' +
+      '<h3 class="comp-section-title focus-title-head">Focus areas before your next expedition</h3>' +
+      '<ul class="focus-list">' + focusItems + "</ul></section>" +
       '<section aria-label="What to learn next" class="comp-section mt-4">' +
       '<h3 class="comp-section-title">What to learn next</h3>' +
       '<ol class="next-list">' + nextSteps + "</ol></section>" +
@@ -1330,7 +1357,7 @@ window.App = (function () {
         if (revealedFor() !== wasRevealed) fillStation(); // ground truth appeared
         break;
       }
-      case "hint-obj": useHint(el.getAttribute("data-obj")); break;
+      case "hint-obj": consumeHint(el.getAttribute("data-obj")); break;
       case "toggle-bulletin": {
         var bid = el.getAttribute("data-bulletin");
         var next = !ui.openBulletin || ui.openBulletin !== bid ? bid : null;

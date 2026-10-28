@@ -1,5 +1,5 @@
 // ── Inline SVG icons ──────────────────────────────────────────────────────────
-// Path data copied VERBATIM from lucide-react v0.525.0 (ISC license, https://the Lucide project).
+// Path data copied VERBATIM from lucide-react v0.525.0 (ISC license, the Lucide project).
 // Every icon the original lab renders is reproduced here with identical geometry,
 // so the static port is visually indistinguishable without any icon font or CDN.
 (function () {

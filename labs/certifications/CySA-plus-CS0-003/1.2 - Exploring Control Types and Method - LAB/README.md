@@ -1,4 +1,4 @@
-# 1.2 - Exploring Control Types and Method - LAB
+# The Control Grid — static lab
 
 An interactive, self-contained cybersecurity training lab for **CompTIA CySA+ CS0-003 · Lesson 1.2 — Exploring Control Types and Method** (difficulty: Medium "Field Orientation" and Hard "Red Cell Audit").
 

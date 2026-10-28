@@ -4,10 +4,13 @@
  * port renders pixel-identical inline SVG icons with no CDN and no icon font.
  */
 
-/* eslint-disable indent */
 const LAB_ICONS = {
   Archive:
     '    <rect width="20" height="5" x="2" y="3" rx="1"></rect>    <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path>    <path d="M10 12h4"></path>',
+  ClipboardCheck:
+    '    <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"></path>    <rect x="2" y="6" width="8" height="12" rx="2"></rect>',
+  Crosshair:
+    '    <circle cx="12" cy="12" r="10"></circle>    <line x1="22" x2="18" y1="12" y2="12"></line>    <line x1="6" x2="2" y1="12" y2="12"></line>    <line x1="12" x2="12" y1="6" y2="2"></line>    <line x1="12" x2="12" y1="22" y2="18"></line>',
   Dumbbell:
     '    <path d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"></path>    <path d="m2.5 21.5 1.4-1.4"></path>    <path d="m20.1 3.9 1.4-1.4"></path>    <path d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"></path>    <path d="m9.6 14.4 4.8-4.8"></path>',
   Eye:

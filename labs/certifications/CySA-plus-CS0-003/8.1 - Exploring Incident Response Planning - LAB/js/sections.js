@@ -15,6 +15,23 @@ var LabSections = (function () {
     return list.map(function (x) { return { id: x.id, label: x[labelKey] }; });
   }
 
+  /* Audit v2 (R6): deterministically scrambled option pools. The canonical
+     array order mirrored the rows' answer order, letting a student pass by
+     picking the option at the row's own position. Same fixed-scramble
+     convention as the store's SCRAMBLED_* initial orders. */
+  var POOL_ORDERS = {
+    phases: ['eradic', 'prep', 'recover', 'ident', 'lessons', 'contain'],
+    roles: ['r-comms', 'r-itops', 'r-manager', 'r-forensic', 'r-legal', 'r-analyst'],
+    plans: ['drp', 'coop', 'irp', 'bcp'],
+    exTypes: ['parallel', 'tabletop', 'fullint', 'walkthrough', 'simulation'],
+  };
+  function optOrdered(list, labelKey, order) {
+    return order.map(function (id) {
+      var x = list.filter(function (y) { return y.id === id; })[0];
+      return { id: x.id, label: x[labelKey] };
+    });
+  }
+
   /* ---------------------------------------------------------------- */
   /* SectionShell (section-shell.tsx)                                  */
   /* ---------------------------------------------------------------- */
@@ -81,6 +98,10 @@ var LabSections = (function () {
   }
 
   /** Wire the check button of a shell built by sectionShell. */
+  /* Audit v3 (QA-v3-5): ignore machine-speed duplicate invocations (double-clicks)
+     so one accidental double-press cannot count as two attempts. */
+  var lastSectionCheckAt = 0;
+
   function wireCheck(shell, mode) {
     if (!shell.objectiveIds.length) return;
     var el = shell.el;
@@ -88,6 +109,9 @@ var LabSections = (function () {
     var stampEl = el.querySelector('.sec-stamp');
     var resultsEl = el.querySelector('.sec-results');
     checkBtn.addEventListener('click', function () {
+      var now = Date.now();
+      if (now - lastSectionCheckAt < 600) return;
+      lastSectionCheckAt = now;
       var outcomes = LabStore.checkObjectives(shell.objectiveIds);
       var st = LabStore.getState();
       var allDone = shell.objectiveIds.every(function (id) { return st.obj[id] && st.obj[id].done; });
@@ -111,6 +135,59 @@ var LabSections = (function () {
           U.esc(r.pass ? o.feedbackPass : o.feedbackFail));
       }
       resultsEl.innerHTML = html;
+
+      /* Audit v3 (R2): after the check, refresh the read-only affordances of
+         every control whose owning objective just got filed (the React
+         version gets this for free from its re-render). */
+      refreshLocks(el);
+    });
+  }
+
+  /* Audit v3 (R2): enable/disable every control stamped with data-field
+     according to the fieldLocked() state. Covers assigns, checkboxes,
+     radios, sequencers and the plan-audit lines. */
+  function refreshLocks(rootEl) {
+    var st = LabStore.getState();
+    rootEl.querySelectorAll('ol.seq[data-field]').forEach(function (ol) {
+      var locked = fieldLocked(st, ol.getAttribute('data-field'));
+      var items = ol.querySelectorAll('.seq-item');
+      items.forEach(function (li, idx) {
+        li.draggable = !locked;
+        li.classList.toggle('seq-item--locked', locked);
+        var up = li.querySelector('[data-dir="up"]');
+        var down = li.querySelector('[data-dir="down"]');
+        if (up) up.disabled = locked || idx === 0;
+        if (down) down.disabled = locked || idx === items.length - 1;
+      });
+    });
+    rootEl.querySelectorAll('div[data-field]').forEach(function (row) {
+      var key = row.getAttribute('data-field');
+      var locked = fieldLocked(st, key);
+      var input = row.querySelector('.choice-input');
+      if (input && input.type === 'radio') {
+        /* refresh every row of the same radio group */
+        rootEl.querySelectorAll('[data-field="' + key + '"]').forEach(function (r) {
+          var ri = r.querySelector('.choice-input');
+          if (ri) ri.disabled = locked;
+          r.classList.toggle('choice-row--locked', locked);
+        });
+        return;
+      }
+      if (input) {
+        input.disabled = locked;
+        row.classList.toggle('choice-row--locked', locked);
+        return;
+      }
+      var sel = row.querySelector('select');
+      if (sel) {
+        sel.disabled = locked;
+        sel.classList.toggle('select--locked', locked);
+      }
+    });
+    rootEl.querySelectorAll('.audit-line[data-field]').forEach(function (b) {
+      var locked = fieldLocked(st, b.getAttribute('data-field'));
+      b.disabled = locked;
+      b.classList.toggle('audit-line--locked', locked);
     });
   }
 
@@ -135,7 +212,10 @@ var LabSections = (function () {
   function phasesSection(root, mode) {
     var shell = sectionShell(root, 'phases', mode, '');
     var state = LabStore.getState();
-    var phaseOptions = opt(PHASES, 'name');
+    var phaseOptions = optOrdered(PHASES, 'name', POOL_ORDERS.phases);
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var seqLocked = fieldLocked(state, 'phaseOrder');
+    var charterLocked = fieldLocked(state, 'charterPick');
 
     var leftCard = document.createElement('div');
     leftCard.className = 'card';
@@ -150,6 +230,8 @@ var LabSections = (function () {
       items: PHASES.map(function (p) { return { id: p.id, label: p.name, desc: p.tagline }; }),
       value: state.phaseOrder.slice(),
       onChange: function (order) { LabStore.setPhaseOrder(order); },
+      locked: seqLocked,
+      fieldKey: 'phaseOrder',
     });
     leftCard.appendChild(seq);
 
@@ -170,6 +252,8 @@ var LabSections = (function () {
           value: state.activityPhase[a.id] || '',
           onChange: function (v) { LabStore.setField('activityPhase', a.id, v); },
           ariaLabel: 'Phase for activity: ' + a.label,
+          locked: fieldLocked(state, 'activityPhase'),
+          fieldKey: 'activityPhase',
         }));
       });
       a2.appendChild(list);
@@ -186,6 +270,8 @@ var LabSections = (function () {
           labelHtml: U.esc(c.label),
           checked: state.charterPick.indexOf(c.id) !== -1,
           ariaLabel: c.label,
+          locked: charterLocked,
+          fieldKey: 'charterPick',
         });
       });
       charterHtml += '</div>';
@@ -214,6 +300,8 @@ var LabSections = (function () {
           value: state.eventPhase[e.id] || '',
           onChange: function (v) { LabStore.setField('eventPhase', e.id, v); },
           ariaLabel: 'Phase for event ' + e.time + ': ' + e.text,
+          locked: fieldLocked(state, 'eventPhase'),
+          fieldKey: 'eventPhase',
         }));
       });
       tl.appendChild(scrollWrap);
@@ -234,7 +322,11 @@ var LabSections = (function () {
   function teamSection(root, mode) {
     var shell = sectionShell(root, 'team', mode, '');
     var state = LabStore.getState();
-    var roleOptions = opt(ROLE_CARDS, 'role');
+    var roleOptions = optOrdered(ROLE_CARDS, 'role', POOL_ORDERS.roles);
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var m3Locked = fieldLocked(state, 'roleMatch');
+    var m4Locked = fieldLocked(state, 'crewMedium');
+    var h2Locked = fieldLocked(state, 'crewHard');
 
     var leftCard = document.createElement('div');
     leftCard.className = 'card';
@@ -253,6 +345,8 @@ var LabSections = (function () {
         onChange: function (v) { LabStore.setField('roleMatch', r.id, v); },
         ariaLabel: 'Role responsible for: ' + r.duty,
         placeholder: 'Assign a seat…',
+        locked: m3Locked,
+        fieldKey: 'roleMatch',
       }));
     });
     leftCard.appendChild(list);
@@ -277,6 +371,8 @@ var LabSections = (function () {
           labelHtml: '<span class="choice-strong">' + U.esc(c.name) + '</span><span class="choice-sub">' + U.esc(c.blurb) + '</span>',
           checked: state.crewMedium.indexOf(c.id) !== -1,
           ariaLabel: c.name,
+          locked: m4Locked,
+          fieldKey: 'crewMedium',
         });
       });
       html += '</div><p class="mono-note" data-counter>Selected: ' + state.crewMedium.length + ' of 4 required</p>';
@@ -306,6 +402,8 @@ var LabSections = (function () {
           labelHtml: '<span class="choice-strong">' + U.esc(p.name) + '</span><span class="choice-sub">' + U.esc(p.bio) + '</span>',
           checked: state.crewHard.indexOf(p.id) !== -1,
           ariaLabel: p.name,
+          locked: h2Locked,
+          fieldKey: 'crewHard',
         });
       });
       rHtml += '</div><p class="mono-note" data-counter>Selected: ' + state.crewHard.length + ' / 6 — strict set check</p>';
@@ -346,6 +444,8 @@ var LabSections = (function () {
     sevMatrixHtml += '</div>';
 
     function incidentRows(incidents, mount) {
+      /* Audit v3 (R2): M5/H3 severity+escalation lock once filed (same key both modes). */
+      var incLocked = fieldLocked(state, 'incSev');
       incidents.forEach(function (i) {
         var wrap = document.createElement('div');
         wrap.className = 'incident-card';
@@ -358,11 +458,15 @@ var LabSections = (function () {
           options: sevOptions, value: state.incSev[i.id] || '',
           onChange: function (v) { LabStore.setField('incSev', i.id, v); },
           ariaLabel: 'Severity for ' + i.code,
+          locked: incLocked,
+          fieldKey: 'incSev',
         }));
         wrap.querySelector('[data-slot="esc"]').appendChild(U.assignRow({
           options: escOptions, value: state.incEsc[i.id] || '',
           onChange: function (v) { LabStore.setField('incEsc', i.id, v); },
           ariaLabel: 'Escalation for ' + i.code,
+          locked: incLocked,
+          fieldKey: 'incEsc',
         }));
         mount(wrap);
       });
@@ -388,6 +492,8 @@ var LabSections = (function () {
           options: escOptions, value: state.dutyEsc[d.id] || '',
           onChange: function (v) { LabStore.setField('dutyEsc', d.id, v); },
           ariaLabel: 'Escalation for ' + d.code,
+          locked: fieldLocked(state, 'dutyEsc'),
+          fieldKey: 'dutyEsc',
         }));
       });
       c2.appendChild(c2list);
@@ -415,6 +521,8 @@ var LabSections = (function () {
         items: INCIDENTS_HARD.map(function (i) { return { id: i.id, label: i.code, desc: i.text.slice(0, 72) + '…' }; }),
         value: state.queueOrder.slice(),
         onChange: function (o) { LabStore.setQueueOrder(o); },
+        locked: fieldLocked(state, 'queueOrder'),
+        fieldKey: 'queueOrder',
       }));
 
       shell.bodyEl.innerHTML = sevMatrixHtml + '<div class="grid-2"></div>';
@@ -437,7 +545,9 @@ var LabSections = (function () {
     var scenarios = isHard ? PLAN_SCENARIOS_H : PLAN_SCENARIOS_M;
     var fieldKey = isHard ? 'planMatchH' : 'planMatchM';
     var stateMap = isHard ? state.planMatchH : state.planMatchM;
-    var planOptions = opt(PLAN_OPTIONS, 'short');
+    var planOptions = optOrdered(PLAN_OPTIONS, 'short', POOL_ORDERS.plans);
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var plansLocked = fieldLocked(state, fieldKey);
 
     var shelfHtml =
       cardTitle('The shelf cards') + '<div class="stack-2">';
@@ -468,6 +578,8 @@ var LabSections = (function () {
         onChange: function (v) { LabStore.setField(fieldKey, s.id, v); },
         ariaLabel: 'Governing plan for: ' + s.text,
         placeholder: 'Which plan?',
+        locked: plansLocked,
+        fieldKey: fieldKey,
       }));
     });
     filesCard.appendChild(list);
@@ -489,6 +601,9 @@ var LabSections = (function () {
   function commsSection(root, mode) {
     var shell = sectionShell(root, 'comms', mode, '');
     var state = LabStore.getState();
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var m7Locked = fieldLocked(state, 'commsCh');
+    var h6Locked = fieldLocked(state, 'commsActionH');
 
     var channelOptions = [
       { id: 'bridge', label: 'War-room bridge' },
@@ -536,16 +651,22 @@ var LabSections = (function () {
           options: channelOptions, value: state.commsCh[st.id] || '',
           onChange: function (v) { LabStore.setField('commsCh', st.id, v); },
           ariaLabel: 'Channel for ' + st.name,
+          locked: m7Locked,
+          fieldKey: 'commsCh',
         }));
         wrap.querySelector('[data-slot="tim"]').appendChild(U.assignRow({
           options: timingOptions, value: state.commsTim[st.id] || '',
           onChange: function (v) { LabStore.setField('commsTim', st.id, v); },
           ariaLabel: 'Timing for ' + st.name,
+          locked: m7Locked,
+          fieldKey: 'commsTim',
         }));
         wrap.querySelector('[data-slot="aud"]').appendChild(U.assignRow({
           options: audOptions, value: state.commsAud[st.id] || '',
           onChange: function (v) { LabStore.setField('commsAud', st.id, v); },
           ariaLabel: 'Audience type for ' + st.name,
+          locked: m7Locked,
+          fieldKey: 'commsAud',
         }));
         list.appendChild(wrap);
       });
@@ -570,6 +691,8 @@ var LabSections = (function () {
           onChange: function (v) { LabStore.setField('commsActionH', p.id, v); },
           ariaLabel: 'Notification decision for ' + p.name,
           placeholder: 'Decision…',
+          locked: h6Locked,
+          fieldKey: 'commsActionH',
         }));
       });
       card2.appendChild(stack);
@@ -586,11 +709,14 @@ var LabSections = (function () {
   function exercisesSection(root, mode) {
     var shell = sectionShell(root, 'exercises', mode, '');
     var state = LabStore.getState();
-    var typeOptions = opt(EX_TYPES, 'label');
+    var typeOptions = optOrdered(EX_TYPES, 'label', POOL_ORDERS.exTypes);
     var isHard = mode === 'hard';
     var rows = isHard ? STAGES_H : EXERCISES_M;
     var fieldKey = isHard ? 'exStageH' : 'exMatchM';
     var stateMap = isHard ? state.exStageH : state.exMatchM;
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var exLocked = fieldLocked(state, fieldKey);
+    var ladderLocked = fieldLocked(state, 'exOrder');
 
     var leftCard = document.createElement('div');
     leftCard.className = 'card';
@@ -610,6 +736,8 @@ var LabSections = (function () {
         onChange: function (v) { LabStore.setField(fieldKey, x.id, v); },
         ariaLabel: 'Exercise type for: ' + x.text,
         placeholder: 'Exercise type…',
+        locked: exLocked,
+        fieldKey: fieldKey,
       }));
     });
     leftCard.appendChild(list);
@@ -629,6 +757,8 @@ var LabSections = (function () {
         items: EX_TYPES.map(function (t) { return { id: t.id, label: t.label }; }),
         value: state.exOrder.slice(),
         onChange: function (o) { LabStore.setExOrder(o); },
+        locked: ladderLocked,
+        fieldKey: 'exOrder',
       }));
       grid.appendChild(ladder);
     }
@@ -657,6 +787,9 @@ var LabSections = (function () {
     var state = LabStore.getState();
     var durOptions = opt(DURATION_OPTIONS, 'label');
     var actionOptions = opt(RET_ACTION_OPTIONS, 'label');
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var m9Locked = fieldLocked(state, 'retDurM');
+    var h7Locked = fieldLocked(state, 'retActionH');
 
     var leftCol = document.createElement('div');
     leftCol.className = 'stack';
@@ -707,6 +840,8 @@ var LabSections = (function () {
           onChange: function (v) { LabStore.setField('retDurM', r.id, v); },
           ariaLabel: 'Retention duration for ' + r.name,
           placeholder: 'Duration…',
+          locked: m9Locked,
+          fieldKey: 'retDurM',
         }));
       });
       f1.appendChild(f1list);
@@ -724,6 +859,8 @@ var LabSections = (function () {
         onChange: function (v) { LabStore.setHoldTarget(v); },
         ariaLabel: 'Artifact class covered by the legal hold',
         placeholder: 'Pick the class…',
+        locked: m9Locked,
+        fieldKey: 'holdTarget',
       }));
       f2.appendChild(f2list);
       var note = document.createElement('p');
@@ -746,6 +883,8 @@ var LabSections = (function () {
           onChange: function (v) { LabStore.setField('retActionH', r.id, v); },
           ariaLabel: 'Retention decision for ' + r.name,
           placeholder: 'Decision…',
+          locked: h7Locked,
+          fieldKey: 'retActionH',
         }));
       });
       f1h.appendChild(f1hlist);
@@ -765,6 +904,8 @@ var LabSections = (function () {
           ariaLabel: 'Step ' + (i + 1),
           labelHtml: '<span class="mono-chip mono-chip--stone">STEP ' + (i + 1) + '</span>' + U.esc(c.text),
           wrapClass: 'choice-row',
+          locked: h7Locked,
+          fieldKey: 'custodyPick',
         });
       });
       custodyHtml += '</div>';
@@ -791,6 +932,8 @@ var LabSections = (function () {
   function playbookSection(root, mode) {
     var shell = sectionShell(root, 'playbooks', mode, '');
     var state = LabStore.getState();
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var m10Locked = fieldLocked(state, 'playPick');
 
     var pickCard = document.createElement('div');
     pickCard.className = 'card';
@@ -803,6 +946,8 @@ var LabSections = (function () {
         labelHtml: U.esc(c.label),
         checked: state.playPick.indexOf(c.id) !== -1,
         ariaLabel: c.label,
+        locked: m10Locked,
+        fieldKey: 'playPick',
       });
     });
     pickHtml += '</div><p class="mono-note" data-counter>Selected: ' + state.playPick.length + ' of 3</p>';
@@ -825,6 +970,8 @@ var LabSections = (function () {
       items: PLAYBOOK_STEPS.map(function (p) { return { id: p.id, label: p.text }; }),
       value: state.playOrder.slice(),
       onChange: function (o) { LabStore.setPlayOrder(o); },
+      locked: m10Locked,
+      fieldKey: 'playOrder',
     }));
 
     shell.bodyEl.innerHTML = '<div class="grid-2"></div>';
@@ -841,13 +988,15 @@ var LabSections = (function () {
   function auditSection(root, mode) {
     var shell = sectionShell(root, 'audit', mode, '', 'Submit the audit');
     var state = LabStore.getState();
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var h8Locked = fieldLocked(state, 'auditMark');
 
     var doc = document.createElement('div');
     doc.className = 'card card--flush';
     var linesHtml = '';
     AUDIT_LINES.forEach(function (l) {
       var marked = state.auditMark.indexOf(l.id) !== -1;
-      linesHtml += '<li><button type="button" class="audit-line ' + (marked ? 'audit-line--marked' : '') + '" data-line="' + U.esc(l.id) + '" aria-pressed="' + marked + '">' +
+      linesHtml += '<li><button type="button" data-field="auditMark" class="audit-line ' + (marked ? 'audit-line--marked' : '') + (h8Locked ? ' audit-line--locked' : '') + '" data-line="' + U.esc(l.id) + '" aria-pressed="' + marked + '"' + (h8Locked ? ' disabled' : '') + '>' +
         '<span class="audit-mark" aria-hidden="true">' + (marked ? '✕' : '·') + '</span>' +
         '<span>' + U.esc(l.text.replace(/^\d+\.\s*/, '')) + '</span>' +
         '</button></li>';
@@ -884,6 +1033,8 @@ var LabSections = (function () {
   function warRoomSection(root, mode) {
     var shell = sectionShell(root, 'warroom', mode, '', 'Sign the decision log');
     var state = LabStore.getState();
+    /* Audit v3 (R2): filed objectives lock their fields (store also enforces). */
+    var h9Locked = fieldLocked(state, 'warPick');
 
     var wrap = document.createElement('div');
     wrap.className = 'stack';
@@ -907,6 +1058,8 @@ var LabSections = (function () {
           ariaLabel: o.label,
           labelHtml: U.esc(o.label),
           wrapClass: 'choice-row choice-row--option',
+          locked: h9Locked,
+          fieldKey: 'warPick',
         });
       });
       optsHtml += '</div>';

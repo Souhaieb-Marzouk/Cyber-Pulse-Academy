@@ -83,7 +83,14 @@
 
   // The clearance modal is a live view in the original (it re-renders from the
   // store while open — e.g. after a quiz retake). Mirror that behavior.
+  // Audit v3 (QA3-10): guard the purge-while-open path — after A.reset() the mode
+  // is null and OBJECTIVES[null] would throw inside the template renderer.
   function renderCompletionLive() {
+    if (!S.get().mode) {
+      openDialog = null;
+      dialogRoot.innerHTML = '';
+      return;
+    }
     var active = document.activeElement;
     var act = active && active.getAttribute ? active.getAttribute('data-action') : null;
     dialogRoot.innerHTML = UI.completionDialogHtml(S.get());
@@ -165,7 +172,7 @@
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 200);
     };
     el.querySelector('.toast-close').addEventListener('click', close);
-    setTimeout(close, 5000);
+    setTimeout(close, 4000); // sonner default duration (parity with the original)
   }
 
   // ── actions ─────────────────────────────────────────────────────────────────
@@ -254,11 +261,14 @@
 
       case 'open-clearance': showCompletion(); break;
       case 'completion-review': closeDialog(); A.setPhase('debrief'); break;
-      case 'completion-purge': A.reset(); closeDialog(); break;
+      // Audit v3: close BEFORE reset so the open dialog never re-renders against
+      // a wiped store (root-cause companion of the renderCompletionLive guard).
+      case 'completion-purge': closeDialog(); A.reset(); break;
 
       case 'purge-open': showPurge(); break;
       case 'purge-cancel': closeDialog(); break;
-      case 'purge-confirm': A.reset(); closeDialog(); break;
+      case 'purge-confirm': closeDialog(); A.reset(); break;
+      case 'completion-close': closeDialog(); break;
     }
   }
 

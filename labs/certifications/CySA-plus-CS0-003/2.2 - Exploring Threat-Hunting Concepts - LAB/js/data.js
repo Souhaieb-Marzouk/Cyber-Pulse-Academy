@@ -4,7 +4,6 @@
 // Chapter: CompTIA CySA+ CS0-003 · Lesson 2.2 "Exploring Threat-Hunting Concepts"
 // Everything below is simulated training data: fictional orgs, actors, IPs
 // (documentation ranges 198.51.100.0/24 & 203.0.113.0/24) and domains.
-/* eslint-disable */
 
 window.HuntData = (function () {
   "use strict";
@@ -775,6 +774,7 @@ window.HuntData = (function () {
   const quizMedium = [
     {
       id: "qm1",
+      topic: "hunting vs monitoring (Manual Ch. 1)",
       prompt: "Which sentence best captures what makes threat hunting different from security monitoring?",
       options: [
         "It waits for automated alerts to fire before any analyst ever acts",
@@ -788,35 +788,54 @@ window.HuntData = (function () {
     },
     {
       id: "qm2",
+      topic: "hunt approaches (Manual Ch. 3)",
       prompt: "Energy-ISAC publishes TTPs for a campaign. You sweep every scheduled-task creation event in the estate for those patterns. What kind of hunt is this?",
-      options: ["Entity-driven", "Unstructured", "Structured", "Post-incident review"],
-      correct: 2,
+      options: [
+        "Structured",
+        "Entity-driven",
+        "Unstructured",
+        "Post-incident review",
+      ],
+      correct: 0,
       explanation:
         "Structured hunts are triggered by intelligence: the report names TTPs, you sweep for them. Entity-driven would center on a crown-jewel asset; unstructured would start from a hunter's hunch.",
     },
     {
       id: "qm3",
+      topic: "intelligence cycle (Manual Ch. 4)",
       prompt: "In the intelligence cycle, which phase immediately follows Collection?",
-      options: ["Analysis", "Dissemination", "Direction", "Processing"],
+      options: [
+        "Analysis",
+        "Dissemination",
+        "Direction",
+        "Processing",
+      ],
       correct: 3,
       explanation:
         "The cycle runs Direction → Collection → Processing → Analysis → Dissemination → Feedback. Raw collected data is processed (normalized, deduplicated, structured) before analysts judge it.",
     },
     {
       id: "qm4",
+      topic: "intelligence products (Manual Ch. 4)",
       prompt: "“An 18-month report on state-sponsored targeting of energy, prepared for the executive board” is which kind of intelligence product?",
-      options: ["Tactical", "Operational", "Strategic", "Technical"],
+      options: [
+        "Tactical",
+        "Operational",
+        "Strategic",
+        "Technical",
+      ],
       correct: 2,
       explanation:
         "Strategic intel informs long-term decisions at leadership level. Operational intel describes adversary campaigns for hunt planning; tactical intel is machine-readable IoCs for controls.",
     },
     {
       id: "qm5",
+      topic: "threat classification (Manual Ch. 2)",
       prompt: "A 2.1 GB overnight upload from a design workstation to an undeclared cloud service. No ticket, no record. How should the hunt ledger classify it?",
       options: [
         "Known-good — creative teams upload files all the time",
         "Known-bad — large uploads are always exfiltration",
-        "Unknown — open a low-priority investigation and gather context",
+        "Unknown — log it, open a low-priority investigation",
         "Do not classify; delete the record",
       ],
       correct: 2,
@@ -825,6 +844,7 @@ window.HuntData = (function () {
     },
     {
       id: "qm6",
+      topic: "STIX & TAXII sharing (Manual Ch. 4)",
       prompt: "Your team wants to machine-share indicators with the sector ISAC. Which pairing is correct?",
       options: [
         "STIX transports the intel; TAXII is the file format",
@@ -838,9 +858,15 @@ window.HuntData = (function () {
     },
     {
       id: "qm7",
+      topic: "Diamond Model (Manual Ch. 5)",
       prompt: "Which of these is NOT one of the Diamond Model's four vertices?",
-      options: ["Adversary", "Capability", "Motivation", "Infrastructure"],
-      correct: 2,
+      options: [
+        "Motivation",
+        "Adversary",
+        "Capability",
+        "Infrastructure",
+      ],
+      correct: 0,
       explanation:
         "The Diamond's four vertices are Adversary, Capability, Infrastructure and Victim. Motivation describes the adversary (and matters for attribution) but is not a vertex; every event links the four vertices, and each is a pivot point.",
     },
@@ -849,29 +875,37 @@ window.HuntData = (function () {
   const quizHard = [
     {
       id: "qh1",
+      topic: "ATT&CK precision (Manual Ch. 5)",
       scenario: "EDR shows WINWORD.EXE spawning powershell.exe with an encoded command line, 5 minutes after an invoice email arrived.",
       prompt: "Which ATT&CK sub-technique is the PRECISE tag for the process event?",
-      options: ["T1566.001 (Spearphishing Attachment)", "T1059.001 (PowerShell)", "T1204.002 (Malicious File)", "T1059 (parent technique)"],
+      options: [
+        "T1566.001 (Spearphishing Attachment)",
+        "T1059.001 (PowerShell)",
+        "T1204.002 (Malicious File)",
+        "T1059 (parent technique)",
+      ],
       correct: 1,
       explanation:
         "Tag what the event IS: a PowerShell interpreter executing — T1059.001. T1566.001 belongs to the email event; T1204.002 is the user's double-click; the parent T1059 loses the precision that makes hunts and detections composable.",
     },
     {
       id: "qh2",
+      topic: "Kill Chain interception (Manual Ch. 5)",
       scenario: "Intel says: attachment → PowerShell loader → browser-lookalike scheduled task. Your estate has no alert for any of it.",
       prompt: "For a structured hunt built from ONLY this intel, at which Kill Chain phase do you first have a realistic chance to intercept — and why?",
       options: [
         "Reconnaissance — you can detect the actor scanning your perimeter",
         "Weaponization — you can watch the attachment being built",
-        "Delivery — the attachment lands on the first sensor you own",
         "Actions on Objectives — the damage finally becomes visible there",
+        "Delivery — the attachment lands on a sensor you own",
       ],
-      correct: 2,
+      correct: 3,
       explanation:
         "You cannot observe the adversary's own turf: recon and weaponization happen on their infrastructure, and waiting for Actions on Objectives means the mission already succeeded. Delivery is the first phase that touches a sensor you control — your mail records — and intercepting there avoids every later phase.",
     },
     {
       id: "qh3",
+      topic: "threat classification (Manual Ch. 2)",
       scenario: "During the sweep you find the 03:11 2.1 GB upload from ALD-MKTG-07 to an undeclared cloud drive. The marketing director says “that's our designer, it's fine.”",
       prompt: "What is the correct hunter's move?",
       options: [
@@ -886,20 +920,22 @@ window.HuntData = (function () {
     },
     {
       id: "qh4",
+      topic: "intel sources (Manual Ch. 4)",
       scenario: "You need fresh, sector-specific indicators for utilities within hours, with minimal legal friction.",
       prompt: "Which intelligence source fits best — and what fills the gap it can't?",
       options: [
-        "Commercial vendor feed — fastest coverage; it also supplies regulator-approved context",
         "Energy-ISAC — sector peers share live IoCs; government/CSIRT advisories add authority",
+        "Commercial vendor feed — fastest coverage; it also supplies regulator-approved context",
         "OSINT researcher threads — public posts cover everything, so nothing needs filling",
         "Dark-web monitoring — the actor's channels announce campaigns; vendors fill any gaps",
       ],
-      correct: 1,
+      correct: 0,
       explanation:
         "ISACs exist precisely for sector peer-sharing: fast, trusted, two-way, low friction. Their gap — official, authoritative context — is what government/CSIRT advisories add. Vendors are strong but paid and aggregated (and no feed is “regulator-approved”); OSINT alone is incomplete; dark-web monitoring is a specialist discipline, not a general answer.",
     },
     {
       id: "qh5",
+      topic: "attribution (Manual Ch. 6)",
       scenario: "Evidence: a water utility targeted; custom loader; browser-lookalike persistence; CDN-lookalike beaconing; no ransom note; infrastructure in Eastern-European hosting; dwell time ≥3 weeks.",
       prompt: "Which attribution reasoning is DEFENSIBLE?",
       options: [
@@ -914,6 +950,7 @@ window.HuntData = (function () {
     },
     {
       id: "qh6",
+      topic: "responsible sharing (Manual Ch. 4)",
       scenario: "You are packaging the campaign for the Energy-ISAC. Draft items: C2 IP, beacon domain, technique references, sanitized timeline, victim hostnames, analyst working notes.",
       prompt: "Which items go into the shared package?",
       options: [
@@ -928,29 +965,31 @@ window.HuntData = (function () {
     },
     {
       id: "qh7",
+      topic: "hunt program metrics (Manual Ch. 6)",
       scenario: "Leadership asks how to measure whether the hunt program is maturing.",
       prompt: "Which metric best reflects hunting maturity?",
       options: [
+        "Share of ATT&CK techniques covered by a hunt or detection",
         "Volume of alerts triaged per week across the whole SOC",
         "Tickets closed per analyst during the reporting period",
-        "Share of relevant ATT&CK techniques covered by a hunt or detection",
         "Number of hunts run, regardless of what they actually found",
       ],
-      correct: 2,
+      correct: 0,
       explanation:
         "Maturity = coverage shrinking the darkness: how much adversary behavior would now be caught that once wasn't. Alert volume, tickets closed and hunt counts all measure busyness — a program can be busy and blind. Coverage of relevant ATT&CK techniques, trending up, is the one metric that measures capability gained.",
     },
     {
       id: "qh8",
+      topic: "entity-driven hunting (Manual Ch. 3)",
       scenario: "You must design an entity-driven hunt for the crown-jewel database that stores treatment-plant telemetry.",
       prompt: "What do you establish FIRST, before hunting?",
       options: [
-        "A running list of CVEs affecting the database product version",
-        "A baseline of normal access: who connects, when, and how much data",
+        "A running list of CVEs affecting the deployed database product version",
         "A permanent full-packet-capture tap on every database session",
         "A copy of the vendor's public roadmap for the database product",
+        "A baseline of normal access: who connects, when, and how much",
       ],
-      correct: 1,
+      correct: 3,
       explanation:
         "Entity-driven hunting is anchored in the entity's normalcy: access patterns, service accounts, data volumes. Without a baseline, “anomalous” is undefined and the hunt degenerates into generic alert-watching. CVE lists feed vulnerability management, not behavioral hunts; permanent full PCRs are a storage-proposal, not a starting point; the vendor roadmap says nothing about your adversary.",
     },

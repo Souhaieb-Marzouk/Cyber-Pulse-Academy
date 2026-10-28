@@ -2,7 +2,6 @@
 // Verbatim static port of src/lib/hunt-lab/state.ts.
 // localStorage only. All failures degrade gracefully to in-memory play.
 // Same STORAGE_KEY, same save/restore/RESET semantics as the original lab.
-/* eslint-disable */
 
 window.HuntState = (function () {
   "use strict";
@@ -150,6 +149,57 @@ window.HuntState = (function () {
     var quizCorrect = quiz.filter(function (q) { return state.quiz[q.id] === q.correct; }).length;
     var quizTotal = quiz.length;
 
+    // ── focus areas (R8): every line below is derived from this run's evidence
+    // — unverified objectives, objectives that needed retries or hints, and the
+    // exact exam topics the student missed. Capped so the report stays readable.
+    var SM = window.HuntUI.STATION_META;
+    var focusAreas = [];
+    for (var i = 0; i < defs.length; i++) {
+      if (focusAreas.length >= 5) break;
+      var d = defs[i];
+      var p = state.objectives[d.id];
+      if (!p || !p.done) {
+        focusAreas.push({
+          title: d.id + " still unverified — " + d.title.toLowerCase(),
+          detail:
+            "Return to " + SM[d.station].label + " (" + SM[d.station].waypoint +
+            ") and complete it; the Field Ledger holds the exact check.",
+        });
+      } else if (p.failedChecks >= 2) {
+        focusAreas.push({
+          title: d.id + " took " + (p.failedChecks + 1) + " checks — " + d.title.toLowerCase(),
+          detail:
+            "Multiple failed checks mean the rule behind it hasn't settled. Re-run it deliberately and read the pass feedback once more.",
+        });
+      } else if (p.hintsUsed > 0) {
+        focusAreas.push({
+          title: d.id + " was hint-supported — " + d.title.toLowerCase(),
+          detail: "You got there, but with help. Re-do it without hints to prove the concept is yours.",
+        });
+      }
+    }
+    var missedTopics = [];
+    for (var j = 0; j < quiz.length; j++) {
+      var q = quiz[j];
+      var ans = state.quiz[q.id];
+      if (ans !== undefined && ans !== q.correct && missedTopics.indexOf(q.topic) === -1) {
+        missedTopics.push(q.topic);
+      }
+    }
+    for (var k = 0; k < missedTopics.length; k++) {
+      if (focusAreas.length >= 5) break;
+      focusAreas.push({
+        title: "Field exam: " + missedTopics[k],
+        detail: "Missed on the exam — re-read the explanation under that question and the matching Field Manual chapter.",
+      });
+    }
+    if (focusAreas.length === 0) {
+      focusAreas.push({
+        title: "No weak areas flagged this run",
+        detail: "Every objective fell first-attempt and the exam came back clean. Consolidate by running the other route.",
+      });
+    }
+
     // stars: 65% first-attempt objective accuracy, 35% quiz accuracy, −0.25/hint
     var firstTryRatio = defs.length ? firstTry / defs.length : 0;
     var quizRatio = quizTotal ? quizCorrect / quizTotal : 0;
@@ -166,6 +216,7 @@ window.HuntState = (function () {
       quizCorrect: quizCorrect,
       quizTotal: quizTotal,
       stars: stars,
+      focusAreas: focusAreas,
     };
   }
 

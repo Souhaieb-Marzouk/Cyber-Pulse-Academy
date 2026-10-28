@@ -1,7 +1,6 @@
 // ─── Threat Hunt Expedition — shared UI primitives & widgets ─────────────────
 // Static port of ui-bits.tsx + stations/kit.tsx primitives + modal plumbing.
 // Visual language: deep pine field-station, amber signals, parchment documents.
-/* eslint-disable */
 
 window.HuntUI = (function () {
   "use strict";
@@ -130,12 +129,18 @@ window.HuntUI = (function () {
     opts = opts || {};
     closeModal();
     var lastFocus = document.activeElement;
+    // R7: dialogs (non-blocking) get a visible, keyboard-accessible 44px X;
+    // alert-dialogs keep their explicit Cancel/Action pair instead.
+    var closeX = opts.role !== "alertdialog"
+      ? '<button type="button" class="modal-x" data-action="modal-close" aria-label="Close">' +
+        icon("x", "h-4 w-4") + "</button>"
+      : "";
     var overlay = h(
       '<div class="modal-overlay"><div class="modal" role="' + (opts.role || "dialog") + '" aria-modal="true"' +
-      (opts.labelledBy ? ' aria-labelledby="' + opts.labelledBy + '"' : "") + "></div></div>"
+      (opts.labelledBy ? ' aria-labelledby="' + opts.labelledBy + '"' : "") + ">" + closeX + "</div></div>"
     );
     var box = overlay.firstElementChild;
-    box.innerHTML = innerHtml;
+    box.insertAdjacentHTML("beforeend", innerHtml);
     document.body.appendChild(overlay);
     modalState = { overlay: overlay, lastFocus: lastFocus, escCloses: opts.escCloses !== false, backdropCloses: !!opts.backdropCloses };
 
@@ -145,6 +150,14 @@ window.HuntUI = (function () {
           closeModal();
           if (window.App) App.onModalClose();
         }
+      });
+    }
+    // R7: the visible X closes the dialog directly (same path as ESC)
+    var xBtn = box.querySelector(".modal-x");
+    if (xBtn) {
+      xBtn.addEventListener("click", function () {
+        closeModal();
+        if (window.App) App.onModalClose();
       });
     }
     // focus the first focusable element inside the dialog

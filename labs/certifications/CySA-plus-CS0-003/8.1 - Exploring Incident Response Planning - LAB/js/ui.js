@@ -126,8 +126,9 @@ var LabUI = (function () {
   /* ---------------------------------------------------------------- */
 
   /**
-   * opts: { index?, labelHtml?, sub?, options, value, onChange(v), ariaLabel, placeholder?, id? }
+   * opts: { index?, labelHtml?, sub?, options, value, onChange(v), ariaLabel, placeholder?, id?, locked? }
    * Returns an element. The select commits via onChange; no re-render needed.
+   * `locked` (Audit v3 R2) renders the row read-only once its objective is filed.
    */
   function assignRow(opts) {
     var placeholder = opts.placeholder || 'Select…';
@@ -149,8 +150,9 @@ var LabUI = (function () {
         ? '<div class="assign-main">' + indexHtml + '<div class="assign-main-text">' + labelHtml + subHtml + '</div></div>'
         : '') +
       '<div class="assign-field">' +
-      '<select' + selId + ' aria-label="' + esc(opts.ariaLabel) + '" class="select">' + optsHtml + '</select>' +
+      '<select' + selId + ' aria-label="' + esc(opts.ariaLabel) + '" class="select' + (opts.locked ? ' select--locked' : '') + '"' + (opts.locked ? ' disabled' : '') + '>' + optsHtml + '</select>' +
       '</div>';
+    if (opts.fieldKey) el.setAttribute('data-field', opts.fieldKey); /* Audit v3: lock refresh hook */
     if (!opts.value) {
       /* keep the placeholder grey until a real value is chosen */
       var sel = el.querySelector('select');
@@ -170,21 +172,23 @@ var LabUI = (function () {
   /* ---------------------------------------------------------------- */
 
   function checkboxRow(opts) {
-    /* opts: { id, labelHtml, checked, onChange, ariaLabel?, name? } */
-    return '<div class="choice-row">' +
+    /* opts: { id, labelHtml, checked, onChange, ariaLabel?, name?, locked?, fieldKey? } */
+    var row = '<div class="choice-row' + (opts.locked ? ' choice-row--locked' : '') + '">' +
       '<input type="checkbox" class="choice-input" id="' + esc(opts.id) + '"' +
-      (opts.checked ? ' checked' : '') + ' aria-label="' + esc(opts.ariaLabel || '') + '">' +
+      (opts.checked ? ' checked' : '') + (opts.locked ? ' disabled' : '') + ' aria-label="' + esc(opts.ariaLabel || '') + '">' +
       '<label class="choice-label" for="' + esc(opts.id) + '">' + opts.labelHtml + '</label>' +
       '</div>';
+    return opts.fieldKey ? row.replace('class="choice-row', 'data-field="' + esc(opts.fieldKey) + '" class="choice-row') : row;
   }
 
   function radioRow(opts) {
-    /* opts: { name, id, labelHtml, checked, ariaLabel?, wrapClass? } */
-    return '<div class="' + (opts.wrapClass || 'choice-row') + '">' +
+    /* opts: { name, id, labelHtml, checked, ariaLabel?, wrapClass?, locked?, fieldKey? } */
+    var row = '<div class="' + (opts.wrapClass || 'choice-row') + (opts.locked ? ' choice-row--locked' : '') + '">' +
       '<input type="radio" class="choice-input" name="' + esc(opts.name) + '" id="' + esc(opts.id) + '" value="' + esc(opts.value) + '"' +
-      (opts.checked ? ' checked' : '') + ' aria-label="' + esc(opts.ariaLabel || '') + '">' +
+      (opts.checked ? ' checked' : '') + (opts.locked ? ' disabled' : '') + ' aria-label="' + esc(opts.ariaLabel || '') + '">' +
       '<label class="choice-label" for="' + esc(opts.id) + '">' + opts.labelHtml + '</label>' +
       '</div>';
+    return opts.fieldKey ? row.replace('class="choice-row', 'data-field="' + esc(opts.fieldKey) + '" class="choice-row') : row;
   }
 
   /* ---------------------------------------------------------------- */
@@ -192,18 +196,21 @@ var LabUI = (function () {
   /* ---------------------------------------------------------------- */
 
   /**
-   * opts: { items: [{id,label,desc?,chip?}], value: string[], onChange(order), idPrefix, hint? }
+   * opts: { items: [{id,label,desc?,chip?}], value: string[], onChange(order), idPrefix, hint?, locked? }
    * Returns an <ol> element that reorders ITSELF surgically (arrow moves splice
    * the DOM <li> in place; drag uses HTML5 DnD) and calls onChange with the
    * new order — no re-render, so focus survives keyboard moves.
+   * `locked` (Audit v3 R2) makes the sequence read-only once its objective is filed.
    */
   function sequencer(opts) {
     var byId = {};
     opts.items.forEach(function (i) { byId[i.id] = i; });
+    var locked = !!opts.locked;
 
     var ol = document.createElement('ol');
     ol.className = 'seq';
     ol.setAttribute('aria-label', opts.hint || 'Ordered list');
+    if (opts.fieldKey) ol.setAttribute('data-field', opts.fieldKey); /* Audit v3: lock refresh hook */
     if (opts.hint) ol.setAttribute('aria-describedby', opts.idPrefix + '-hint');
 
     function buildItems() {
@@ -213,8 +220,8 @@ var LabUI = (function () {
         var item = byId[id];
         if (!item) return;
         var li = document.createElement('li');
-        li.className = 'seq-item';
-        li.draggable = true;
+        li.className = 'seq-item' + (locked ? ' seq-item--locked' : '');
+        li.draggable = !locked;
         li.dataset.id = id;
         li.innerHTML =
           '<span class="seq-num" aria-hidden="true">' + (idx + 1) + '</span>' +
@@ -225,8 +232,8 @@ var LabUI = (function () {
           (item.desc ? '<p class="seq-desc">' + esc(item.desc) + '</p>' : '') +
           '</div>' +
           '<span class="seq-btns">' +
-          '<button type="button" class="seq-btn" data-dir="up" aria-label="Move ' + esc(item.label) + ' up to position ' + idx + '"' + (idx === 0 ? ' disabled' : '') + '>' + labIcon('ArrowUp') + '</button>' +
-          '<button type="button" class="seq-btn" data-dir="down" aria-label="Move ' + esc(item.label) + ' down to position ' + (idx + 2) + '"' + (idx === opts.value.length - 1 ? ' disabled' : '') + '>' + labIcon('ArrowDown') + '</button>' +
+          '<button type="button" class="seq-btn" data-dir="up" aria-label="Move ' + esc(item.label) + ' up to position ' + idx + '"' + (locked || idx === 0 ? ' disabled' : '') + '>' + labIcon('ArrowUp') + '</button>' +
+          '<button type="button" class="seq-btn" data-dir="down" aria-label="Move ' + esc(item.label) + ' down to position ' + (idx + 2) + '"' + (locked || idx === opts.value.length - 1 ? ' disabled' : '') + '>' + labIcon('ArrowDown') + '</button>' +
           '</span>';
         ol.appendChild(li);
       });
@@ -254,6 +261,7 @@ var LabUI = (function () {
     }
 
     function move(from, to) {
+      if (locked) return; /* Audit v3 (R2) */
       if (to < 0 || to >= opts.value.length || from === to) return;
       var lis = ol.querySelectorAll('.seq-item');
       var movedLi = lis[from];

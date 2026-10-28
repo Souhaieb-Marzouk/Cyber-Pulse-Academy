@@ -2065,17 +2065,17 @@ window.LAB = window.LAB || {};
           "correct": false
         },
         {
-          "text": "Because eradication needs a scheduled change-control window that only opens after containment sign-off",
+          "text": "Because change control requires a containment sign-off window before eradication may start",
           "why": "Change control is real, but it is scheduling overhead, not the reason for the ordering.",
           "correct": false
         },
         {
-          "text": "Because cleanup only sticks once attacker access is cut — removing artifacts on a live system gets you re-infected",
-          "why": "Correct. Containment freezes attacker access; eradication only works on a frozen battlefield.",
+          "text": "Because cleanup only sticks once attacker access is cut; live systems get re-infected",
+          "why": "Correct. Containment freezes attacker access; eradication only holds on a frozen battlefield — clean a live system and it gets re-infected.",
           "correct": true
         },
         {
-          "text": "Because containment is always cheaper and faster than running full eradication across the whole estate",
+          "text": "Because containment is always cheaper and faster than running full eradication across the estate",
           "why": "Cost is not the ordering principle — a cheap-but-live system re-compromises in minutes.",
           "correct": false
         }
@@ -2086,22 +2086,22 @@ window.LAB = window.LAB || {};
       "scenario": "A system was restored from backup, sample files open fine, and scans are clean. Which phase are you in, and what is still required?",
       "options": [
         {
-          "text": "Recovery — enhanced monitoring and confirmed backup resumption are still required before the incident closes",
+          "text": "Recovery — re-arm defenses and confirm backups resumed before the incident may close",
           "why": "Correct. Recovery = restore + validate + watch; closing without re-arming defenses invites round two.",
           "correct": true
         },
         {
-          "text": "Eradication — one more deep scan for persistence is required before anything else may proceed",
+          "text": "Eradication — one more deep persistence scan is required before anything else may proceed",
           "why": "Scanning here is validation work inside recovery; eradication ended before the restore began.",
           "correct": false
         },
         {
-          "text": "Identification — the ticket should be re-opened so the detection can be re-verified from the start",
+          "text": "Identification — the ticket should be re-opened so the detection can be re-verified from scratch",
           "why": "No new incident exists; re-opening would corrupt the record of a continuing recovery.",
           "correct": false
         },
         {
-          "text": "Containment — the restored system must be isolated again until a second opinion confirms it is clean",
+          "text": "Containment — the restored host must be isolated again until a second opinion confirms it clean",
           "why": "Over-containment of a validated-clean system wastes the recovery window you just bought.",
           "correct": false
         }
@@ -2117,11 +2117,6 @@ window.LAB = window.LAB || {};
           "correct": false
         },
         {
-          "text": "Proving that eradication and recovery actually worked — systems clean, data intact, defenses healthy",
-          "why": "Correct. Validation converts \"we think it is fixed\" into \"we verified it is fixed\".",
-          "correct": true
-        },
-        {
           "text": "Collecting management sign-off on the final incident report before the review meeting formally closes",
           "why": "Sign-off is governance; validation is the technical proof that remediation worked.",
           "correct": false
@@ -2130,6 +2125,11 @@ window.LAB = window.LAB || {};
           "text": "Testing that the nightly backup jobs completed on schedule throughout the whole response window",
           "why": "Backup jobs are one input; validation spans scans, data checks and defense health.",
           "correct": false
+        },
+        {
+          "text": "Proving that eradication and recovery actually worked — systems clean, data intact, defenses healthy",
+          "why": "Correct. Validation converts \"we think it is fixed\" into \"we verified it is fixed\".",
+          "correct": true
         }
       ]
     },
@@ -2164,11 +2164,6 @@ window.LAB = window.LAB || {};
       "scenario": "In the after-action review, a teammate proposes: \"Root cause: the user clicked the bad attachment.\" Why is this a weak root-cause statement?",
       "options": [
         {
-          "text": "It names a proximate human event, not the systemic condition that made the click consequential",
-          "why": "Correct. Root cause = the condition that, fixed, prevents recurrence — gateway sandboxing + training, not the click.",
-          "correct": true
-        },
-        {
           "text": "It is incomplete, because a proper root cause must also name the malware family and the C2 channel",
           "why": "More artifacts do not make it deeper — attribution detail is analysis, not root cause.",
           "correct": false
@@ -2182,6 +2177,11 @@ window.LAB = window.LAB || {};
           "text": "It is unfalsifiable, because you can never prove which specific user touched a malicious file",
           "why": "Endpoint and gateway logs routinely prove user execution — the problem is depth, not proof.",
           "correct": false
+        },
+        {
+          "text": "It names a proximate human event, not the systemic condition that made the click consequential",
+          "why": "Correct. Root cause = the condition that, fixed, prevents recurrence — gateway sandboxing + training, not the click.",
+          "correct": true
         }
       ]
     },
@@ -2230,7 +2230,7 @@ window.LAB = window.LAB || {};
           "correct": false
         },
         {
-          "text": "The file-access complaints and mass-modification pattern show a multi-asset incident — declare, then investigate",
+          "text": "Complaints plus mass-modification patterns reveal a multi-asset incident — declare and investigate",
           "why": "Correct. Correlating signals into one declared incident IS the identification phase.",
           "correct": true
         },
@@ -2303,12 +2303,12 @@ window.LAB = window.LAB || {};
           "correct": false
         },
         {
-          "text": "Expected behavior — a point-in-time restore excludes later writes; reconcile the delta from Friday plus audit log",
-          "why": "Correct. Reconciliation is part of validation; \"missing data\" after restore is a scoping question.",
+          "text": "Expected behavior — point-in-time restores skip later writes; reconcile the delta via the audit log",
+          "why": "Correct. Reconciliation is part of validation; \"missing data\" after restore is a scoping question, not a restore failure.",
           "correct": true
         },
         {
-          "text": "Vendor defect — escalate to the backup vendor, because a complete backup must contain every current file",
+          "text": "Vendor defect — escalate to the backup vendor, because a complete backup must hold every current file",
           "why": "Not a vendor defect: point-in-time restores exclude later writes by design.",
           "correct": false
         },
@@ -2324,22 +2324,22 @@ window.LAB = window.LAB || {};
       "scenario": "Hour 40 of the 72-hour customer-notice window. Legal says attribution is still ambiguous. What do you advise?",
       "options": [
         {
-          "text": "Notify within the window with confirmed facts — scope, containment status, customer impact — and commit to updates",
+          "text": "Notify inside the window with confirmed facts — scope, containment, impact — and commit to updates",
           "why": "Correct. Regulators and contracts expect facts-as-known and updates, not a finished novel.",
           "correct": true
         },
         {
-          "text": "Wait for complete attribution, because the contract only permits notice once the actor is fully identified",
+          "text": "Wait for complete attribution, because the contract only permits notice once the actor is named",
           "why": "Waiting past the clock is the breach. Notice needs facts, not attribution.",
           "correct": false
         },
         {
-          "text": "Skip the notice, since attribution uncertainty suspends the clock until the threat actor is named",
+          "text": "Skip the notice — attribution uncertainty suspends the clock until the threat actor is named",
           "why": "Confirmation of the INCIDENT triggered the clock, not attribution of the actor.",
           "correct": false
         },
         {
-          "text": "Say nothing, because the customer will learn more from press coverage than from a partial internal memo",
+          "text": "Say nothing, because the customer will learn more from press coverage than a partial internal memo",
           "why": "Silence converts a contractual duty into a reputational crisis you do not control.",
           "correct": false
         }
@@ -2376,12 +2376,12 @@ window.LAB = window.LAB || {};
       "scenario": "Next quarter's exercise budget fits ONE format. The gaps: HIGH EDR alerts sat 5.5h untriaged overnight; the restore runbook was executed by one admin for the first time. Which format do you buy, and why?",
       "options": [
         {
-          "text": "Checklist review — cheapest format, and it covers both gaps by confirming the runbook documents are current",
+          "text": "Checklist review — cheapest format, and it covers both gaps by confirming the runbook is current",
           "why": "Paperwork audits validate existence, not execution — neither gap would have surfaced.",
           "correct": false
         },
         {
-          "text": "Tabletop — executives discuss escalation and restore decisions around a table with a facilitator taking notes",
+          "text": "Tabletop — executives discuss escalation and restore decisions around a table, facilitator taking notes",
           "why": "Good for decision logic, but nobody touches the console or the runbook under pressure.",
           "correct": false
         },
@@ -2391,7 +2391,7 @@ window.LAB = window.LAB || {};
           "correct": false
         },
         {
-          "text": "Simulation / functional — the on-call rotation triages a live-fire HIGH alert at 03:00 and runs the restore drill",
+          "text": "Simulation / functional — the team executes a realistic alert-triage and restore drill under pressure",
           "why": "Correct. Test the muscle that failed, under realistic conditions — both gaps are execution failures.",
           "correct": true
         }

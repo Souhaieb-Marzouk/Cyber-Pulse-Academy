@@ -28,23 +28,23 @@
       fields: [
         {
           id: 'identify', label: 'IDENTIFY →', type: 'select', options: [
-            { value: 'a', label: 'Know what data and assets exist, and where data lives' },
             { value: 'b', label: 'Control who and what can reach the data, and limit its movement' },
+            { value: 'a', label: 'Know what data and assets exist, and where data lives' },
             { value: 'c', label: 'Safeguard handling so data is used, stored and retained correctly' }
           ]
         },
         {
           id: 'contain', label: 'CONTAIN →', type: 'select', options: [
             { value: 'a', label: 'Know what data and assets exist, and where data lives' },
-            { value: 'b', label: 'Control who and what can reach the data, and limit its movement' },
-            { value: 'c', label: 'Safeguard handling so data is used, stored and retained correctly' }
+            { value: 'c', label: 'Safeguard handling so data is used, stored and retained correctly' },
+            { value: 'b', label: 'Control who and what can reach the data, and limit its movement' }
           ]
         },
         {
           id: 'protect', label: 'PROTECT →', type: 'select', options: [
+            { value: 'c', label: 'Safeguard handling so data is used, stored and retained correctly' },
             { value: 'a', label: 'Know what data and assets exist, and where data lives' },
-            { value: 'b', label: 'Control who and what can reach the data, and limit its movement' },
-            { value: 'c', label: 'Safeguard handling so data is used, stored and retained correctly' }
+            { value: 'b', label: 'Control who and what can reach the data, and limit its movement' }
           ]
         }
       ],
@@ -536,13 +536,22 @@
     }
   ];
 
-  // Patch the defect-option lists into OBJ-H1 fields (keeps data DRY, as original)
+  // Patch the defect-option lists into OBJ-H1 fields (keeps data DRY, as original).
+  // Audit v2 (R6): the three rows show the same five options in three DIFFERENT
+  // orders so the display order never reveals the correct defect trio.
+  var defectOrders = [
+    ['pcapOff', 'relayDebug', 'agentOff', 'ntpOff', 'casbOff'],
+    ['casbOff', 'agentOff', 'ntpOff', 'relayDebug', 'pcapOff'],
+    ['relayDebug', 'pcapOff', 'casbOff', 'agentOff', 'ntpOff']
+  ];
+  var byId = {};
+  DATA.DEFECT_OPTIONS.forEach(function (o) { byId[o.value] = o; });
   var defectFields = [0, 1, 2].map(function (i) {
     return {
       id: 'd' + (i + 1),
       label: 'Defect ' + (i + 1),
       type: 'select',
-      options: DATA.DEFECT_OPTIONS
+      options: defectOrders[i].map(function (k) { return byId[k]; })
     };
   });
   HARD_OBJECTIVES[0].fields = defectFields;

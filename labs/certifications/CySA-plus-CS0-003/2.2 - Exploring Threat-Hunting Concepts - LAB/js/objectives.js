@@ -2,7 +2,6 @@
 // Verbatim static port of src/lib/hunt-lab/objectives.ts.
 // Medium: OBJ-M1..M12 (10–12 granular, guided, ≥2 per pillar)
 // Hard:   OBJ-H1..H9  (8–10 broad, strict, ≥1 per pillar)
-/* eslint-disable */
 
 window.HuntObjectives = (function () {
   "use strict";

@@ -226,27 +226,27 @@ CG.MEDIUM_OBJECTIVES = [
       options: [
         {
           id: "a",
-          label: "Any security device that blocks hackers from entering the network",
-          why: "Too narrow — controls include nontechnical measures like training and policies, and many controls don't block anything: they detect, correct, or deter.",
-        },
-        {
-          id: "b",
-          label: "A technical or nontechnical safeguard that reduces risk to assets and data.",
-          why: "Exactly. Controls span firewalls and encryption (technical) AND training and awareness (nontechnical). The goal is risk reduction — protecting assets from unauthorized access, theft, and destruction.",
-          correct: true,
-        },
-        {
-          id: "c",
           label: "An insurance policy that pays out after a breach has occurred",
           why: "Insurance transfers financial risk but changes nothing about the attack itself — it is not a security control.",
         },
         {
-          id: "d",
-          label: "A document listing every vulnerability found in the company",
+          id: "b",
+          label: "Any security device that blocks hackers from entering the network",
+          why: "Too narrow — controls include nontechnical measures like training and policies, and many controls don't block anything: they detect, correct, or deter.",
+        },
+        {
+          id: "c",
+          label: "A document listing every vulnerability found across the entire company",
           why: "That's a vulnerability assessment — an input to control selection, not a control itself.",
         },
+        {
+          id: "d",
+          label: "A technical or nontechnical safeguard reducing risk to assets and data.",
+          why: "Exactly. Controls span firewalls and encryption (technical) AND training and awareness (nontechnical). The goal is risk reduction — protecting assets from unauthorized access, theft, and destruction.",
+          correct: true,
+        },
       ],
-      correct: ["b"],
+      correct: ["d"],
     },
   },
   {
@@ -577,13 +577,13 @@ CG.MEDIUM_OBJECTIVES = [
         },
         {
           id: "b",
-          label: "A legacy app can't support MFA, so it's placed behind an SSO gateway with IP allowlisting, session timeouts, and enhanced logging.",
+          label: "A legacy app can't support MFA, so it sits behind an SSO gateway with allowlists and logging.",
           why: "Correct. The ideal control (native MFA) is infeasible; a documented, monitored substitute achieves comparable protection — the definition of compensating.",
           correct: true,
         },
         {
           id: "c",
-          label: "Management emails a company-wide memo reminding staff to choose stronger passwords.",
+          label: "Management emails the entire company a memo reminding every single employee to choose stronger passwords.",
           why: "Awareness messaging is an operational control at best — it substitutes for nothing in particular and isn't documented as an alternative to an infeasible control.",
         },
       ],
@@ -701,9 +701,9 @@ CG.MEDIUM_OBJECTIVES = [
           text: "Fleet laptops are stolen from vehicles every quarter; data exposure each time.",
           tag: "RISK-014",
           options: [
-            { id: "o1", label: "Full-disk encryption on all fleet laptops", why: "Correct — even a stolen laptop yields nothing readable. Direct fix for the exposure.", correct: true },
             { id: "o2", label: "Monthly anti-theft awareness email", why: "A nudge, not a control — the exposure doesn't change." },
             { id: "o3", label: "Ban laptops from fleet vehicles", why: "Fixes one problem by creating a bigger operational one." },
+            { id: "o1", label: "Full-disk encryption on all fleet laptops", why: "Correct — even a stolen laptop yields nothing readable. Direct fix for the exposure.", correct: true },
             { id: "o4", label: "Guard escorts for field technicians", why: "Astronomically expensive for the risk — poor treatment choice." },
           ],
         },
@@ -712,8 +712,8 @@ CG.MEDIUM_OBJECTIVES = [
           text: "Trespassers have cut through gaps in the warehouse fence twice this month.",
           tag: "RISK-022",
           options: [
-            { id: "o1", label: "Patch the fence and add monitored night patrols", why: "Correct — physical protection restored and verified: the direct fix.", correct: true },
             { id: "o2", label: "Add the parking lot to the SIEM dashboards", why: "A SIEM ingests digital logs; it won't see a fence." },
+            { id: "o1", label: "Patch the fence and add monitored night patrols", why: "Correct — physical protection restored and verified: the direct fix.", correct: true },
             { id: "o3", label: "Email staff to report suspicious activity", why: "Awareness helps but doesn't close a physical gap." },
             { id: "o4", label: "Accept the risk until next fiscal year", why: "Two incidents this month — acceptance here is negligence." },
           ],
@@ -723,10 +723,10 @@ CG.MEDIUM_OBJECTIVES = [
           text: "A legacy OT server can't be patched (vendor end-of-life) and sits on the flat plant network.",
           tag: "RISK-031 · COMPENSATING REQUIRED",
           options: [
-            { id: "o1", label: "Isolate it on a dedicated VLAN with default-deny allowlisting and enhanced monitoring", why: "Correct — you can't fix the vulnerability, so you shrink its reach and watch it: a compensating control.", correct: true },
             { id: "o2", label: "Patch it anyway during business hours", why: "Vendor EOL means no supported patch exists — 'patch anyway' is fiction." },
             { id: "o3", label: "Replace the server right now", why: "Correct long-term, but not a treatment you can implement today — and the register needs treatment now." },
             { id: "o4", label: "Delete the risk from the register", why: "Deleting the record doesn't delete the risk." },
+            { id: "o1", label: "Isolate it on a dedicated VLAN with default-deny allowlisting and enhanced monitoring", why: "Correct — you can't fix the vulnerability, so you shrink its reach and watch it: a compensating control.", correct: true },
           ],
         },
       ],
@@ -877,9 +877,9 @@ CG.HARD_OBJECTIVES = [
           text: "Which EXISTING control failed at the entry point — and as which type?",
           tag: "PART 1",
           options: [
-            { id: "o1", label: "Awareness training — Operational × Preventive", why: "Correct. The program exists (operational, people-driven) and its job is to stop the phish before the click (preventive). It failed — but it was the right control to have.", correct: true },
             { id: "o2", label: "CCTV — Technical × Detective", why: "Cameras record the parking lot, not the VPN." },
             { id: "o3", label: "Visitor policy — Operational × Physical", why: "Gate C logs don't see email." },
+            { id: "o1", label: "Awareness training — Operational × Preventive", why: "Correct. The program exists (operational, people-driven) and its job is to stop the phish before the click (preventive). It failed — but it was the right control to have.", correct: true },
             { id: "o4", label: "Backup runbook — Technical × Corrective", why: "Backups restore; they don't stop entry." },
           ],
         },
@@ -888,8 +888,8 @@ CG.HARD_OBJECTIVES = [
           text: "Which ABSENT control would most likely have stopped the stolen credential from being used — and as which type?",
           tag: "PART 2",
           options: [
-            { id: "o1", label: "MFA on VPN — Technical × Preventive", why: "Correct. MFA makes a stolen password insufficient — the phish lands, the login still fails.", correct: true },
             { id: "o2", label: "Login banner — Technical × Deterrent", why: "Banners deter humans mid-decision; they don't block stolen credentials." },
+            { id: "o1", label: "MFA on VPN — Technical × Preventive", why: "Correct. MFA makes a stolen password insufficient — the phish lands, the login still fails.", correct: true },
             { id: "o3", label: "SIEM alert on VPN logins — Technical × Detective", why: "It would see the login, not stop it." },
             { id: "o4", label: "Restore test — Technical × Corrective", why: "After-the-fact capacity, not entry prevention." },
           ],
@@ -952,8 +952,8 @@ CG.HARD_OBJECTIVES = [
           text: "Fleet laptop theft — quarterly data exposure.",
           tag: "BUDGET LINE 1",
           options: [
-            { id: "o1", label: "Full-disk encryption", note: "$6,000", why: "Correct — removes the exposure at its root for a fraction of budget.", correct: true },
             { id: "o2", label: "Armed escort service for field techs", note: "$45,000", why: "Over budget and absurd for the risk." },
+            { id: "o1", label: "Full-disk encryption", note: "$6,000", why: "Correct — removes the exposure at its root for a fraction of budget.", correct: true },
             { id: "o3", label: "Laptop tether cables", note: "$1,200", why: "Cheap, but cables stop opportunistic grabs, not data theft — the exposure remains." },
             { id: "o4", label: "Anti-theft email campaign", note: "$0", why: "Paper doesn't encrypt drives." },
           ],
@@ -963,9 +963,9 @@ CG.HARD_OBJECTIVES = [
           text: "Fence gaps — two break-ins this month.",
           tag: "BUDGET LINE 2",
           options: [
-            { id: "o1", label: "Fence repair + monitored night patrols", note: "$9,000", why: "Correct — direct physical fix plus active deterrence and detection.", correct: true },
             { id: "o2", label: "New SIEM dashboards", note: "$12,000", why: "The SIEM correlates logs — it cannot see a fence." },
             { id: "o3", label: "Signage along the perimeter", note: "$300", why: "Deters the hesitant; the fence cutters are already undeterred." },
+            { id: "o1", label: "Fence repair + monitored night patrols", note: "$9,000", why: "Correct — direct physical fix plus active deterrence and detection.", correct: true },
           ],
         },
         {
@@ -1036,8 +1036,8 @@ CG.HARD_OBJECTIVES = [
           control: "MFA on email",
           question: "Which artifact proves effectiveness?",
           options: [
-            { id: "o1", label: "Auth logs showing MFA challenges and blocked legacy-auth attempts", why: "Correct — the log shows the control intercepting real logins.", correct: true },
             { id: "o2", label: "The vendor's product datasheet with performance claims", why: "Marketing claims, not your reality." },
+            { id: "o1", label: "Auth logs showing MFA challenges and blocked legacy-auth attempts", why: "Correct — the log shows the control intercepting real logins.", correct: true },
             { id: "o3", label: "The procurement invoice for this year's licenses", why: "Ownership isn't effectiveness." },
           ],
         },
@@ -1046,9 +1046,9 @@ CG.HARD_OBJECTIVES = [
           control: "Perimeter firewall deny rules",
           question: "Which artifact proves effectiveness?",
           options: [
-            { id: "o1", label: "Rule-hit counters and blocked-connection packet captures", why: "Correct — counters show rules firing on real traffic.", correct: true },
             { id: "o2", label: "Signed change tickets from every rule review", why: "Intent, not outcome." },
             { id: "o3", label: "The admin's config backup folder for rollback", why: "A config snapshot proves nothing about traffic." },
+            { id: "o1", label: "Rule-hit counters and blocked-connection packet captures", why: "Correct — counters show rules firing on real traffic.", correct: true },
           ],
         },
         {
@@ -1066,8 +1066,8 @@ CG.HARD_OBJECTIVES = [
           control: "Awareness training",
           question: "Which artifact proves effectiveness?",
           options: [
-            { id: "o1", label: "Sim click-rate trend + suspicious-email report-rate trend", why: "Correct — trends measure behavior change.", correct: true },
             { id: "o2", label: "Attendance sheets from all four quarterly sessions", why: "Delivery, not behavior." },
+            { id: "o1", label: "Sim click-rate trend + suspicious-email report-rate trend", why: "Correct — trends measure behavior change.", correct: true },
             { id: "o3", label: "The training budget line item for the year", why: "Spending isn't effect." },
           ],
         },
@@ -1076,9 +1076,9 @@ CG.HARD_OBJECTIVES = [
           control: "Badge access to server room",
           question: "Which artifact proves effectiveness?",
           options: [
-            { id: "o1", label: "Badge-log review surfacing off-hours anomalies", why: "Correct — reviews show the control producing actionable records.", correct: true },
             { id: "o2", label: "Badge reader brochure from the sales deck", why: "A brochure guards nothing." },
             { id: "o3", label: "Installation receipt with the contractor's sign-off", why: "Installation isn't operation." },
+            { id: "o1", label: "Badge-log review surfacing off-hours anomalies", why: "Correct — reviews show the control producing actionable records.", correct: true },
           ],
         },
       ],
@@ -1220,6 +1220,7 @@ CG.QUIZ_MEDIUM = [
     ],
     correct: "a",
     explain: "Governance-level decision-making and sign-off = managerial. The assessment may use technical tools, but the control itself is the governance act.",
+    topic: "Control categories",
   },
   {
     id: "mq2",
@@ -1232,6 +1233,7 @@ CG.QUIZ_MEDIUM = [
     ],
     correct: "b",
     explain: "Deterrence works on the decision to attempt — banners, sanctions, signage. It neither blocks nor records.",
+    topic: "Deterrent type",
   },
   {
     id: "mq3",
@@ -1244,6 +1246,7 @@ CG.QUIZ_MEDIUM = [
     ],
     correct: "c",
     explain: "The ideal control is infeasible; a documented substitute provides comparable protection — that's compensation.",
+    topic: "Compensating logic",
   },
   {
     id: "mq4",
@@ -1256,6 +1259,7 @@ CG.QUIZ_MEDIUM = [
     ],
     correct: "a",
     explain: "Training and awareness change human behavior — nontechnical by definition. Encryption, firewalls and badge systems are technology enforcing security, however valuable.",
+    topic: "Nontechnical measures",
   },
   {
     id: "mq5",
@@ -1268,6 +1272,7 @@ CG.QUIZ_MEDIUM = [
     ],
     correct: "a",
     explain: "Technology (technical) stopping the incident before it occurs (preventive) — the cleanest cell on the grid.",
+    topic: "Category × type classification",
   },
   {
     id: "mq6",
@@ -1280,18 +1285,20 @@ CG.QUIZ_MEDIUM = [
     ],
     correct: "b",
     explain: "Physical type (facility protection) delivered by a person running a process (operational). Badge readers hit the same type via technology.",
+    topic: "Category × type classification",
   },
   {
     id: "mq7",
     prompt: "Defense in depth means:",
     options: [
       { id: "a", label: "One strong firewall guarding the whole perimeter" },
-      { id: "b", label: "Layered control types covering each other's failures" },
-      { id: "c", label: "Technical controls only, for speed of response" },
-      { id: "d", label: "A single password policy reused everywhere" },
+      { id: "b", label: "Technical controls only, for speed of response" },
+      { id: "c", label: "A single password policy reused everywhere" },
+      { id: "d", label: "Layered control types covering each other's failures" },
     ],
-    correct: "b",
+    correct: "d",
     explain: "Depth = variety across methods: preventive fails → detective catches → corrective restores. Any single strong control — even a great one — is a single point of failure.",
+    topic: "Defense in depth",
   },
 ];
 
@@ -1300,13 +1307,14 @@ CG.QUIZ_HARD = [
     id: "hq1",
     prompt: "A clinic's legacy app can't do MFA. Which response best treats the risk?",
     options: [
-      { id: "a", label: "Accept the risk and revisit in five years" },
-      { id: "b", label: "SSO gateway with allowlisting, logging, and a review date" },
-      { id: "c", label: "Email all staff to be extra careful" },
+      { id: "a", label: "SSO gateway with allowlists, logging, review date" },
+      { id: "b", label: "Accept the risk and revisit it in five years" },
+      { id: "c", label: "Email all staff and ask them to be extra careful" },
       { id: "d", label: "Install a second firewall at the network edge" },
     ],
-    correct: "b",
+    correct: "a",
     explain: "A documented, monitored substitute for an infeasible control is compensation — and the review date keeps it honest. Acceptance treats nothing, and a second firewall never touches this app's credential risk.",
+    topic: "Compensating logic",
   },
   {
     id: "hq2",
@@ -1319,6 +1327,7 @@ CG.QUIZ_HARD = [
     ],
     correct: "c",
     explain: "Only an actual restore proves recoverability. Success emails, SLAs and inventories are existence evidence — the classic false comfort after a ransomware hit.",
+    topic: "Effectiveness evidence",
   },
   {
     id: "hq3",
@@ -1331,6 +1340,7 @@ CG.QUIZ_HARD = [
     ],
     correct: "b",
     explain: "Prevention and detection existed but failed; corrective capacity absorbs failure. Without it, every incident is a catastrophe.",
+    topic: "Gap analysis — corrective",
   },
   {
     id: "hq4",
@@ -1343,6 +1353,7 @@ CG.QUIZ_HARD = [
     ],
     correct: "b",
     explain: "Existence is not effectiveness — a signature proves intent. But human controls ARE measurable (simulation click rates), and deterrents only work on actors who notice and care.",
+    topic: "Existence vs effectiveness",
   },
   {
     id: "hq5",
@@ -1355,6 +1366,7 @@ CG.QUIZ_HARD = [
     ],
     correct: "c",
     explain: "Treat the actual vector: physical gaps get physical fixes, verified by active monitoring. The other options are scope-mismatched or cosmetic — awareness and WAFs never stopped a fence cutter.",
+    topic: "Physical control treatment",
   },
   {
     id: "hq6",
@@ -1367,6 +1379,7 @@ CG.QUIZ_HARD = [
     ],
     correct: "d",
     explain: "Governance document; the sanction discourages. Nothing is blocked, recorded, or restored by the clause itself.",
+    topic: "Sanctions as deterrent",
   },
   {
     id: "hq7",
@@ -1379,6 +1392,7 @@ CG.QUIZ_HARD = [
     ],
     correct: "c",
     explain: "Hardening removes doors; antivirus guards them, analysts watch them, insurance pays for them. Only removal shrinks the surface an attacker can touch.",
+    topic: "Attack-surface minimization",
   },
 ];
 

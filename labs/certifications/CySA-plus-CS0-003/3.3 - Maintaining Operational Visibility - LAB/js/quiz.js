@@ -1,6 +1,7 @@
 // ── Knowledge checks: Medium (7 concept) + Hard (7 scenario) ─────────────────
-// Ported 1:1 from the original lab: same stems, same options and order, same
-// correct answers, same explanations (including distractor rejections).
+// Ported 1:1 from the original lab (post-audit v2): option orders, correct
+// answers and explanations mirror src/lib/lab/quiz.ts — including the audit
+// rotation (R4), length/meaning discipline (R5) and distractor rejections.
 (function () {
   'use strict';
 
@@ -22,11 +23,11 @@
       stem: 'What is the primary value of the syslog relay and aggregator?',
       options: [
         { value: 'a', label: 'It encrypts log contents while they sit at rest' },
-        { value: 'b', label: 'It collects many sources into one searchable, correlated stream' },
-        { value: 'c', label: 'It compresses logs so the relay uses less disk space' },
-        { value: 'd', label: 'It replaces the need for host logging on every server' }
+        { value: 'b', label: 'It compresses logs so the relay uses less disk space' },
+        { value: 'c', label: 'It replaces the need for host logging on every server' },
+        { value: 'd', label: 'It collects many sources into one searchable, correlated stream' }
       ],
-      answer: 'b',
+      answer: 'd',
       explanation: 'Aggregation puts every source in one place so events from different hosts can be correlated — and it enforces the level threshold that separates signal from noise. Encryption, compression and replacing host logs are not the relay\'s job.'
     },
     {
@@ -45,12 +46,12 @@
       id: 'M-Q4',
       stem: 'File Integrity Monitoring alerts when…',
       options: [
-        { value: 'a', label: 'A user opens a sensitive file they do not own' },
-        { value: 'b', label: 'Disk usage on the monitored host crosses a threshold' },
-        { value: 'c', label: 'A file\'s current state no longer matches the known-good baseline' },
+        { value: 'a', label: 'A file\'s current state no longer matches the known-good baseline' },
+        { value: 'b', label: 'A user opens a sensitive file they do not own' },
+        { value: 'c', label: 'Disk usage on the monitored host crosses a threshold' },
         { value: 'd', label: 'A scheduled backup job completes without any errors' }
       ],
-      answer: 'c',
+      answer: 'a',
       explanation: 'FIM keeps hashes of critical files against a baseline configuration and reports drift — the earliest tripwire for tampering and persistence. File opens, disk usage and backup results are monitored by other instruments.'
     },
     {
@@ -81,13 +82,13 @@
       id: 'M-Q7',
       stem: 'Why must clocks be synchronized (NTP) before logs from different hosts are correlated?',
       options: [
-        { value: 'a', label: 'To reduce how much storage the log stream consumes' },
-        { value: 'b', label: 'So timestamps line up and the event order reflects reality' },
+        { value: 'a', label: 'To compress the stream so storage lasts longer' },
+        { value: 'b', label: 'To align timestamps so event order reflects reality' },
         { value: 'c', label: 'To encrypt log contents end to end' },
         { value: 'd', label: 'To speed up message forwarding at the relay' }
       ],
       answer: 'b',
-      explanation: 'Skewed clocks interleave events wrongly — correlation produces confident nonsense. NTP is a visibility control, not an IT nicety; it does not exist to save storage, encrypt or accelerate anything.'
+      explanation: 'Skewed clocks interleave events wrongly — correlation produces confident nonsense. NTP is a visibility control, not an IT nicety: it does not exist to compress, encrypt or accelerate anything.'
     }
   ];
 
@@ -97,59 +98,59 @@
       stem: 'A VPN logon and a file-share read describe the same intrusion, but their timestamps are 7 minutes apart and the order is impossible. Most likely cause?',
       options: [
         { value: 'a', label: 'The attacker forged one of the logs' },
-        { value: 'b', label: 'Clock skew between the two hosts' },
-        { value: 'c', label: 'The relay dropped events' },
-        { value: 'd', label: 'Daylight-saving change' }
+        { value: 'b', label: 'The relay dropped events' },
+        { value: 'c', label: 'Daylight-saving change' },
+        { value: 'd', label: 'Clock skew between the two hosts' }
       ],
-      answer: 'b',
-      explanation: 'Impossible orderings across hosts are the signature of clock skew. Fix time sync first, then re-correlate — never “explain away” impossible timelines.'
+      answer: 'd',
+      explanation: 'Impossible orderings across hosts are the signature of clock skew — daylight-saving shifts move clocks by whole hours, never by minutes, so they cannot explain a 7-minute mismatch. Fix time sync first, then re-correlate — never “explain away” impossible timelines.'
     },
     {
       id: 'H-Q2',
       stem: 'A FIM alert shows /etc/cron.d/report-sync changed at 03:04; security logs show failed logons on the same host at 02:47. Best first action?',
       options: [
-        { value: 'a', label: 'Delete the cron file immediately and reboot the host' },
+        { value: 'a', label: 'Reimage the host first and delete the cron file' },
         { value: 'b', label: 'Ignore it — cron files change during normal operation' },
-        { value: 'c', label: 'Correlate and scope: pull adjacent logs, confirm the account used, and treat as suspected persistence' },
+        { value: 'c', label: 'Correlate adjacent logs, confirm the account, treat as persistence' },
         { value: 'd', label: 'Wait for the next scheduled vulnerability scan to confirm' }
       ],
       answer: 'c',
-      explanation: 'A baseline change right after failed logons is a persistence pattern until proven otherwise. Scope first, contain deliberately — deleting evidence destroys your own case, and waiting or ignoring hands the attacker the window.'
+      explanation: 'A baseline change right after failed logons is a persistence pattern until proven otherwise. Scope first, contain deliberately — reimaging and deleting destroy your own evidence, and waiting or ignoring hands the attacker the window.'
     },
     {
       id: 'H-Q3',
       stem: '“Data at rest changed with no application activity.” Which data source answers this fastest?',
       options: [
-        { value: 'a', label: 'FIM' },
+        { value: 'a', label: 'File integrity monitoring' },
         { value: 'b', label: 'VPN session log' },
         { value: 'c', label: 'Asset inventory' },
         { value: 'd', label: 'Marketing dashboard' }
       ],
       answer: 'a',
-      explanation: 'FIM is purpose-built for at-rest drift vs a baseline — the direct instrument for changes nothing should have made.'
+      explanation: 'File integrity monitoring (FIM) is purpose-built for at-rest drift vs a baseline — the direct instrument for changes nothing should have made. A VPN log sees sessions in motion, the inventory lists what exists, and the dashboard reports business metrics.'
     },
     {
       id: 'H-Q4',
       stem: 'At 03:12, mid-incident, the host’s security log is cleared by the compromised user. Classify and respond.',
       options: [
-        { value: 'a', label: 'False positive — host logs rotate automatically at night' },
-        { value: 'b', label: 'True positive — treat as anti-forensic defense evasion and escalate' },
+        { value: 'a', label: 'False positive — rotation is routine and logged as such' },
+        { value: 'b', label: 'Scheduled maintenance — the SIEM rotates logs nightly' },
         { value: 'c', label: 'Debug noise — verbose application output, nothing more' },
-        { value: 'd', label: 'Scheduled maintenance — the SIEM rotates logs nightly' }
+        { value: 'd', label: 'True positive — anti-forensics during an active incident' }
       ],
-      answer: 'b',
-      explanation: 'An audit-clear event during an active incident is close to a confession: the actor is erasing the trail. Rotation is routine and logged as such; a manual clear by the compromised user is neither. Off-host aggregation keeps the rest of the story intact.'
+      answer: 'd',
+      explanation: 'An audit-clear event during an active incident is close to a confession: the actor is erasing the trail — treat it as anti-forensic defense evasion and escalate. Rotation is routine and logged as such; a manual clear by the compromised user is neither. Off-host aggregation keeps the rest of the story intact.'
     },
     {
       id: 'H-Q5',
       stem: 'A separated contractor’s account is still active and logged in last week. The best control fix is…',
       options: [
-        { value: 'a', label: 'Automated deprovisioning (joiner-mover-leaver) plus least-privilege review' },
-        { value: 'b', label: 'Lower the log level to DEBUG so activity is captured' },
-        { value: 'c', label: 'Widen the share permissions so the audits pass again' },
-        { value: 'd', label: 'Buy more storage for longer log retention' }
+        { value: 'a', label: 'Lower the log level to capture more activity' },
+        { value: 'b', label: 'Widen share permissions so audits pass again' },
+        { value: 'c', label: 'Automated deprovisioning plus a least-privilege review' },
+        { value: 'd', label: 'Buy storage for longer log retention' }
       ],
-      answer: 'a',
+      answer: 'c',
       explanation: 'This is user-account management (ATT&CK M1018): accounts must die when their holder leaves, and standing access must be least-privilege. More logging, wider permissions or more storage would all record or ease the problem, not fix it.'
     },
     {
@@ -157,7 +158,7 @@
       stem: 'The SOC discovers company files synced to a personal cloud drive. Which tool provides this visibility?',
       options: [
         { value: 'a', label: 'A traditional firewall' },
-        { value: 'b', label: 'A CASB (SaaS discovery)' },
+        { value: 'b', label: 'A CASB platform' },
         { value: 'c', label: 'A backup server' },
         { value: 'd', label: 'The asset inventory' }
       ],
@@ -168,13 +169,13 @@
       id: 'H-Q7',
       stem: 'An auditor requests 12 months of access history, but the relay retains 30 days. The correct takeaway is…',
       options: [
-        { value: 'a', label: 'The evidence is gone; retention must match policy (12 months) going forward' },
+        { value: 'a', label: 'Retention must match policy going forward — old evidence is gone' },
         { value: 'b', label: 'Ask the auditor to accept fewer months of history instead' },
         { value: 'c', label: 'Raise the relay level to DEBUG so more events are kept' },
         { value: 'd', label: 'Treat retention as a storage budget concern, not a security one' }
       ],
       answer: 'a',
-      explanation: 'Retention is a compliance and investigation control: evidence must outlive the question. Level (DEBUG) controls noise, not retention time — and the auditor\'s request cannot be negotiated down.'
+      explanation: 'Retention is a compliance and investigation control: evidence must outlive the question. With 30-day retention the requested history no longer exists — policy must set 12 months going forward. Level (DEBUG) controls noise, not retention time, and the request cannot be negotiated down.'
     }
   ];
 

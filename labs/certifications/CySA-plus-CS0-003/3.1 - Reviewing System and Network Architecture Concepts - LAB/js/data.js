@@ -579,7 +579,7 @@ const QUIZ_MEDIUM = [
     id: "qm1",
     question: "A DMZ is best described as…",
     options: [
-      { id: "a", text: "A screening buffer: internet-facing services run there, walled off from the LAN" },
+      { id: "a", text: "A screening buffer for internet-facing services, isolated from the LAN" },
       { id: "b", text: "A quarantine VLAN where compromised laptops are wiped and reimaged" },
       { id: "c", text: "A storage tier where encrypted backups are staged before offsite transfer" },
       { id: "d", text: "A trusted management segment where firewall admin consoles are hosted" }
@@ -628,7 +628,7 @@ const QUIZ_MEDIUM = [
     question: "An 802.1X posture check primarily decides…",
     options: [
       { id: "a", text: "How much bandwidth the device may consume on the link" },
-      { id: "b", text: "Whether a device may join the network, and where — based on identity and health" },
+      { id: "b", text: "Whether the device joins, and where, by identity and health" },
       { id: "c", text: "Whether the device needs its disk encrypted before users log in" },
       { id: "d", text: "Which firewall rules apply between the device and the internet" }
     ],
@@ -652,7 +652,7 @@ const QUIZ_MEDIUM = [
     question: "In a zero-trust design, a user who authenticated this morning should…",
     options: [
       { id: "a", text: "Keep full trust for the rest of the workday" },
-      { id: "b", text: "Re-verify identity and posture on each request to sensitive resources" },
+      { id: "b", text: "Re-verify identity and posture at each sensitive request" },
       { id: "c", text: "Trust the other devices that share their VLAN" },
       { id: "d", text: "Disable MFA to make daily sign-ins faster" }
     ],
@@ -666,10 +666,10 @@ const QUIZ_HARD = [
     scenario: "02:00 — NetFlow shows LNX-BLD1 (legacy lab) sweeping VLAN 30.",
     question: "Your FIRST containment action?",
     options: [
-      { id: "a", text: "Re-image every server in VLAN 30" },
-      { id: "b", text: "Bridge the lab off VLAN 30 at the core, then investigate the host" },
-      { id: "c", text: "Email the organization" },
-      { id: "d", text: "Disable NetFlow to reduce noise" }
+      { id: "a", text: "Re-image every server in VLAN 30 as a precaution" },
+      { id: "b", text: "Bridge the lab off VLAN 30 at the core" },
+      { id: "c", text: "Email all staff asking about unusual activity" },
+      { id: "d", text: "Disable NetFlow collection to reduce the noise" }
     ],
     correct: "b",
     explanation: "Cut the attack path first (segmentation is your containment tool), then investigate. Everything else loses evidence or time."
@@ -705,10 +705,10 @@ const QUIZ_HARD = [
     scenario: 'gpresult shows "PowerShell script-block logging = Disabled" on one workstation (all others: On).',
     question: "The real risk is…",
     options: [
-      { id: "a", text: "Slower PowerShell execution because every command is transcribed" },
-      { id: "b", text: "Encoded PowerShell would leave no script evidence — a blind spot for T1059.001" },
+      { id: "a", text: "Slower PowerShell execution on that host because every command is transcribed" },
       { id: "c", text: "Scripts would run with reduced privileges on that host" },
-      { id: "d", text: "The workstation would fail its next patch compliance scan" }
+      { id: "d", text: "The workstation would fail its next patch compliance scan" },
+      { id: "b", text: "Encoded PowerShell would leave no script evidence to review later" }
     ],
     correct: "b",
     explanation: "Baseline drift on ONE host is a detection gap exactly where attackers look. Re-apply the GPO and investigate why it drifted."
@@ -718,10 +718,10 @@ const QUIZ_HARD = [
     scenario: "SQL audit: a new login 'svc_build' from the legacy lab read 4,000,000 rows at 03:00.",
     question: "Best interpretation + response?",
     options: [
-      { id: "a", text: "Normal ETL — ignore it" },
-      { id: "b", text: "Likely staging of exfiltration via the lab bridge — segment the path, disable the login, review DLP" },
-      { id: "c", text: "A scheduled backup job reading its dataset — verify the schedule, then close it" },
-      { id: "d", text: "Delete the audit log to save space" }
+      { id: "b", text: "Likely staged exfiltration: segment the path, disable the login, preserve evidence" },
+      { id: "a", text: "Normal ETL for that service account, no action needed" },
+      { id: "c", text: "A backup job reading its dataset; verify the schedule and close" },
+      { id: "d", text: "Delete the audit entries to save storage space" }
     ],
     correct: "b",
     explanation: "New login + off-hours + bulk reads + forbidden origin = classic staged exfiltration. Kill the path, kill the credential, keep the evidence."
@@ -731,10 +731,10 @@ const QUIZ_HARD = [
     scenario: "You are mapping the design against zero-trust maturity.",
     question: "Which finding is a GENUINE zero-trust violation?",
     options: [
-      { id: "a", text: "MFA enforced on the VPN" },
-      { id: "b", text: "Management VLAN reachable from guest Wi-Fi with no jump path" },
-      { id: "c", text: "PCI systems micro-segmented" },
-      { id: "d", text: "Backups restore-tested quarterly" }
+      { id: "a", text: "MFA is enforced on the VPN and all admin accounts" },
+      { id: "c", text: "PCI systems are micro-segmented with distributed ACLs and host firewalls" },
+      { id: "d", text: "Backups run nightly and are restore-tested every quarter" },
+      { id: "b", text: "Management VLAN reachable from guest Wi-Fi without a jump path" }
     ],
     correct: "b",
     explanation: "Implicit trust granted by network location (guest → management) is the exact pattern zero trust exists to destroy."
@@ -744,9 +744,9 @@ const QUIZ_HARD = [
     scenario: 'Change request: open DMZ → SQL01:1433 "for reporting".',
     question: "Best response as the security architect?",
     options: [
-      { id: "a", text: "Approve — it is only one port" },
-      { id: "b", text: "Deny as designed; route reporting via a read replica or brokered query on a permitted path" },
-      { id: "c", text: "Approve and disable SQL audit logging" },
+      { id: "a", text: "Approve it, since only one port is affected" },
+      { id: "c", text: "Approve it and disable SQL audit logging for speed" },
+      { id: "b", text: "Deny as designed; offer a read replica or brokered query instead" },
       { id: "d", text: "Approve with compensating controls: an IDS signature and a weekly review" }
     ],
     correct: "b",
@@ -775,8 +775,8 @@ const OBJECTIVES_MEDIUM = [
             key: "m1-dmz",
             prompt: "The DMZ is…",
             options: [
-              { id: "buffer", label: "A screening buffer: internet-facing services run there, walled off from the LAN" },
-              { id: "storage", label: "A quarantine segment where compromised devices get cleaned" },
+              { id: "buffer", label: "A screening buffer: internet-facing services, walled off from the LAN" },
+              { id: "storage", label: "A quarantine segment where compromised devices are wiped and rebuilt" },
               { id: "vault", label: "A storage tier for staging encrypted nightly backups" },
               { id: "guest", label: "A management segment hosting firewall admin consoles" }
             ]
@@ -956,40 +956,40 @@ const OBJECTIVES_MEDIUM = [
             key: "m12-did",
             prompt: "Defense in depth",
             options: [
-              { id: "d-layers", label: "Multiple independent layers of control, so one failure is not fatal" },
-              { id: "d-zones", label: "Dividing the network into isolated zones" },
-              { id: "d-nac", label: "Admitting devices based on identity and health" },
-              { id: "d-zt", label: "No implicit trust by network location" }
+              { id: "d-zt", label: "No implicit trust by network location; verify every request" },
+              { id: "d-layers", label: "Multiple independent control layers, so one failure is not fatal" },
+              { id: "d-zones", label: "Dividing the network into isolated zones that cap blast radius" },
+              { id: "d-nac", label: "Admitting devices onto the network based on identity and health" }
             ]
           },
           {
             key: "m12-seg",
             prompt: "Segmentation",
             options: [
-              { id: "d-layers", label: "Multiple independent layers of control, so one failure is not fatal" },
-              { id: "d-zones", label: "Dividing the network into isolated zones" },
-              { id: "d-nac", label: "Admitting devices based on identity and health" },
-              { id: "d-zt", label: "No implicit trust by network location" }
+              { id: "d-nac", label: "Admitting devices onto the network based on identity and health" },
+              { id: "d-zt", label: "No implicit trust by network location; verify every request" },
+              { id: "d-zones", label: "Dividing the network into isolated zones that cap blast radius" },
+              { id: "d-layers", label: "Multiple independent control layers, so one failure is not fatal" }
             ]
           },
           {
             key: "m12-nac",
             prompt: "NAC",
             options: [
-              { id: "d-layers", label: "Multiple independent layers of control, so one failure is not fatal" },
-              { id: "d-zones", label: "Dividing the network into isolated zones" },
-              { id: "d-nac", label: "Admitting devices based on identity and health" },
-              { id: "d-zt", label: "No implicit trust by network location" }
+              { id: "d-layers", label: "Multiple independent control layers, so one failure is not fatal" },
+              { id: "d-zt", label: "No implicit trust by network location; verify every request" },
+              { id: "d-zones", label: "Dividing the network into isolated zones that cap blast radius" },
+              { id: "d-nac", label: "Admitting devices onto the network based on identity and health" }
             ]
           },
           {
             key: "m12-zt",
             prompt: "Zero trust",
             options: [
-              { id: "d-layers", label: "Multiple independent layers of control, so one failure is not fatal" },
-              { id: "d-zones", label: "Dividing the network into isolated zones" },
-              { id: "d-nac", label: "Admitting devices based on identity and health" },
-              { id: "d-zt", label: "No implicit trust by network location" }
+              { id: "d-nac", label: "Admitting devices onto the network based on identity and health" },
+              { id: "d-layers", label: "Multiple independent control layers, so one failure is not fatal" },
+              { id: "d-zt", label: "No implicit trust by network location; verify every request" },
+              { id: "d-zones", label: "Dividing the network into isolated zones that cap blast radius" }
             ]
           }
         ]
@@ -1020,18 +1020,18 @@ const OBJECTIVES_HARD = [
             prompt: "1 · Biggest flat-network risk",
             options: [
               { id: "z-lab", label: "The legacy lab (flat, unmonitored)" },
-              { id: "z-dmz", label: "The DMZ" },
-              { id: "z-mgmt", label: "The management VLAN" },
-              { id: "z-core", label: "The core switch stack" }
+              { id: "z-dmz", label: "The DMZ screening buffer" },
+              { id: "z-mgmt", label: "The management VLAN (VLAN 99)" },
+              { id: "z-core", label: "The core switch stack (L3 backbone)" }
             ]
           },
           {
             key: "audit-path",
             prompt: "2 · Forbidden compliance path",
             options: [
-              { id: "p-guest-mail", label: "Guest Wi-Fi can reach the mail relay" },
-              { id: "p-lab-sql", label: "The legacy lab can reach SQL01 (PCI) directly" },
+              { id: "p-guest-mail", label: "Guest Wi-Fi traffic can reach the mail relay" },
               { id: "p-dmz-file", label: "The DMZ can reach FILE01" },
+              { id: "p-lab-sql", label: "The legacy lab can reach SQL01 (PCI) directly" },
               { id: "p-vpn-print", label: "VPN users can ping the printer" }
             ]
           },
@@ -1039,10 +1039,10 @@ const OBJECTIVES_HARD = [
             key: "audit-change",
             prompt: "3 · Most impactful change",
             options: [
-              { id: "c-ips2", label: "Buy a second perimeter IPS" },
-              { id: "c-microseg", label: "Micro-segment VLAN 30 and cut the lab bridge" },
-              { id: "c-dnscloud", label: "Move DNS to a cloud provider" },
-              { id: "c-guestoff", label: "Disable guest Wi-Fi entirely" }
+              { id: "c-ips2", label: "Buy and deploy a second perimeter IPS appliance" },
+              { id: "c-dnscloud", label: "Move DNS resolution to a cloud provider" },
+              { id: "c-guestoff", label: "Disable the guest Wi-Fi network entirely" },
+              { id: "c-microseg", label: "Micro-segment VLAN 30 and cut the lab bridge" }
             ]
           }
         ]
@@ -1126,10 +1126,10 @@ const OBJECTIVES_HARD = [
             key: "lin-tech",
             prompt: "ATT&CK technique",
             options: [
-              { id: "tech-kmod", label: "T1547.006 — Kernel Modules and Extensions" },
-              { id: "tech-runkey", label: "T1547.001 — Registry Run Keys" },
-              { id: "tech-wmi", label: "T1546.003 — WMI Event Subscription" },
-              { id: "tech-dns", label: "T1071.004 — DNS" }
+              { id: "tech-kmod", label: "T1547.006: Kernel Modules and Extensions" },
+              { id: "tech-runkey", label: "T1547.001: Registry Run Keys / Startup Folder" },
+              { id: "tech-wmi", label: "T1546.003: WMI Event Subscription" },
+              { id: "tech-dns", label: "T1071.004: DNS Protocol" }
             ]
           }
         ]
@@ -1188,19 +1188,19 @@ const OBJECTIVES_HARD = [
             key: "k1",
             prompt: "Constraint 1 — PCI must be isolated from the lab; no new appliances in budget",
             options: [
-              { id: "k1-micro", label: "Enable micro-segmentation: distributed ACLs on the core + host firewall on SQL01" },
-              { id: "k1-dmz", label: "Move SQL01 into the DMZ" },
+              { id: "k1-dmz", label: "Move SQL01 into the DMZ network" },
+              { id: "k1-micro", label: "Enable micro-segmentation with distributed ACLs and host firewalls" },
               { id: "k1-fw", label: "Request budget for a new datacenter firewall stack" },
-              { id: "k1-ignore", label: "Document a risk exception for 3 years" }
+              { id: "k1-ignore", label: "Document a risk exception for the next 3 years" }
             ]
           },
           {
             key: "k2",
             prompt: "Constraint 2 — Developers (VLAN 20) need read access to one build database, nothing wider",
             options: [
-              { id: "k2-jump", label: "Route via JMP-01 with named, least-privilege DB accounts" },
               { id: "k2-open", label: "Open VLAN 20 to all ports on VLAN 30" },
               { id: "k2-vpn", label: "Give every developer full VPN admin" },
+              { id: "k2-jump", label: "Route via JMP-01 with named, least-privilege DB accounts" },
               { id: "k2-copy", label: "Copy the database onto a dev laptop" }
             ]
           },
@@ -1208,10 +1208,10 @@ const OBJECTIVES_HARD = [
             key: "k3",
             prompt: "Constraint 3 — Warehouse switch ports accept any device; budget blocks new switches",
             options: [
-              { id: "k3-nac", label: "Turn on 802.1X with the existing RADIUS + dynamic quarantine VLAN" },
-              { id: "k3-mac", label: "Sticky-MAC as the only control, audited yearly" },
-              { id: "k3-flat", label: "Accept the flat network; log nothing" },
-              { id: "k3-wifi", label: "Ban wired ports, go all-Wi-Fi" }
+              { id: "k3-mac", label: "Sticky-MAC port security as the only control, audited yearly" },
+              { id: "k3-flat", label: "Accept the flat network and log nothing" },
+              { id: "k3-wifi", label: "Ban all wired ports and go all-Wi-Fi" },
+              { id: "k3-nac", label: "Turn on 802.1X using the existing RADIUS server" }
             ]
           }
         ]
@@ -1239,10 +1239,10 @@ const OBJECTIVES_HARD = [
             key: "rogue-action",
             prompt: "Immediate action",
             options: [
-              { id: "ra-port", label: "Disable switch port j-12/4 and preserve port/DHCP logs" },
-              { id: "ra-monitor", label: "Unplug your own monitor" },
-              { id: "ra-wifi", label: "Change the Wi-Fi password" },
-              { id: "ra-wait", label: "Wait for it to go away" }
+              { id: "ra-port", label: "Disable switch port j-12/4; preserve the logs" },
+              { id: "ra-monitor", label: "Watch the port for a while longer" },
+              { id: "ra-wifi", label: "Rotate the Wi-Fi passphrase and guest VLAN" },
+              { id: "ra-wait", label: "Wait for the device to go away" }
             ]
           }
         ]

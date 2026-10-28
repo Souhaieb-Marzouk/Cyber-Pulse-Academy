@@ -393,7 +393,8 @@ window.LAB = window.LAB || {};
       }
     }
     var raw = 5 - hints * 0.5 - fails * 0.25;
-    return Math.max(1, Math.round(raw * 2) / 2);
+    // No half-star rounding: every fail/hint must visibly cost (5 - 0.25 → 4.8, not a rounded 5.0)
+    return Math.max(1, Math.min(5, raw));
   }
 
   function pillarProgress(s) {

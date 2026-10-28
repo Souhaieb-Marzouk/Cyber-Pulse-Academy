@@ -214,13 +214,15 @@ const TIMELINE_EVENTS = [
 ];
 
 // OBJ-M12 — program success factors (from the lesson text)
+/* Audit v2 (R6): correct items are interleaved with distractors — never grouped
+   at the top, or "check the first N" would pass without reading. */
 const CHARTER_OPTIONS = [
-  { id: 'c-threats', label: 'Identify the potential threats the organization faces', correct: true },
-  { id: 'c-standard', label: 'Standardize processes so every response follows proven steps', correct: true },
-  { id: 'c-resources', label: 'Resource the response — people, tools, budget and authority', correct: true },
   { id: 'c-tools', label: 'Buy the most expensive tools available, regardless of need', correct: false },
+  { id: 'c-threats', label: 'Identify the potential threats the organization faces', correct: true },
   { id: 'c-improvise', label: 'Let each responder improvise their own procedure every time', correct: false },
+  { id: 'c-standard', label: 'Standardize processes so every response follows proven steps', correct: true },
   { id: 'c-silence', label: 'Keep leadership out of the loop until everything is resolved', correct: false },
+  { id: 'c-resources', label: 'Resource the response — people, tools, budget and authority', correct: true },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -238,42 +240,24 @@ const ROLE_CARDS = [
 ];
 
 // OBJ-M4 — on-call crew pick (correct: analyst, forensic, legal, comms)
+/* Audit v2 (R6): correct entries interleaved with distractors (was: top four). */
 const CREW_MEDIUM = [
   { id: 'c-analyst', name: 'SOC duty analyst', blurb: 'Holding the SIEM console — took the first alert', correct: true },
-  { id: 'c-forensic', name: 'Forensic analyst (on call)', blurb: 'Can image the affected mailbox server', correct: true },
-  { id: 'c-legal', name: 'Legal counsel', blurb: 'Owns the regulatory-notification decision tree', correct: true },
-  { id: 'c-comms', name: 'Communications lead', blurb: 'Holds the pre-approved notification templates', correct: true },
   { id: 'c-intern', name: 'Desktop support intern', blurb: 'Shadowing the SOC this week', correct: false },
   { id: 'c-marketing', name: 'Marketing manager', blurb: 'Runs the campaign calendar', correct: false },
+  { id: 'c-forensic', name: 'Forensic analyst (on call)', blurb: 'Can image the affected mailbox server', correct: true },
   { id: 'c-payroll', name: 'Payroll clerk', blurb: 'Processing this month’s cycle', correct: false },
+  { id: 'c-legal', name: 'Legal counsel', blurb: 'Owns the regulatory-notification decision tree', correct: true },
+  { id: 'c-comms', name: 'Communications lead', blurb: 'Holds the pre-approved notification templates', correct: true },
   { id: 'c-journalist', name: 'Trade-press contact', blurb: 'Friendly outlet, external to Atlas', correct: false },
 ];
 
 // OBJ-H2 — hard roster (pick exactly six; correct set defined by `correct`)
+/* Audit v2 (R6): correct bios interleaved with disqualified ones (was: top six). */
 const ROSTER_HARD = [
   {
     id: 'w-dana', name: 'Dana Whitfield', bio: 'IR Program Manager; ran last year’s parallel test.',
     correct: true, why: 'The IR manager is the spine of the team — always in.',
-  },
-  {
-    id: 'w-marcus', name: 'Marcus Lee', bio: 'SOC analyst; triaged this morning’s VPN alert and knows the timeline.',
-    correct: true, why: 'Primary analyst on the source alert — context lives with him.',
-  },
-  {
-    id: 'w-priya', name: 'Priya Natarajan', bio: 'Forensic lead; certified in evidence handling.',
-    correct: true, why: 'A data breach needs forensics from hour one — chain of custody.',
-  },
-  {
-    id: 'w-tom', name: 'Tom Okafor', bio: 'Legal counsel; owns the regulator decision tree.',
-    correct: true, why: 'Breach of customer data triggers legal-review gates.',
-  },
-  {
-    id: 'w-jordan', name: 'Jordan Diaz', bio: 'Communications specialist; holds the approved templates.',
-    correct: true, why: 'Standing in for Sara — messaging must be ready but gated.',
-  },
-  {
-    id: 'w-elena', name: 'Elena Voss', bio: 'CFO and executive sponsor; signs off major decisions.',
-    correct: true, why: 'Executive authority must be reachable from minute one.',
   },
   {
     id: 'w-sara', name: 'Sara Kim', bio: 'Communications lead — on leave until next quarter.',
@@ -284,12 +268,32 @@ const ROSTER_HARD = [
     correct: false, why: 'Not a CSIRT role; trainees do not staff a live breach.',
   },
   {
-    id: 'w-janet', name: 'Janet Ruiz', bio: 'HR director; joins for insider incidents.',
-    correct: false, why: 'No insider indicator — the access path was a compromised VPN account.',
+    id: 'w-marcus', name: 'Marcus Lee', bio: 'SOC analyst; triaged this morning’s VPN alert and knows the timeline.',
+    correct: true, why: 'Primary analyst on the source alert — context lives with him.',
+  },
+  {
+    id: 'w-priya', name: 'Priya Natarajan', bio: 'Forensic lead; certified in evidence handling.',
+    correct: true, why: 'A data breach needs forensics from hour one — chain of custody.',
   },
   {
     id: 'w-choi', name: 'Choi Min-seo', bio: 'External IR retainer consultant (contractor).',
     correct: false, why: 'Retainer support is engaged on request — not part of the standing team.',
+  },
+  {
+    id: 'w-tom', name: 'Tom Okafor', bio: 'Legal counsel; owns the regulator decision tree.',
+    correct: true, why: 'Breach of customer data triggers legal-review gates.',
+  },
+  {
+    id: 'w-janet', name: 'Janet Ruiz', bio: 'HR director; joins for insider incidents.',
+    correct: false, why: 'No insider indicator — the access path was a compromised VPN account.',
+  },
+  {
+    id: 'w-jordan', name: 'Jordan Diaz', bio: 'Communications specialist; holds the approved templates.',
+    correct: true, why: 'Standing in for Sara — messaging must be ready but gated.',
+  },
+  {
+    id: 'w-elena', name: 'Elena Voss', bio: 'CFO and executive sponsor; signs off major decisions.',
+    correct: true, why: 'Executive authority must be reachable from minute one.',
   },
 ];
 
@@ -399,12 +403,15 @@ const PLAN_SCENARIOS_H = [
 /* ------------------------------------------------------------------ */
 
 // OBJ-M7 — five stakeholder rows × (channel, timing, audience)
+/* Audit v2 (R6): rows reordered so the answers no longer track the option scales
+   monotonically (the old insider-first listing made "always pick the first option"
+   score 100% without reading). */
 const STAKEHOLDERS_M = [
   { id: 'st-csirt', name: 'CSIRT members', ch: 'bridge', tim: 'now', aud: 'internal' },
-  { id: 'st-exec', name: 'Executive leadership', ch: 'briefing', tim: '1h', aud: 'internal' },
-  { id: 'st-emp', name: 'All employees', ch: 'intranet', tim: 'daily', aud: 'internal' },
   { id: 'st-cust', name: 'Affected customers', ch: 'statuspage', tim: 'legal', aud: 'external' },
+  { id: 'st-exec', name: 'Executive leadership', ch: 'briefing', tim: '1h', aud: 'internal' },
   { id: 'st-reg', name: 'Regulatory authority', ch: 'portal', tim: 'legal', aud: 'external' },
+  { id: 'st-emp', name: 'All employees', ch: 'intranet', tim: 'daily', aud: 'internal' },
 ];
 
 const CHANNEL_OPTIONS = [
@@ -424,14 +431,15 @@ const TIMING_OPTIONS = [
 ];
 
 // OBJ-H6 — seven parties × action (includes do-not-contact-yet)
+/* Audit v2 (R6): rows reordered to break the first-option exploit (was: priority order). */
 const PARTIES_H = [
-  { id: 'p-csirt', name: 'CSIRT members', action: 'now' },
-  { id: 'p-legal', name: 'Legal counsel', action: 'now' },
-  { id: 'p-exec', name: 'Executive leadership', action: '1h' },
   { id: 'p-regulator', name: 'Data-protection regulator', action: 'review' },
-  { id: 'p-customers', name: 'Affected customers', action: 'review' },
-  { id: 'p-lawenf', name: 'Law enforcement', action: 'review' },
+  { id: 'p-csirt', name: 'CSIRT members', action: 'now' },
   { id: 'p-media', name: 'Media / press', action: 'hold' },
+  { id: 'p-exec', name: 'Executive leadership', action: '1h' },
+  { id: 'p-lawenf', name: 'Law enforcement', action: 'review' },
+  { id: 'p-legal', name: 'Legal counsel', action: 'now' },
+  { id: 'p-customers', name: 'Affected customers', action: 'review' },
 ];
 
 const ACTION_OPTIONS_H = [
@@ -525,12 +533,13 @@ const CUSTODY_STEPS = [
 /* ------------------------------------------------------------------ */
 
 // OBJ-M10 — pick the 3 scenarios that warrant playbooks
+/* Audit v2 (R6): correct candidates interleaved with the non-incidents (was: top three). */
 const PLAY_CANDIDATES = [
+  { id: 'p-cms', label: 'Typo in the website CMS content', correct: false },
   { id: 'p-phish', label: 'Phishing email with a credential-harvesting link', correct: true },
+  { id: 'p-budget', label: 'Quarterly budget report running late', correct: false },
   { id: 'p-ransom', label: 'Ransomware detonation on an endpoint', correct: true },
   { id: 'p-laptop', label: 'Lost or stolen company laptop', correct: true },
-  { id: 'p-cms', label: 'Typo in the website CMS content', correct: false },
-  { id: 'p-budget', label: 'Quarterly budget report running late', correct: false },
 ];
 
 // OBJ-M10 — order the six steps of the phishing playbook
@@ -571,8 +580,9 @@ const INJECTS = [
     id: 'inj1', clock: 'T+0:04',
     scenario: 'Ransomware is confirmed, spreading laterally over SMB inside VLAN 20.',
     options: [
-      { id: 'iso-vlan', label: 'Isolate VLAN 20 at the switches; preserve volatile evidence first where possible', correct: true, why: 'Containment stops spread while keeping evidence — textbook containment.' },
+      /* Audit v2 (R4-analogue): correct-option positions rotate across injects (1,2,0,1). */
       { id: 'power-off', label: 'Cut power to every server in the building immediately', correct: false, why: 'Overkill destroys volatile evidence and takes every service down at once.' },
+      { id: 'iso-vlan', label: 'Isolate VLAN 20 at the switches; preserve volatile evidence first where possible', correct: true, why: 'Containment stops spread while keeping evidence — textbook containment.' },
       { id: 'email-staff', label: 'Email all staff and ask them to unplug their PCs', correct: false, why: 'Slow, unverifiable and chaotic; containment is a technical action.' },
     ],
   },
@@ -580,9 +590,9 @@ const INJECTS = [
     id: 'inj2', clock: 'T+0:22',
     scenario: 'Telemetry shows the attacker still holds an active admin session through the VPN.',
     options: [
-      { id: 'disable-acct', label: 'Disable the compromised account and kill all active sessions', correct: true, why: 'Cutting attacker access is containment; sessions must be revoked, not just watched.' },
       { id: 'wait-backup', label: 'Wait for tonight’s backup window before acting', correct: false, why: 'The attacker keeps expanding for hours — containment cannot wait.' },
       { id: 'wifi-pass', label: 'Change the corporate Wi-Fi password', correct: false, why: 'The access path is the VPN, not Wi-Fi; measures must target the actual vector.' },
+      { id: 'disable-acct', label: 'Disable the compromised account and kill all active sessions', correct: true, why: 'Cutting attacker access is containment; sessions must be revoked, not just watched.' },
     ],
   },
   {
@@ -598,8 +608,8 @@ const INJECTS = [
     id: 'inj4', clock: 'T+5:45',
     scenario: 'Systems are rebuilt and clean backups are verified. Leadership asks how to resume operations.',
     options: [
-      { id: 'staged-return', label: 'Return in stages with enhanced monitoring on every restored system', correct: true, why: 'Recovery is staged and watched — repeat indicators are caught early.' },
       { id: 'all-at-once', label: 'Flip everything back on at once and move on', correct: false, why: 'Unmonitored mass return hides residual compromise.' },
+      { id: 'staged-return', label: 'Return in stages with enhanced monitoring on every restored system', correct: true, why: 'Recovery is staged and watched — repeat indicators are caught early.' },
       { id: 'stay-off', label: 'Keep everything offline until next week to be safe', correct: false, why: 'Unnecessary business damage; recovery is validating and staged, not indefinite.' },
     ],
   },
@@ -1064,14 +1074,15 @@ const QUIZ_HARD = [
   { // tests OBJ-H6 (comms gate under legal exposure)
     id: 'qh3',
     prompt: 'When may the customer notification for a confirmed data breach go out?',
+    /* Audit v2 (R5): correct option rebuilt to match distractor length (was +2 words). */
     options: [
       'Within 15 minutes of declaration — speed above all',
-      'Only after facts are verified and legal review is completed',
+      'Only after facts are verified and legal review',
       'Never — silence avoids lawsuits and regulator attention',
       'Whenever the marketing calendar allows a coordinated announcement',
     ],
     answer: 1,
-    explain: 'External notifications are gated by the communication plan: verified facts first, legal review for regulatory duties. A 15-minute notice goes out before containment is confirmed and can itself breach disclosure rules, silence violates those duties too, and marketing convenience is not a legal gate.',
+    explain: 'External notifications are gated by the communication plan: verified facts first, then legal review for regulatory duties. A 15-minute notice goes out before containment is confirmed and can itself breach disclosure rules, silence violates those duties too, and marketing convenience is not a legal gate.',
   },
   { // tests OBJ-H4 (exercise program maturity)
     id: 'qh4',
@@ -1083,14 +1094,15 @@ const QUIZ_HARD = [
   { // tests OBJ-H7 (chain of custody)
     id: 'qh5',
     prompt: 'Which evidence-handling step breaks chain of custody?',
+    /* Audit v2 (R5): correct option rebuilt to match distractor length (was +2 words). */
     options: [
       'Hashing the image at collection and recording the value',
       'Signing and dating every transfer between custodians',
-      'Emailing a copy to a colleague from a personal USB drive',
+      'Emailing an evidence copy from a personal USB drive',
       'Analyzing a verified copy while the original stays sealed',
     ],
     answer: 2,
-    explain: 'Custody means continuous, documented control: hashing, signed transfers and sealed-original analysis all preserve it. A copy traveling on a personal device through uncontrolled channels breaks that control — integrity and legal value are gone the moment it leaves custody.',
+    explain: 'Custody means continuous, documented control: hashing, signed transfers and sealed-original analysis all preserve it. An evidence copy traveling on a personal device through uncontrolled channels breaks that control — integrity and legal value are gone the moment it leaves custody.',
   },
   { // tests OBJ-H5 (COOP boundary)
     id: 'qh6',
@@ -1166,8 +1178,12 @@ const CASE_FILES = [
 
 const MITRE_MAP = [
   { tid: 'T1566', name: 'Phishing', tactic: 'Initial Access', planAnswer: 'Phishing playbook + user-report channel; M1017 User Training, M1049 Antivirus/Antimalware' },
-  { tid: 'T1078', name: 'Valid Accounts', tactic: 'Initial Access / Persistence / Privilege Escalation / Defense Evasion', planAnswer: 'Account triage & session revocation steps; M1026 Privileged Account Management, M1032 Multi-Factor Authentication' },
-  { tid: 'T1486', name: 'Data Encrypted for Impact', tactic: 'Impact', planAnswer: 'Ransomware playbook + isolation runbook; M1053 Remote Data Storage (protected backups), M1040 Disable or Modify Tools (tamper-resistant security tooling)' },
+  /* Audit v3 (QA-D5): re-verified against attack.mitre.org (ATT&CK v20) — TA0005 is
+     officially "Stealth" (renamed from "Defense Evasion"), M1032 is "Multi-factor Authentication". */
+  { tid: 'T1078', name: 'Valid Accounts', tactic: 'Initial Access / Persistence / Privilege Escalation / Stealth', planAnswer: 'Account triage & session revocation steps; M1026 Privileged Account Management, M1032 Multi-factor Authentication' },
+  /* Audit v3 (QA-D5): re-verified against attack.mitre.org — M1053 is officially "Data Backup"
+     (formerly "Remote Data Storage") and M1040 is "Behavior Prevention on Endpoint". */
+  { tid: 'T1486', name: 'Data Encrypted for Impact', tactic: 'Impact', planAnswer: 'Ransomware playbook + isolation runbook; M1053 Data Backup (protected backups), M1040 Behavior Prevention on Endpoint (tamper-resistant security tooling)' },
   { tid: 'T1048', name: 'Exfiltration Over Alternative Protocol', tactic: 'Exfiltration', planAnswer: 'Egress monitoring & DLP in Identification; M1057 Data Loss Prevention, M1037 Filter Network Traffic, M1030 Network Segmentation' },
 ];
 

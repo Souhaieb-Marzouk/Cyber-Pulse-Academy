@@ -16,26 +16,79 @@
   var segmentedCls = CG.ui.segmentedCls;
   var consoleLabel = CG.ui.consoleLabel;
 
-  /* Transient engine state (never persisted — same as React component state) */
-  var engineUi = { selTile: null, selLeft: null, forObj: null };
+  /* Transient engine state (never persisted — same as React component state).
+     `checked` marks the "just ran the check" visit: R2 one-shot freezes the
+     answer from the check press until the student leaves the objective. */
+  var engineUi = { selTile: null, selLeft: null, forObj: null, checked: false };
 
   function ensureEngineUi(objId) {
     if (engineUi.forObj !== objId) {
-      engineUi = { selTile: null, selLeft: null, forObj: objId };
+      engineUi = { selTile: null, selLeft: null, forObj: objId, checked: false };
     }
     return engineUi;
   }
 
+  /** R2 one-shot: mark the objective as checked-this-visit (freezes it). */
+  function markChecked(objId) {
+    ensureEngineUi(objId);
+    engineUi.checked = true;
+  }
+
+  /** True when the answer must not change: objective passed, or the check was
+      run during this visit (failed checks freeze too — revisit to retry). */
+  function isFrozen(objId) {
+    var s = CG.state.getState();
+    var prog = s.progress[objId];
+    if (prog && prog.done) return true;
+    return engineUi.forObj === objId && engineUi.checked;
+  }
+
+  /* R6 pairing shuffle: Fisher-Yates over the right-column display order.
+     Answers are stored by id, so shuffling is purely presentational. A
+     mount-time shuffle re-applies every time the engine remounts (objective
+     switch / revisit) — engineUi is the static-port analog of component state. */
+  function shuffled(items) {
+    var arr = items.slice();
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  /** Mount-time display order for the match right column, with a guard that
+      re-shuffles if the shuffle happens to reproduce a sequential reveal. */
+  function shuffledRights(p, ui) {
+    if (ui.rightsOrder) return ui.rightsOrder;
+    var out = p.rights;
+    for (var tries = 0; tries < 10; tries++) {
+      out = shuffled(p.rights);
+      var sequential = p.lefts.every(function (l, i) {
+        return out[i] && p.correct[l.id] === out[i].id;
+      });
+      if (!sequential || p.rights.length < 3) break;
+    }
+    ui.rightsOrder = out;
+    return out;
+  }
+
   /* ─── Shared option list (evidence + register sub-items) ───────────────── */
 
-  function itemOptionList(options, selected, outcomeItem, action, argPrefix) {
+  function itemOptionList(options, selected, outcomeItem, action, argPrefix, locked) {
     return (
       '<div class="stack-sm">' +
       options
         .map(function (o) {
           var isSel = selected === o.id;
-          var revealed = !!outcomeItem;
-          var ok = revealed ? (o.correct ? isSel : !isSel) : null;
+          // R3 color contract: only the SELECTED option receives a verdict
+          // color (green if correct, red if wrong). Unselected options stay
+          // neutral — no green on unselected wrong options, no reveal of the
+          // correct option on a wrong submission, no false highlight on an
+          // empty check.
+          var revealed = !!outcomeItem && isSel;
+          var ok = isSel && !!outcomeItem ? outcomeItem.ok : null;
           return (
             '<div>' +
             '<button type="button" data-action="' +
@@ -50,8 +103,11 @@
             esc(o.id) +
             '" aria-pressed="' +
             (isSel ? "true" : "false") +
-            '" class="opt-row ' +
+            '"' +
+            (locked ? ' aria-disabled="true"' : "") +
+            ' class="opt-row ' +
             verdictCls(revealed, ok, isSel) +
+            (locked ? " is-locked" : "") +
             '">' +
             '<span class="radio-dot' +
             (isSel ? " on" : "") +
@@ -76,9 +132,11 @@
 
   /* ─── CHOOSE ─────────────────────────────────────────────────────────────── */
 
-  function chooseEngine(obj, answer, outcome) {
+  function chooseEngine(obj, answer, outcome, passed) {
     var p = obj.payload;
     var sel = answer || [];
+    // R2: a checked (passed) answer is locked — no control may edit it afterwards.
+    var locked = !!passed;
     return (
       "<div>" +
       (p.multi ? '<div class="mb2">' + consoleLabel("multi-select — pick the exact set") + "</div>" : "") +
@@ -86,8 +144,13 @@
       p.options
         .map(function (o) {
           var selected = sel.includes(o.id);
-          var revealed = !!outcome;
-          var ok = revealed ? (o.correct ? selected : !selected) : null;
+          // R3 color contract: only the SELECTED option receives a verdict color
+          // (green if it is correct, red if it is wrong). Unselected options stay
+          // neutral — no green on unselected wrong options, no reveal of the
+          // correct option on a wrong submission, no false highlight on an empty
+          // check.
+          var revealed = !!outcome && selected;
+          var ok = selected && !!outcome ? !!o.correct : null;
           return (
             "<div>" +
             '<button type="button" data-action="choose-toggle" data-arg="' +
@@ -98,8 +161,11 @@
             esc(o.id) +
             '" aria-pressed="' +
             (selected ? "true" : "false") +
-            '" class="opt-row opt-row-lg ' +
+            '"' +
+            (locked ? ' aria-disabled="true"' : "") +
+            ' class="opt-row opt-row-lg ' +
             verdictCls(revealed, ok, selected) +
+            (locked ? " is-locked" : "") +
             '">' +
             '<span class="check-box' +
             (selected ? " on" : "") +
@@ -111,7 +177,7 @@
             "</span>" +
             (o.note ? '<span class="note-badge">' + esc(o.note) + "</span>" : "") +
             "</button>" +
-            (revealed && (selected || o.correct) ? '<p class="opt-why">' + esc(o.why) + "</p>" : "") +
+            (revealed && selected ? '<p class="opt-why">' + esc(o.why) + "</p>" : "") +
             "</div>"
           );
         })
@@ -297,7 +363,8 @@
       })
       .join("");
 
-    var rights = p.rights
+    var rightsOrder = shuffledRights(p, ui);
+    var rights = rightsOrder
       .map(function (r) {
         var used = usedRights[r.id];
         return (
@@ -335,9 +402,11 @@
 
   /* ─── CLASSIFY ───────────────────────────────────────────────────────────── */
 
-  function classifyEngine(obj, answer, outcome) {
+  function classifyEngine(obj, answer, outcome, passed) {
     var p = obj.payload;
     var cls = answer || {};
+    // R2: freeze a passed classification — no chip or NOT-A-CONTROL edit afterwards.
+    var locked = !!passed;
     // Board fills only from CHECK results — a live board would leak which items are controls (Hard mode)
     var filled = {};
     if (outcome) {
@@ -377,8 +446,11 @@
             esc(cat) +
             '" aria-pressed="' +
             (sel ? "true" : "false") +
-            '" class="seg-btn ' +
+            '"' +
+            (locked ? ' aria-disabled="true"' : "") +
+            ' class="seg-btn ' +
             segmentedCls(revealed && !!got.cat && !!got.type, okCls, sel) +
+            (locked ? " is-locked" : "") +
             '">' +
             esc(cat) +
             "</button>"
@@ -400,8 +472,11 @@
             esc(t) +
             '" aria-pressed="' +
             (sel ? "true" : "false") +
-            '" class="seg-btn ' +
+            '"' +
+            (locked ? ' aria-disabled="true"' : "") +
+            ' class="seg-btn ' +
             segmentedCls(revealed && !!got.cat && !!got.type, okCls, sel) +
+            (locked ? " is-locked" : "") +
             '">' +
             esc(t) +
             "</button>"
@@ -424,8 +499,11 @@
               esc(c.id) +
               '" aria-pressed="' +
               (not ? "true" : "false") +
-              '" class="not-btn' +
+              '"' +
+              (locked ? ' aria-disabled="true"' : "") +
+              ' class="not-btn' +
               (not ? " on" : "") +
+              (locked ? " is-locked" : "") +
               '">not a control</button>'
             : "") +
           "</div>" +
@@ -459,9 +537,10 @@
 
   /* ─── EVIDENCE & REGISTER ────────────────────────────────────────────────── */
 
-  function evidenceEngine(obj, answer, outcome) {
+  function evidenceEngine(obj, answer, outcome, passed) {
     var p = obj.payload;
     var sel = answer || {};
+    var locked = !!passed; // R2: passed objectives are frozen
     return (
       '<div class="stack">' +
       p.items
@@ -477,7 +556,7 @@
             '<p class="subitem-question">' +
             esc(it.question) +
             "</p></div>" +
-            itemOptionList(it.options, sel[it.id] || null, outcomeItem, "ev-pick", it.id) +
+            itemOptionList(it.options, sel[it.id] || null, outcomeItem, "ev-pick", it.id, locked) +
             "</div>"
           );
         })
@@ -486,9 +565,10 @@
     );
   }
 
-  function registerEngine(obj, answer, outcome) {
+  function registerEngine(obj, answer, outcome, passed) {
     var p = obj.payload;
     var sel = answer || {};
+    var locked = !!passed; // R2: passed objectives are frozen
     return (
       '<div class="stack">' +
       p.findings
@@ -502,7 +582,7 @@
             "</p>" +
             (f.tag ? '<span class="tag-badge">' + esc(f.tag) + "</span>" : "") +
             "</div>" +
-            itemOptionList(f.options, sel[f.id] || null, outcomeItem, "reg-pick", f.id) +
+            itemOptionList(f.options, sel[f.id] || null, outcomeItem, "reg-pick", f.id, locked) +
             "</div>"
           );
         })
@@ -513,9 +593,10 @@
 
   /* ─── DEPTH ──────────────────────────────────────────────────────────────── */
 
-  function depthEngine(obj, answer, outcome) {
+  function depthEngine(obj, answer, outcome, passed) {
     var p = obj.payload;
     var picks = answer || [];
+    var locked = !!passed; // R2: freeze a passed plan
     var covered = new Set(
       // live display counts every pick (no pre-check leak); validation excludes distractors
       p.pool.filter(function (o) { return picks.includes(o.id); }).map(function (o) { return o.type; })
@@ -551,8 +632,11 @@
           esc(o.id) +
           '" aria-pressed="' +
           (on ? "true" : "false") +
-          '" class="depth-card ' +
+          '"' +
+          (locked ? ' aria-disabled="true"' : "") +
+          ' class="depth-card ' +
           (badDistractor ? "v-bad" : isDistractor ? "is-distractor" : verdictCls(revealed, on ? true : null, on)) +
+          (locked ? " is-locked" : "") +
           '"><span class="depth-label">' +
           esc(o.label) +
           '</span><span class="depth-type">' +
@@ -607,9 +691,10 @@
 
   /* ─── ORDER ──────────────────────────────────────────────────────────────── */
 
-  function orderEngine(obj, answer, outcome) {
+  function orderEngine(obj, answer, outcome, passed) {
     var p = obj.payload;
     var seq = answer && answer.length ? answer : p.presented.slice();
+    var locked = !!passed; // R2: freeze a validated sequence
     var rows = seq
       .map(function (id, i) {
         var step = null;
@@ -638,7 +723,7 @@
           '" aria-label="Move ' +
           esc(step.label) +
           ' up"' +
-          (i === 0 ? " disabled" : "") +
+          (i === 0 || locked ? " disabled" : "") +
           ' class="arrow-btn">' +
           icon("chevron-up", "icon-xs") +
           "</button>" +
@@ -652,7 +737,7 @@
           '" aria-label="Move ' +
           esc(step.label) +
           ' down"' +
-          (i === seq.length - 1 ? " disabled" : "") +
+          (i === seq.length - 1 || locked ? " disabled" : "") +
           ' class="arrow-btn">' +
           icon("chevron-down", "icon-xs") +
           "</button>" +
@@ -670,30 +755,59 @@
 
   /* ─── WorkSurface wrapper ────────────────────────────────────────────────── */
 
-  function workSurface(obj, mode, state, answer, setAnswer, outcome, onCheck, onNext, hasNext) {
+  function workSurface(obj, mode, state, answer, setAnswer, outcome, onCheck, onNext) {
     var station = null;
     CG.STATIONS.forEach(function (s) { if (s.id === obj.station) station = s; });
     var prog = state.progress[obj.id];
     var passed = !!(prog && prog.done);
+    // R2 one-shot mechanics: bind transient state to THIS objective (resets on
+    // objective switch / reload), then freeze from the check press — pass OR
+    // fail. A failed objective becomes editable again when revisited from the
+    // Case Rail, so the lab stays winnable while honoring the lock.
+    ensureEngineUi(obj.id);
+    var justChecked = engineUi.checked;
+    var frozen = passed || justChecked;
 
     var engineHtml = "";
     switch (obj.payload.kind) {
-      case "choose": engineHtml = chooseEngine(obj, answer, outcome); break;
-      case "sort": engineHtml = sortEngine(obj, answer, outcome, passed); break;
-      case "match": engineHtml = matchEngine(obj, answer, outcome, passed); break;
-      case "classify": engineHtml = classifyEngine(obj, answer, outcome); break;
-      case "evidence": engineHtml = evidenceEngine(obj, answer, outcome); break;
-      case "register": engineHtml = registerEngine(obj, answer, outcome); break;
-      case "depth": engineHtml = depthEngine(obj, answer, outcome); break;
-      case "order": engineHtml = orderEngine(obj, answer, outcome); break;
+      case "choose": engineHtml = chooseEngine(obj, answer, outcome, frozen); break;
+      case "sort": engineHtml = sortEngine(obj, answer, outcome, frozen); break;
+      case "match": engineHtml = matchEngine(obj, answer, outcome, frozen); break;
+      case "classify": engineHtml = classifyEngine(obj, answer, outcome, frozen); break;
+      case "evidence": engineHtml = evidenceEngine(obj, answer, outcome, frozen); break;
+      case "register": engineHtml = registerEngine(obj, answer, outcome, frozen); break;
+      case "depth": engineHtml = depthEngine(obj, answer, outcome, frozen); break;
+      case "order": engineHtml = orderEngine(obj, answer, outcome, frozen); break;
     }
+
+    // Another objective later in Case Rail order?
+    var objectives = CG.state.objectivesForMode(mode);
+    var myIdx = -1;
+    for (var ri = 0; ri < objectives.length; ri++) if (objectives[ri].id === obj.id) { myIdx = ri; break; }
+    var hasLater = myIdx > -1 && myIdx < objectives.length - 1;
 
     var actionBar = "";
     if (!passed) {
-      actionBar +=
-        '<button type="button" data-action="run-check" class="btn btn-primary btn-run">' +
-        icon("scan-search", "icon-sm") +
-        " Run check</button>";
+      if (justChecked) {
+        // Checked this visit (failed): answer locked, teaching feedback below.
+        actionBar +=
+          '<span class="check-counter">check #' + prog.attempts + " · answer locked — revisit this objective from the Case Rail to retry</span>";
+        if (hasLater) {
+          actionBar +=
+            '<button type="button" data-action="advance-objective" class="btn btn-primary">Next objective ' +
+            icon("chevron-right", "icon-xs") +
+            "</button>";
+        }
+      } else {
+        actionBar +=
+          '<button type="button" data-action="run-check" class="btn btn-primary btn-run">' +
+          icon("scan-search", "icon-sm") +
+          " Run check</button>";
+        if (outcome && prog && prog.attempts > 0) {
+          actionBar +=
+            '<span class="check-counter">check #' + prog.attempts + " · wrong answers teach, they never block</span>";
+        }
+      }
     } else {
       actionBar +=
         '<span class="complete-chip">' +
@@ -701,16 +815,12 @@
         " Objective complete" +
         (prog && prog.attempts > 1 ? " · " + prog.attempts + " checks" : " · first attempt") +
         "</span>";
-      if (mode === "medium" && hasNext) {
+      if (hasLater) {
         actionBar +=
           '<button type="button" data-action="next-objective" class="btn btn-primary">Next objective ' +
           icon("chevron-right", "icon-xs") +
           "</button>";
       }
-    }
-    if (outcome && !passed && prog && prog.attempts > 0) {
-      actionBar +=
-        '<span class="check-counter">check #' + prog.attempts + " · wrong answers teach, they never block</span>";
     }
 
     return (
@@ -744,6 +854,8 @@
 
   CG.engines = {
     ensureEngineUi: ensureEngineUi,
+    markChecked: markChecked,
+    isFrozen: isFrozen,
     workSurface: workSurface,
   };
 })();

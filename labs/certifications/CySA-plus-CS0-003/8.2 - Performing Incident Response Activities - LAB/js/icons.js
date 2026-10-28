@@ -1,6 +1,6 @@
 // ─── CyberLab · js/icons.js ───────────────────────────────────────────────
 // Inline SVG icon set — exact Lucide (v0.525.0) icon node data, ISC license,
-// https://the Lucide project. The original framework lab rendered these via the
+// the Lucide project. The original framework lab rendered these via the
 // lucide-react package; the static port inlines the same SVG paths so no
 // icon font, CDN or npm package is needed (SC-D2).
 // Usage: LAB.icon('Siren', 'h-4 w-4') → <svg> element.

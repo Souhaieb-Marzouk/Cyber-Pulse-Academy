@@ -347,7 +347,7 @@
       '<div class="hud-actions">' +
       CG.ui.progressRing(done, objectives.length, "Objectives: " + done + " of " + objectives.length + " passed") +
       '<button type="button" data-action="open-glossary" data-fk="glossary" class="btn btn-outline btn-hud">Glossary</button>' +
-      '<button type="button" data-action="open-reset" data-fk="reset" class="btn btn-outline btn-hud btn-reset">' +
+      '<button type="button" data-action="open-reset" data-fk="reset" aria-label="Reset" class="btn btn-outline btn-hud btn-reset">' +
       icon("rotate-ccw", "icon-xs") +
       '<span class="reset-label">Reset</span></button>' +
       "</div></div></header>"
@@ -413,7 +413,7 @@
           '" data-fk="rail:' +
           esc(o.id) +
           '"' +
-          (locked ? " disabled" : "") +
+          (locked && !isCurrent ? " disabled" : "") +
           (isCurrent ? ' aria-current="true"' : "") +
           ' class="rail-obj' +
           (isCurrent ? " current" : locked ? " locked" : "") +
@@ -423,7 +423,7 @@
           '">' +
           (prog && prog.done
             ? icon("check", "icon-xs")
-            : locked
+            : locked && !isCurrent
               ? icon("lock", "icon-2xs")
               : num) +
           "</span>" +
@@ -747,13 +747,16 @@
           .join("")
       : '<li class="gloss-empty">No matching term.</li>';
     return (
-      '<div class="dlg-head"><h2 class="dlg-title" id="gloss-title">FIELD GLOSSARY</h2>' +
+      '<div class="dlg-head dlg-head-split"><div><h2 class="dlg-title" id="gloss-title">FIELD GLOSSARY</h2>' +
       '<p class="dlg-desc" id="gloss-desc">15 terms from Lesson 1.2 — one-line definitions.</p></div>' +
+      '<button type="button" data-action="glossary-close" aria-label="Close glossary" class="dlg-x">' +
+      icon("x", "icon-sm") +
+      "</button></div>" +
       '<div class="gloss-search"><span class="gloss-search-icon">' +
       icon("search", "icon-xs") +
       '</span><input type="text" value="' +
       esc(glossaryQuery) +
-      '" data-action-input="glossary-search" aria-label="Search glossary" placeholder="Search terms…" class="gloss-input"></div>' +
+      '" data-action-input="glossary-search" data-autofocus aria-label="Search glossary" placeholder="Search terms…" class="gloss-input"></div>' +
       '<ul class="gloss-list" aria-label="Glossary terms">' +
       list +
       "</ul>"
@@ -796,6 +799,22 @@
     var starMeta = CG.state.computeStars(mode, state);
     var quizScore = CG.quiz.score(quizQuestions, state.quiz);
     var objectivesDone = objectives.filter(function (o) { return state.progress[o.id] && state.progress[o.id].done; }).length;
+
+    // R8: evidence-derived focus areas (same contract as the framework lab).
+    var focusAreas = CG.state.computeFocusAreas(mode, state, quizQuestions);
+    var focusAreasHtml = focusAreas
+      .map(function (f) {
+        return (
+          '<li class="focus-item">' +
+          icon("target", "icon-xs focus-icon") +
+          "<span><span class='focus-area'>" +
+          esc(f.area) +
+          "</span><span class='focus-detail'>" +
+          esc(f.detail) +
+          "</span></span></li>"
+        );
+      })
+      .join("");
 
     var stars = [1, 2, 3]
       .map(function (i) {
@@ -885,6 +904,11 @@
       '<div class="stats-grid">' +
       stats +
       "</div>" +
+      '<div class="recap-box focus-box"><span class="console-label text-primary">focus areas · from your own evidence</span>' +
+      '<p class="focus-desc">Derived from your checks, hints and missed quiz concepts — study these first.</p>' +
+      '<ul class="focus-list">' +
+      focusAreasHtml +
+      "</ul></div>" +
       '<div class="recap-box"><span class="console-label text-primary">objective recap · by pillar</span><div class="recap-groups">' +
       recap +
       "</div></div>" +
@@ -943,10 +967,6 @@
       } else if (state.phase === "core") {
         bodyHtml = knowledgeCoreHtml();
       } else if (state.phase === "work" && currentObj) {
-        var hasNext = objectives.some(function (o) {
-          var d = state.progress[o.id] && state.progress[o.id].done;
-          return !d && o.id !== currentObj.id;
-        });
         bodyHtml =
           '<div class="work-grid">' +
           caseRailHtml(state) +
@@ -959,8 +979,7 @@
             null,
             state.results[currentObj.id] || null,
             null,
-            null,
-            hasNext
+            null
           ) +
           "</section>" +
           '<div class="intel-sticky">' +
@@ -1030,6 +1049,10 @@
 
   function setAnswer(objId, a) {
     CG.state.update(function (s) {
+      // R2 one-shot: frozen objectives (passed, or checked during this visit)
+      // refuse answer edits. isFrozen is the single choke point shared with the
+      // dispatcher guard in handleAction.
+      if (CG.engines.isFrozen(objId)) return s;
       var answers = Object.assign({}, s.answers);
       answers[objId] = a;
       return Object.assign({}, s, { answers: answers });
@@ -1075,6 +1098,22 @@
     if (nextId) selectObjective(nextId);
   }
 
+  /** R2 one-shot: after a failed check the answer is locked, so "Next
+      objective" advances to the objective directly AFTER the current one in
+      Case Rail order (unconditionally — the failed objective stays available
+      from the rail for a retry visit). */
+  function advancePast() {
+    var state = CG.state.getState();
+    if (!state.mode) return;
+    var list = CG.state.objectivesForMode(state.mode);
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === state.currentObj) {
+        if (i + 1 < list.length) selectObjective(list[i + 1].id);
+        return;
+      }
+    }
+  }
+
   function handleReset() {
     CG.state.clearState();
     CG.state.setState(CG.state.initialState());
@@ -1084,6 +1123,25 @@
 
   /* ═══ Event delegation ═════════════════════════════════════════════════ */
 
+  /** Engine actions that mutate or steer an answer — all refused while the
+      objective is frozen (R2 one-shot). Navigation/hints/dialogs stay live. */
+  var ENGINE_EDIT_ACTIONS = {
+    "choose-toggle": 1,
+    "sort-tile": 1,
+    "sort-place": 1,
+    "sort-remove": 1,
+    "match-left": 1,
+    "match-right": 1,
+    "match-unlink": 1,
+    "cls-cat": 1,
+    "cls-type": 1,
+    "cls-not": 1,
+    "ev-pick": 1,
+    "reg-pick": 1,
+    "depth-toggle": 1,
+    "order-move": 1,
+  };
+
   function currentObjOf(state) {
     var objectives = CG.state.objectivesForMode(state.mode);
     for (var i = 0; i < objectives.length; i++) if (objectives[i].id === state.currentObj) return objectives[i];
@@ -1092,6 +1150,10 @@
 
   function handleAction(action, arg, target) {
     var state = CG.state.getState();
+
+    // R2 one-shot choke point: while the current objective is frozen (passed,
+    // or checked during this visit) every engine-edit action is inert.
+    if (ENGINE_EDIT_ACTIONS[action] && CG.engines.isFrozen(state.currentObj)) return;
 
     switch (action) {
       /* mode + navigation */
@@ -1112,7 +1174,12 @@
       /* work phase */
       case "rail-select": return selectObjective(arg);
       case "next-objective": return goNext();
-      case "run-check": return onCheck(state.currentObj);
+      case "advance-objective": return advancePast();
+      case "run-check":
+        // R2 one-shot: mark the visit frozen BEFORE the state update so the
+        // synchronous re-render inside onCheck already renders the lock.
+        CG.engines.markChecked(state.currentObj);
+        return onCheck(state.currentObj);
 
       /* engines */
       case "choose-toggle": {
@@ -1231,6 +1298,7 @@
 
       /* dialogs */
       case "open-glossary": return openGlossaryDialog();
+      case "glossary-close": return CG.ui.closeDialog(true);
       case "open-reset": return openResetDialog();
       case "reset-cancel": return CG.ui.closeDialog(true);
       case "reset-confirm":
@@ -1247,6 +1315,7 @@
 
       /* quiz */
       case "quiz-pick": return CG.quiz.pick(state, arg);
+      case "quiz-check": return CG.quiz.check(state);
       case "quiz-next": return CG.quiz.next(state);
     }
   }
@@ -1254,16 +1323,6 @@
   document.addEventListener("click", function (e) {
     var el = e.target.closest ? e.target.closest("[data-action]") : null;
     if (!el) return;
-    // Overlay click-to-close (Dialog-style only)
-    if (el.classList && el.classList.contains("dialog-overlay")) {
-      if (CG.ui.dialogIsOpen(el.getAttribute("data-dialog")) && el.getAttribute("data-dialog") === "completion") {
-        completionOpen = false;
-      }
-      if (el.getAttribute("data-dialog") === "glossary" || el.getAttribute("data-dialog") === "completion") {
-        CG.ui.closeDialog(true);
-      }
-      return;
-    }
     var action = el.getAttribute("data-action");
     if (!action) return;
     var arg = el.getAttribute("data-arg") || "";

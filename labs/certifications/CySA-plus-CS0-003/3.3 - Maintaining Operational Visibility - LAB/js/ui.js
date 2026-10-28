@@ -536,16 +536,21 @@
     var target = s.mode === 'hard' ? D.HARD_SEQ : D.MEDIUM_SEQ;
     var skew = {};
     D.HOST_SKEW.forEach(function (h) { skew[h.host] = h.skew; });
+    // Audit v3 (R2): the pinned sequence is the checked answer for OBJ-M10 (medium)
+    // and OBJ-H3 (hard) — once either is validated the board locks, like every desk.
+    var locked = !!((s.progress['OBJ-M10'] && s.progress['OBJ-M10'].done) ||
+                    (s.progress['OBJ-H3'] && s.progress['OBJ-H3'].done));
 
     var intro = '<div class="notice">Contact board: pin the evidence that tells the incident’s story, in chronological order.' +
       (s.mode === 'medium' ? ' Medium watch: pin exactly three events — the failed-logon burst, the manifests access, the log clearing.' : ' Night watch: reconstruct the full chain — every event that matters.') +
       (!ntpOn ? ' Without NTP the order you see is a lie — clocks disagree by minutes.' : '') +
+      (locked ? ' <span class="green">Board validated — pinned sequence locked.</span>' : '') +
       '</div>';
 
     var chips = D.TIMELINE_EVENTS.map(function (e) {
       var visible = e.needs.some(function (n) { return s.sensors[n]; });
       var pinned = s.timeline.indexOf(e.id) >= 0;
-      var disabled = !visible || pinned;
+      var disabled = !visible || pinned || locked;
       return '<button type="button" class="tl-chip' + (!visible ? ' unavail' : pinned ? ' pinned' : '') + '"' +
         ' data-action="pin-toggle" data-id="' + e.id + '"' +
         ' aria-label="' + esc(visible ? 'Pin event: ' + e.label : 'Evidence unavailable — requires sensor: ' + e.needs.join(' or ')) + '"' +
@@ -567,9 +572,9 @@
           '<span class="tl-label">' + esc(e.label) + '</span>' +
           '<span class="tl-scene">' + esc(e.scene) + '</span>' +
           '<span class="tl-actions">' +
-          '<button type="button" class="icon-btn" aria-label="Move event ' + (i + 1) + ' up" data-action="pin-move" data-id="' + id + '" data-dir="-1"' + (i === 0 ? ' disabled' : '') + '>' + window.icon('arrow-up', 14) + '</button>' +
-          '<button type="button" class="icon-btn" aria-label="Move event ' + (i + 1) + ' down" data-action="pin-move" data-id="' + id + '" data-dir="1"' + (i === s.timeline.length - 1 ? ' disabled' : '') + '>' + window.icon('arrow-down', 14) + '</button>' +
-          '<button type="button" class="icon-btn" aria-label="Unpin event ' + (i + 1) + '" data-action="pin-toggle" data-id="' + id + '">' + window.icon('x', 14) + '</button>' +
+          '<button type="button" class="icon-btn" aria-label="Move event ' + (i + 1) + ' up" data-action="pin-move" data-id="' + id + '" data-dir="-1"' + (i === 0 || locked ? ' disabled' : '') + '>' + window.icon('arrow-up', 14) + '</button>' +
+          '<button type="button" class="icon-btn" aria-label="Move event ' + (i + 1) + ' down" data-action="pin-move" data-id="' + id + '" data-dir="1"' + (i === s.timeline.length - 1 || locked ? ' disabled' : '') + '>' + window.icon('arrow-down', 14) + '</button>' +
+          '<button type="button" class="icon-btn" aria-label="Unpin event ' + (i + 1) + '" data-action="pin-toggle" data-id="' + id + '"' + (locked ? ' disabled' : '') + '>' + window.icon('x', 14) + '</button>' +
           '</span></li>';
       }).join('') + '</ol>';
     }
@@ -577,38 +582,44 @@
     return '<div class="space-y">' + intro +
       '<div><div class="plaque mb-xs">Available evidence chips</div><div class="tl-chips">' + chips + '</div></div>' +
       '<div><div class="plaque mb-xs">Pinned sequence' + (s.timeline.length > 0 ? ' · ' + s.timeline.length + '/' + target.length : '') + '</div>' + pinnedList +
-      (s.timeline.length > 0 ? '<button type="button" class="link-btn" data-action="pin-clear">' + window.icon('archive-restore', 14) + ' Clear board</button>' : '') +
+      (s.timeline.length > 0 ? '<button type="button" class="link-btn" data-action="pin-clear"' + (locked ? ' disabled' : '') + '>' + window.icon('archive-restore', 14) + ' Clear board</button>' : '') +
       '</div></div>';
   }
 
   function renderDashboardWB(s) {
+    // Audit v3 (R2): the widget pack is the checked answer for OBJ-M11 — lock the
+    // cards once it is validated, exactly like the other workbench desks.
+    var locked = !!(s.progress['OBJ-M11'] && s.progress['OBJ-M11'].done);
     var cards = D.WIDGETS.map(function (w) {
       var sel = s.dashboard.indexOf(w.id) >= 0;
-      return '<button type="button" class="widget-card' + (sel ? ' selected' : '') + '" aria-pressed="' + sel + '" aria-label="Widget: ' + esc(w.name) + '" data-action="widget-toggle" data-id="' + w.id + '" data-fk="w-' + w.id + '">' +
+      return '<button type="button" class="widget-card' + (sel ? ' selected' : '') + '" aria-pressed="' + sel + '" aria-label="Widget: ' + esc(w.name) + '" data-action="widget-toggle" data-id="' + w.id + '" data-fk="w-' + w.id + '"' + (locked ? ' disabled' : '') + '>' +
         '<span class="widget-top">' + window.icon('layout-dashboard', 14, sel ? 'green-ic' : 'dim-ic') + '<span class="sensor-name">' + esc(w.name) + '</span></span>' +
         '<p class="mini-text">' + esc(w.desc) + '</p></button>';
     }).join('');
-    return '<div class="space-y"><div class="notice">Build the “Unauthorized Access Detection” pack: pick the four widgets that together watch entry → access → tampering → exfiltration. A dashboard watched daily is continuous monitoring.</div>' +
+    return '<div class="space-y"><div class="notice">Build the “Unauthorized Access Detection” pack: pick the four widgets that together watch entry → access → tampering → exfiltration. A dashboard watched daily is continuous monitoring.' +
+      (locked ? ' <span class="green">Pack validated — selection locked.</span>' : '') + '</div>' +
       '<div class="widget-grid">' + cards + '</div>' +
       '<div class="count-row"><span>Selected: ' + s.dashboard.length + ' of 8 · the pack requires exactly 4</span>' +
-      (s.dashboard.length === 4 ? '<span class="green">Pack size reached — run the CHECK on task 11.</span>' : '') +
+      (s.dashboard.length === 4 ? '<span class="green">' + (locked ? 'Pack validated and locked.' : 'Pack size reached — run the CHECK on task 11.') + '</span>' : '') +
       '</div></div>';
   }
 
   function renderResponseDesk(s) {
     var answers = (s.answers && s.answers['OBJ-M12']) || {};
+    var locked = !!(s.progress['OBJ-M12'] && s.progress['OBJ-M12'].done); // audit v2 (R2)
     var rows = D.FINDINGS.map(function (f) {
       return '<div class="mini-card finding-card"><div class="finding-text">' + window.icon('clipboard-check', 16, 'amber-ic') + '<p class="finding-p">' + esc(f.text) + '</p></div>' +
-        '<div class="field sm-max"><span class="select-wrap"><select class="select" aria-label="Action for finding ' + f.id + '" data-action="field-set" data-obj="OBJ-M12" data-field="' + f.id + '" data-fk="ans-OBJ-M12-' + f.id + '">' +
+        '<div class="field sm-max"><span class="select-wrap"><select class="select" aria-label="Action for finding ' + f.id + '" data-action="field-set" data-obj="OBJ-M12" data-field="' + f.id + '" data-fk="ans-OBJ-M12-' + f.id + '"' + (locked ? ' disabled' : '') + '>' +
         options(D.RESPONSE_ACTIONS, answers[f.id] || '', 'Select action…') + '</select></span></div></div>';
     }).join('');
     return '<div class="space-y-xs"><div class="notice">Four findings from the live feeds. Three are containment/protection calls; one is the auditor-evidence call. Choose deliberately — every action has a consequence.</div>' + rows + '</div>';
   }
 
   function renderTriageDesk(s) {
+    var locked = !!(s.progress['OBJ-H4'] && s.progress['OBJ-H4'].done); // audit v2 (R2)
     var rows = D.TRIAGE_ITEMS.map(function (t) {
       return '<div class="triage-row"><p class="triage-text">' + esc(t.text) + '</p>' +
-        '<span class="triage-select"><span class="select-wrap"><select class="select" aria-label="Classify anomaly ' + t.id + '" data-action="triage-set" data-id="' + t.id + '" data-fk="tri-' + t.id + '">' +
+        '<span class="triage-select"><span class="select-wrap"><select class="select" aria-label="Classify anomaly ' + t.id + '" data-action="triage-set" data-id="' + t.id + '" data-fk="tri-' + t.id + '"' + (locked ? ' disabled' : '') + '>' +
         options([{ value: 'tp', label: 'True positive' }, { value: 'fp', label: 'False positive' }], s.fpTriage[t.id] || '', 'Classify…') +
         '</select></span></span></div>';
     }).join('');
@@ -616,18 +627,19 @@
   }
 
   function renderCounterBoard(s) {
+    var locked = !!(s.progress['OBJ-H6'] && s.progress['OBJ-H6'].done); // audit v2 (R2)
     var slots = [0, 1, 2].map(function (i) {
       var cid = s.counter[i];
       var inner = cid
         ? '<span class="slot-filled"><span>' + esc((D.COUNTERMEASURES.filter(function (c) { return c.id === cid; })[0] || {}).label || '') + '</span>' +
-        '<button type="button" class="icon-btn sm" aria-label="Remove priority ' + (i + 1) + '" data-action="counter-remove" data-slot="' + i + '" data-fk="cr-' + i + '">' + window.icon('x', 12) + '</button></span>'
+        '<button type="button" class="icon-btn sm" aria-label="Remove priority ' + (i + 1) + '" data-action="counter-remove" data-slot="' + i + '" data-fk="cr-' + i + '"' + (locked ? ' disabled' : '') + '>' + window.icon('x', 12) + '</button></span>'
         : '<span class="slot-empty">— empty —</span>';
       return '<div class="slot"><div class="slot-label">Priority ' + (i + 1) + '</div>' + inner + '</div>';
     }).join('');
     var buttons = D.COUNTERMEASURES.map(function (c) {
       var used = s.counter.indexOf(c.id) >= 0;
       var full = s.counter.length >= 3;
-      return '<button type="button" class="cm-btn' + (used ? ' used' : '') + (full && !used ? ' blocked' : '') + '" aria-label="Assign control: ' + esc(c.label) + '" data-action="counter-assign" data-id="' + c.id + '" data-fk="cm-' + c.id + '"' + ((used || full) ? ' disabled' : '') + '>' +
+      return '<button type="button" class="cm-btn' + (used ? ' used' : '') + (full && !used ? ' blocked' : '') + '" aria-label="Assign control: ' + esc(c.label) + '" data-action="counter-assign" data-id="' + c.id + '" data-fk="cm-' + c.id + '"' + ((used || full || locked) ? ' disabled' : '') + '>' +
         '<span class="sensor-name">' + esc(c.label) + '</span></button>';
     }).join('');
     return '<div class="space-y"><div class="notice">Three slots. Assign the controls that would have broken this attack chain — in the order you would apply them: first stops initial access, second closes authorization paths, third contains privilege abuse.</div>' +
@@ -636,41 +648,46 @@
 
   function renderRuleBuilder(s) {
     var r = s.rule;
+    var locked = !!(s.progress['OBJ-H5'] && s.progress['OBJ-H5'].done); // audit v2 (R2)
+    var dis = locked ? ' disabled' : '';
     return '<div class="space-y"><div class="notice">Detection engineering: write a rule that fires on any access to the manifests share outside business hours. Every clause is a false-positive filter.</div>' +
       '<div class="rule-grid">' +
-      '<div class="field"><label class="label" for="rule-name">Rule name</label><input class="input" id="rule-name" value="' + esc(r.name) + '" placeholder="e.g. off-hours manifests access" data-rule-input="name" data-fk="rule-name"></div>' +
-      '<div class="field"><span class="label">Source dataset</span><span class="select-wrap"><select class="select" aria-label="Rule source dataset" data-action="rule-set" data-f="source" data-fk="rule-source">' + options(D.RULE_SOURCES, r.source, 'Select…') + '</select></span></div>' +
-      '<div class="field"><span class="label">Match field</span><span class="select-wrap"><select class="select" aria-label="Rule match field" data-action="rule-set" data-f="field" data-fk="rule-field">' + options(D.RULE_FIELDS, r.field, 'Select…') + '</select></span></div>' +
-      '<div class="field"><span class="label">Condition</span><span class="select-wrap"><select class="select" aria-label="Rule condition" data-action="rule-set" data-f="condition" data-fk="rule-condition">' + options(D.RULE_CONDITIONS, r.condition, 'Select…') + '</select></span></div>' +
-      '<div class="field"><label class="label" for="rule-value">Value</label><input class="input" id="rule-value" value="' + esc(r.value) + '" placeholder="as written in the IAM report" data-rule-input="value" data-fk="rule-value"></div>' +
-      '<div class="field"><span class="label">Time filter</span><span class="select-wrap"><select class="select" aria-label="Rule time filter" data-action="rule-set" data-f="timeFilter" data-fk="rule-timeFilter">' + options(D.RULE_TIMEFILTERS, r.timeFilter, 'Select…') + '</select></span></div>' +
-      '<div class="field"><span class="label">Severity</span><span class="select-wrap"><select class="select" aria-label="Rule severity" data-action="rule-set" data-f="severity" data-fk="rule-severity">' + options(D.RULE_SEVERITIES, r.severity, 'Select…') + '</select></span></div>' +
+      '<div class="field"><label class="label" for="rule-name">Rule name</label><input class="input" id="rule-name" value="' + esc(r.name) + '" placeholder="e.g. off-hours manifests access" data-rule-input="name" data-fk="rule-name"' + dis + '></div>' +
+      '<div class="field"><span class="label">Source dataset</span><span class="select-wrap"><select class="select" aria-label="Rule source dataset" data-action="rule-set" data-f="source" data-fk="rule-source"' + dis + '>' + options(D.RULE_SOURCES, r.source, 'Select…') + '</select></span></div>' +
+      '<div class="field"><span class="label">Match field</span><span class="select-wrap"><select class="select" aria-label="Rule match field" data-action="rule-set" data-f="field" data-fk="rule-field"' + dis + '>' + options(D.RULE_FIELDS, r.field, 'Select…') + '</select></span></div>' +
+      '<div class="field"><span class="label">Condition</span><span class="select-wrap"><select class="select" aria-label="Rule condition" data-action="rule-set" data-f="condition" data-fk="rule-condition"' + dis + '>' + options(D.RULE_CONDITIONS, r.condition, 'Select…') + '</select></span></div>' +
+      '<div class="field"><label class="label" for="rule-value">Value</label><input class="input" id="rule-value" value="' + esc(r.value) + '" placeholder="as written in the IAM report" data-rule-input="value" data-fk="rule-value"' + dis + '></div>' +
+      '<div class="field"><span class="label">Time filter</span><span class="select-wrap"><select class="select" aria-label="Rule time filter" data-action="rule-set" data-f="timeFilter" data-fk="rule-timeFilter"' + dis + '>' + options(D.RULE_TIMEFILTERS, r.timeFilter, 'Select…') + '</select></span></div>' +
+      '<div class="field"><span class="label">Severity</span><span class="select-wrap"><select class="select" aria-label="Rule severity" data-action="rule-set" data-f="severity" data-fk="rule-severity"' + dis + '>' + options(D.RULE_SEVERITIES, r.severity, 'Select…') + '</select></span></div>' +
       '</div></div>';
   }
 
   function renderSaasDesk(s) {
     var answers = (s.answers && s.answers['OBJ-H8']) || {};
+    var locked = !!(s.progress['OBJ-H8'] && s.progress['OBJ-H8'].done); // audit v2 (R2)
+    var dis = locked ? ' disabled' : '';
     return '<div class="space-y"><div class="notice">One unsanctioned app is actively leaking company files. Name it and choose the proportionate action pair — not an overreach, not a shrug.</div>' +
       '<div class="two-col">' +
-      '<div class="field"><span class="label">Leaking app</span><span class="select-wrap"><select class="select" aria-label="Leaking application" data-action="field-set" data-obj="OBJ-H8" data-field="app" data-fk="ans-OBJ-H8-app">' +
+      '<div class="field"><span class="label">Leaking app</span><span class="select-wrap"><select class="select" aria-label="Leaking application" data-action="field-set" data-obj="OBJ-H8" data-field="app" data-fk="ans-OBJ-H8-app"' + dis + '>' +
       options([{ value: 'dropvaultsync', label: 'DropVaultSync' }, { value: 'chartexpress', label: 'ChartExpress' }, { value: 'northmail365', label: 'NorthMail 365' }], answers.app || '', 'Select app…') +
       '</select></span></div>' +
-      '<div class="field"><span class="label">Action pair</span><span class="select-wrap"><select class="select" aria-label="Action pair" data-action="field-set" data-obj="OBJ-H8" data-field="action" data-fk="ans-OBJ-H8-action">' +
+      '<div class="field"><span class="label">Action pair</span><span class="select-wrap"><select class="select" aria-label="Action pair" data-action="field-set" data-obj="OBJ-H8" data-field="action" data-fk="ans-OBJ-H8-action"' + dis + '>' +
       options([{ value: 'blockdlp', label: 'Block the app & enable DLP on file exports' }, { value: 'allowwarn', label: 'Allow with a warning banner' }, { value: 'blockall', label: 'Block every cloud tool company-wide' }, { value: 'migrate', label: 'Migrate users to ChartExpress' }], answers.action || '', 'Select action…') +
       '</select></span></div>' +
       '</div></div>';
   }
 
   function renderRecordsDesk(s) {
+    var locked = !!(s.progress['OBJ-H7'] && s.progress['OBJ-H7'].done); // audit v2 (R2)
     var exBtn = function (id, label, done, msg) {
-      return '<button type="button" class="btn btn-outline btn-sm' + (s.exports.indexOf(id) >= 0 ? ' exported' : '') + '" data-action="export" data-id="' + id + '" data-msg="' + esc(msg) + '" data-fk="ex-' + id + '">' +
+      return '<button type="button" class="btn btn-outline btn-sm' + (s.exports.indexOf(id) >= 0 ? ' exported' : '') + '" data-action="export" data-id="' + id + '" data-msg="' + esc(msg) + '" data-fk="ex-' + id + '"' + (locked ? ' disabled' : '') + '>' +
         window.icon('download', 14) + ' ' + (s.exports.indexOf(id) >= 0 ? label + ' ✓' : label) + '</button>';
     };
     return '<div class="space-y">' +
       '<div class="policy-card"><div class="policy-head">' + window.icon('file-clock', 14) + ' SEC-POL-07 — records policy</div>' +
       'Security-relevant logs SHALL be retained for <span class="green">12 months</span>. Access reviews SHALL be produced quarterly. FIM baselines SHALL be reviewed on every change. Evidence SHALL outlive the audit.</div>' +
       '<div class="two-col">' +
-      '<div class="field"><span class="label">Security-log retention</span><span class="select-wrap"><select class="select" aria-label="Retention period" data-action="retention-set" data-fk="retention">' +
+      '<div class="field"><span class="label">Security-log retention</span><span class="select-wrap"><select class="select" aria-label="Retention period" data-action="retention-set" data-fk="retention"' + (locked ? ' disabled' : '') + '>' +
       options([3, 6, 12, 24].map(function (m) { return { value: String(m), label: m + ' months' }; }), String(s.retention)) +
       '</select></span></div>' +
       '<div class="field"><span class="label">Audit artifacts</span><span class="export-row">' +
@@ -682,15 +699,17 @@
 
   function renderPostMortem(s) {
     var answers = (s.answers && s.answers['OBJ-H9']) || {};
+    var locked = !!(s.progress['OBJ-H9'] && s.progress['OBJ-H9'].done); // audit v2 (R2)
+    var dis = locked ? ' disabled' : '';
     return '<div class="space-y"><div class="notice">Before the console was repaired, cross-host correlation failed silently. Name the root cause and quantify the worst offender, using the drift table the NTP sensor recorded before sync.</div>' +
       '<div class="mini-card"><div class="plaque mb-xs">Recorded pre-sync drift (last observation)</div>' +
       '<div class="pm-skew-grid">' + D.HOST_SKEW.map(function (h) {
         return '<span class="pm-skew-cell' + (Math.abs(h.skew) >= 7 ? ' bad' : '') + '"><span>' + h.host + '</span><span>' + (h.skew >= 0 ? '+' : '') + h.skew + ' min</span></span>';
       }).join('') + '</div></div>' +
       '<div class="two-col">' +
-      '<div class="field"><span class="label">Root cause</span><span class="select-wrap"><select class="select" aria-label="Root cause" data-action="field-set" data-obj="OBJ-H9" data-field="cause" data-fk="ans-OBJ-H9-cause">' +
+      '<div class="field"><span class="label">Root cause</span><span class="select-wrap"><select class="select" aria-label="Root cause" data-action="field-set" data-obj="OBJ-H9" data-field="cause" data-fk="ans-OBJ-H9-cause"' + dis + '>' +
       options(D.POSTMORTEM_CAUSES, answers.cause || '', 'Select…') + '</select></span></div>' +
-      '<div class="field"><label class="label" for="skew-min">Largest skew (minutes)</label><input class="input" id="skew-min" type="number" value="' + esc(answers.skew || '') + '" data-field-input="OBJ-H9|skew" data-fk="ans-OBJ-H9-skew"></div>' +
+      '<div class="field"><label class="label" for="skew-min">Largest skew (minutes)</label><input class="input" id="skew-min" type="number" value="' + esc(answers.skew || '') + '" data-field-input="OBJ-H9|skew" data-fk="ans-OBJ-H9-skew"' + dis + '></div>' +
       '</div></div>';
   }
 
@@ -780,15 +799,17 @@
   }
 
   // ══════════════════════════ WATCH TASKS (objective rail) ═════════════════════
-  function fieldHtml(o, f, s) {
+  function fieldHtml(o, f, s, done) {
     var val = (s.answers && s.answers[o.id] && s.answers[o.id][f.id]) || '';
+    // Audit v2 (R2): once the objective is validated the recorded answer is locked.
+    var dis = done ? ' disabled' : '';
     if (f.type === 'select') {
       return '<div class="field"><span class="label">' + esc(f.label) + '</span>' +
-        '<span class="select-wrap"><select class="select" aria-label="' + esc(f.label) + '" data-action="field-set" data-obj="' + o.id + '" data-field="' + f.id + '" data-fk="ans-' + o.id + '-' + f.id + '">' +
+        '<span class="select-wrap"><select class="select" aria-label="' + esc(f.label) + '" data-action="field-set" data-obj="' + o.id + '" data-field="' + f.id + '" data-fk="ans-' + o.id + '-' + f.id + '"' + dis + '>' +
         options(f.options || [], val, 'Select…') + '</select></span></div>';
     }
     return '<div class="field"><label class="label" for="' + o.id + '-' + f.id + '">' + esc(f.label) + '</label>' +
-      '<input class="input mono-input" id="' + o.id + '-' + f.id + '" type="' + (f.type === 'number' ? 'number' : 'text') + '" value="' + esc(val) + '"' +
+      '<input class="input mono-input" id="' + o.id + '-' + f.id + '" type="' + (f.type === 'number' ? 'number' : 'text') + '" value="' + esc(val) + '"' + dis +
       (f.placeholder ? ' placeholder="' + esc(f.placeholder) + '"' : '') +
       ' data-field-input="' + o.id + '|' + f.id + '" data-fk="ans-' + o.id + '-' + f.id + '"></div>';
   }
@@ -803,14 +824,14 @@
 
     var fieldsHtml = '';
     if (o.fields.length > 0) {
-      fieldsHtml = '<div class="fields-grid">' + o.fields.map(function (f) { return fieldHtml(o, f, s); }).join('') + '</div>';
+      fieldsHtml = '<div class="fields-grid">' + o.fields.map(function (f) { return fieldHtml(o, f, s, done); }).join('') + '</div>';
     }
 
     var actions = '<div class="obj-actions">';
     if (!done) {
       actions += '<button type="button" class="btn btn-primary" data-action="check" data-obj="' + o.id + '" data-fk="check-' + o.id + '">Check results</button>';
     } else {
-      actions += '<span class="validated-note">' + window.icon('check-circle-2', 14) + ' validated ' + (prog.firstTry ? '· first try' : '· after ' + prog.attempts + ' attempt(s)') + '</span>';
+      actions += '<span class="validated-note">' + window.icon('check-circle-2', 14) + ' validated — answers locked ' + (prog.firstTry ? '· first try' : '· after ' + prog.attempts + ' attempt(s)') + '</span>';
     }
     if (!done && hintsLeft > 0) {
       actions += mode === 'hard'
@@ -909,23 +930,24 @@
 
     var itemHtml = items.map(function (q, idx) {
       var picked = s.quiz[q.id];
+      var pickedCorrect = s.quizSubmitted && picked === q.answer;
       var opts = q.options.map(function (o) {
         var isPicked = picked === o.value;
-        var isAnswer = q.answer === o.value;
+        // Audit v2 (R3): after Check only the SELECTED option is highlighted —
+        // green when correct, red when wrong. The correct answer is never
+        // highlighted on an option the student did not pick.
         var cls = '';
-        if (s.quizSubmitted && isAnswer) cls = ' correct';
-        else if (s.quizSubmitted && isPicked) cls = ' incorrect';
+        if (s.quizSubmitted && isPicked) cls = pickedCorrect ? ' correct' : ' incorrect';
         else if (isPicked) cls = ' picked';
         var tail = '';
-        if (s.quizSubmitted && isAnswer) tail = window.icon('check-circle-2', 16, 'ok-ic');
-        else if (s.quizSubmitted && isPicked && !isAnswer) tail = window.icon('circle-x', 16, 'bad-ic');
+        if (s.quizSubmitted && isPicked && pickedCorrect) tail = '<span class="q-state" role="img" aria-label="your correct answer">' + window.icon('check-circle-2', 16, 'ok-ic') + '</span>';
+        else if (s.quizSubmitted && isPicked && !pickedCorrect) tail = '<span class="q-state" role="img" aria-label="your incorrect answer">' + window.icon('circle-x', 16, 'bad-ic') + '</span>';
         return '<label class="opt' + cls + '"><input type="radio" name="' + q.id + '" value="' + o.value + '"' + (picked === o.value ? ' checked' : '') + (s.quizSubmitted ? ' disabled' : '') + ' data-quiz="' + q.id + '" data-fk="qz-' + q.id + '-' + o.value + '"><span class="opt-text">' + esc(o.label) + '</span>' + tail + '</label>';
       }).join('');
 
       var expl = '';
       if (s.quizSubmitted) {
-        var correct = picked === q.answer;
-        expl = '<div class="explanation ' + (correct ? 'ex-ok' : 'ex-no') + '"><span class="result-kicker">' + (correct ? '✓ correct' : '✗ the answer, and why') + '</span>' + esc(q.explanation) + '</div>';
+        expl = '<div class="explanation ' + (pickedCorrect ? 'ex-ok' : 'ex-no') + '"><span class="result-kicker">' + (pickedCorrect ? '✓ correct' : '✗ not it — the answer, and why') + '</span>' + esc(q.explanation) + '</div>';
       }
 
       return '<fieldset class="quiz-item"><legend class="quiz-legend">Q' + (idx + 1) + '</legend>' +
@@ -980,7 +1002,31 @@
         }).join('') + '</ul></div>';
     }).join('');
 
+    // Audit v2 (R8): focus areas derived from the student's actual evidence —
+    // objectives that needed retries, objectives that needed hints, and quiz
+    // items answered wrong.
+    var retried = objectives.filter(function (o) { return s.progress[o.id] && s.progress[o.id].attempts > 1; });
+    var hinted = objectives.filter(function (o) { return s.progress[o.id] && s.progress[o.id].hints > 0; });
+    var missedQuiz = QUIZ[mode].filter(function (q) { return s.quiz[q.id] && s.quiz[q.id] !== q.answer; });
+    var focusItems = [];
+    retried.forEach(function (o) {
+      focusItems.push('→ <strong>' + esc(o.title) + '</strong> — needed ' + s.progress[o.id].attempts + ' attempts. Re-run it mentally and note where you hesitated.');
+    });
+    hinted.forEach(function (o) {
+      if (retried.indexOf(o) === -1) focusItems.push('→ <strong>' + esc(o.title) + '</strong> — solved with a hint. Redo it from the evidence without hints.');
+    });
+    missedQuiz.forEach(function (q) {
+      var stem = q.stem.length > 64 ? q.stem.slice(0, 64) + '…' : q.stem;
+      focusItems.push('→ Knowledge check: re-read the explanation for “' + esc(stem) + '”');
+    });
+    var focusHtml = '<div class="kg-card"><div class="pillar-label focus-label">Focus areas</div>' +
+      (focusItems.length
+        ? '<ul class="next-list">' + focusItems.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>'
+        : '<p class="focus-clean">Flawless run — every task first-try, no hints, quiz clean. No focus areas to assign. Keep the edge sharp: run the other watch.</p>') +
+      '</div>';
+
     return '<div class="overlay" data-overlay="completion"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="completion-title">' +
+      '<button type="button" class="dialog-x" data-action="completion-close" aria-label="Close dialog">' + window.icon('x', 18) + '</button>' +
       '<div class="plaque">Watch complete · ' + (mode === 'hard' ? 'night' : 'day') + ' watch</div>' +
       '<h2 id="completion-title" class="dialog-title">Clearance granted</h2>' +
       '<p class="dialog-desc">Every task validated, every question answered. You can now explain operational visibility, recognize it in raw evidence, choose a detection approach, and justify mitigations — with residual risk named. That is the whole lesson, in your hands.</p>' +
@@ -990,6 +1036,7 @@
       '<div>quiz ' + (s.quizScore ? s.quizScore.correct + '/' + s.quizScore.total : '—') + '</div></div></div>' +
       '<p class="formula-note">Stars = (3×first-try + 1×retry-passed − 0.5×hints) ÷ 3×tasks, capped 1–5. Hints cost half a star each; retaking the quiz is free.</p>' +
       '<div class="pillar-grid">' + pillarCards + '</div>' +
+      focusHtml +
       '<div class="kg-card"><div class="pillar-label">Keep going</div><ul class="next-list">' +
       D.NEXT_STEPS.map(function (n) { return '<li>→ ' + esc(n) + '</li>'; }).join('') + '</ul></div>' +
       '<div class="dialog-actions">' +
@@ -1000,6 +1047,7 @@
 
   function purgeDialogHtml() {
     return '<div class="overlay" data-overlay="purge"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="purge-title" aria-describedby="purge-desc">' +
+      '<button type="button" class="dialog-x" data-action="purge-cancel" aria-label="Close dialog">' + window.icon('x', 18) + '</button>' +
       '<h2 id="purge-title" class="dialog-title">Purge &amp; restart the watch?</h2>' +
       '<p id="purge-desc" class="dialog-desc">This wipes saved progress — sensor states, tasks, quiz results and your clearance — and returns the console to its pristine state. The estate will not remember you.</p>' +
       '<div class="dialog-actions">' +

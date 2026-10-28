@@ -53,12 +53,12 @@ const CLASSIFY = [
   { id: "c5", text: "Best fit for repeatable, high-volume, low-judgment decisions at machine speed.", correct: "playbook" }
 ];
 const HANDOVER = [
-  { id: "i1", text: "14 analyst-hours/week are burned on duplicate newsletter-phish reports.", systemic: true, benefit: "b1" },
-  { id: "i2", text: "Nothing monitored Saturday–Sunday nights; last month a breach sat unnoticed for 3 days.", systemic: true, benefit: "b3" },
-  { id: "i3", text: "Q3 audit prep needs two weeks of manual evidence collection, again.", systemic: true, benefit: "b5" },
   { id: "i4", text: "Coffee machine was flagged as C2 by the scanner — false alarm from a scan-window misconfig, resolved.", systemic: false },
+  { id: "i1", text: "14 analyst-hours/week are burned on duplicate newsletter-phish reports.", systemic: true, benefit: "b1" },
   { id: "i5", text: "CEO laptop fan is noisy — ticket handed to desktop support.", systemic: false },
+  { id: "i2", text: "Nothing monitored Saturday–Sunday nights; last month a breach sat unnoticed for 3 days.", systemic: true, benefit: "b3" },
   { id: "i6", text: "Floor-2 printer jammed; paper replaced by facilities.", systemic: false },
+  { id: "i3", text: "Q3 audit prep needs two weeks of manual evidence collection, again.", systemic: true, benefit: "b5" },
   { id: "i7", text: "Loading-dock badge reader offline — facilities notified, physical access log reviewed.", systemic: false },
   { id: "i8", text: "Inbound freight delayed by weather — logistics informed.", systemic: false }
 ];
@@ -101,13 +101,13 @@ const CRED_BRANCHES = [
   {
     id: "branchIntel",
     q: "BRANCH A — threat intel returns ≥ 2 hits on the source IP. The playbook should…",
-    options: ["Only add a note and keep monitoring", "Rate-limit / block the source at the edge", "Auto-close as a failed-login blip"],
+    options: ["Only add a note and keep monitoring", "Rate-limit / block the source at the edge", "Auto-close it as a routine failed-login blip"],
     correct: 1
   },
   {
     id: "branchAccounts",
     q: "BRANCH B — accounts appear in the correlated failures. The playbook should…",
-    options: ["Delete the affected accounts permanently", "Queue a daily digest email", "Force an MFA re-challenge and notify the users"],
+    options: ["Delete the affected accounts and revoke their sessions", "Queue a daily digest email for those accounts", "Force an MFA re-challenge and notify the users"],
     correct: 2
   }
 ];
@@ -151,8 +151,8 @@ const ESCALATIONS = [
     options: [
       { id: "e1a", text: "Auto-close as benign — 5/10 is probably fine" },
       { id: "e1b", text: "Send to deep detonation + senior analyst review" },
-      { id: "e1c", text: "Quarantine the entire mail server" },
-      { id: "e1d", text: "Mark as spam and move on" }
+      { id: "e1c", text: "Quarantine the entire corporate mail server immediately" },
+      { id: "e1d", text: "Just mark it as spam and move on" }
     ],
     correct: "e1b"
   },
@@ -161,7 +161,7 @@ const ESCALATIONS = [
     title: "R-112 — vendor-portal “password expiring” page: verdict credential phishing (9/10), 2 users clicked",
     options: [
       { id: "e2a", text: "Close as benign — looks like a routine IT notice" },
-      { id: "e2b", text: "Mark as spam only" },
+      { id: "e2b", text: "Mark the whole report as spam and close the incident" },
       { id: "e2c", text: "Escalate to IR + force password reset for the 2 clickers" },
       { id: "e2d", text: "Reply to the sender to ask if it is legitimate" }
     ],
@@ -187,13 +187,13 @@ const TIMELINE_QS = [
   {
     id: "timelineB",
     q: "What design flaw caused it?",
-    options: ["It opened tickets with the wrong severity", "It did not notify the reporters", "It quarantined before any reputation/sandbox verdict — no score gate"],
+    options: ["It auto-opened tickets with the wrong severity labels", "It did not notify the reporters of its decisions", "It quarantined before any reputation/sandbox verdict — no score gate"],
     correct: 2
   },
   {
     id: "timelineC",
     q: "Which SINGLE step addition fixes the design?",
-    options: ["Disable user phishing reports", "Insert a SCORE gate (reputation + sandbox) before any quarantine/auto-close", "Hire three more analysts to review everything"],
+    options: ["Disable all user phishing reports at the gateway", "Insert a SCORE gate before any quarantine or auto-close", "Hire three more analysts to review every report manually"],
     correct: 1
   }
 ];
@@ -232,29 +232,29 @@ const WATCH_LINES = [
 ];
 const ANOMALY_ROUTE_CORRECT = "r-page";
 const ANOMALY_ROUTES = [
-  { id: "r-digest", text: "Add to the morning email digest" },
+  { id: "r-digest", text: "Add it to the morning email digest for review" },
   { id: "r-page", text: "Page the on-call analyst now + open a P1 ticket" },
-  { id: "r-wait", text: "Wait until business hours and re-check" }
+  { id: "r-wait", text: "Wait for business hours and re-check the transfer manually" }
 ];
 const TUNE_FIX_OPTIONS = [
-  { id: "fix-gate", text: "Add a verdict gate: require sandbox + majority reputation (2 of 3 engines) before any auto-close" },
-  { id: "fix-off", text: "Disable auto-close entirely — every phish report goes to a human" },
-  { id: "fix-thresh", text: "Raise global SIEM thresholds to drop low-severity alerts" }
+  { id: "fix-gate", text: "Add a verdict gate: require sandbox + majority reputation before any auto-close" },
+  { id: "fix-off", text: "Disable auto-close entirely — a human analyst reads every phish report" },
+  { id: "fix-thresh", text: "Raise the global SIEM thresholds so that low-severity alerts are dropped" }
 ];
 const TUNE_FIX_CORRECT = "fix-gate";
 const TUNE_PREDICT_OPTIONS = [
   { id: "pred-a", text: "FP rate falls sharply, close time rises slightly, SLA stays met" },
-  { id: "pred-b", text: "FP rate unchanged, speed drops, SLA breaches pile up" },
-  { id: "pred-c", text: "FP falls but real phishes start being missed wholesale" }
+  { id: "pred-b", text: "FP rate unchanged, speed drops hard, SLA breaches pile up" },
+  { id: "pred-c", text: "FP falls but real phishing reports get missed in bulk" }
 ];
 const TUNE_PREDICT_CORRECT = "pred-a";
 const EVIDENCE = [
-  { id: "v-logs", text: "Continuous control-check logs covering the full 90 days", valid: true },
-  { id: "v-snap", text: "Signed nightly compliance snapshots", valid: true },
-  { id: "v-ticket", text: "Auto-remediation ticket history with timestamps", valid: true },
   { id: "v-shot", text: "A screenshot of yesterday’s dashboard", valid: false },
+  { id: "v-logs", text: "Continuous control-check logs covering the full 90 days", valid: true },
   { id: "v-verbal", text: "Verbal attestation from the platform owner", valid: false },
-  { id: "v-scan", text: "One manual scan from last week", valid: false }
+  { id: "v-snap", text: "Signed nightly compliance snapshots", valid: true },
+  { id: "v-scan", text: "One manual scan from last week", valid: false },
+  { id: "v-ticket", text: "Auto-remediation ticket history with timestamps", valid: true }
 ];
 const SLA_TICKETS = [
   { id: "T1", text: "T1 · P3 (72 h SLA) — patch batch · opened 70 h ago", manual: true },
@@ -282,24 +282,24 @@ const BUDGET_OPTIONS = [
 const BUDGET_CORRECT = "budget-b";
 const BUDGET_CITES = [
   { id: "cite-vol", text: "Alert volume handled grew ×6.3 with the same 8-person team", ok: true },
+  { id: "cite-office", text: "The office relocation is scheduled for Q3", ok: false },
   { id: "cite-coverage", text: "Only 40 % of candidate use cases are automated — clear headroom", ok: true },
-  { id: "cite-fp", text: "FP rate is still 19 % — tuning will return even more analyst hours", ok: true },
   { id: "cite-coffee", text: "Coffee consumption has stayed flat", ok: false },
-  { id: "cite-office", text: "The office relocation is scheduled for Q3", ok: false }
+  { id: "cite-fp", text: "FP rate is still 19 % — tuning will return even more analyst hours", ok: true }
 ];
 const STRATEGY_OPTIONS = [
   { id: "str-a", text: "A — Expand SOAR use cases with human-in-the-loop gates and FP tuning" },
   { id: "str-b", text: "B — Full automation: remove all human gates for maximum speed" },
-  { id: "str-c", text: "C — Freeze automation; solve everything by hiring analysts" },
-  { id: "str-d", text: "D — Keep the status quo for two quarters" }
+  { id: "str-c", text: "C — Freeze all automation and solve capacity by hiring analysts" },
+  { id: "str-d", text: "D — Keep the status quo unchanged for two more quarters" }
 ];
 const STRATEGY_CORRECT = "str-a";
 const STRATEGY_CITES = [
   { id: "k-coverage", text: "Automation coverage is 40 % — proven headroom exists", ok: true },
+  { id: "k-move", text: "The office relocation is planned for Q3", ok: false },
   { id: "k-kri", text: "Over-alerting KRI up 31 % — expansion must include tuning", ok: true },
-  { id: "k-roi", text: "MTTR down 69 % — the program’s ROI is demonstrated", ok: true },
   { id: "k-mttd", text: "MTTD is fine — so no action is needed anywhere", ok: false },
-  { id: "k-move", text: "The office relocation is planned for Q3", ok: false }
+  { id: "k-roi", text: "MTTR down 69 % — the program’s ROI is demonstrated", ok: true }
 ];
 const ADVERSARY_NOTES = [
   "Probes with <10 failed logins/min/IP — far below the 50/min auto-block threshold.",
@@ -307,10 +307,10 @@ const ADVERSARY_NOTES = [
   "Knows auto-review runs on the hour and times actions at :05 past."
 ];
 const COUNTERS = [
-  { id: "x-baseline", text: "Tune volume baselines + add human review sampling for low-and-slow patterns", ok: true },
-  { id: "x-hunt", text: "Randomize review sampling and keep scheduled threat hunts on the calendar", ok: true },
   { id: "x-none", text: "Remove thresholds so every event alerts a human", ok: false },
+  { id: "x-baseline", text: "Tune volume baselines + add human review sampling for low-and-slow patterns", ok: true },
   { id: "x-blockall", text: "Auto-block anything that trips twice", ok: false },
+  { id: "x-hunt", text: "Randomize review sampling and keep scheduled threat hunts on the calendar", ok: true },
   { id: "x-window", text: "Extend alert windows to 24 h to smooth the noise", ok: false }
 ];
 const OBJECTIVES = [
@@ -823,6 +823,23 @@ const QUIZ_HARD = [
     expl: "A wrong auto-action replicates at machine speed and scale, so judgment stays where stakes or ambiguity are high — that preserves speed where it is safe. “Always faster/more accurate” is false and unhelpful, auditability is a design property rather than a casualty, and vendor support is irrelevant to the risk argument."
   }
 ];
+/* Short study-area label per quiz item — used by the completion report to derive
+   the student's focus areas from actual wrong answers (R8). */
+const QUIZ_TOPIC = {
+  qm1: "SOAR fundamentals",
+  qm2: "Playbook vs runbook",
+  qm3: "Detection metrics (MTTD / MTTR / SLA)",
+  qm4: "First use-case selection",
+  qm5: "Compliance automation",
+  qm6: "Proactive vs reactive operations",
+  qh1: "Bulk triage judgment",
+  qh2: "False-positive tuning strategy",
+  qh3: "Leadership evidence and ROI",
+  qh4: "Low-and-slow adversary adaptation",
+  qh5: "Continuous compliance evidence",
+  qh6: "SLA and severity triage",
+  qh7: "Human-in-the-loop boundaries",
+};
 function objectivesFor(mode) {
   return OBJECTIVES.filter((o) => o.mode === mode);
 }
@@ -888,6 +905,7 @@ window.LAB_DATA = {
   OBJECTIVES,
   QUIZ_MEDIUM,
   QUIZ_HARD,
+  QUIZ_TOPIC,
   objectivesFor,
   quizFor,
 };

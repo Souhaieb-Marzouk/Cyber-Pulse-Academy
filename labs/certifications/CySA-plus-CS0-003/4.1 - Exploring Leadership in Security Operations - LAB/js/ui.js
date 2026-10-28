@@ -195,7 +195,7 @@
       '<ul class="briefing-list">' +
       '<li>' + icon('calendar-clock', 16) + ' 5 sprint days, one workbench each</li>' +
       '<li>' + icon('list-checks', 16) + ' Machine-checked objectives with teaching feedback</li>' +
-      '<li>' + icon('gauge', 16) + ' Live SOAR run you control</li>' +
+      '<li>' + icon('gauge', 16) + ' Live SOAR (Security Orchestration, Automation and Response) run you control</li>' +
       '<li>' + icon('badge-check', 16) + ' Progress auto-saves in your browser</li>' +
       '</ul>' +
       '<p class="briefing-map">' + icon('graduation-cap', 16) +
@@ -786,17 +786,19 @@
     var cards = quiz.map(function (q, qi) {
       var ans = st.quiz[q.id];
       var locked = !!ans;
+      /* R3 color contract: ONLY the submitted option is highlighted — green when
+         it was correct, red when it was wrong. The correct answer is never
+         revealed in green (and never icon-marked) on a wrong submission. */
       var opts = q.options.map(function (o, oi) {
         var isPicked = ans && ans.pick === oi;
         var isCorrect = oi === q.correct;
         var cls = 'radio-card quiz-opt' +
-          (!locked ? '' : isCorrect ? ' quiz-correct' : isPicked ? ' quiz-wrong' : ' quiz-dim');
+          (!locked ? '' : isPicked ? (isCorrect ? ' quiz-correct' : ' quiz-wrong') : ' quiz-dim');
         return '<label class="' + cls + '" for="' + q.id + '-' + oi + '">' +
           '<input class="sr-only" type="radio" name="quiz-' + q.id + '" value="' + oi + '" id="' + q.id + '-' + oi + '"' +
           ' data-quiz="' + q.id + '" data-pick="' + oi + '"' + (locked ? ' disabled' : '') + (ans && ans.pick === oi ? ' checked' : '') + '>' +
           '<span class="radio-card-txt">' + esc(o) + '</span>' +
-          (locked && isCorrect ? icon('check-circle-2', 16, 'ic-emerald-600') : '') +
-          (locked && isPicked && !isCorrect ? icon('x-circle', 16, 'ic-rose-600') : '') +
+          (locked && isPicked ? (isCorrect ? icon('check-circle-2', 16, 'ic-emerald-600') : icon('x-circle', 16, 'ic-rose-600')) : '') +
           '</label>';
       }).join('');
       return '<div class="card quiz-card' + (locked ? (ans.correct ? ' quiz-card-ok' : ' quiz-card-miss') : '') + '" data-quiz-card="' + q.id + '">' +
@@ -1003,6 +1005,8 @@
       '<p class="cm-caption" data-cm-caption></p></div>' +
       '<div class="cm-recap"><p class="cm-recap-kicker">Mastery recap by pillar</p>' +
       '<div class="cm-recap-list" data-cm-recap></div></div>' +
+      '<div class="cm-focus"><p class="cm-focus-kicker">' + icon('target', 16) + ' Focus areas — sharpen these next</p>' +
+      '<div data-cm-focus></div></div>' +
       '<div class="cm-next">' +
       '<p class="cm-next-kicker">' + icon('graduation-cap', 16) + ' What to learn next</p>' +
       '<ul class="cm-next-list dotlist">' +

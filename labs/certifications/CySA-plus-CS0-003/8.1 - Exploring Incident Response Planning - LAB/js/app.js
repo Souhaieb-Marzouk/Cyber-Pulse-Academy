@@ -16,6 +16,8 @@ var LabApp = (function () {
   var view = 'section'; /* 'section' | 'quiz' | 'notes' */
   var appEl = null;
   var world = null; /* refs into the mounted BinderWorld */
+  /* Audit v3 (QA-v3-5): double-click guard timestamp for clipboard check buttons */
+  var lastClipCheckAt = 0;
 
   /* ------------------------------------------------------------------ */
   /* Mode selection (irp-lab.tsx ModeSelect)                            */
@@ -393,6 +395,11 @@ var LabApp = (function () {
     });
     el.querySelectorAll('[data-x="check"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
+        /* Audit v3 (QA-v3-5): ignore machine-speed duplicate invocations (double-clicks)
+           so one accidental double-press cannot count as two attempts. */
+        var now = Date.now();
+        if (now - lastClipCheckAt < 600) return;
+        lastClipCheckAt = now;
         LabStore.checkObjectives([btn.dataset.obj]);
         renderClipboard(); /* lastResult line appears in this card */
       });
@@ -663,6 +670,50 @@ var LabApp = (function () {
         return '<a href="' + U.esc(r.href) + '" target="_blank" rel="noopener noreferrer" class="kc-link kc-link--inline">' + U.esc(r.label) + ' ↗</a>';
       }).join('');
 
+      /* Audit v2 (R8): focus areas derived from THIS student's actual performance —
+         objectives that took >1 attempt or hints, plus quiz items missed on the
+         FILED (first) attempt. Empty for a clean first-try run. */
+      var focusItems = [];
+      objectives.forEach(function (o) {
+        var st = state.obj[o.id];
+        if (st && st.done && (!st.firstTry || (st.hints || 0) > 0)) {
+          var bits = [];
+          if (!st.firstTry) bits.push(st.attempts + ' attempt' + (st.attempts === 1 ? '' : 's'));
+          if ((st.hints || 0) > 0) bits.push(st.hints + ' hint' + (st.hints === 1 ? '' : 's'));
+          var secMeta = null;
+          for (var si = 0; si < SECTIONS.length; si++) if (SECTIONS[si].key === o.section) secMeta = SECTIONS[si];
+          focusItems.push({
+            tag: o.fullId,
+            text: o.title + ' (' + bits.join(' · ') + ') — revisit the ' + (secMeta ? secMeta.label : o.section) + ' section.',
+          });
+        }
+      });
+      var filedAnswers = state.quizFiledAnswers && Object.keys(state.quizFiledAnswers).length > 0 ? state.quizFiledAnswers : null;
+      var quizSet = mode === 'hard' ? QUIZ_HARD : QUIZ_MEDIUM;
+      var filedScorePct = state.quizFiledScore !== null && state.quizFiledScore !== undefined ? Math.round(state.quizFiledScore * 100) : null;
+      var missed = [];
+      if (filedAnswers) {
+        quizSet.forEach(function (q, qi) {
+          if (filedAnswers[q.id] !== undefined && filedAnswers[q.id] !== q.answer) {
+            var promptShort = q.prompt.length > 52 ? q.prompt.slice(0, 52).replace(/\s+$/, '') + '…' : q.prompt;
+            missed.push('Q' + (qi + 1) + ' (\u201C' + promptShort + '\u201D)');
+          }
+        });
+      }
+      if (state.quizSubmitted && filedScorePct !== null) {
+        if (missed.length > 0) {
+          focusItems.push({ tag: 'Knowledge check', text: 'filed ' + filedScorePct + '% — re-read the annex explanations for ' + missed.join('; ') + '.' });
+        } else if (!filedAnswers && filedScorePct < 100) {
+          /* legacy saved state (pre-focus-report): keep the guidance honest without item detail */
+          focusItems.push({ tag: 'Knowledge check', text: 'filed ' + filedScorePct + '% — open the annex in practice mode and re-read every explanation.' });
+        }
+      }
+      var focusHtml = focusItems.length === 0
+        ? '<p class="notice-text">Clean run — every objective first-try without hints and the annex fully correct. No weak spots recorded; keep the plan fresh with the references below.</p>'
+        : '<ul class="bullet-list">' + focusItems.map(function (f) {
+            return '<li><strong class="mono-tag mono-tag--rose">' + U.esc(f.tag) + '</strong> ' + U.esc(f.text) + '</li>';
+          }).join('') + '</ul>';
+
       bodyHtml =
         '<div class="signoff-center">' + U.stamp({ tone: 'pass', label: 'Sign-off · Granted' }) +
           '<div class="stars" role="img" aria-label="' + stars + ' of 5 stars">' + starsHtml + '</div>' +
@@ -670,6 +721,7 @@ var LabApp = (function () {
           '<p class="fineprint">Stars weigh first-attempt accuracy and hint usage (objectives) together with the knowledge-check score.</p>' +
         '</div>' +
         '<div class="card"><p class="mono-eyebrow">Objective recap by pillar</p><div class="grid-2 grid-2--tight">' + recapHtml + '</div></div>' +
+        '<div class="callout card--rose-inset"><p class="mono-eyebrow mono-eyebrow--rose">' + labIcon('Crosshair', 'inline-icon') + ' Focus areas — where to study next</p>' + focusHtml + '</div>' +
         '<div class="callout card--amber-inset"><p class="mono-eyebrow">' + labIcon('BookOpen', 'inline-icon') + ' What to learn next</p>' +
           '<ul class="bullet-list">' +
             '<li>CS0-003 Objective 4.2 applied: incident response procedures in action (Lesson 8.2 territory).</li>' +

@@ -739,6 +739,29 @@ function renderCompletionContent(panel, data) {
   recap.appendChild(ul);
   panel.appendChild(recap);
 
+  /* R8 (audit v3) — performance-derived focus areas */
+  var focus = el('div', 'completion-section focus-areas');
+  var focusH = el('h3');
+  focusH.appendChild(icon('Crosshair', { px: 16, cls: 'icon-inline' }));
+  focusH.appendChild(document.createTextNode(' Focus areas — where to sharpen next'));
+  focus.appendChild(focusH);
+  focus.appendChild(
+    el(
+      'p',
+      'focus-desc',
+      'Derived from this run: the exit-interview questions you missed and the memos that needed retries or hints.'
+    )
+  );
+  var ful = el('ul', 'focus-list');
+  (data.focusAreas || []).forEach(function (f) {
+    var li = el('li', 'focus-item');
+    li.appendChild(el('p', 'focus-title', f.title));
+    li.appendChild(el('p', 'focus-detail', f.detail));
+    ful.appendChild(li);
+  });
+  focus.appendChild(ful);
+  panel.appendChild(focus);
+
   var next = el('div', 'completion-section');
   var nextH = el('h3');
   nextH.appendChild(icon('Compass', { px: 16, cls: 'icon-inline' }));
