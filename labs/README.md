@@ -45,3 +45,9 @@ name up to the first " - ", so the naming is what attaches a lab to its topic â€
 - **Nothing fetched at runtime.** A lab must work from a file:// URL and offline.
 - **One icon**, the site logo, at the depth of its own folder.
 
+### Scenario data
+
+Any fabricated domain, hostname or URL used as attack evidence must be **defanged**:
+`halvard-portal-secure[.]com`, never the live form. The validator treats a real TLD as a real host, and
+it has caught this exact domain in two consecutive updates.
+

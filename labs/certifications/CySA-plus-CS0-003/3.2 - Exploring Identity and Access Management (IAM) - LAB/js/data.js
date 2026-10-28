@@ -412,6 +412,48 @@ var OBJECTIVES = [
 ];
 var objectiveById = (id) => OBJECTIVES.find((o) => o.id === id);
 var objectivesFor = (mode) => OBJECTIVES.filter((o) => o.mode === mode);
+
+// ── R6 (QA-103): per-row option layouts for the matching desks ──────────────
+// Every matching dropdown used to list its options in the SAME canonical order,
+// so the correct choice sat on the array diagonal (row 1 → option 1, …).
+// Each row now lists the FULL option set in a different, deterministic order
+// (no Math.random — keeps persistence, checks and file:// runs stable), and
+// the correct option's index varies row to row so position gives nothing away.
+var byIds = (order, options) => order.map((id) => options.find((o) => o.id === id));
+var TERM_OPTION_ORDER = {
+  identification: ["prove", "claim", "decide", "record"],
+  authentication: ["claim", "decide", "record", "prove"],
+  authorization: ["decide", "record", "prove", "claim"],
+  accounting: ["claim", "prove", "record", "decide"],
+};
+var FACTOR_OPTION_ORDER = {
+  password: ["possession", "knowledge", "inherence"],
+  totp: ["knowledge", "inherence", "possession"],
+  fingerprint: ["inherence", "knowledge", "possession"],
+  hkey: ["knowledge", "possession", "inherence"],
+  secq: ["possession", "inherence", "knowledge"],
+  face: ["inherence", "possession", "knowledge"],
+};
+var ACCOUNT_TYPE_OPTION_ORDER = {
+  "j.okafor": ["service", "human", "shared", "device"],
+  "backup-svc": ["human", "shared", "service", "device"],
+  "front-desk-01": ["shared", "human", "device", "service"],
+  "LT-CAM-114": ["human", "service", "device", "shared"],
+  "r.delgado": ["device", "human", "service", "shared"],
+  "mkt-test-01": ["service", "device", "shared", "human"],
+};
+var PATTERN_OPTION_ORDER = {
+  A: ["stuffing", "kerberoasting", "spraying", "mfa-fatigue"],
+  B: ["mfa-fatigue", "spraying", "kerberoasting", "stuffing"],
+  C: ["kerberoasting", "mfa-fatigue", "stuffing", "spraying"],
+  D: ["mfa-fatigue", "stuffing", "kerberoasting", "spraying"],
+};
+var AAA_OPTION_ORDER = {
+  e1: ["authentication", "identification", "accounting", "authorization"],
+  e2: ["authorization", "accounting", "authentication", "identification"],
+  e3: ["authorization", "identification", "accounting", "authentication"],
+  e4: ["identification", "accounting", "authorization", "authentication"],
+};
 var TERM_OPTIONS = [
   { id: "claim", text: "Claiming who you are — presenting a username or badge number" },
   { id: "prove", text: "Proving that claim — password, OTP, biometric, key" },
@@ -527,6 +569,7 @@ var QUIZ = [
   {
     id: "qz-m1",
     mode: "medium",
+    topic: "AAA chain order",
     prompt: "Put the AAA chain in the order a sign-in experiences it.",
     options: [
       { id: "a", text: "Authentication → Identification → Accounting → Authorization" },
@@ -539,23 +582,25 @@ var QUIZ = [
   {
     id: "qz-m2",
     mode: "medium",
+    topic: "Authentication factor types",
     prompt: "Which of these is a POSSESSION factor?",
     options: [
-      { id: "a", text: "A fingerprint" },
-      { id: "b", text: "A security question" },
+      { id: "a", text: "A fingerprint biometric scan" },
+      { id: "b", text: "A personal security question" },
       { id: "c", text: "A hardware security key" }
     ],
     answer: "c",
-    explanation: "A key is something you have. Fingerprint = inherence, security question = knowledge. MFA is strong when it mixes factor TYPES."
+    explanation: "A hardware key is something you HAVE — unphishable possession. The scan is inherence (something you are) and the question is knowledge (something you know). Strong MFA mixes factor TYPES: password + key works, password + security question does not."
   },
   {
     id: "qz-m3",
     mode: "medium",
+    topic: "SSO trade-offs",
     prompt: "What is the main security trade-off of single sign-on?",
     options: [
-      { id: "a", text: "One phished credential can open many applications" },
-      { id: "b", text: "SSO removes the need for MFA on the wired applications" },
-      { id: "c", text: "SSO prevents administrators from reviewing sign-in logs" }
+      { id: "a", text: "One phished password unlocks every wired application" },
+      { id: "b", text: "SSO replaces the need for separate MFA" },
+      { id: "c", text: "Administrators can no longer review sign-in logs" }
     ],
     answer: "a",
     explanation: "SSO concentrates risk at the IdP: one phished password mints assertions for every wired app — which is why SSO must sit ON TOP of MFA (M1032), never instead of it. The distractors are real misconceptions: SSO does not replace MFA (b), and it centralizes rather than blocks sign-in logging (c)."
@@ -563,42 +608,46 @@ var QUIZ = [
   {
     id: "qz-m4",
     mode: "medium",
+    topic: "RBAC vs ABAC",
     prompt: "RBAC grants access based on ______; ABAC grants access based on ______.",
     options: [
-      { id: "a", text: "seniority level / password strength" },
-      { id: "b", text: "roles / attributes such as department, device health, and time of day" },
-      { id: "c", text: "a manager’s written approval / the length of service" }
+      { id: "a", text: "the manager’s approval / the employee’s years of service" },
+      { id: "b", text: "job roles / user, resource and context attributes" },
+      { id: "c", text: "strength of the password / classification of the data" }
     ],
     answer: "b",
-    explanation: "RBAC attaches permissions to job roles; ABAC evaluates attributes of the user, resource and context on every request. Seniority, password strength, approvals and tenure are common misconceptions — none of them is what either model keys on."
+    explanation: "RBAC attaches permissions to job roles; ABAC evaluates attributes of the user, resource and context on every request. Approval chains and tenure (a) are HR concepts, not access models, and neither model keys on password strength or data labels (c)."
   },
   {
     id: "qz-m5",
     mode: "medium",
+    topic: "Least privilege",
     prompt: "“Least privilege” means:",
     options: [
-      { id: "a", text: "Everyone gets the minimum access needed for their job — no more" },
-      { id: "b", text: "Privileges are removed from everyone once a year" },
-      { id: "c", text: "Admins use the same account for email and administration" }
+      { id: "a", text: "Every identity holds the minimum access its task requires" },
+      { id: "b", text: "Access is stripped from all accounts once a year" },
+      { id: "c", text: "Admins share one powerful account for daily work" }
     ],
     answer: "a",
-    explanation: "Least privilege caps the blast radius of any single credential — reviews (option b) exist to ENFORCE it, not to strip everyone annually, and option c is the opposite of privileged account management (M1026)."
+    explanation: "Least privilege caps the blast radius of any single credential: exactly what the job needs, nothing more. Annual strip-everything reviews (b) break the business without targeting actual excess, and a shared admin account (c) is the opposite of privileged account management (M1026)."
   },
   {
     id: "qz-m6",
     mode: "medium",
+    topic: "MFA-fatigue defenses",
     prompt: "The best defense against MFA-fatigue push spam (T1621) is:",
     options: [
-      { id: "a", text: "Longer passwords only" },
-      { id: "b", text: "Number matching / user-initiated sign-in approval" },
-      { id: "c", text: "Disabling MFA on remote accounts" }
+      { id: "a", text: "Longer and more complex passwords" },
+      { id: "b", text: "Number matching on push approvals" },
+      { id: "c", text: "Push notifications disabled at night" }
     ],
     answer: "b",
-    explanation: "Number matching forces the user to type a code shown on the sign-in screen, so a blind “approve” stops working. Also cap push retries and alert on denial streaks."
+    explanation: "Number matching forces the user to type the code shown on the sign-in screen, so a blind “approve” stops working — T1621 blunted. Longer passwords (a) do not help: the attacker already HAS the password. And a night-time push curfew (c) just moves the attack to 9 a.m."
   },
   {
     id: "qz-m7",
     mode: "medium",
+    topic: "Federation protocols",
     prompt: "Which pairing of federation protocol and its job is correct?",
     options: [
       { id: "a", text: "OAuth 2.0 — verifies the user’s password at every application" },
@@ -611,32 +660,35 @@ var QUIZ = [
   {
     id: "qz-h1",
     mode: "hard",
+    topic: "Kerberoasting response",
     evidence: "Ledger: 200 Kerberos TGS requests for service accounts from one workstation within minutes, RC4-encrypted tickets requested.",
     prompt: "What is happening, and what is the FIRST corrective control?",
     options: [
-      { id: "a", text: "Kerberoasting (T1558.003) — rotate service-account passwords / move to gMSA with long random secrets" },
-      { id: "b", text: "Password spraying — lock out the workstation user" },
-      { id: "c", text: "MFA fatigue — disable push notifications" }
+      { id: "a", text: "Password spraying — lock out the workstation user" },
+      { id: "b", text: "Kerberoasting — rotate the service account passwords" },
+      { id: "c", text: "MFA fatigue — turn off push notifications" }
     ],
-    answer: "a",
-    explanation: "Any domain user can request TGS tickets; RC4 makes offline cracking cheap. Rotation (or gMSA) destroys the cracked secret’s value."
+    answer: "b",
+    explanation: "A spike of TGS ticket requests for service accounts, RC4 requested, one host — that is Kerberoasting (T1558.003): the tickets are cracked offline at leisure. Rotation (or gMSA) destroys the cracked secret’s value. Locking out the workstation user (a) misreads the spray shape, and push notifications (c) play no role in Kerberos."
   },
   {
     id: "qz-h2",
     mode: "hard",
+    topic: "Separation of duties",
     evidence: "The finance-admin role holds both requisition-approve and approve-payments.",
     prompt: "Why does the analyst flag this configuration?",
     options: [
-      { id: "a", text: "One person can raise a requisition and approve its payment — a fraud path" },
-      { id: "b", text: "It breaks the password history rule for the whole finance team" },
-      { id: "c", text: "It makes role membership impossible to revoke without deleting the account" }
+      { id: "a", text: "It makes role membership impossible to revoke cleanly" },
+      { id: "b", text: "It breaks the password history rule for finance" },
+      { id: "c", text: "It lets one person raise and approve payments" }
     ],
-    answer: "a",
-    explanation: "Separation of duties splits sensitive workflows across identities: whoever raises a payment must not be able to approve it. Password history (b) has nothing to do with role design, and role memberships are revoked at will (c) — the flag is about preventing fraud, not fixing credentials."
+    answer: "c",
+    explanation: "Separation of duties: whoever raises a payment must never be able to approve it — that one pairing (c) is a fraud path. Role memberships are revoked at will (a), and password history (b) governs credential reuse, not role design."
   },
   {
     id: "qz-h3",
     mode: "hard",
+    topic: "Legacy-auth MFA gaps",
     evidence: "The IdP enforces MFA everywhere except one legacy protocol path used by a single old application. Spraying is now hitting that path.",
     prompt: "Best fix?",
     options: [
@@ -650,54 +702,58 @@ var QUIZ = [
   {
     id: "qz-h4",
     mode: "hard",
+    topic: "MFA-fatigue triage",
     evidence: "A user reports six MFA pushes at 03:00, all denied. Next morning they sign in normally with no anomalies.",
     prompt: "Correct classification and response?",
     options: [
-      { id: "a", text: "False positive only — close the ticket, take no action" },
-      { id: "b", text: "Confirmed account takeover — disable the account immediately" },
-      { id: "c", text: "Attempted MFA-fatigue (T1621), password likely known — rotate credentials, check for granted privileges, no evidence of compromise yet" }
+      { id: "a", text: "Attempted MFA-fatigue — rotate credentials, review grants, monitor" },
+      { id: "b", text: "Confirmed takeover — disable the account immediately" },
+      { id: "c", text: "False positive — close the ticket with no action" }
     ],
-    answer: "c",
-    explanation: "Push spam implies the attacker already HAD the password. Denials stopped it, so: rotate, review entitlements, monitor — proportionate to the evidence. “False positive” (a) ignores that the password is compromised even though no session was won, and “confirmed takeover” (b) overstates what the log shows."
+    answer: "a",
+    explanation: "Six denied pushes mean the attacker already held the password; only the denials held them off. So rotate the credential, review role grants, keep monitoring (a). “Confirmed takeover” (b) overstates the log — no session was won — and “false positive” (c) ignores that the password itself is burned even though the sign-in succeeded normally."
   },
   {
     id: "qz-h5",
     mode: "hard",
+    topic: "Lifecycle deprovisioning",
     evidence: "A contractor’s account is still active 30 days after contract end, with zero logons since.",
     prompt: "Which IAM lifecycle control failed?",
     options: [
-      { id: "a", text: "Password complexity" },
-      { id: "b", text: "Kerberos ticket lifetime" },
-      { id: "c", text: "Deprovisioning at contract end (joiner-mover-leaver process)" }
+      { id: "a", text: "Password complexity enforcement" },
+      { id: "b", text: "Kerberos ticket lifetime tuning" },
+      { id: "c", text: "Deprovisioning at contract end" }
     ],
     answer: "c",
-    explanation: "Every day an unowned account lives is free persistence for anyone who holds its credentials (T1078.001 default/stale accounts)."
+    explanation: "Thirty idle days past contract end means deprovisioning (the joiner-mover-leaver process) never fired (c) — every day the unowned account lives is free persistence for anyone holding its credentials (T1078.001 default/stale accounts). Password complexity (a) is irrelevant to an account nobody logs into, and ticket lifetime (b) only shortens active sessions."
   },
   {
     id: "qz-h6",
     mode: "hard",
+    topic: "Spraying detection evidence",
     evidence: "You must detect password spraying across an IdP and on-prem AD.",
     prompt: "Which evidence pair gives the best coverage?",
     options: [
-      { id: "a", text: "Sign-in failure logs aggregated per source IP + account lockout events (DS0002 / DS0028)" },
-      { id: "b", text: "EDR process launches + DNS queries" },
+      { id: "a", text: "Sign-in failures per source + lockout events" },
+      { id: "b", text: "Process launches from EDR + DNS queries" },
       { id: "c", text: "Badge-reader entries + VPN bandwidth charts" }
     ],
     answer: "a",
-    explanation: "Spraying lives in authentication telemetry. Failures per source and lockouts are the two canonical signals (see MITRE T1110.003 detection guidance)."
+    explanation: "Spraying lives in authentication telemetry: failures aggregated per source IP plus account lockouts (DS0002 / DS0028) catch it across IdP and AD. Process and DNS data (b) show the attacker’s toolkit, not the identity abuse; badges and bandwidth (c) never record a password guess."
   },
   {
     id: "qz-h7",
     mode: "hard",
+    topic: "OAuth app consent",
     evidence: "OAuth app “PDF Converter” requests Mail.ReadWrite + Mail.Send for ALL users; consent screen approved by end users.",
     prompt: "Risk and control?",
     options: [
-      { id: "a", text: "Fine — PDF converters naturally need full mailbox control" },
-      { id: "b", text: "Over-privileged third-party app — require admin consent workflow + least-privilege scopes" },
+      { id: "a", text: "Fine — converters need full mailbox control" },
+      { id: "b", text: "Over-privileged third-party app — enforce admin consent" },
       { id: "c", text: "Fix by shortening user password lifetime" }
     ],
     answer: "b",
-    explanation: "OAuth consent is an identity decision users are unequipped to make. Admin consent + scoped permissions keep T1550.001 (application access tokens) out of reach."
+    explanation: "Mail.ReadWrite + Mail.Send for ALL users, consented by end users — that is an over-privileged third-party app (b): route it through the admin consent workflow with least-privilege scopes (T1550.001 territory). A converter needs read, not rewrite-and-send (a), and password lifetime (c) never touches OAuth grants."
   }
 ];
 var GLOSSARY = [

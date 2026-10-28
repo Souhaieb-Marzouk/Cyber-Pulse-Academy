@@ -53,6 +53,7 @@
     radar: '<path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62a10 10 0 1 0 19.02-1.27"/><path d="M16.24 7.76a6 6 0 1 0-8.01 8.91"/><path d="M12 18h.01"/><path d="M17.99 11.66a6 6 0 0 1-2.22 4.75"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/>',
     'external-link': '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
     compass: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+    target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   };
 
@@ -105,7 +106,16 @@
     h += '<p class="obj-anchor">anchor: ' + esc(def.anchor) + '</p>';
     h += '</div>';
 
-    h += '<div class="obj-body">' + opts.body + '</div>';
+    /*
+     * QA-14 (R2): once verified, the exercise inputs lock — disabled fieldset
+     * removes descendants from the tab order; pointer-events:none stops
+     * pointer-driven widgets (native selects, buttons) from firing.
+     */
+    if (passed) {
+      h += '<div class="obj-body"><fieldset disabled class="obj-lock" aria-label="Objective verified — inputs locked"><legend class="sr-only">Objective verified — inputs locked</legend>' + opts.body + '</fieldset></div>';
+    } else {
+      h += '<div class="obj-body">' + opts.body + '</div>';
+    }
 
     if (!opts.twin) {
       h += '<div class="obj-actions">';

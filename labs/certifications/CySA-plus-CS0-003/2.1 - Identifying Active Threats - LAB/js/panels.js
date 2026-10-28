@@ -490,7 +490,6 @@ const GRID_TYPE_GROUPS = [
   { label: 'Behavioral — multi-step pattern', options: [{ id: 'behavior', label: 'behavior pattern' }] },
 ];
 const WATCH_ITEMS = ['c-hps', 'c-ip77', 'c-hash', 'c-mercer'];
-const TRUE_TIMELINE = ['t1', 't2', 't3', 't4'];
 
 function gridTabs(s) {
   const tabs = [
@@ -698,7 +697,9 @@ function gridTimeline(s) {
   const changes = TIMELINE_CHANGES.map(function (t) {
     const on = env.timeline.indexOf(t.id) !== -1;
     let evolve = '';
-    if (mode === 'hard' && on && TRUE_TIMELINE.indexOf(t.id) !== -1) {
+    // Adjustment select renders for EVERY selected change — gating it on the true
+    // set would leak which changes are real (a free correctness oracle for H5).
+    if (mode === 'hard' && on) {
       evolve =
         '<div class="evolve-wrap"><label class="evolve-label">forced adjustment:' +
         miniSelect({
@@ -1103,7 +1104,9 @@ function recordsQuiz(s, items, submitted, answered, allAnswered, mode) {
           const isPicked = picked === oi;
           const isCorrect = q.correct === oi;
           let cls = 'quiz-opt';
-          if (submitted && isCorrect) cls += ' q-correct';
+          // R3 color contract: only the picked option is highlighted after Check —
+          // green when correct, red when wrong. Never reveal the correct answer in green.
+          if (submitted && isPicked && isCorrect) cls += ' q-correct';
           else if (submitted && isPicked && !isCorrect) cls += ' q-wrong';
           else if (isPicked) cls += ' q-picked';
           return (
@@ -1278,6 +1281,46 @@ function renderCompletion(s) {
     return '<div class="stat-card"><p class="stat-v">' + esc(v) + '</p><p class="stat-k">' + esc(k) + '</p></div>';
   };
 
+  // R8: focus areas derived from this student's actual objective/quiz evidence
+  var stationLabel = { casefile: 'Case file', desk: 'Evidence desk', grid: 'ShareGrid', records: 'Records room' };
+  var focus = [];
+  objectives.forEach(function (o) {
+    var st = s.objectives[o.id];
+    if (!st || !st.done) {
+      focus.push({ head: 'Finish ' + o.id.replace('OBJ-', '') + ' · ' + o.title, detail: 'Open the ' + stationLabel[o.station] + ' and complete the task — it is still unstamped.' });
+      return;
+    }
+    if (st.attempts > 1) {
+      focus.push({ head: 'Re-read ' + o.id.replace('OBJ-', '') + ' · ' + o.title, detail: 'It took ' + st.attempts + ' checks to verify. Revisit the anchoring rule until it is reflexive: “' + o.anchor + '”' });
+    } else if (st.hints > 0) {
+      focus.push({ head: 'Re-solve ' + o.id.replace('OBJ-', '') + ' · ' + o.title + ' without hints', detail: 'You used ' + (st.hints === 1 ? 'the hint' : st.hints + ' hints') + ' here — redo the step cold to prove the concept stuck.' });
+    }
+  });
+  var missedQuiz = quizOf(mode).filter(function (q) { return s.quizAnswers[q.id] !== undefined && s.quizAnswers[q.id] !== q.correct; });
+  if (!quizSubmitted) {
+    focus.push({ head: 'Submit the knowledge check', detail: 'It is unsubmitted — worth 35% of the clearance, and the explanations teach the concepts behind every objective.' });
+  } else if (missedQuiz.length) {
+    missedQuiz.forEach(function (q) {
+      focus.push({ head: 'Review quiz item on ' + q.anchor.replace('OBJ-', ''), detail: 'You answered this one wrong. Where to study: “' + q.anchor + '” — then rework the matching panel.' });
+    });
+  }
+  var cleanSweep = focus.length === 0;
+  var focusShown = cleanSweep ? [] : focus.slice(0, 5);
+  var focusHtml =
+    '<div class="focus-box"><h3 class="focus-title">' + icon('crosshair', 'ic-14') + ' Focus areas — where to tighten up</h3>' +
+    (cleanSweep
+      ? '<p class="focus-clean">No weak spots in the evidence: every mission verified, none needed a retry or a hint, and the knowledge check is fully correct. To go deeper, work the “Where to go next” list below and re-run the other mode.</p>'
+      : '<p class="focus-sub">Derived from your own attempts, hints and quiz answers — not generic advice:</p>' +
+        '<ul class="focus-list">' +
+        focusShown
+          .map(function (f) {
+            return '<li class="focus-li">' + icon('arrow-right', 'ic-14 next-arrow') + '<span><strong>' + esc(f.head) + '.</strong> ' + esc(f.detail) + '</span></li>';
+          })
+          .join('') +
+        (focus.length > 6 ? '<li class="focus-more">+' + (focus.length - 5) + ' more — open the Mission board and the Knowledge check for the full list.</li>' : '') +
+        '</ul>') +
+    '</div>';
+
   return (
     '<div role="dialog" aria-modal="true" aria-label="Case close-out report" class="modal-bg modal-bg-anim" id="completion-dialog">' +
     '<div class="cert pop-in">' +
@@ -1302,6 +1345,7 @@ function renderCompletion(s) {
     stat('Hints used', String(rating.hintPenalty)) +
     '</div>' +
     '<div class="recap-wrap"><h3 class="mini-legend">Mastery recap by pillar</h3>' + recap + '</div>' +
+    focusHtml +
     '<div class="next-box"><h3 class="mini-legend">Where to go next</h3>' +
     '<ul class="next-list">' +
     '<li class="next-li">' + icon('arrow-right', 'ic-14 next-arrow') + ' Next lesson: turn intelligence into hunts — proactively search for the v2 indicators across 90 days of telemetry.</li>' +

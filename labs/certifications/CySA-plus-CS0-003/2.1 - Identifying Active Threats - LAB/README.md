@@ -1,4 +1,4 @@
-# 2.1 - Identifying Active Threats - LAB
+# The OSINT Bureau — CyberLab · CySA+ CS0-003 Lesson 2.1 (static edition)
 
 A faithful, fully self-contained static port of the "Identifying Active Threats"
 interactive practice lab (Case 2.1 — CRIMSON-CRATE). No build step, no server,

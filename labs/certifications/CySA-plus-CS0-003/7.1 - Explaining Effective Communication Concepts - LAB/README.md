@@ -1,4 +1,4 @@
-# 7.1 - Explaining Effective Communication Concepts - LAB
+# THE VULN BULLETIN — static lab
 
 An interactive practice lab for **CompTIA CySA+ CS0-003 · Lesson 7.1 — Explaining Effective Communication
 Concepts** (vulnerability management reporting: identify → assess → communicate → review). This is the
@@ -48,3 +48,26 @@ assets/fonts/       Geist + Geist Mono (woff2, bundled — no font CDN)
 
 No frameworks, no package.json, no build artifacts. JavaScript is ES2020, commented, data separated
 from logic.
+
+## Audit v3 (this build)
+
+This build includes the v3 adversarial-audit fixes, applied to both the original lab and this static
+port at root cause:
+
+- **Answer rotation (R4)** — quiz correct-answer positions now rotate across all items
+  (Medium `2,0,3,1,0,2`, Hard `3,0,2,0,3,1,2`); previously 6 of 7 Hard items had the correct answer
+  at position B.
+- **Option length discipline (R5)** — rebuilt items no longer let the correct answer stand out by
+  length; all options are comparable in structure and length.
+- **Candidate shuffling (R6)** — every matching/sorting/selection exercise (cycle steps, card routing,
+  metric bins, report types, queue reasons, risk register, comm-plan dropdowns, milestones, escalation
+  drill, participation degrees, buy-in drivers, framing lines, control update options) now shuffles its
+  candidate order once per session and re-shuffles on Reset, so display order never reveals the answer
+  key. Escalation decoys are no longer visually marked before selection (the teaching distinction still
+  appears after a pick, in the executed sequence).
+- **Focus areas in the completion report (R8)** — the final edition now includes "Focus areas — from
+  this run", derived from the student's actual quiz misses and objectives that needed extra checks or
+  hints (never generic filler).
+- Verified unchanged: answer lock + enforced next-question flow (R2), red-only wrong / green-only
+  correct highlighting (R3), popup close matrix (X / Cancel / ESC / backdrop), persistence +
+  reload-resume + confirmed Reset, zero console errors, zero external network requests.

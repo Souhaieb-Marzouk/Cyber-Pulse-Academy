@@ -243,7 +243,7 @@
       if (e.key === 'Escape') {
         e.preventDefault();
         if (resetOpen) { UISTATE.resetOpen = false; sync(); }
-        else { UISTATE.dismissedFor = labStore.get().mode; sync(); }
+        else { UISTATE.dismissedFor = labStore.get().mode; UISTATE.forceReport = false; sync(); }
         return;
       }
       if (e.key !== 'Tab') return;
@@ -263,7 +263,8 @@
 
   function isCompletionOpen() {
     var s = labStore.get();
-    return Boolean(s && s.mode && s.completedModes && s.completedModes[s.mode]) && UISTATE.dismissedFor !== s.mode;
+    var completed = Boolean(s && s.mode && s.completedModes && s.completedModes[s.mode]);
+    return Boolean(s && s.mode) && ((completed && UISTATE.dismissedFor !== s.mode) || UISTATE.forceReport);
   }
 
   // ── Sync: reconcile the DOM with the store + UISTATE ────────────────────────
@@ -446,6 +447,13 @@
   }
 
   document.addEventListener('click', function (e) {
+    // R7: click-outside closes the completion report (backdrop only — never the card)
+    if (e.target instanceof Element && e.target.id === 'completion-dialog') {
+      UISTATE.dismissedFor = labStore.get().mode;
+      UISTATE.forceReport = false;
+      sync();
+      return;
+    }
     var el = target(e);
     if (!el) return;
     var act = el.getAttribute('data-act');
@@ -457,6 +465,7 @@
     switch (act) {
       case 'start-mode': {
         UISTATE.completionFired = false;
+        UISTATE.forceReport = false;
         labStore.set(function (st) { return { ...st, mode: val }; });
         UISTATE.centerTab = 'desk';
         UISTATE.mobileTab = 'desk';
@@ -466,16 +475,19 @@
       }
       case 'switch-mode': {
         UISTATE.completionFired = false;
+        UISTATE.forceReport = false;
         labStore.set(function (st) { return { ...st, mode: val }; });
         UISTATE.missionsOpenId = null; // mission board remounts per mode (as original key={mode})
         break;
       }
       case 'open-completion':
-        UISTATE.dismissedFor = null;
+        // B1: the header button always opens the report (progress state) — never a silent no-op
+        UISTATE.forceReport = true;
         sync();
         break;
       case 'close-completion':
         UISTATE.dismissedFor = s.mode;
+        UISTATE.forceReport = false;
         sync();
         break;
       case 'open-reset':
@@ -488,6 +500,7 @@
         break;
       case 'reset-confirm':
         UISTATE.resetOpen = false;
+        UISTATE.forceReport = false;
         doReset();
         break;
       case 'aim-next': {
@@ -541,7 +554,11 @@
         break;
       case 'set-map':
         // chips that assign a value (intake classes, altitudes, known/new)
-        if (key && id != null && val) setMap(key, id, val);
+        // B1 toggle round-trip: clicking the active chip un-sets it (back to blank)
+        if (key && id != null && val) {
+          var cur = s.env[key] ? s.env[key][id] : undefined;
+          setMap(key, id, cur === val ? '' : val);
+        }
         break;
       case 'clip':
         doClip(id);

@@ -3,7 +3,6 @@
 // Overlays (stylebook / reset / completion / mobile sheet) all support the full
 // close matrix: X button, Cancel, ESC, and click on the overlay backdrop.
 
-// eslint-disable-next-line no-unused-vars
 const app = document.getElementById('app')
 
 // ephemeral UI state (never persisted — same as Radix dialog open state)
@@ -101,6 +100,8 @@ function dispatch(ds) {
     case 'open-sheet': return openModal('sheet')
 
     case 'check-obj': return A.checkObjective(ds.obj)
+    // plain store method (not a React hook) — rule misfires on the 'use' prefix
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     case 'hint': return A.useHint(ds.obj)
 
     case 'cycle-pick': {

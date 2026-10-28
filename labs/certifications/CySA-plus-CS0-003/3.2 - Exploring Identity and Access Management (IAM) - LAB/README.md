@@ -1,9 +1,14 @@
-# 3.2 - Exploring Identity and Access Management (IAM) - LAB
+# The Access Bureau — static practice lab
 
 An interactive, self-contained cybersecurity practice lab for
 **CompTIA CySA+ CS0-003 · Domain 3 · Lesson 3.2 — Exploring Identity and Access Management**.
 
 This is the static (no-build, no-server) edition of the lab: plain HTML + CSS + JS.
+**v3** — audited & fixed release: quiz options rebalanced (no length/format giveaways),
+correct-answer positions rotated, matching-desk dropdowns de-diagonalized, exam review
+color contract fixed (wrong = red only), completion report now includes evidence-derived
+focus areas, containment-tray DOM/state sync fix, 44px hit areas on switches/checkboxes/
+radios, exam header count corrected.
 
 ## Open it
 

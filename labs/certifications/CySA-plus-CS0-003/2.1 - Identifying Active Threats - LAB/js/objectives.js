@@ -232,9 +232,7 @@ const OBJECTIVES = [
         task: 'In the Source Rack, flag EVERY item that belongs to the Crimson Crate v2 case (there are 8), then attach the correct decisive-evidence token to each flagged item. Everything else is noise: scam claims, wrong-sector stories, spam, and context pieces.',
         anchor: 'Lesson detail: OSINT collection must be analyzed and validated — noise is the cost of open sources.',
         station: 'desk', hints: [
-            'Case-relevant: the researcher post, the trade article, the vendor blog, the access-sale thread, the staff dump, the kit commit, the WHOIS extract, the CERT bulletin.',
-            'Reject: the @CargoLeakz claim (unverified scam pattern), the hospital story (wrong sector), game-account spam, the crypto paste, and the landscape essay (context, not case evidence).',
-            'Tokens: technical samples → IOC match; CERT bulletin → official corroboration; sale thread + staff dump → targeting evidence; trade article → sector impact.',
+            'Work item by item: does it carry v2 evidence (samples, infrastructure, kit code, official corroboration) or show OUR staff being targeted and sold? Scam-pattern claims, wrong-sector stories, generic spam and pure trend pieces do not belong.',
         ],
         feedback: 'Eight of thirteen survived your sweep. This is the analyst\u2019s core skill: open sources are free, but relevance is expensive — and unverified claims about your own breach are handled as rumors, never as facts.',
         check: (env) => {
@@ -257,9 +255,7 @@ const OBJECTIVES = [
         task: 'In ShareGrid \u2192 Intake, set the exact observation class for all 10 case indicators (domain, ipv4, url, email, hash, tool ×2, cve, behavior). Near-misses are rejected. Extra clipped spans (the subject regex, the credential sample) may stay untyped — only the 10 campaign indicators are graded.',
         anchor: 'Lesson detail: shared platforms need correctly-typed "specific details" to automate correlation.',
         station: 'grid', hints: [
-            'Tool names are still plain observable strings → type "tool". The CVE ID gets its own "cve" class.',
-            'The two domains are both "domain"; the staging IP is "ipv4"; the harvest page is a full "url".',
-            'hps+track2 = domain; 198.51.100.77 = ipv4; /shiptrack/login URL = url; mercer email = email; sha256 = hash; Krateshipper + FleetNode = tool; CVE-2025-44107 = cve; sleep-then-beacon = behavior.',
+            'Plain observable strings still count — tool names get the "tool" class and the CVE ID gets "cve". Atomic = plain values (domain/ipv4/url/email/tool/cve); computed = hashes and regexes; behavioral = the multi-step timing pattern.',
         ],
         feedback: 'Ten correctly-typed observables are now machine-queryable. A mistyped class silently breaks automation — a "tool" in a domain blocklist is harmless, but a domain in a hash field is an undetectable ghost.',
         check: (env) => {
@@ -277,9 +273,7 @@ const OBJECTIVES = [
         task: 'In ShareGrid \u2192 Intake (confidence column): rate all 8 rated indicators high/medium/low, and flag exactly the two likely false-positive values.',
         anchor: 'Chapter canon: confidence levels and false positives — the antidote to indicator fatigue.',
         station: 'grid', hints: [
-            'Corroboration count drives confidence: WHOIS + advisory + vendor blog = high; single forum/repo claim = medium. The staging IP is corroborated by the v1 record and the vendor blog.',
-            'The shared newsletter CDN and the documentation-range scanner IP are your two false positives.',
-            'high: hps domain, staging IP, sha256, staff email. medium: track2, Krateshipper, FleetNode, sleep-then-beacon. FP flags: cdn.mailroute.net + 192.0.2.9.',
+            'Confidence follows corroboration: multi-source (v1 record + vendor blog + advisory) = high; single-source claims = medium. Two basket values are not attacker indicators at all — the shared newsletter CDN and the documentation-range scanner. Flag those as false positives.',
         ],
         feedback: 'Confidence scoring is what keeps your blocklist from eating the newsletter CDN. Every indicator you push downstream carries this rating — it is how one analyst\u2019s caution becomes the whole SOC\u2019s precision.',
         check: (env) => {
@@ -298,9 +292,7 @@ const OBJECTIVES = [
         task: 'In ShareGrid \u2192 ATT&CK Board (Hard set): map behaviors b2, b3, b4, b5 to exact technique IDs, then order the four along the attack chain.',
         anchor: 'Lesson detail: platforms expose methods AND their sequence — chain position tells you what comes next.',
         station: 'grid', hints: [
-            'The link-based harvest page is T1566.002 — the attachment variant (.001) belongs to v1.',
-            'Infrastructure preparation happens before any lure is sent.',
-            'b2 T1583.001 → b3 T1566.002 → b4 T1190 → b5 T1071.001, in that order.',
+            'The link-based harvest page is T1566.002 — the .001 attachment variant belongs to v1. Infrastructure is acquired BEFORE any lure is sent, and beacons come after the foothold; order b2…b5 accordingly.',
         ],
         feedback: 'A mapped chain is a predictive tool: if you see T1583.001 infrastructure spin up, you know what the next email will look like. That is how intelligence shifts a SOC from reactive to anticipatory.',
         check: (env) => {
@@ -319,9 +311,7 @@ const OBJECTIVES = [
         task: 'In ShareGrid \u2192 Timeline (Hard): select the 4 true v1→v2 changes AND pick the telemetry adjustment each change forces — all four adjustments must be correct.',
         anchor: 'Lesson detail: "track how they evolve" — evolution must translate into monitoring changes.',
         station: 'grid', hints: [
-            'True: new lookalike domain, new harvest page, narrowed targeting, appliance exploitation. The rest are unsupported.',
-            'Each true change forces a specific defensive adjustment — new infra → registrar/CT watch; new harvest page → proxy/mail-link defense; narrowed targets → role-targeted awareness; appliance exploit → patching.',
-            'Cloud audit logs adjust nothing in this campaign.',
+            'Only changes documented by the rack count — then translate each true change into the monitoring adjustment it forces (registrar/CT watching, proxy/mail-link defense, role-targeted awareness, appliance patching).',
         ],
         feedback: 'You converted a campaign diff into four concrete monitoring changes. That last mile — intelligence → tuning — is where most programs stall, and exactly what "staying ahead" means in practice.',
         check: (env) => {
@@ -338,9 +328,7 @@ const OBJECTIVES = [
         task: 'In ShareGrid \u2192 Dispatch Desk (TLP), assign the correct TLP 2.0 handling tag to all 5 outgoing artifacts.',
         anchor: 'Chapter canon: sharing platforms operate on trust — TLP rules make that trust enforceable.',
         station: 'grid', hints: [
-            'Ask for each: who may ever see this? Everyone → CLEAR. The sector community → GREEN. Named need-to-know → AMBER. Almost nobody → RED.',
-            'Raw staff credentials are as strict as it gets.',
-            'a1 GREEN, a2 RED, a3 AMBER, a4 CLEAR, a5 AMBER.',
+            'Ask per artifact: who may ever see it? Everyone → CLEAR; the sector community → GREEN; named need-to-know → AMBER; almost nobody → RED. Raw credentials are as strict as it gets.',
         ],
         feedback: 'One mislabeled artifact can leak staff PII to a foreign feed — or over-restrict a warning that peers needed yesterday. TLP fluency is what makes you a trustworthy node in the sharing network.',
         check: (env) => {
@@ -355,17 +343,17 @@ const OBJECTIVES = [
         task: 'In ShareGrid \u2192 Tripwire: build the two-clause detection rule (exact operators matter), then mark every log line that is a TRUE positive for Crimson Crate v2.',
         anchor: 'Lesson detail: monitoring active threats = tuned detections over the right data sources.',
         station: 'grid', hints: [
-            'Broad "contains shipment" would swallow legitimate parcel mail — use startswith on the exact lure prefix and equals on the exact domain.',
-            'Clause 1: dest_domain equals halvard-portal-secure[.]com. Clause 2: email_subject startswith "Shipment #".',
-            'True positives: the portal GET, the "Shipment #4471" mail, the track-two DNS query. Newsletter, legit carrier tracking, own-portal scanner and "Parcel update" lines are noise.',
+            'Broad "contains shipment" would swallow legitimate parcel mail — one clause needs EQUALS on the exact clone-portal domain, the other STARTSWITH on the documented lure prefix; then judge every log line against YOUR rule.',
         ],
         feedback: 'Your rule trips on the clone portal and the exact lure prefix while ignoring the newsletter CDN — precision detection with a rationale for every rejected line. That rationale is what you write in the tuning ticket.',
         check: (env) => {
             const r = env.rule;
-            const ok1 = r[0]?.field === 'dest_domain' && r[0]?.op === 'equals' && r[0]?.value === 'halvard-portal-secure[.]com';
-            const ok2 = r[1]?.field === 'email_subject' && r[1]?.op === 'startswith' && r[1]?.value === 'Shipment #';
-            if (!ok1 || !ok2)
-                return { pass: false, why: `Rule not precise enough${!ok1 ? ' — clause 1 must be dest_domain EQUALS halvard-portal-secure[.]com (broad matches cause false positives)' : ''}${!ok2 ? ' — clause 2 must be email_subject STARTSWITH "Shipment #" (the documented lure prefix, not any parcel mail)' : ''}.` };
+            // A detection rule (A AND B) is order-insensitive — clause ORDER must not matter,
+            // but both clauses must be exact (field + operator + value).
+            const domainClause = r.some((c) => c.field === 'dest_domain' && c.op === 'equals' && c.value === 'halvard-portal-secure[.]com');
+            const subjectClause = r.some((c) => c.field === 'email_subject' && c.op === 'startswith' && c.value === 'Shipment #');
+            if (!domainClause || !subjectClause)
+                return { pass: false, why: 'Rule not precise enough — one clause must be dest_domain EQUALS halvard-portal-secure[.]com (broad matches cause false positives), the other email_subject STARTSWITH "Shipment #" (the documented lure prefix, not any parcel mail). Clause order does not matter; precision does.' };
             return setEq(env.logCalls, ['L-A', 'L-C', 'L-G'])
                 ? { pass: true }
                 : { pass: false, why: 'Log triage wrong. True positives: connection to the clone portal, the exact "Shipment #4471" lure, the second lookalike domain query. Newsletter CDN, legitimate carrier tracking, our own scanner and generic parcel mail are noise.' };
@@ -377,9 +365,7 @@ const OBJECTIVES = [
         task: 'On the Case File \u2192 Response Board (Hard), order the six response actions from first to last.',
         anchor: 'Lesson detail: protecting operations — the order of controls matters as much as the controls.',
         station: 'casefile', hints: [
-            'Stop ongoing harm first; paperwork comes last; sharing happens only after sanitization.',
-            'Contain (block) before patching; hunt before you claim you are clean; enable monitoring; then share; then debrief.',
-            'Block → Patch → Retro-hunt → Monitor → Share → Debrief.',
+            'Stop ongoing harm first; paperwork comes last; sharing happens only after sanitization; contain before patching; retro-hunt before claiming clean.',
         ],
         feedback: 'Containment precedes remediation because an unblocked attacker keeps moving while you patch. Retro-hunting before claiming success, and sanitizing before sharing — sequence is strategy.',
         check: (env) => (seqEq(env.response, RESPONSE_CORRECT)
@@ -392,9 +378,7 @@ const OBJECTIVES = [
         task: 'On the Case File \u2192 Executive Brief (Hard): pick the strategic line the board needs, and the two residual risks worth stating.',
         anchor: 'Lesson detail: intelligence exists to "stay ahead of active threats and protect operations" — leadership decides with it.',
         station: 'casefile', hints: [
-            'A board needs posture and trend, not a to-do list and not one campaign update.',
-            'Residual risks must be about the protection you have NOT yet completed and the intel quality you depend on.',
-            'w2 is the strategic line; the appliance change-window gap and partner-intel quality are your two risks.',
+            'A board needs posture and trend, not a to-do list and not one campaign update. Residual risks must name protection NOT yet completed and the intel quality you depend on.',
         ],
         feedback: 'You gave leadership trend, posture, and honest residual risk — the strategic altitude of the same case file. That completes the loop: one intelligence product, three audiences, zero spin.',
         check: (env) => {

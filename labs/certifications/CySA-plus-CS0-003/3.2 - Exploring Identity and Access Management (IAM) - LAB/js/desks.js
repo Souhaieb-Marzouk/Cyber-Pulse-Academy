@@ -93,7 +93,7 @@
         var row = Bureau.ChoiceRow({
           id: 'term-' + t.id,
           label: el('span', { class: 'font-serif row-label-bold', text: t.label }),
-          options: TERM_OPTIONS,
+          options: byIds(TERM_OPTION_ORDER[t.id], TERM_OPTIONS), // R6: per-row shuffle (QA-103)
           value: s.env.terms[t.id] || '',
           onChange: function (v) {
             var terms = Object.assign({}, LabStore.getState().env.terms)
@@ -230,7 +230,7 @@
         typeRows.appendChild(Bureau.ChoiceRow({
           id: 'type-' + u,
           label: el('span', { class: 'font-mono row-label-bold', text: u }),
-          options: ACCOUNT_TYPE_OPTIONS,
+          options: byIds(ACCOUNT_TYPE_OPTION_ORDER[u], ACCOUNT_TYPE_OPTIONS), // R6: per-row shuffle (QA-103)
           value: s.env.accountTypes[u] || '',
           onChange: function (v) {
             var at = Object.assign({}, LabStore.getState().env.accountTypes)
@@ -344,11 +344,18 @@
           }
           seqList.appendChild(seqItems[id]) // appendChild moves existing nodes into order
         })
-        // drop removed nodes
+        // drop removed nodes — detach the li from the DOM too, or it lingers as a
+        // numbered ghost that no longer matches the validated state (QA-108)
         Object.keys(seqItems).forEach(function (id) {
-          if (seq.indexOf(id) < 0) { delete seqItems[id] }
+          if (seq.indexOf(id) < 0) {
+            if (seqItems[id].parentNode) seqItems[id].parentNode.removeChild(seqItems[id])
+            delete seqItems[id]
+          }
         })
-        if (seq.length === 0) {
+        // remove the empty-queue hint once real steps exist again
+        var emptyHint = seqList.querySelector('.seq-empty')
+        if (emptyHint && seq.length > 0) emptyHint.parentNode.removeChild(emptyHint)
+        if (seq.length === 0 && !emptyHint) {
           seqList.appendChild(el('li', { class: 'seq-empty font-mono', text: 'add steps from the tray →' }))
         }
         renumber()
@@ -427,7 +434,7 @@
       factorRows.appendChild(Bureau.ChoiceRow({
         id: 'factor-' + f.id,
         label: f.label,
-        options: FACTOR_OPTIONS,
+        options: byIds(FACTOR_OPTION_ORDER[f.id], FACTOR_OPTIONS), // R6: per-row shuffle (QA-103)
         value: s.env.factors[f.id] || '',
         onChange: function (v) {
           var fc = Object.assign({}, LabStore.getState().env.factors)
@@ -603,6 +610,14 @@
         if (nowFlagged && !hasIcon) c.insertBefore(el('span', { class: 'chip-flag', html: icon('Flag', 12) }), c.firstChild)
         if (!nowFlagged && hasIcon) hasIcon.remove()
       })
+      // the ticket status line shows the current SoD flag — keep it in sync
+      // (it previously only refreshed from the permission checkboxes: QA-107)
+      var selLineEl = document.querySelector('.perm-line')
+      if (selLineEl) {
+        var env = LabStore.getState().env
+        selLineEl.textContent = 'selected: ' + (env.clerkPerms.length ? env.clerkPerms.join(', ') : '—') +
+          ' · SoD flag: ' + (env.sodFlag || 'none')
+      }
     })
     root.appendChild(Bureau.BureauCard({
       icon: icon('Layers', 20),
@@ -853,7 +868,7 @@
             Bureau.ChoiceRow({
               id: 'pm-' + c.id,
               label: el('span', { class: 'mitre-label font-mono', text: 'attack' }),
-              options: PATTERN_OPTIONS,
+              options: byIds(PATTERN_OPTION_ORDER[c.id], PATTERN_OPTIONS), // R6: per-row shuffle (QA-103)
               value: s.env.patternMatch[c.id] || '',
               onChange: function (v) {
                 var pm = Object.assign({}, LabStore.getState().env.patternMatch)
@@ -878,7 +893,7 @@
         aaaRows.appendChild(Bureau.ChoiceRow({
           id: 'aaa-' + e.id,
           label: e.label,
-          options: AAA_OPTIONS,
+          options: byIds(AAA_OPTION_ORDER[e.id], AAA_OPTIONS), // R6: per-row shuffle (QA-103)
           value: s.env.aaaTags[e.id] || '',
           onChange: function (v) {
             var tags = Object.assign({}, LabStore.getState().env.aaaTags)

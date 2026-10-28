@@ -35,7 +35,7 @@
 
     var card = Bureau.BureauCard({
       icon: icon('GraduationCap', 20),
-      title: isMedium ? 'Final Exam — concept check (6 items)' : 'Final Exam — incident scenarios (7 items)',
+      title: isMedium ? 'Final Exam — concept check (7 items)' : 'Final Exam — incident scenarios (7 items)', // QA-106: medium has 7 items
       subtitle: isMedium
         ? 'Concept questions. Read carefully — the explanation after each answer is part of the lesson.'
         : 'Scenario triage. Each item needs an applied decision, not a definition.',
@@ -106,6 +106,10 @@
     items.forEach(function (q, i) {
       var chosen = s.quiz[q.id]
       var ok = chosen === q.answer
+      // R3/QA-105 color contract: the selected answer is the ONLY option-colored
+      // element — green when correct, red when wrong. The correct answer is
+      // never revealed in green on a wrong submission (it appears as plain
+      // labeled text — meaning carried by the label, not by color).
       var item = el('div', { class: 'review-item ' + (ok ? 'is-ok' : 'is-bad') },
         el('p', { class: 'review-q' },
           el('span', { class: 'review-qnum font-mono', text: 'Q' + (i + 1) + '.' }),
@@ -119,7 +123,7 @@
         var correctText = ''
         q.options.forEach(function (o) { if (o.id === q.answer) correctText = o.text })
         item.appendChild(el('p', { class: 'review-ans font-mono' },
-          'correct: ', el('span', { class: 'ans-ok', text: correctText })))
+          'correct: ', el('span', { class: 'ans-neutral', text: correctText })))
       }
       item.appendChild(el('p', { class: 'review-why' },
         el('strong', { class: 'font-serif', text: 'Why — ' }),
@@ -130,6 +134,31 @@
   }
 
   // ── ResultsModal (C7) ────────────────────────────────────────────────────────
+  // ── R8 (QA-104): focus areas derived from THIS run's evidence ────────────────
+  function focusAreas(mode) {
+    var s = LabStore.getState()
+    var areas = []
+    objectivesFor(mode).forEach(function (o) {
+      var t = s.tickets[o.id]
+      if (!t) return
+      var desk = (window.BureauSections && BureauSections.DESK_LABELS[o.desk]) || o.desk
+      if (t.attempts > 1) {
+        areas.push(o.id + ' · ' + o.title + ' — took ' + t.attempts + ' stamps (' + (t.attempts - 1) +
+          ' returned). Re-read the ' + desk + ' notes for it.')
+      } else if (t.hintsUsed > 0) {
+        areas.push(o.id + ' · ' + o.title + ' — solved with ' + t.hintsUsed +
+          ' hint' + (t.hintsUsed > 1 ? 's' : '') + '. Re-try it without opening the hint ledger.')
+      }
+    })
+    quizItems(mode).forEach(function (q) {
+      if (s.quiz[q.id] !== undefined && s.quiz[q.id] !== q.answer) {
+        areas.push('Exam · ' + (q.topic || q.id) + ' — wrong on “' + q.prompt +
+          '”. Re-read its “Why” note on the Final Exam desk.')
+      }
+    })
+    return areas.slice(0, 6) // keep the report readable
+  }
+
   function openResultsModal() {
     var s = LabStore.getState()
     var mode = s.mode
@@ -174,22 +203,40 @@
 
     var stampedCount = sc.items.filter(function (it) { return it.t && it.t.completed }).length
     var otherPosting = mode === 'medium' ? 'Lead Investigator (Hard)' : 'Analyst (Medium)'
+
+    // R8 (QA-104): the report must name the areas to focus on, derived from
+    // this run's stamps, hints and exam answers — not generic filler.
+    var areas = focusAreas(mode)
+    var focusBox
+    if (areas.length) {
+      var focusList = el('ul', { class: 'focus-list' })
+      areas.forEach(function (a) { focusList.appendChild(el('li', { text: a })) })
+      focusBox = el('div', { class: 'results-focus' },
+        el('p', { class: 'focus-title font-mono', text: 'Focus areas — from your stamps, hints and exam' }),
+        focusList,
+        el('p', { class: 'focus-note', text: 'Work these first when you revisit the chapter; everything else you nailed.' }))
+    } else {
+      focusBox = el('div', { class: 'results-focus focus-clean' },
+        el('p', { class: 'focus-title font-mono', text: 'Focus areas — from your stamps, hints and exam' }),
+        el('p', { class: 'focus-note', text: 'No weak areas detected: every objective stamped on the first attempt with no hints, and the exam is clean. Keep sharp with the Debrief’s detection logic and re-run the other posting.' }))
+    }
+
     var nextBox = el('div', { class: 'next-box' },
       el('p', { class: 'next-title font-serif', text: 'What to learn next' }),
       el('ul', { class: 'next-list' },
         el('li', {}, 'You stamped ', el('span', { class: 'font-mono next-strong', text: stampedCount + '/' + sc.items.length }), ' tickets and scored ', el('span', { class: 'font-mono next-strong', text: sc.correct + '/' + sc.quizTotal }), ' on the exam.'),
         el('li', { text: 'Read the Debrief desk — the detection logic there is the next step from “recognizing” to “engineering”.' }),
         el('li', { text: 'Verify every MITRE ID against attack.mitre.org (links in the Debrief).' }),
-        el('li', { text: 'Next in the course: CySA+ Domain 3 continues with logging, detection and response tooling.' }),
         el('li', {}, 'Try the other posting: use ', el('span', { class: 'font-mono next-strong', text: 'RESET' }), ' and pick the ' + otherPosting + ' card at intake.')))
 
     var closeBtn = Bureau.btn('default', null, 'results-close h44',
       icon('X', 16, 'mr-icon') + '<span>CLOSE THE CASE FILE</span>')
 
     var content = el('div', {},
-      el('p', { class: 'sr-only', text: 'Your score, star rating and objective recap grouped by mastery pillar.' }),
+      el('p', { class: 'sr-only', text: 'Your score, star rating, focus areas and objective recap grouped by mastery pillar.' }),
       scored,
       recap,
+      focusBox,
       nextBox,
       closeBtn)
 

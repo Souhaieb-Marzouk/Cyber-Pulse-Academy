@@ -393,6 +393,13 @@ const GLOSSARY = [
     { term: 'Indicator fatigue', def: 'Degraded detection quality caused by too many low-quality/stale indicators — avoided by confidence scoring and aging.' },
     { term: 'RMM', def: 'Remote Monitoring and Management — legitimate administrator tooling that attackers abuse for persistence and remote control (the fictional FleetNode Agent is one).' },
     { term: 'CTI lifecycle', def: 'Planning & direction → Collection → Processing → Analysis → Dissemination → Feedback.' },
+    { term: 'TTP', def: 'Tactics, Techniques, and Procedures — the "how" of an adversary\u2019s behavior; ATT&CK is the shared catalog that names them.' },
+    { term: 'SIEM', def: 'Security Information and Event Management — the central platform that collects and correlates your own log telemetry for detection.' },
+    { term: 'WAF', def: 'Web Application Firewall — inspects and filters HTTP traffic to an application; rules can "virtual-patch" a flaw until the real fix ships.' },
+    { term: 'CT log', def: 'Certificate Transparency log — a public, append-only record of every TLS certificate issued; new entries expose fresh infrastructure days before lures.' },
+    { term: 'IR', def: 'Incident Response — the structured handling of a confirmed or suspected security incident (contain, eradicate, recover, learn).' },
+    { term: 'DPO', def: 'Data Protection Officer — the role accountable for personal-data compliance; engaged whenever exposed credentials or PII surface.' },
+    { term: 'ASN', def: 'Autonomous System Number — a network operator\u2019s routing identity; "rotating the ASN" means re-homing the whole network, a drastic and disruptive move.' },
 ];
 // ── Quiz ─────────────────────────────────────────────────────────────────────
 const QUIZ_MEDIUM = [
@@ -414,9 +421,14 @@ const QUIZ_MEDIUM = [
     },
     {
         id: 'qm3', anchor: 'OBJ-M2', q: 'Which phase of the CTI lifecycle comes FIRST?',
-        options: ['Collection', 'Planning & direction', 'Processing', 'Analysis'],
+        options: [
+            'Raw data is pulled from the chosen sources',
+            'Requirements are defined before any data is gathered',
+            'Cleaned data is merged into one working picture',
+            'Analysts turn processed data into finished judgments',
+        ],
         correct: 1,
-        explain: 'Planning & direction defines the intelligence requirements (what do we need to know and why?) before anyone starts collecting — otherwise you drown in data. Collection without direction is hoarding; the later phases all depend on those requirements.',
+        explain: 'Planning & direction opens the lifecycle: intelligence requirements decide what to collect and why. The distractors describe the later phases — pulling raw data is Collection, cleaning and merging is Processing, turning data into judgments is Analysis — and none of them can start before the requirements exist, or you drown in undirected data.',
     },
     {
         id: 'qm4', anchor: 'OBJ-M9', q: 'What is the relationship between STIX and TAXII?',

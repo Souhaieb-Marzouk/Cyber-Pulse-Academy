@@ -8,6 +8,25 @@
 
 const STORAGE_KEY = 'vuln-bulletin-lab-v1'
 
+// ── per-session display shuffles (audit v3, R6) ─────────────────────────────
+// Mirrors src/lib/lab/shuffle.ts: exercise candidate lists are randomized ONCE
+// per session (stable across re-renders) and re-shuffled on RESET. Storage
+// keys/checks reference element ids, never positions, so this cannot desync
+// validation or persistence.
+const shuffleCache = new Map()
+function shuffled(key, items) {
+  const hit = shuffleCache.get(key)
+  if (hit) return hit
+  const arr = items.slice()
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  shuffleCache.set(key, arr)
+  return arr
+}
+function reshuffleShuffles() { shuffleCache.clear() }
+
 // safe storage wrapper — never throws
 function storageGet(key) {
   try { return window.localStorage.getItem(key) } catch { return null }
@@ -259,6 +278,7 @@ const actions = {
   note(msg) { store.patch({ lastEvent: msg }) },
 
   resetLab() {
+    reshuffleShuffles() // R6: re-shuffle every exercise's candidate order on reset
     store.state = defaultState()
     store.notify()
   },

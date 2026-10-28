@@ -292,23 +292,26 @@ const GLOSSARY = [
 ]
 
 // ── Quiz banks ────────────────────────────────────────────────────────────────
+// NOTE: regenerated mechanically from src/lib/lab/content.ts by the v3 audit
+// (QA-12 correct-answer rotation + QA-13 length discipline). Do not hand-edit;
+// re-generate to stay 1:1 with the original lab.
 const QUIZ_MEDIUM = [
   {
     id: 'QM-1', prompt: 'The three core activities vulnerability management reporting ties together are:',
-    options: ['Identify, assess, communicate', 'Scan, patch, reboot', 'Detect, respond, recover', 'Inventory, scan, procure'],
-    correct: 0,
+    options: ['Scan, patch, reboot', 'Detect, respond, recover', 'Identify, assess, communicate', 'Inventory, scan, procure'],
+    correct: 2,
     explanation: 'Reporting sits at the junction: findings are identified (scans), assessed (likelihood × impact), and communicated (audience-tailored reports). “Detect/respond/recover” belongs to incident response, not vulnerability management; the cycle closes with regular reviews.',
   },
   {
     id: 'QM-2', prompt: 'Which item belongs in a one-page executive brief?',
-    options: ['CVSS v3.1 vector strings for each finding in the queue', 'A trend chart, business impact in $, and a decision request', 'The full 10,000-line scanner export, unfiltered', 'Packet captures of exploit attempts against the portal'],
-    correct: 1,
+    options: ['A trend chart, business impact, and a decision request', 'CVSS v3.1 vector strings for every finding in the queue', 'Packet captures of exploit attempts against the public portal', 'The full scanner export, unfiltered, for board-level review'],
+    correct: 0,
     explanation: 'Leadership needs business terms, trend context and a concrete ask. Technical artifacts go to ops/SOC, not the board pack.',
   },
   {
     id: 'QM-3', prompt: 'Which of these is a QUANTITATIVE metric?',
-    options: ['“Reputational damage risk: high”', '“Exploitation likelihood: very likely”', '“Mean time to remediate: 45 days”', '“Expert judgment: the old firewall will hold”'],
-    correct: 2,
+    options: ['“Reputational damage risk: high”', '“Exploitation likelihood: very likely”', '“Expert judgment: the old firewall will hold”', '“Mean time to remediate: 45 days”'],
+    correct: 3,
     explanation: 'Quantitative metrics are numeric (45 days, 82%, 10.0). The others are qualitative judgments — useful, but a different bucket.',
   },
   {
@@ -319,14 +322,14 @@ const QUIZ_MEDIUM = [
   },
   {
     id: 'QM-5', prompt: 'Under a typical severity-based SLA policy, which pairing is correct?',
-    options: ['Critical → days (e.g. 7); Low → months (e.g. 180)', 'Critical → 180 days; Low → 7 days', 'All severities → 365 days', 'SLAs only apply to low findings'],
+    options: ['Critical in days; Low in months', 'Critical in months; Low in days', 'Shorter windows for lower severities', 'The same window for every severity'],
     correct: 0,
-    explanation: 'Remediation timelines scale with risk: the higher the severity, the shorter the committed window. Example values are internal policy choices — the concept is what CySA+ tests. (Simplified.)',
+    explanation: 'Remediation timelines scale with risk: the higher the severity, the shorter the committed window (e.g. Critical ≈ 7 days, Low ≈ 180). Example values are internal policy choices — the concept is what CySA+ tests. (Simplified.)',
   },
   {
     id: 'QM-6', prompt: 'What is the purpose of the quarterly control review?',
-    options: ['To confirm existing measures still work and implement updated ones for new vulnerabilities', 'To re-run last year’s audit and file the minutes without acting on them', 'To rewrite the entire security policy from scratch at every meeting', 'To replace monthly scanning, which would make reviews unnecessary'],
-    correct: 0,
+    options: ['Re-run last year’s audit and file the minutes unacted', 'Rewrite the entire security policy from scratch each meeting', 'Confirm existing measures still work; add updated ones', 'Replace monthly scanning, which would make reviews unnecessary'],
+    correct: 2,
     explanation: 'Regular reviews verify controls against fresh evidence and drive updated measures — that is how the management process stays effective. Filing minutes without action and policy rewrites both skip the “updated measures” half.',
   },
 ]
@@ -334,47 +337,66 @@ const QUIZ_MEDIUM = [
 const QUIZ_HARD = [
   {
     id: 'QH-1', prompt: 'The CISO asks: “Why should I care about this Log4j finding?” Best answer:',
-    options: ['“Because the scanner flagged it first on the wire this morning, ahead of the queue.”', '“It could halt order intake at ~$48k a day; approve Saturday’s window to close it.”', '“Because the CVSS vector AV:N/AC:L/PR:N makes it the top technical finding on paper.”', '“Because competitors likely share the flaw, and matching their patch pace protects us.”'],
-    correct: 1,
+    options: ['“Because the scanner flagged it first on this morning’s wire run.”', '“Because competitors likely share the flaw; matching their pace protects us.”', '“Because the CVSS vector AV:N/AC:L/PR:N tops the technical list on paper.”', '“It could halt orders at ~$48k a day; approve Saturday’s window.”'],
+    correct: 3,
     explanation: 'Buy-in = business impact + a decision-ready ask. Scanner flags, vector strings and competitor claims support the story, but only impact plus a concrete ask moves a budget.',
   },
   {
     id: 'QH-2', prompt: 'A risk record is 200 days old and its asset may be decommissioned. Professionally you:',
-    options: ['Escalate it as an open critical so leadership sees the worst case on record', 'Mark it unverified, order a re-scan and inventory check, then report that state', 'Close it as a false positive so the overdue counter stops flagging it', 'Hold it out of every report until someone confirms the host is really gone'],
-    correct: 1,
+    options: ['Mark it unverified, order a re-scan and inventory check, then report that state', 'Escalate it as an open critical so leadership sees the worst case on record', 'Close it as a false positive so the overdue counter stops flagging it', 'Hold it out of every report until someone confirms the host is really gone'],
+    correct: 0,
     explanation: 'Data freshness rule: verify, then report the verified state. Hiding or inflating both break the program’s credibility.',
   },
   {
     id: 'QH-3', prompt: 'Four documents exist: vector strings, host list + patch KB, due-diligence evidence pack, IOC watchlist. Correct routing?',
-    options: ['All four to the board — more evidence in the pack looks more diligent', 'Vectors and host list → ops; evidence pack → legal/compliance; IOCs → SOC', 'Everything to everyone by default — transparency beats careful filtering', 'Host list to all employees so each person can patch their own machine'],
-    correct: 1,
+    options: ['All four to the board — more evidence in the pack looks more diligent', 'Host list to all employees so each person can patch their own machine', 'Vectors and host list → ops; evidence pack → legal/compliance; IOCs → SOC', 'Default to sending everything to everyone — transparency beats any filtering'],
+    correct: 2,
     explanation: 'Stakeholder mapping: ops gets actionable technical detail, legal gets evidence of due diligence, SOC gets detection material. “Everything to everyone” hides signal.',
   },
   {
     id: 'QH-4', prompt: 'A flash advisory: zero-day actively exploited on your internet-facing VPN. First action per the plan?',
-    options: ['Add it to next month’s brief agenda so the board sees it with full context', 'Call the CISO via the immediate channel, then alert SOC, then publish the bulletin', 'Wait for the next monthly scan to confirm the finding before waking anyone up', 'Ask legal to review the wording of every notice before anyone is told anything'],
-    correct: 1,
+    options: ['Call the CISO via the immediate channel, then alert SOC, then publish the bulletin', 'Add it to next month’s brief agenda so the board sees it with full context', 'Wait for the next monthly scan to confirm the finding before waking anyone up', 'Ask legal to review the wording of every notice before anyone is told anything'],
+    correct: 0,
     explanation: 'The escalation path exists precisely for this: immediate channel → detection watch → emergency bulletin. Minutes matter during active exploitation.',
   },
   {
     id: 'QH-5', prompt: 'Which split is fully correct?',
-    options: ['Quant: CVSS 10.0 and MTTR 45 days · Qual: “very likely” and “severe disruption”', 'Quant: “patch coverage 82%” and “very likely” · Qual: “MTTR 45 days” and “CVSS 10.0”', 'Quant: “high reputational risk” and “aging firewall” · Qual: CVSS scores and overdue counts', 'Neither bucket applies: likelihood and impact must always be reported as raw numbers'],
-    correct: 0,
+    options: ['Quant: “patch coverage 82%” and “very likely” · Qual: “MTTR 45 days” and “CVSS 10.0”', 'Quant: “high reputational risk” and “aging firewall” · Qual: CVSS scores and overdue counts', 'Neither bucket applies: likelihood and impact must always be reported as raw numbers', 'Quant: CVSS 10.0 and MTTR 45 days · Qual: “very likely” and “severe disruption”'],
+    correct: 3,
     explanation: 'Numbers = quantitative; judgment descriptors = qualitative. Inverting the buckets (the middle options) is the classic exam trap. Reports blend both: numbers for rigor, judgment for meaning.',
   },
   {
     id: 'QH-6', prompt: 'The review shows a 19% phishing click-rate after annual training. Best remediation update:',
-    options: ['Make the annual course longer and repeat it twice a year instead of once', 'Run quarterly phishing simulations with a five-minute micro-training after each', 'Send a strongly-worded memo reminding staff that phishing is against policy', 'Block all external email at the perimeter so phishing becomes impossible'],
+    options: ['Make the annual course longer and run it twice a year instead of once', 'Run quarterly phishing simulations with a five-minute micro-training after each', 'Send a strongly-worded memo reminding staff that phishing is against policy', 'Block all external email at the perimeter so phishing becomes impossible'],
     correct: 1,
     explanation: 'Frequent, small, measured interventions beat longer marathons, memos and overblocking — and the simulation data feeds the next review. This is “implementation of updated measures” in practice.',
   },
   {
     id: 'QH-7', prompt: 'A draft board report contains no remediation deadline for a critical finding. Why is that a defect?',
-    options: ['It is not a defect — dates are engineering trivia the board never needs', 'Timelines are core report content: leadership must see when risk closes and what it approves', 'Only low findings have flexible dates; criticals are governed by the scanner alone', 'Deadline tracking belongs to legal; the report itself can stay silent on timing'],
-    correct: 1,
+    options: ['Not a defect — remediation dates are engineering trivia for the board', 'Only low findings have flexible dates; criticals follow the scanner alone', 'Timelines are core report content: leadership must see when risk closes', 'Deadline tracking belongs to legal; the report can stay silent on timing'],
+    correct: 2,
     explanation: 'Remediation timelines turn a risk statement into a governance commitment — and give the board a decision to approve. No dates, no accountability.',
   },
 ]
+
+
+// R8: focus topic per quiz item — where the student should re-read (see ui.js
+// completion modal). Mirrors Completion.tsx in the original lab.
+const QUIZ_FOCUS = {
+  'QM-1': 'the vulnerability management cycle — Front Page explainer',
+  'QM-2': 'executive brief content — Compose Room (OBJ-M4)',
+  'QM-3': 'quantitative vs qualitative metrics — Compose Room (OBJ-M5)',
+  'QM-4': 'data freshness: verify before reporting — Newsroom (OBJ-M9)',
+  'QM-5': 'severity-based remediation windows — Press Room (OBJ-M6)',
+  'QM-6': 'quarterly control reviews — Board Room (OBJ-M10)',
+  'QH-1': 'business-impact framing for leadership — Board Room (OBJ-H8)',
+  'QH-2': 'data freshness: verify before reporting — Newsroom (OBJ-H9)',
+  'QH-3': 'stakeholder routing — Compose Room (OBJ-M3) & Newsroom (OBJ-H1)',
+  'QH-4': 'the escalation path — Press Room (OBJ-H4)',
+  'QH-5': 'quantitative vs qualitative metrics — Compose Room (OBJ-M5)',
+  'QH-6': 'updated measures after review — Board Room (OBJ-H6)',
+  'QH-7': 'remediation timelines in reports — Press Room (OBJ-H7)',
+}
 
 // ── Objectives ────────────────────────────────────────────────────────────────
 const OBJECTIVES = [

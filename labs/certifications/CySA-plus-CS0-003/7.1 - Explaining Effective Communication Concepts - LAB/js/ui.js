@@ -348,7 +348,8 @@ function frontPageHTML(state) {
         }).join('')}
       </ol>
       <div class="chip-row">
-        ${CYCLE_STEPS.filter(s => !cycleOrder.includes(s.id)).map(s =>
+        ${/* R6: pool order shuffled per session — must not hint the sequence */ ''}
+        ${shuffled('m1-cycle', CYCLE_STEPS).filter(s => !cycleOrder.includes(s.id)).map(s =>
           `<button class="btn btn-wire" data-action="cycle-pick" data-step="${s.id}" data-fk="cycle-${s.id}">+ ${s.label}</button>`).join('')}
         <button class="btn btn-wire" data-action="cycle-clear" data-fk="cycle-clear" aria-label="Clear the ordering">${icon('rotate-ccw', 's3')} Clear</button>
         ${!done ? `<button class="btn btn-ink" data-action="check-obj" data-obj="OBJ-M1" data-fk="check-OBJ-M1" aria-label="Check assignment OBJ-M1">Check OBJ-M1</button>` : ''}
@@ -489,7 +490,8 @@ function queueBuilderHTML(state) {
     </ol>
     <p class="mono justify-label">Justify the #1 (pick exactly two):</p>
     <div class="chip-row reason-chips">
-      ${QUEUE_REASONS.map(r => `
+      ${/* R6: reason chips shuffled — correct pair must not lead the row */ ''}
+      ${shuffled('h1-reasons', QUEUE_REASONS).map(r => `
         <button class="btn btn-wire chip-toggle ${state.queueReasons.includes(r.id) ? 'chip-on-lime' : ''}"
           data-action="toggle-reason" data-reason="${r.id}" data-fk="qr-${r.id}" aria-pressed="${state.queueReasons.includes(r.id)}">${esc(r.label)}</button>`).join('')}
     </div>
@@ -533,7 +535,8 @@ function riskRegisterHTML(state) {
     <p class="panel-sub">Place each risk in its band. Read exposure, exploitability and unknowns.</p>
     <div class="register-grid">
       <div class="risk-col">
-        ${RISK_ITEMS.map(r => `
+        ${/* R6: risks shuffled per session — band-ordered list would reveal the banding */ ''}
+        ${shuffled('h5-risks', RISK_ITEMS).map(r => `
           <div class="risk-card">
             <p class="risk-card-id">${r.id}</p>
             <p class="risk-card-text">${esc(r.label)}</p>
@@ -576,7 +579,8 @@ function routingDeskHTML(state) {
     <p class="assign-label">Assignment OBJ-M3 · route all 10 content cards</p>
     <p class="panel-sub">Each card carries one piece of the monthly report. Send it to the desk that needs it — check each stakeholder’s “needs / avoids” line.</p>
     <div class="stack-2">
-      ${CONTENT_CARDS.map(c => {
+      ${/* R6: card order shuffled per session — cluster-by-desk order would reveal the key */ ''}
+      ${shuffled('m3-cards', CONTENT_CARDS).map(c => {
         const assigned = state.cardAssign[c.id] || ''
         const st = STAKEHOLDERS.find(s => s.id === assigned)
         return `<div class="routing-row">
@@ -603,7 +607,8 @@ function execBriefHTML(state, hard) {
     <p class="assign-label">${hard ? 'Capstone input · the one-page executive brief' : 'Assignment OBJ-M4 · the one-page executive brief'}</p>
     <p class="panel-sub">Pick exactly the three items leadership needs. The page holds three — no more.</p>
     <div class="chip-row">
-      ${EXEC_POOL.map(id => {
+      ${/* R6: pool shuffled — the three correct cards must not lead the list */ ''}
+      ${shuffled('m4-exec', EXEC_POOL).map(id => {
         const card = CONTENT_CARDS.find(c => c.id === id)
         const on = state.execCards.includes(id)
         return `<button class="btn btn-wire chip-toggle ${on ? 'chip-on-red' : ''}" data-action="toggle-exec" data-card="${id}" data-fk="exec-${id}" aria-pressed="${on}">
@@ -620,7 +625,8 @@ function metricsSorterHTML(state) {
     <p class="assign-label">Assignment OBJ-M5 · sort the metrics</p>
     <p class="panel-sub">Numbers are quantitative; judgments are qualitative. Sort all eight.</p>
     <div class="stack-15">
-      ${METRIC_CHIPS.map(m => {
+      ${/* R6: chips shuffled — quant/qual blocks must not sit in data order */ ''}
+      ${shuffled('m5-metrics', METRIC_CHIPS).map(m => {
         const bin = state.metricSort.quantitative.includes(m.id) ? 'Quant' : state.metricSort.qualitative.includes(m.id) ? 'Qual' : null
         return `<div class="metric-row">
           <span class="mono ${bin === 'Quant' ? 'bin-quant' : bin === 'Qual' ? 'bin-qual' : 'bin-none'}">${bin || 'unsorted'}</span>
@@ -642,10 +648,11 @@ function reportTypeMatchHTML(state) {
     <p class="assign-label">Assignment OBJ-M7 · name that report</p>
     <p class="panel-sub">Four purposes, four canonical report types. Match them.</p>
     <div class="stack-2">
-      ${REPORT_PURPOSES.map(p => `
+      ${/* R6: purposes shuffled; dropdown types shuffled — kills index alignment */ ''}
+      ${shuffled('m7-purposes', REPORT_PURPOSES).map(p => `
         <div class="routing-row">
           <span class="routing-label">“${esc(p.text)}”</span>
-          ${selectHTML({ value: state.reportTypeMatch[p.id] || '', options: REPORT_TYPES.map(r => ({ value: r.id, label: r.name })), placeholder: '— report type —', attrs: `data-action="set-report-type" data-purpose="${p.id}" data-fk="rt-${p.id}" aria-label="Report type for: ${esc(p.text)}"`, cls: 'report-select' })}
+          ${selectHTML({ value: state.reportTypeMatch[p.id] || '', options: shuffled('m7-types', REPORT_TYPES).map(r => ({ value: r.id, label: r.name })), placeholder: '— report type —', attrs: `data-action="set-report-type" data-purpose="${p.id}" data-fk="rt-${p.id}" aria-label="Report type for: ${esc(p.text)}"`, cls: 'report-select' })}
         </div>`).join('')}
     </div>
   </div>`
@@ -750,9 +757,10 @@ function commPlanHTML(state, hard) {
         return `<div class="comm-card">
           <p class="comm-name">${esc(c.name)}</p>
           <div class="plan-grid">
-            ${planSelectHTML('Audience', st.audience || '', AUDIENCES, `data-action="set-comm" data-comm="${c.id}" data-field="audience" data-fk="ca-${c.id}"`)}
-            ${planSelectHTML('Cadence', st.cadence || '', CADENCES, `data-action="set-comm" data-comm="${c.id}" data-field="cadence" data-fk="cc-${c.id}"`)}
-            ${planSelectHTML('Method', st.method || '', METHODS, `data-action="set-comm" data-comm="${c.id}" data-field="method" data-fk="cm-${c.id}"`)}
+            ${/* R6: dropdown options shuffled per session — kills row i → option i alignment */ ''}
+            ${planSelectHTML('Audience', st.audience || '', shuffled('m8-aud', AUDIENCES), `data-action="set-comm" data-comm="${c.id}" data-field="audience" data-fk="ca-${c.id}"`)}
+            ${planSelectHTML('Cadence', st.cadence || '', shuffled('m8-cad', CADENCES), `data-action="set-comm" data-comm="${c.id}" data-field="cadence" data-fk="cc-${c.id}"`)}
+            ${planSelectHTML('Method', st.method || '', shuffled('m8-met', METHODS), `data-action="set-comm" data-comm="${c.id}" data-field="method" data-fk="cm-${c.id}"`)}
           </div>
         </div>`
       }).join('')}
@@ -767,7 +775,8 @@ function milestonePlannerHTML(state) {
     <p class="assign-label">Assignment OBJ-H7 · W-01 milestone chain</p>
     <p class="panel-sub">Order the four milestones (click to add, arrows to reorder) and set each deadline — from containment to verified closure.</p>
     <div class="chip-row">
-      ${MILESTONES.filter(m => !order.includes(m.id)).map(m =>
+      ${/* R6: milestone pool shuffled — chronological display order reveals the chain */ ''}
+      ${shuffled('h7-pool', MILESTONES).filter(m => !order.includes(m.id)).map(m =>
         `<button class="btn btn-wire chip-toggle" data-action="add-milestone" data-milestone="${m.id}" data-fk="ma-${m.id}">+ ${esc(m.label)}</button>`).join('')}
       ${order.length > 0 ? `<span class="mono placed-left">${4 - order.length} left to place</span>` : ''}
     </div>
@@ -797,8 +806,11 @@ function escalationDrillHTML(state) {
     <div class="flash-box"><strong>FLASH 06:12 —</strong> Vendor advisory + CISA alert: zero-day RCE on our VPN appliance model, exploited in the wild. The appliance is internet-facing. The monthly brief is 26 days away. The plan’s escalation path is on the wall — execute it.</div>
     <p class="panel-sub">Click response actions in the order you would execute them. Wrong picks teach — but the drill grades the exact sequence of the three correct steps.</p>
     <div class="chip-row">
-      ${ESCALATION_STEPS.filter(st => !escalation.includes(st.id)).map(st => `
-        <button class="btn btn-wire chip-toggle step-btn ${st.decoy ? 'step-decoy' : ''}" data-action="add-escalation" data-step="${st.id}" data-fk="es-${st.id}">
+      ${/* R6: pool shuffled AND decoys no longer styled differently before selection
+           (the dashed border marked decoys in advance — a giveaway; the executed
+           sequence below still teaches the decoy lesson AFTER a pick) */ ''}
+      ${shuffled('h4-steps', ESCALATION_STEPS).filter(st => !escalation.includes(st.id)).map(st => `
+        <button class="btn btn-wire chip-toggle step-btn" data-action="add-escalation" data-step="${st.id}" data-fk="es-${st.id}">
           ${st.id === 'ES-1' ? icon('phone-call', 's35') : ''}${st.id === 'ES-3' ? icon('megaphone', 's35') : ''}${esc(st.label)}
         </button>`).join('')}
     </div>
@@ -853,7 +865,8 @@ function controlReviewHTML(state, hard) {
             <div class="update-box">
               <p class="mono update-label">Choose the updated measure:</p>
               <div class="stack-15">
-                ${c.updateOptions.map(u => `
+                ${/* R6: update options shuffled — correct option must not lead every list */ ''}
+                ${shuffled(`upd-${c.id}`, c.updateOptions).map(u => `
                   <button class="btn btn-wire chip-toggle ${state.reviewUpdates[c.id] === u.id ? 'chip-on-lime' : ''}" data-action="set-review-update" data-ctl="${c.id}" data-update="${u.id}" data-fk="ru-${c.id}-${u.id}" aria-pressed="${state.reviewUpdates[c.id] === u.id}">${esc(u.label)}</button>`).join('')}
               </div>
             </div>` : ''}
@@ -879,7 +892,7 @@ function participationDeskHTML(state) {
       ${PARTICIPATION_ROWS.map(r => `
         <div class="routing-row">
           <span class="particip-label">${esc(r.label)}</span>
-          ${selectHTML({ value: state.participation[r.id] || '', options: PARTICIPATION_OPTIONS.map(o => ({ value: o.id, label: o.label })), placeholder: '— degree —', attrs: `data-action="set-participation" data-role="${r.id}" data-fk="pt-${r.id}" aria-label="Participation degree for ${esc(r.label)}"`, cls: 'particip-select' })}
+          ${selectHTML({ value: state.participation[r.id] || '', options: shuffled('m11-degrees', PARTICIPATION_OPTIONS).map(o => ({ value: o.id, label: o.label })), placeholder: '— degree —', attrs: `data-action="set-participation" data-role="${r.id}" data-fk="pt-${r.id}" aria-label="Participation degree for ${esc(r.label)}"`, cls: 'particip-select' })}
         </div>`).join('')}
     </div>
   </div>`
@@ -892,7 +905,8 @@ function buyInDeskHTML(state, hard) {
       ? '<div class="flash-box"><strong>CFO:</strong> “Patch windows cost money and downtime. Why should I sign this? Make it quick.” Assemble your three-item response package and choose the one framing line you open with.</div>'
       : '<p class="panel-sub">Pick the three drivers that genuinely earn leadership buy-in.</p>'}
     <div class="buyin-grid">
-      ${BUYIN_OPTIONS.map(b => {
+      ${/* R6: drivers + framing lines shuffled — correct picks must not lead each list */ ''}
+      ${shuffled('m12-buyin', BUYIN_OPTIONS).map(b => {
         const on = state.buyIn.includes(b.id)
         return `<button class="btn btn-wire chip-toggle ${on ? 'chip-on-lime' : ''}" data-action="toggle-buyin" data-buyin="${b.id}" data-fk="bi-${b.id}" aria-pressed="${on}">
           <span class="mono chip-id">${b.id}</span>${esc(b.label)}</button>`
@@ -903,7 +917,7 @@ function buyInDeskHTML(state, hard) {
       <div class="framing-block">
         <p class="mono framing-label">Your opening line:</p>
         <div class="stack-15">
-          ${FRAMING_LINES.map(f => `
+          ${shuffled('h8-framing', FRAMING_LINES).map(f => `
             <button class="btn btn-wire chip-toggle framing-btn ${state.framing === f.id ? 'chip-on-red' : ''}" data-action="set-framing" data-framing="${f.id}" data-fk="fr-${f.id}" aria-pressed="${state.framing === f.id}">${esc(f.label)}</button>`).join('')}
         </div>
       </div>` : ''}
@@ -1125,6 +1139,27 @@ function completionModalHTML(state) {
   const objs = OBJECTIVES_BY_MODE(mode)
   const passedObjs = objs.filter(o => state.checks[o.id] && state.checks[o.id].passed)
   const stats = computeStars(state, mode)
+  const bank = mode === 'medium' ? QUIZ_MEDIUM : QUIZ_HARD
+
+  // R8: focus areas derived from ACTUAL performance evidence — quiz misses +
+  // objectives that took more than one check or a hint. Empty evidence → say so.
+  const SECTION_LABEL = { front: 'Front Page', newsroom: 'Newsroom', compose: 'Compose Room', press: 'Press Room', board: 'Board Room' }
+  const missedQuiz = bank.filter(q => state.quizAnswers[q.id] !== undefined && state.quizAnswers[q.id] !== q.correct)
+  const laboredObjs = objs.filter(o => {
+    const c = state.checks[o.id]
+    return c && c.passed && (c.attempts > 1 || c.hintsUsed > 0)
+  })
+  const focusItems = [
+    ...missedQuiz.map(q => `Quiz ${q.id} — brush up ${QUIZ_FOCUS[q.id] || 'this lesson area'}.`),
+    ...laboredObjs.map(o => {
+      const c = state.checks[o.id]
+      const bits = []
+      if (c.attempts > 1) bits.push(`${c.attempts} checks`)
+      if (c.hintsUsed > 0) bits.push(`${c.hintsUsed} hint${c.hintsUsed > 1 ? 's' : ''}`)
+      return `${o.id.replace('OBJ-', '')} took ${bits.join(' + ')} — re-read the ${SECTION_LABEL[o.section] || 'desk'} feedback note for “${o.title.replace(/\.$/, '').slice(0, 72)}”.`
+    }),
+  ]
+
   const recap = ['P1', 'P2', 'P3', 'P4'].map(p => ({ p, items: passedObjs.filter(o => o.pillar === p) }))
   return `<div class="modal-overlay" data-overlay="completion">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="completion-title">
@@ -1142,6 +1177,13 @@ function completionModalHTML(state) {
           ${[1, 2, 3, 4, 5].map(i => `<span class="star ${i <= stats.stars ? 'star-on' : ''}">${icon('star', 's7')}</span>`).join('')}
         </div>
         <p class="stars-note">${stats.stars === 5 ? 'Flawless edition.' : 'Stars reward first-attempt accuracy and frugal hint use. Reset and chase the clean proof if you like.'}</p>
+      </div>
+
+      <div class="focus-areas">
+        <p class="mono focus-kicker">${icon('crosshair', 's35')} Focus areas — from this run</p>
+        ${focusItems.length > 0
+          ? `<ul class="list-disc focus-ul">${focusItems.map(f => `<li>${esc(f)}</li>`).join('')}</ul>`
+          : '<p class="focus-none">None — every objective passed first try with no hints, and the quiz is clean. Chase a five-star reset, or try the other edition.</p>'}
       </div>
 
       <div>

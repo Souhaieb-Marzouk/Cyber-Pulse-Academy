@@ -27,7 +27,7 @@
   'use strict';
 
   const STORAGE_KEY = 'cyberlab-cysa-cs0-003-l9-1-v1';
-  const STATE_VERSION = 2;
+  const STATE_VERSION = 3;
 
   /* ───────────────────────── Pillars (types.ts) ─────────────────────────── */
 
@@ -161,7 +161,7 @@
     {
       id: 'A-ACCT', label: 'Windows Security 4720', source: 'SIEM (FSV-01)', time: '11:41', clock: 'UTC',
       detail: 'Local account "svc_patch" created and added to Administrators on FSV-01.',
-      core: true, why: 'Create Account: Local Account (T1136.001) — persistence + privilege.',
+      core: true, why: 'Create Account: Local Account (T1136.001) — persistence (and privilege where the account is privileged).',
     },
     {
       id: 'A-ENC', label: 'Backup agent log', source: 'Backup agent (FSV-01)', time: '02:13', clock: 'UTC',
@@ -207,13 +207,13 @@
 
   const CHAIN_TECHNIQUES = [
     { id: 'T1566.002', name: 'Phishing: Spearphishing Link', tactic: 'Initial Access' },
-    { id: 'T1078', name: 'Valid Accounts', tactic: 'Defense Evasion, Persistence, Privilege Escalation, Initial Access' },
+    { id: 'T1190', name: 'Exploit Public-Facing Application', tactic: 'Initial Access' },
+    { id: 'T1078', name: 'Valid Accounts', tactic: 'Stealth, Persistence, Privilege Escalation, Initial Access' },
     { id: 'T1003.001', name: 'OS Credential Dumping: LSASS Memory', tactic: 'Credential Access' },
+    { id: 'T1110', name: 'Brute Force', tactic: 'Credential Access' },
     { id: 'T1053.005', name: 'Scheduled Task/Job: Scheduled Task', tactic: 'Execution, Persistence, Privilege Escalation' },
     { id: 'T1021.002', name: 'Remote Services: SMB/Windows Admin Shares', tactic: 'Lateral Movement' },
     { id: 'T1486', name: 'Data Encrypted for Impact', tactic: 'Impact' },
-    { id: 'T1190', name: 'Exploit Public-Facing Application', tactic: 'Initial Access' },
-    { id: 'T1110', name: 'Brute Force', tactic: 'Credential Access' },
   ];
 
   const CHAIN_CORRECT = {
@@ -302,28 +302,28 @@
   const TIMELINE_HARD_CANONICAL = ['E-PHISH', 'E-VPN', 'E-LSASS', 'E-TASK', 'E-SMB', 'E-C2', 'E-CLR', 'E-ENC'];
 
   const H3_PATIENTS = [
-    { id: 'WS-FIN-14', label: 'WS-FIN-14 — Dana\'s finance workstation' },
     { id: 'JH-01', label: 'JH-01 — the jump host' },
-    { id: 'FSV-01', label: 'FSV-01 — the file server' },
+    { id: 'WS-FIN-14', label: 'WS-FIN-14 — Dana\'s finance workstation' },
     { id: 'VPN-GW', label: 'The VPN gateway itself' },
+    { id: 'FSV-01', label: 'FSV-01 — the file server' },
   ];
   const H3_VECTORS = [
-    { id: 'phish', label: 'Spearphishing link (T1566.002)' },
-    { id: 'exploit', label: 'Exploited VPN appliance (T1190)' },
-    { id: 'brute', label: 'Brute-forced RDP (T1110)' },
     { id: 'insider', label: 'Malicious insider' },
+    { id: 'phish', label: 'Spearphishing link (T1566.002)' },
+    { id: 'brute', label: 'Brute-forced RDP (T1110)' },
+    { id: 'exploit', label: 'Exploited VPN appliance (T1190)' },
   ];
   const H3_DWELLS = [
-    { id: 'd1', label: '14h 03m' },
-    { id: 'd2', label: '16h 26m' },
     { id: 'd3', label: '17h 12m' },
+    { id: 'd1', label: '14h 03m' },
     { id: 'd4', label: '22h 40m' },
+    { id: 'd2', label: '16h 26m' },
   ];
   const H3_CLEARED = [
-    { id: 'c1', label: 'FSV-01 Security audit log (event 1102, 02:05 UTC)' },
-    { id: 'c2', label: 'JH-01 application log' },
-    { id: 'c3', label: 'The VPN gateway auth log' },
     { id: 'c4', label: 'Nothing was cleared' },
+    { id: 'c1', label: 'FSV-01 Security audit log (event 1102, 02:05 UTC)' },
+    { id: 'c3', label: 'The VPN gateway auth log' },
+    { id: 'c2', label: 'JH-01 application log' },
   ];
 
   /* ───────────────────────── Containment console ────────────────────────── */
@@ -388,10 +388,10 @@
     { id: 'H5-M4', label: 'Dana\'s workstation — reimaged on day one' },
   ];
   const H5_STEPS = [
-    { id: 'H5-S1', label: 'Credential rotation scope was too narrow — svc_backup was never reset' },
     { id: 'H5-S2', label: 'Not enough antivirus scans were run' },
-    { id: 'H5-S3', label: 'The rebuild used the wrong Windows version' },
     { id: 'H5-S4', label: 'The ransom note was deleted too early' },
+    { id: 'H5-S1', label: 'Credential rotation scope was too narrow — svc_backup was never reset' },
+    { id: 'H5-S3', label: 'The rebuild used the wrong Windows version' },
   ];
 
   /* ───────────────────────── Recovery console ───────────────────────────── */
@@ -437,8 +437,8 @@
   ];
   const H6_STEPS_CANONICAL = ['HS1', 'HS2', 'HS3', 'HS4', 'HS5', 'HS6'];
   const H6_REJECTS = [
-    { id: 'HR-SKIP', label: 'Skip the hash — the vendor vouched for the copy', why: 'Vouching is not verification. Unprovable integrity undermines the whole restoration — and any legal use.' },
     { id: 'HR-FAST', label: 'Restore straight to production to save a day', why: 'Restoring to unrebuilt, unmonitored systems is how day-36 re-infections happen.' },
+    { id: 'HR-SKIP', label: 'Skip the hash — the vendor vouched for the copy', why: 'Vouching is not verification. Unprovable integrity undermines the whole restoration — and any legal use.' },
   ];
 
   /* ───────────────────────── Debrief / prevention ───────────────────────── */
@@ -451,14 +451,14 @@
   ];
 
   const CONTROL_OPTIONS = [
-    { id: 'M1017', label: 'M1017 — User Training', good: true },
-    { id: 'M1032', label: 'M1032 — Multi-factor Authentication', good: true },
     { id: 'M1030', label: 'M1030 — Network Segmentation', good: true },
-    { id: 'M1053', label: 'M1053 — Data Backup', good: true },
-    { id: 'M1021', label: 'M1021 — Restrict Web-Based Content', good: true },
     { id: 'M1049', label: 'M1049 — Antivirus/Antimalware', good: false },
-    { id: 'M1041', label: 'M1041 — Encrypt Sensitive Information', good: false },
+    { id: 'M1017', label: 'M1017 — User Training', good: true },
+    { id: 'M1053', label: 'M1053 — Data Backup', good: true },
     { id: 'M1027', label: 'M1027 — Password Policies', good: false },
+    { id: 'M1032', label: 'M1032 — Multi-factor Authentication', good: true },
+    { id: 'M1021', label: 'M1021 — Restrict Web-Based Content', good: true },
+    { id: 'M1041', label: 'M1041 — Encrypt Sensitive Information', good: false },
   ];
 
   const LESSON_CORRECT = { RC1: 'M1017', RC2: 'M1032', RC3: 'M1030', RC4: 'M1053' };
@@ -506,18 +506,18 @@
     'H9-A6': 'rehearse',
   };
   const H9_ROOTS = [
-    { id: 'H9-R1', label: 'A zero-day exploit in the VPN appliance' },
+    { id: 'H9-R1', label: 'A zero-day exploit in the VPN appliance that bypassed every control' },
     { id: 'H9-R2', label: 'One phished credential + no MFA + a flat network + production-reachable backups' },
-    { id: 'H9-R3', label: 'Deliberate insider sabotage by a finance employee' },
-    { id: 'H9-R4', label: 'An unpatched file server exploited remotely' },
+    { id: 'H9-R3', label: 'Deliberate insider sabotage by a finance employee with stolen admin rights' },
+    { id: 'H9-R4', label: 'An unpatched file server exploited remotely by commodity malware' },
   ];
   const H9_RISKS = [
+    { id: 'H9-K2', label: 'Risk fully eliminated — the case is closed forever', good: false },
     {
       id: 'H9-K1',
       label: 'Risk reduced, not eliminated: MFA + segmentation verified, offline backups in place, residual risk documented, tabletop scheduled, lookalike registrations monitored',
       good: true,
     },
-    { id: 'H9-K2', label: 'Risk fully eliminated — the case is closed forever', good: false },
     { id: 'H9-K3', label: 'No further action needed — we were just unlucky this time', good: false },
   ];
 
@@ -526,6 +526,7 @@
   const QUIZ_MEDIUM = [
     {
       id: 'MQ1',
+      topic: 'Order of volatility',
       prompt: 'You get 10 minutes alone with a live, infected server. Per the order of volatility, what do you collect FIRST?',
       options: ['The firewall log export', 'The disk image', 'The offsite tape backup', 'A RAM capture'],
       correct: 3,
@@ -533,37 +534,41 @@
     },
     {
       id: 'MQ2',
+      topic: 'Chain of custody',
       prompt: 'What is the chain of custody for?',
       options: [
-        'Tracking disk space used by evidence copies',
-        'Listing which analyst works which shift',
-        'Documenting every person and transfer of an evidence item so integrity is provable',
-        'Encrypting evidence at rest',
+        'Tracking the storage space consumed by evidence copies',
+        'Recording every person and transfer that touches evidence',
+        'Listing which analyst is assigned to which shift',
+        'Encrypting every evidence copy while it is stored',
       ],
-      correct: 2,
-      explanation: 'Chain of custody records who collected, handled, transferred, and stored each item, when, and why. Break the chain and the defense can challenge the evidence\'s integrity — in court or in an HR hearing.',
+      correct: 1,
+      explanation: 'Chain of custody is the documented trail of everyone who handled an item and every transfer — that trail is what lets anyone later prove the evidence was not altered. It is not about storage space (A), staffing rosters (C), or encryption (D); those may live elsewhere in the case file, but only the custody trail proves integrity.',
     },
     {
       id: 'MQ3',
+      topic: 'IR phases',
       prompt: '"Restore from the verified vault backup onto rebuilt hosts and monitor for 14 days." Which phase is this?',
       options: ['Recovery', 'Eradication', 'Containment', 'Analysis'],
       correct: 0,
-      explanation: 'That is Recovery/Restoration: returning systems to production from trusted sources, validating, and watching for re-infection. Eradication removes the footholds; recovery brings the business back safely.',
+      explanation: 'That is Recovery/Restoration: returning systems to production from trusted sources, validating, and watching for re-infection. Eradication (B) removes the footholds BEFORE this line; Containment (C) limits damage; Analysis (D) reconstructs what happened.',
     },
     {
       id: 'MQ4',
+      topic: 'Evidence preservation',
       prompt: 'Why is "pull the plug" usually the WRONG first response to a live compromise?',
       options: [
-        'It voids the hardware warranty',
-        'It destroys volatile memory evidence and any chance to capture keys or malware state',
-        'It triggers the ransomware faster',
-        'It is slower than reimaging',
+        'It voids the hardware warranty on the machine',
+        'It alerts the attacker to the investigation',
+        'It wipes volatile memory holding key evidence',
+        'It is slower than reimaging from golden media',
       ],
-      correct: 1,
-      explanation: 'Power loss wipes RAM — often the richest evidence source and sometimes the only place attacker tooling is recoverable. Containment is network isolation or account disablement, not a power switch.',
+      correct: 2,
+      explanation: 'RAM dies the instant power cuts — and RAM often holds the only recoverable copy of attacker tooling, keys, or malware state. Network isolation keeps the host powered while cutting access. Warranty (A), tipping off the attacker (B), and speed (D) are not the reason forensic responders avoid the plug.',
     },
     {
       id: 'MQ5',
+      topic: 'Lessons learned',
       prompt: 'Which item belongs in a lessons-learned (post-incident) report?',
       options: [
         'The name of the employee who clicked, for blame',
@@ -572,106 +577,114 @@
         'Updated playbooks and controls mapped to root causes',
       ],
       correct: 3,
-      explanation: 'Lessons learned turn the incident into prevention: root-cause findings, control gaps, updated playbooks/runbooks, training, and detection improvements — blame-free and specific.',
+      explanation: 'Lessons learned turn the incident into prevention: root-cause findings, control gaps, updated playbooks/runbooks, training, and detection improvements — blame-free and specific. Naming the clicker for blame (A) poisons the reporting culture; publishing attacker tooling (B) is a threat-intel action, not the report\'s goal; closing the book (C) wastes the tuition you already paid.',
     },
     {
       id: 'MQ6',
+      topic: 'Clock normalization',
       prompt: 'Your EDR agent\'s clock is one hour behind the VPN gateway\'s. What must you do before correlating?',
       options: [
-        'Trust the EDR clock — endpoints are more accurate',
-        'Average the two clocks',
-        'Normalize all timestamps to one reference (e.g., UTC/NTP) before sequencing',
-        'Ignore timestamps entirely',
+        'Normalize every timestamp to UTC before correlating',
+        'Trust the endpoint clock — agents are more accurate',
+        'Average the two clocks and note the midpoint',
+        'Ignore the offset; tools usually auto-correct',
       ],
-      correct: 2,
-      explanation: 'Uncorrected clock offsets corrupt timelines and can invert cause and effect. Sync sources to NTP, note each source\'s offset, normalize to UTC, then correlate. Time integrity is evidence integrity.',
+      correct: 0,
+      explanation: 'Uncorrected offsets invert cause and effect: 09:22 local is 10:22 UTC — AFTER the 10:04 login. Sync to NTP, note each source\'s offset, normalize, then correlate. Trusting one clock (B), averaging (C), or hoping tools fix it (D) all preserve the skew.',
     },
   ];
 
   const QUIZ_HARD = [
     {
       id: 'HQ1',
+      topic: 'Containment under fire',
       prompt: '02:10 — encryption is running on FSV-01 and the NAS backup job is still writing to it. Your first TWO actions?',
       options: [
         'Power off FSV-01, then call the backup vendor',
-        'Pay the ransom, then reimage everything',
-        'Wait for a full forensics report before touching anything',
-        'Network-isolate the affected hosts, then block the C2 infrastructure at the firewall',
+        'Pay the attacker, then reimage every host',
+        'Network-isolate affected hosts, then block C2',
+        'Wait for the forensics report to finish before acting',
       ],
-      correct: 3,
-      explanation: 'Stop the spread (network isolation keeps the machine up — memory intact) and cut the operator (C2 block). Powering off destroys evidence; paying is not a control; waiting lets it finish the job.',
+      correct: 2,
+      explanation: 'Isolation stops the spread while keeping hosts powered (memory intact); a C2 block cuts the operator. Power-off (A) destroys evidence; paying (B) funds crime and changes nothing; waiting (D) hands the attacker the rest of the night.',
     },
     {
       id: 'HQ2',
+      topic: 'Write blocker & admissibility',
       prompt: 'An analyst imaged the disk without a write blocker. The defense challenges the evidence. Consequence?',
       options: [
-        'Nothing — images are images',
-        'Only the analyst is fined',
-        'Integrity cannot be proven; the evidence\'s weight and admissibility are seriously damaged',
-        'The image gets a new hash and becomes valid again',
+        'Integrity cannot be proven, so the image loses weight',
+        'Nothing — any bit copy of a disk is valid',
+        'Only the analyst personally faces a fine',
+        'The image gets a fresh hash and becomes valid',
       ],
-      correct: 2,
-      explanation: 'A write blocker guarantees the source is never mutated. Without one, you cannot prove the copy equals the original — and a broken chain of custody or integrity proof can sink the case.',
+      correct: 0,
+      explanation: 'A write blocker guarantees the source never mutates. Without one, you cannot prove the copy equals the original — and integrity is exactly what the defense attacks (A). A bit copy is not auto-valid (B); the harm is evidentiary, not a personal fine (C); rehashing (D) says nothing about the source.',
     },
     {
       id: 'HQ3',
+      topic: 'Timeline normalization',
       prompt: 'The EDR log shows the LSASS dump at 09:22; the VPN gateway shows the login at 10:04. The EDR clock is UTC\u22121. True sequence?',
       options: [
-        'Normalize to UTC: the dump is 10:22 — AFTER the 10:04 login',
-        'Dump first, then VPN login',
-        'Average the times and call it 09:43',
-        'Sequence is unknowable',
+        'Dump first, then the VPN login',
+        'Average the stamps and call the login 09:43',
+        'The order is unknowable from the two logs',
+        'After normalization the dump follows the login',
       ],
-      correct: 0,
-      explanation: 'Normalize every source to one reference clock first. 09:22 agent-local = 10:22 UTC — the dump followed the VPN login by 18 minutes, which matches the kill chain. Unnormalized, you would have inverted cause and effect.',
+      correct: 3,
+      explanation: '09:22 on a UTC\u22121 agent clock is 10:22 UTC — 18 minutes after the 10:04 VPN login. Normalize first, sequence second. Raw stamps (A) invert cause and effect; averaging (B) invents a time; declaring defeat (C) ignores a known offset.',
     },
     {
       id: 'HQ4',
+      topic: 'Restore verification',
       prompt: 'A vendor restored your backup overnight: "it looks fine" — but no hashes are available. Accept it for production restore?',
       options: [
-        'Yes — vendors are trustworthy',
-        'No — verify integrity independently; timestamps can be forged and "looks fine" is not verification',
-        'Yes, but only on the weekend',
-        'Only if the file sizes match',
+        'Yes — vendor restores are trustworthy by default',
+        'No — verify integrity independently before production',
+        'Yes, provided the restore ran on a weekend',
+        'Only if the file sizes match the source',
       ],
       correct: 1,
-      explanation: 'Restoration integrity is provable or it is not. Hash against the vault record, compare catalogs, scan and test — a poisoned backup that "looks fine" is how day-36 re-infections happen.',
+      explanation: '"Looks fine" is not verification. Hash against the vault record, compare catalogs, and test before production (B). Default vendor trust (A), the calendar (C), and file sizes (D) prove nothing about content integrity.',
     },
     {
       id: 'HQ5',
+      topic: 'Eradication completeness',
       prompt: 'Eradication was "signed off". 36 hours later the same service account creates a scheduled task on FSV-02. The most likely miss?',
       options: [
-        'Not enough antivirus scans',
-        'The wrong Windows build was deployed',
-        'The ransom notes were deleted',
-        'Credential rotation scope was too narrow — a compromised account was never reset, and a foothold survived',
+        'Credential rotation was too narrow — a foothold survived',
+        'Antivirus scans were not run often enough',
+        'The rebuild image was the wrong Windows build',
+        'The ransom notes were deleted too early',
       ],
-      correct: 3,
-      explanation: 'Re-infection with the same identity means a foothold survived: an unreset credential or missed persistence. Eradication must cover EVERY credential the attacker saw and EVERY persistence mechanism — then verify.',
+      correct: 0,
+      explanation: 'The same identity returning means the foothold lived: a credential the attacker saw but nobody reset (A). Scan cadence (B), build version (C), and note cleanup (D) do not explain a surviving service account creating tasks.',
     },
     {
       id: 'HQ6',
+      topic: 'Containment judgment',
       prompt: 'FSV-01 (payment host) starts ACTIVELY encrypting at 16:45 — the agreed isolation window was 17:30. What wins?',
       options: [
-        'Active encryption overrides the window — isolate now, then notify the business owner',
-        'The 17:30 window — business agreements are absolute',
-        'Power off the host instead — it is faster',
+        'The 17:30 window — agreements are absolute',
+        'Power off the host — it is faster',
         'Wait for the ransom note before acting',
+        'Isolate now — live encryption overrides the window',
       ],
-      correct: 0,
-      explanation: 'The window governed precautionary isolation. With active encryption in progress, the calculus changes: contain immediately (network isolation, not power-off), and inform the business in parallel. Judgment plus communication is the IR skill.',
+      correct: 3,
+      explanation: 'The window governed precautionary isolation; with encryption already running, every minute costs data (D). Contain by network isolation — not power-off (B) — and inform the business owner in parallel. Waiting (C) or hiding behind the agreement (A) abandons the host.',
     },
     {
       id: 'HQ7',
+      topic: 'Risk communication',
       prompt: 'Post-incident, leadership asks: "Are we safe now?" Best answer?',
       options: [
-        '"Yes — we removed the malware."',
-        '"No one can ever be safe."',
-        '"Risk is reduced, not eliminated: here are the verified controls, the residual risks, and the rehearsed plan for next time."',
-        '"We will know in a year."',
+        '"Yes — we removed every piece of malware."',
+        '"Risk is reduced, and here is why."',
+        '"No one can ever truly be safe."',
+        '"Ask us again in one year."',
       ],
-      correct: 2,
-      explanation: 'Honest IR communication: state what was verified (MFA, segmentation, offline backups), name residual risk, and show the continuous-improvement loop (lessons learned → playbook updates → rehearsal).',
+      correct: 1,
+      explanation: 'Honest IR communication names what was verified (MFA, segmentation, offline backups), what risk remains, and the loop that keeps improving (B). False certainty (A) and fatalism (C) both break trust; deferring (D) hides the work already done.',
     },
   ];
 
@@ -736,7 +749,7 @@
       { label: 'ATT&CK — Enterprise Mitigations index', href: 'https://attack.mitre.org/mitigations/enterprise/' },
       { label: 'NIST SP 800-61 — Computer Security Incident Handling Guide', href: 'https://csrc.nist.gov/pubs/sp/800/61/r2/final' },
     ],
-    accuracyNote: 'Accuracy note: this lab\'s ATT&CK IDs were verified against attack.mitre.org at build time. ATT&CK keeps evolving — "Clear Windows Event Logs" moved from T1070.001 (Indicator Removal) to T1685.005 (Disable or Modify Tools) in a 2025 release. Re-verify IDs when you cite them.',
+    accuracyNote: 'Accuracy note: this lab\'s ATT&CK IDs were verified against attack.mitre.org at build time. ATT&CK keeps evolving — "Clear Windows Event Logs" moved from T1070.001 (Indicator Removal) to T1685.005 (Disable or Modify Tools, under the newer Defense Impairment tactic) in a 2025 release, and the old Defense Evasion tactic is now published as "Stealth". Re-verify IDs when you cite them.',
   };
 
   /* ───────────────────────── Knowledge core ─────────────────────────────── */
@@ -1053,24 +1066,24 @@
 
   /* Custody ledger options (stations-b.tsx, CustodyLedger). */
   const CUSTODY_COLLECTORS = [
-    { id: 'you', label: 'You — IR Coordinator (IR-77)' },
     { id: 'okafor', label: 'R. Okafor — Forensics (was off-site)' },
+    { id: 'you', label: 'You — IR Coordinator (IR-77)' },
     { id: 'facilities', label: 'Facilities keyholder (no IR training)' },
   ];
   const CUSTODY_TAGS = [
+    { id: 'RAM-2317', label: 'RAM-2317' },
     { id: 'IR-2317-RAM-01', label: 'IR-2317-RAM-01' },
     { id: 'IR-2317-RAM1', label: 'IR-2317-RAM1' },
-    { id: 'RAM-2317', label: 'RAM-2317' },
   ];
   const CUSTODY_INTEGRITY = [
-    { id: 'HASH', label: 'Record SHA-256 of the image; verify again after every transfer' },
     { id: 'RENAME', label: 'Rename the file with a .verified extension' },
+    { id: 'HASH', label: 'Record SHA-256 of the image; verify again after every transfer' },
     { id: 'TRUST', label: 'Trust the copying tool — it has never failed before' },
   ];
   const CUSTODY_WHY = [
+    { id: 'WHY-SECRET', label: 'It encrypts the evidence so attackers cannot read it' },
     { id: 'WHY-IDENTICAL', label: 'It proves the copy is bit-identical to the original — integrity is challengeable in any hearing' },
     { id: 'WHY-SIZE', label: 'It compresses the image so it fits on the evidence drive' },
-    { id: 'WHY-SECRET', label: 'It encrypts the evidence so attackers cannot read it' },
   ];
 
   /* M4 acquisition approaches (stations-b.tsx). */
@@ -1082,13 +1095,13 @@
 
   /* H2 parts 2 & 3 options (stations-b.tsx). */
   const H2_FIRST = [
-    { id: 'H2F-RAM', label: 'RAM — ransomware state and any keys exist only in memory on a running host' },
     { id: 'H2F-DISK', label: 'Disk — start with the biggest artifact first' },
+    { id: 'H2F-RAM', label: 'RAM — ransomware state and any keys exist only in memory on a running host' },
     { id: 'H2F-LOGS', label: 'Central logs — they are the easiest to pull' },
   ];
   const H2_SHORTCUT = [
-    { id: 'H2S-LUN', label: 'Cloning the live-mounted SAN LUN without a write blocker' },
     { id: 'H2S-EDR', label: 'Capturing memory with the approved EDR \u201ccapture memory\u201d action' },
+    { id: 'H2S-LUN', label: 'Cloning the live-mounted SAN LUN without a write blocker' },
     { id: 'H2S-FW', label: 'Exporting the firewall logs for the incident window' },
   ];
 

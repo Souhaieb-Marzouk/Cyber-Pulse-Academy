@@ -938,6 +938,37 @@
       });
       c += '</ul></div>';
 
+      /* QA-13 (R8): focus areas derived from THIS run's evidence — multi-attempt
+         objectives, hints used, and missed quiz items. Empty only on a clean run. */
+      const focus = [];
+      modeObjs.forEach(function (o) {
+        const s = state.obj[o.id];
+        if (!s || !s.passed) return;
+        if (s.attempts > 1) {
+          focus.push({ t: o.id + ' — ' + o.title, d: 'took ' + s.attempts + ' verification attempts — re-walk the "' + o.anchor + '" anchor before the exam.' });
+        } else if (s.hintLevel > 0) {
+          focus.push({ t: o.id + ' — ' + o.title, d: 'solved with a hint — replay it once without the nudge to prove the recall.' });
+        }
+      });
+      const bank = mode === 'hard' ? LAB.QUIZ_HARD : LAB.QUIZ_MEDIUM;
+      bank.forEach(function (q) {
+        const a = state.quiz.answers[q.id];
+        if (a !== undefined && a !== q.correct) {
+          focus.push({ t: 'Quiz — ' + q.topic, d: 'answered wrong — reread the explanation, then find the matching station objective and redo it.' });
+        }
+      });
+      c += '<div class="panel panel-focus"><p class="kicker kicker-focus">focus areas</p>';
+      if (focus.length === 0) {
+        c += '<p class="focus-clean">Clean sweep — nothing flagged this run. Bank it: replay the other mode or chase 3 stars without hints.</p>';
+      } else {
+        c += '<ul class="focus-list">';
+        focus.forEach(function (f) {
+          c += '<li class="focus-item">' + icon('target', 'ic') + '<span><strong class="focus-title">' + esc(f.t) + '</strong> — ' + esc(f.d) + '</span></li>';
+        });
+        c += '</ul>';
+      }
+      c += '</div>';
+
       /* next steps */
       c += '<div class="panel"><p class="kicker-muted">what to learn next</p><ul class="next-list">';
       if (mode === 'hard') {
