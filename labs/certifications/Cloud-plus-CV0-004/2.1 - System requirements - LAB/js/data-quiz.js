@@ -1,0 +1,62 @@
+'use strict';
+/* ================= Lab data: knowledge-check quizzes =================
+   QA-audited: correct-answer positions rotate across items (R4), no correct
+   option is the longest (R5), every explanation addresses the distractors.
+   p = pillar, t = topic (feeds the completion report's focus areas). */
+const QUIZ = {
+medium: [
+  {id:'m1', p:'P1', t:'requirement lenses',
+   q:'The Eastport DC lease ends June 30 and every move must be complete by then. What kind of requirement is that?',
+   opts:['A functional requirement','A compatibility requirement','A business requirement','A non-functional performance requirement'], a:2,
+   why:'The deadline comes from the organization \u2014 the business lens. Functional describes what the system does, non-functional how well, compatibility what it can run on \u2014 none of those owns a lease date.'},
+  {id:'m2', p:'P2', t:'p95 sizing',
+   q:'Why do you size Storefront Web from p95 utilization instead of the average?',
+   opts:['Idle hours pull the average down and hide sustained demand','p95 is the absolute peak, so it is the safest basis','p95 is easier to compute from raw request logs','Averages are only valid for storage workloads'], a:0,
+   why:'The average here is 12% CPU while p95 is 34% \u2014 sizing from the average would undersize the service for a third of its busy time. p95 is not the maximum (it discounts one-off outliers), ease of computing is irrelevant to correctness, and averages are valid for any workload \u2014 they just answer a different question.'},
+  {id:'m3', p:'P2', t:'transfer math',
+   q:'Using the ledger conventions (1 Gbps \u00d7 70% usable, decimal units), how long does a 3 TB transfer take?',
+   opts:['About 19 hours','About 38 hours','About 4.8 hours','About 9.5 hours'], a:3,
+   why:'700 Mbps = 87.5 MB/s. 3 TB = 3,000,000 MB \u00f7 87.5 MB/s \u00f7 3600 \u2248 9.5 h (or simply 3 \u00d7 3.17). 4.8 h and 19 h skip or double the usable-rate factor; 38 h is the 12 TB answer.'},
+  {id:'m4', p:'P1', t:'compatibility requirements',
+   q:'Which of these is a compatibility requirement rather than a capacity requirement?',
+   opts:['LedgerDB needs about 14,750 IOPS at p95','AurumDB licenses count virtual cores double','The link delivers 700 Mbps usable','LedgerDB needs 70.4 GB RAM after headroom'], a:1,
+   why:'Licensing terms constrain what the design is allowed to run \u2014 a compatibility requirement. The IOPS, RAM and bandwidth figures are capacity/performance requirements: they say how much is needed, not what is permitted.'},
+  {id:'m5', p:'P2', t:'dependency placement',
+   q:'Storefront issues 840 queries/s to LedgerDB with a 15 ms round-trip budget; cross-region RTT measures 34 ms. What is the correct placement?',
+   opts:['Different regions for blast-radius separation','Same region, different AZ (p95 16 ms under load)','It does not matter \u2014 the app is stateless','Same region, same AZ (p95 11 ms)'], a:3,
+   why:'Only same-AZ placement meets the 15 ms budget: cross-AZ measures 16 ms and cross-region 34 ms at p95. Blast-radius separation is desirable but cannot buy a budget breach, and statelessness removes session affinity \u2014 not inter-tier latency. Data gravity: chatty pairs decide placement together.'},
+  {id:'m6', p:'P4', t:'the Six Rs',
+   q:'The mainframe gateway cannot meet its 8 ms serial-link budget from any cloud region; the mainframe itself retires in 2027. Which R applies?',
+   opts:['Retain','Rehost','Refactor','Retire'], a:0,
+   why:'It must keep running and cannot move \u2014 retain until the dependency retires. Rehost and refactor assume the move happens; retire fits a workload the business no longer needs (like the Reports Server), not one the plant still runs.'}
+],
+hard: [
+  {id:'h1', p:'P2', t:'dependency placement',
+   q:'LedgerDB\u2019s app-visible p95 to Storefront is 11 ms with a 15 ms budget. Same-region cross-AZ measures p95 16 ms under load; same-AZ 11 ms; cross-region 34 ms. Which placement is compliant at peak?',
+   opts:['Cross-region \u2014 34 ms is close enough','Same region, same AZ \u2014 11 ms at peak','Same region, different AZ \u2014 16 ms on average','Placement is irrelevant because the app is stateless'], a:1,
+   why:'The budget applies at p95, not on average: 16 ms breaches 15 ms under load, and 34 ms is not \u201cclose\u201d to a hard budget. Only same-AZ (11 ms) is compliant \u2014 and statelessness is about sessions, not inter-tier latency.'},
+  {id:'h2', p:'P2', t:'transfer math',
+   q:'Fleet transfer planning: which total and schedule does the evidence support?',
+   opts:['16.4 TB \u2192 48.9 h \u2192 13 nights (sum every workload)','12 TB \u2192 38.1 h \u2192 10 nights (the archive alone)','14.45 TB \u2192 45.9 h \u2192 11 nights','14.45 TB \u2192 45.9 h \u2192 12 nights (migrating workloads only)'], a:3,
+   why:'Reports Server (0.9 TB) and BOM Gateway (0.05 TB) do not migrate \u2014 1.8 + 0.45 + 12 + 0.2 = 14.45 TB \u2248 45.9 h. The archive-only figure ignores three migrating workloads, and eleven nights deliver only 44 h \u2014 short of 45.9 \u2014 so 12 nights.'},
+  {id:'h3', p:'P2', t:'method selection',
+   q:'Which pair of factors most directly drives choosing staged nightly pre-seed over one big online transfer?',
+   opts:['Data volume and usable link bandwidth','RTO and RPO of the workload','OS version and hypervisor format','Egress price and DNS TTL'], a:0,
+   why:'12 TB at 87.5 MB/s cannot fit a night or a safe weekend window \u2014 volume \u00d7 bandwidth dictates staged seeding. RTO/RPO shape recovery targets, OS/hypervisor shape image compatibility, and egress/DNS are cost and cutover details \u2014 none decides the transfer method here.'},
+  {id:'h4', p:'P2', t:'RTO/RPO',
+   q:'LedgerDB fails at 09:00. The last backup completed at 00:00; service is restored at 11:30. What was actually achieved?',
+   opts:['RTO 9 h, RPO 2.5 h','RTO 11.5 h, RPO 9 h','RTO 2.5 h, RPO 9 h','RTO 2.5 h, RPO 0'], a:2,
+   why:'RTO = downtime = 09:00\u219211:30 = 2.5 h. RPO = data loss window = 00:00\u219209:00 = 9 h \u2014 the swapped reading reverses the two clocks, and zero data loss would require a synchronous replica. It was NOT within the 15 min objective: a failed DR test.'},
+  {id:'h5', p:'P4', t:'licensing & budget',
+   q:'BYOL on the 16-vCPU LedgerDB host bills 32 licensed cores \u00d7 $180 = $5,760/mo. The managed edition adds a flat $74/mo. As the architect you should\u2026',
+   opts:['Choose the managed edition and record the licensing requirement','Keep BYOL \u2014 owning the licenses is always cheaper','Refactor the application off the database entirely','Shrink the host to 2 vCPU to fit BYOL in budget'], a:0,
+   why:'The evidence gives a 78\u00d7 cost gap; the managed edition keeps the same engine (a replatform, not a repurchase) and keeps the budget gate passable. BYOL is demonstrably not cheaper here, no requirement justifies a rewrite, and shrinking the instance violates the sizing headroom policy.'},
+  {id:'h6', p:'P4', t:'residency & controls',
+   q:'Legal proposes \u201cencrypt the payroll data with customer-managed keys and host it in us-west\u201d. Why is this non-compliant?',
+   opts:['Customer-managed keys are not allowed for PII','us-west cannot reach the corporate IdP','It is compliant if the egress is encrypted too','Encryption protects data; residency needs an EU region'], a:3,
+   why:'Residency constrains where the data physically sits \u2014 encryption protects it but never moves it, and the memo pins payroll to an EU region. Customer-managed keys are fine for PII, the corporate IdP is reachable over the private WAN link, and adding more encryption does not change the location.'},
+  {id:'h7', p:'P4', t:'the Six Rs',
+   q:'Reports Server: Windows Server 2012 R2 (end of life), CPU p95 3%, owner says the BI SaaS replaces it in Q3. Best action?',
+   opts:['Rehost after an in-place OS upgrade','Retire \u2014 exclude it from transfer and waves','Retain in the cloud \u2014 move it and leave it','Refactor it into containers first'], a:1,
+   why:'The owner directive and the contracted successor make retiring the defensible call: upgrading, moving or containerizing a retiring asset spends budget the owner explicitly declined, and retaining contradicts the directive. Excluded workloads also stay out of the volume math \u2014 the wave plan spends nothing on them.'}
+]};
